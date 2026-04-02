@@ -187,6 +187,7 @@ export interface Institution {
 
 export interface NcbaConfig {
     clientId: string;
+    clientSecret: string;
     baseUrl: string;
     accountNumber: string;
     shortCode?: string;

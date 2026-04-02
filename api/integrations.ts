@@ -788,7 +788,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const tokenUrl = `${tokenBase}/oauth/v1/generate?grant_type=client_credentials`;
             
             console.log(`[NCBA Auth] Fetching token from: ${tokenUrl}`);
-            const auth = Buffer.from(`${cId}`).toString('base64'); // Only using Client ID as per user feedback
+            const auth = Buffer.from(`${cId}:${cSec}`).toString('base64');
             let tokenRes: Response;
             try {
                 tokenRes = await fetchWithTimeout(tokenUrl, {

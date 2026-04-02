@@ -279,7 +279,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         props.currentInstitution?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' }
     );
     const [localInstNcbaConfig, setLocalInstNcbaConfig] = useState<NcbaConfig>(
-        props.currentInstitution?.ncbaConfig || { clientId: '', baseUrl: '', environment: 'sandbox', headers: [], params: [], accountNumber: '' }
+        props.currentInstitution?.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', environment: 'sandbox', headers: [], params: [], accountNumber: '' }
     );
     const [localInstMpesaConfig, setLocalInstMpesaConfig] = useState<MpesaConfig>(
         props.currentInstitution?.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' }
@@ -291,7 +291,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
     useEffect(() => {
         setLocalInstSmsConfig(props.currentInstitution?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
-        setLocalInstNcbaConfig(props.currentInstitution?.ncbaConfig || { clientId: '', baseUrl: '', environment: 'sandbox', headers: [], params: [], accountNumber: '' });
+        setLocalInstNcbaConfig(props.currentInstitution?.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', environment: 'sandbox', headers: [], params: [], accountNumber: '' });
         setLocalInstMpesaConfig(props.currentInstitution?.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' });
     }, [props.currentInstitution]);
     // Update local state when profile changes
@@ -492,7 +492,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         welcomeMessage: props.companyDetails?.chatAssistantConfig?.welcomeMessage || '',
         chatEnabled: props.companyDetails?.chatAssistantConfig?.enabled ?? true,
         enforceGlobalOtp: props.currentInstitution?.institutionType === 'Business' ? props.companyDetails?.enforceGlobalOtp ?? false : props.companyDetails?.enforceGlobalOtp ?? false,
-        ncbaConfig: (props.companyDetails as any)?.ncbaConfig || { clientId: '', baseUrl: '', accountNumber: '', environment: 'sandbox', headers: [], params: [] },
+        ncbaConfig: (props.companyDetails as any)?.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', accountNumber: '', environment: 'sandbox', headers: [], params: [] },
         showcaseConfig: props.companyDetails?.showcaseConfig || { enabled: true, showLoginLink: true }
     });
 
@@ -521,7 +521,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 welcomeMessage: props.companyDetails.chatAssistantConfig?.welcomeMessage || '',
                 chatEnabled: props.companyDetails.chatAssistantConfig?.enabled ?? true,
                 enforceGlobalOtp: props.companyDetails.enforceGlobalOtp ?? false,
-                ncbaConfig: (props.companyDetails as any).ncbaConfig || { clientId: '', baseUrl: '', accountNumber: '', environment: 'sandbox', headers: [], params: [] },
+                ncbaConfig: (props.companyDetails as any).ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', accountNumber: '', environment: 'sandbox', headers: [], params: [] },
                 showcaseConfig: props.companyDetails.showcaseConfig || { enabled: true, showLoginLink: true }
             });
             setLocalSmsConfig(props.companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -1334,6 +1334,16 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                             placeholder="Enter Client ID"
                                                         />
                                                     </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">OAuth Client Secret</label>
+                                                        <input 
+                                                            type="password" 
+                                                            value={localCompanyInfo.ncbaConfig?.clientSecret || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, clientSecret: e.target.value } as any })}
+                                                            className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
+                                                            placeholder="••••••••••••••••"
+                                                        />
+                                                    </div>
                                                 </div>
 
                                                 <div className="space-y-6">
@@ -1796,6 +1806,16 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 value={localInstNcbaConfig.clientId || ''} 
                                                 onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientId: e.target.value })}
                                                 className="form-input" 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client Secret</label>
+                                            <input 
+                                                type="password" 
+                                                value={localInstNcbaConfig.clientSecret || ''} 
+                                                onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientSecret: e.target.value })}
+                                                className="form-input" 
+                                                placeholder="••••••••••••••••"
                                             />
                                         </div>
                                         <div className="md:col-span-2 pt-4 border-t border-slate-200/50 dark:border-slate-700/50">

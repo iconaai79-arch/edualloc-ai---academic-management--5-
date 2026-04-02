@@ -26,6 +26,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     businessSubType: '',
     ncbaConfig: {
       clientId: '',
+      clientSecret: '',
       baseUrl: '',
       accountNumber: '',
       shortCode: '',
@@ -59,6 +60,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         businessSubType: institution.businessSubType || '',
         ncbaConfig: {
           clientId: institution.ncbaConfig?.clientId || '',
+          clientSecret: institution.ncbaConfig?.clientSecret || '',
           baseUrl: institution.ncbaConfig?.baseUrl || '',
           accountNumber: institution.ncbaConfig?.accountNumber || '',
           shortCode: institution.ncbaConfig?.shortCode || '',
@@ -414,6 +416,16 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                           onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, clientId: e.target.value } })}
                           className="form-input text-[10px] h-10"
                           placeholder="NCBA Client ID"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Client Secret</label>
+                        <input
+                          type="password"
+                          value={formData.ncbaConfig.clientSecret}
+                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, clientSecret: e.target.value } })}
+                          className="form-input text-[10px] h-10"
+                          placeholder="••••••••••••••••"
                         />
                       </div>
                       <div>

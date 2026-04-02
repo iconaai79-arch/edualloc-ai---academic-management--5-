@@ -552,7 +552,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             cpanelSecret: '',
             items: []
         },
-        ncbaConfig: companyDetails?.ncbaConfig || { clientId: '', baseUrl: '', accountNumber: '', environment: 'sandbox', headers: [], params: [], stkPushBaseUrl: '', requestUrl: '', pushStkUrl: '', callbackUsername: '', callbackSecret: '', notificationApiKey: '' }
+        ncbaConfig: companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', accountNumber: '', environment: 'sandbox', headers: [], params: [], stkPushBaseUrl: '', requestUrl: '', pushStkUrl: '', callbackUsername: '', callbackSecret: '', notificationApiKey: '' }
     });
 
     const [localSmsConfig, setLocalSmsConfig] = useState<SmsConfig>(companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -586,7 +586,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     cpanelSecret: '',
                     items: []
                 },
-                ncbaConfig: companyDetails.ncbaConfig || { clientId: '', baseUrl: '', accountNumber: '', environment: 'sandbox', headers: [], params: [], stkPushBaseUrl: '', requestUrl: '', pushStkUrl: '', callbackUsername: '', callbackSecret: '', notificationApiKey: '' }
+                ncbaConfig: companyDetails.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', accountNumber: '', environment: 'sandbox', headers: [], params: [], stkPushBaseUrl: '', requestUrl: '', pushStkUrl: '', callbackUsername: '', callbackSecret: '', notificationApiKey: '' }
             });
             setLocalSmsConfig(companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '', smsUnitPrice: 1, minSmsUnits: 100 });
             setLocalEmailConfig(companyDetails.emailConfig || { host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
@@ -2922,6 +2922,16 @@ Please change it after login.`;
                                                             placeholder="Enter Client ID"
                                                         />
                                                     </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">NCBA Client Secret</label>
+                                                        <input 
+                                                            type="password" 
+                                                            value={localCompanyInfo.ncbaConfig?.clientSecret || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, clientSecret: e.target.value } as any })}
+                                                            className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
+                                                            placeholder="••••••••••••••••"
+                                                        />
+                                                    </div>
                                                     <div className="space-y-2">
                                                         <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">NCBA Gateway Base URL</label>
                                                         <input 
@@ -3160,7 +3170,7 @@ Please change it after login.`;
                                             <div className="flex justify-end pt-4 gap-4">
                                                 <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/20 text-xs text-amber-700 flex-1 max-w-xl">
                                                     <div className="flex gap-2 items-center mb-1"><InformationCircleIcon className="w-4 h-4" /><span className="font-bold uppercase tracking-tight">Security Notice</span></div>
-                                                    <p>NCBA API credentials allow programmatic movement of funds. Ensure your client ID and settlement accounts are stored securely. These settings apply globally to platform-level settlement.</p>
+                                                    <p>NCBA API credentials allow programmatic movement of funds. Ensure your client ID, client secret, and settlement accounts are stored securely. These settings apply globally to platform-level settlement.</p>
                                                 </div>
                                                 <button onClick={handleSaveGlobalConfigs} className="btn-primary h-14 px-12 shadow-xl shadow-teal-100 dark:shadow-none bg-teal-600 border-none uppercase tracking-widest text-[10px]">Save NCBA Config</button>
                                             </div>
