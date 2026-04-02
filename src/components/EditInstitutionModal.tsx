@@ -145,10 +145,10 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     try {
       const { apiService } = await import('../services/apiService');
       const res = await apiService.initiatePayment('ncba', 1, phoneNumber, undefined, formData.ncbaConfig);
-      if (res.success) alert('NCBA STK Push initiated successfully. Check your phone.');
-      else alert(`NCBA STK Push failed: ${res.message || 'Unknown error'}`);
+      if (res.success) alert("NCBA STK Push request sent to phone.");
+      else alert(`NCBA Initiation Failure: ${res.message || 'Unknown error. Please check your credentials and endpoint URLs.'}`);
     } catch (e: any) {
-      alert(`Test failed: ${e.message}`);
+      alert(`NCBA Handshake Error: ${e.message || 'Connection failed'}`);
     }
   };
 

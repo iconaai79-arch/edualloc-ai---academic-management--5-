@@ -538,9 +538,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         try {
             const res = await apiService.initiatePayment('ncba', 1, phoneNumber, undefined, localInstNcbaConfig);
             if (res.success) alert("NCBA STK Push request sent to phone.");
-            else alert("Failed to initiate NCBA payment. Please check your settings.");
-        } catch (e) {
-            alert("NCBA gateway connection error.");
+            else alert(`NCBA Initiation Failure: ${res.message || 'Unknown error. Please check your credentials and endpoint URLs.'}`);
+        } catch (e: any) {
+            alert(`NCBA Handshake Error: ${e.message || 'Connection failed'}`);
         }
     };
 
@@ -550,9 +550,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         try {
             const res = await apiService.initiatePayment('ncba', 1, phoneNumber, undefined, localCompanyInfo.ncbaConfig);
             if (res.success) alert("NCBA STK Push request sent to phone.");
-            else alert("Failed to initiate NCBA payment. Please check your settings.");
-        } catch (e) {
-            alert("NCBA gateway connection error.");
+            else alert(`NCBA Initiation Failure: ${res.message || 'Unknown error. Please check your credentials and endpoint URLs.'}`);
+        } catch (e: any) {
+            alert(`NCBA Handshake Error: ${e.message || 'Connection failed'}`);
         }
     };
 
