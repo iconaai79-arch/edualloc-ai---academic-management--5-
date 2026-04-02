@@ -812,6 +812,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     TransactionType: 'CustomerPayBillOnline'
                 }, ncbaConfig.params))
             });
+
+            if (!res.ok) {
+                const text = await res.text();
+                console.error(`[NCBA STK] Gateway error (${res.status}):`, text);
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    return { StatusCode: 'ERROR', StatusDescription: `HTTP ${res.status}: ${text.substring(0, 100)}` };
+                }
+            }
             return await res.json();
         };
 

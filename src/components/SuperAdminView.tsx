@@ -765,7 +765,10 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         try {
             const res = await apiService.initiatePayment('ncba', 1, testRecipient, undefined, localCompanyInfo.ncbaConfig);
             if (res.success) alert("NCBA STK Push request sent to phone.");
-            else alert(`NCBA Initiation Failure: ${res.message || 'Unknown error. Please check your credentials and endpoint URLs.'}`);
+            else {
+                const detail = res.error || (res.details ? JSON.stringify(res.details) : '');
+                alert(`NCBA Initiation Failure: ${res.message || 'Unknown error.'}${detail ? '\n\nDetail: ' + detail : ''}`);
+            }
         } catch (e: any) {
             alert(`NCBA Handshake Error: ${e.message || 'Connection failed'}`);
         } finally {
