@@ -782,16 +782,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             if (!cId || !cSec) throw new Error('NCBA Client ID or Client Secret is missing.');
             
+            // Normalize the base URL for the token endpoint
+            let tokenBase = (ncbaConfig.baseUrl || ncbaConfig.base_url || 'https://api.ncbagroup.com').trim().replace(/\/+$/, '');
+            if (!tokenBase.startsWith('http')) tokenBase = 'https://' + tokenBase;
+            const tokenUrl = `${tokenBase}/oauth/v1/generate?grant_type=client_credentials`;
+            
+            console.log(`[NCBA Auth] Fetching token from: ${tokenUrl}`);
             const auth = Buffer.from(`${cId}:${cSec}`).toString('base64');
-            const tokenRes = await fetchWithTimeout(`${ncbaConfig.baseUrl || ncbaConfig.base_url || 'https://api.ncbagroup.com'}/oauth/v1/generate?grant_type=client_credentials`, {
-                method: 'POST',
-                headers: { 'Authorization': `Basic ${auth}` }
-            }, 25000);
+            let tokenRes: Response;
+            try {
+                tokenRes = await fetchWithTimeout(tokenUrl, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Basic ${auth}` }
+                }, 25000);
+            } catch (fetchErr: any) {
+                const isAbort = fetchErr?.name === 'AbortError';
+                throw new Error(
+                    isAbort
+                        ? `NCBA Auth timed out (25s). The server at ${tokenBase} did not respond in time. Check the Base URL is correct and publicly accessible.`
+                        : `NCBA Auth network error: ${fetchErr.message}. The server could not reach ${tokenBase}. Verify the Base URL is correct.`
+                );
+            }
             if (!tokenRes.ok) {
                 const errData = await safeParseJson(tokenRes, 'NCBA Auth failed').catch(e => ({ message: e.message }));
                 throw new Error(errData.message || `NCBA Auth failed: ${tokenRes.statusText} (${tokenRes.status})`);
             }
             const data = await safeParseJson(tokenRes) as any;
+            if (!data.access_token) throw new Error('NCBA Auth succeeded but no access_token was returned. Check client credentials.');
             return data.access_token;
         };
 
@@ -818,22 +835,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     : (!effectiveBase.endsWith('/') && !effectivePath.startsWith('/') ? effectiveBase + '/' + effectivePath : effectiveBase + effectivePath));
 
             console.log(`[NCBA STK] Initiation request to: ${fullUrl}`);
-            const res = await fetchWithTimeout(fullUrl, {
-                method: 'POST',
-                headers: mergeHeaders({
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                    'X-API-Key': ncbaConfig.apiKey || ncbaConfig.api_key
-                }, ncbaConfig.headers),
-                body: JSON.stringify(mergeParams({
-                    TelephoneNo: normalizePhoneNCBA(phone),
-                    Amount: String(amount),
-                    PayBillNo: ncbaConfig.paybill || '880100',
-                    AccountNo: ncbaConfig.accountNumber || ncbaConfig.account_number,
-                    Network: 'Safaricom',
-                    TransactionType: 'CustomerPayBillOnline'
-                }, ncbaConfig.params))
-            });
+            let res: Response;
+            try {
+                res = await fetchWithTimeout(fullUrl, {
+                    method: 'POST',
+                    headers: mergeHeaders({
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'X-API-Key': ncbaConfig.apiKey || ncbaConfig.api_key
+                    }, ncbaConfig.headers),
+                    body: JSON.stringify(mergeParams({
+                        TelephoneNo: normalizePhoneNCBA(phone),
+                        Amount: String(amount),
+                        PayBillNo: ncbaConfig.paybill || '880100',
+                        AccountNo: ncbaConfig.accountNumber || ncbaConfig.account_number,
+                        Network: 'Safaricom',
+                        TransactionType: 'CustomerPayBillOnline'
+                    }, ncbaConfig.params))
+                }, 25000);
+            } catch (fetchErr: any) {
+                const isAbort = fetchErr?.name === 'AbortError';
+                throw new Error(
+                    isAbort
+                        ? `NCBA STK Push timed out (25s). The gateway at ${fullUrl} did not respond. Check the STK Push Base URL.`
+                        : `NCBA STK network error: ${fetchErr.message}. Could not reach ${fullUrl}. Verify the STK Push Base URL.`
+                );
+            }
 
             if (!res.ok) {
                 return await safeParseJson(res, 'NCBA STK initiation rejected').catch(e => ({ success: false, StatusCode: 'ERROR', StatusDescription: e.message }));
