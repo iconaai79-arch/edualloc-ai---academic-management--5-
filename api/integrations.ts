@@ -97,10 +97,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return JSON.parse(text);
         } catch (e) {
             // If not JSON, extract a snippet of the response (e.g., "A server error...")
-            const snippet = text.substring(0, 500).trim().replace(/<[^>]*>?/gm, ''); // Larger snippet, strip HTML tags if any
-            const errorMsg = `${defaultErrorPrefix} (${res.status}): ${snippet || 'Invalid response format'}`;
-            console.error(`[NCBA DEBUG] Raw error body: ${text.substring(0, 1000)}`);
-            throw new Error(errorMsg);
+            const snippet = text.substring(0, 150).trim().replace(/<[^>]*>?/gm, ''); // Strip HTML tags if any
+            throw new Error(`${defaultErrorPrefix}: ${snippet || 'Invalid response format'}`);
         }
     };
 
@@ -777,23 +775,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             return res.status(200).json({ success: true, resetToken });
         }
-        // --- NCBA & Gateway Helpers ---
-        const mergeHeaders = (base: any, customHeaders?: { name: string; value: string }[]) => {
-            if (!customHeaders || customHeaders.length === 0) return base;
-            const extra = customHeaders
-                .filter(h => h.name && h.name.trim())
-                .reduce((acc, h) => ({ ...acc, [h.name.trim()]: h.value }), {});
-            return { ...base, ...extra };
-        };
-
-        const mergeParams = (base: any, customParams?: { name: string; value: string }[]) => {
-            if (!customParams || customParams.length === 0) return base;
-            const extra = customParams
-                .filter(p => p.name && p.name.trim())
-                .reduce((acc, p) => ({ ...acc, [p.name.trim()]: p.value }), {});
-            return { ...base, ...extra };
-        };
-
         // --- NCBA Bank Helpers (2024 Spec) ---
         const getNcbaToken = async (ncbaConfig: any) => {
             const cId = ncbaConfig.clientId || ncbaConfig.client_id;
@@ -804,12 +785,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Normalize the base URL for the token endpoint
             let tokenBase = (ncbaConfig.baseUrl || ncbaConfig.base_url || 'https://api.ncbagroup.com').trim().replace(/\/+$/, '');
             if (!tokenBase.startsWith('http')) tokenBase = 'https://' + tokenBase;
-
-            // Priority: ncbaConfig.requestUrl (configurable via UI) -> Standard NCBA v1 (fallback)
-            const tokenPath = ncbaConfig.requestUrl || ncbaConfig.request_url || '/oauth/v1/generate';
-            const tokenUrl = tokenPath.startsWith('http') 
-                ? tokenPath 
-                : `${tokenBase}${tokenPath.startsWith('/') ? '' : '/'}${tokenPath}${tokenPath.includes('?') ? '' : '?grant_type=client_credentials'}`;
+            const tokenUrl = `${tokenBase}/oauth/v1/generate?grant_type=client_credentials`;
             
             console.log(`[NCBA Auth] Fetching token from: ${tokenUrl}`);
             const auth = Buffer.from(`${cId}:${cSec}`).toString('base64');
@@ -817,9 +793,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             try {
                 tokenRes = await fetchWithTimeout(tokenUrl, {
                     method: 'POST',
-                    headers: mergeHeaders({ 
-                        'Authorization': `Basic ${auth}`
-                    }, ncbaConfig.headers)
+                    headers: { 'Authorization': `Basic ${auth}` }
                 }, 25000);
             } catch (fetchErr: any) {
                 const isAbort = fetchErr?.name === 'AbortError';
@@ -831,14 +805,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             if (!tokenRes.ok) {
                 const errData = await safeParseJson(tokenRes, 'NCBA Auth failed').catch(e => ({ message: e.message }));
-                console.error(`[NCBA DEBUG] Auth request failed with status ${tokenRes.status}`);
                 throw new Error(errData.message || `NCBA Auth failed: ${tokenRes.statusText} (${tokenRes.status})`);
             }
             const data = await safeParseJson(tokenRes) as any;
-            if (!data.access_token) {
-                console.error(`[NCBA DEBUG] Auth success but no access_token. Body: ${JSON.stringify(data).substring(0, 200)}`);
-                throw new Error('NCBA Auth succeeded but no access_token was returned. Check client credentials.');
-            }
+            if (!data.access_token) throw new Error('NCBA Auth succeeded but no access_token was returned. Check client credentials.');
             return data.access_token;
         };
 
@@ -893,7 +863,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (!res.ok) {
-                console.error(`[NCBA DEBUG] STK Push initiation failed with status ${res.status}`);
                 return await safeParseJson(res, 'NCBA STK initiation rejected').catch(e => ({ success: false, StatusCode: 'ERROR', StatusDescription: e.message }));
             }
             return await safeParseJson(res);
@@ -961,6 +930,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return p; // Expected format: 254XXXXXXXXX
         };
 
+        const mergeHeaders = (base: any, customHeaders?: { name: string; value: string }[]) => {
+            if (!customHeaders || customHeaders.length === 0) return base;
+            const extra = customHeaders
+                .filter(h => h.name && h.name.trim())
+                .reduce((acc, h) => ({ ...acc, [h.name.trim()]: h.value }), {});
+            return { ...base, ...extra };
+        };
+
+        const mergeParams = (base: any, customParams?: { name: string; value: string }[]) => {
+            if (!customParams || customParams.length === 0) return base;
+            const extra = customParams
+                .filter(p => p.name && p.name.trim())
+                .reduce((acc, p) => ({ ...acc, [p.name.trim()]: p.value }), {});
+            return { ...base, ...extra };
+        };
 
         // Internal Helper for Reconciliation
         const reconcilePayment = async (txn: any) => {
