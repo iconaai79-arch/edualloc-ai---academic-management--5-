@@ -809,13 +809,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const tokenPath = isNewEndpoint ? '/payments/oauth/v1/generate' : '/oauth/v1/generate';
             // Some NCBA/WSO2 gateways require grant_type in the query string
             const tokenUrl = `${tokenBase}${tokenPath}?grant_type=client_credentials`;
-            
-            console.log(`[NCBA Auth] Fetching token from: ${tokenUrl}`);
+                        process.stdout.write(`[NCBA Auth] Strategy: Dual Auth (Basic Header + Body params). URL: ${tokenUrl}\n`);
             const auth = Buffer.from(`${cId}:${cSec}`).toString('base64');
             
-            // Send grant_type in the body as form-urlencoded (more standard for OAuth2)
+            // Send credentials in BOTH header (Basic) and body (as fallback)
             const body = new URLSearchParams();
             body.append('grant_type', 'client_credentials');
+            body.append('client_id', cId);
+            body.append('client_secret', cSec);
 
             let tokenRes: Response;
             try {
@@ -824,11 +825,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     headers: { 
                         'Authorization': `Basic ${auth}`,
                         'Content-Type': 'application/x-www-form-urlencoded',
-                        'Accept': 'application/json',
-                        'User-Agent': 'EduAlloc-AI/1.0.0 (Bank-Integration-Client)'
+                        'Accept': 'application/json, text/plain, */*',
+                        'User-Agent': 'PostmanRuntime/7.32.3'
                     },
                     body: body.toString(),
-                    redirect: 'manual' // We want to catch and report redirects instead of blindly following to HTML
+                    redirect: 'manual'
+
                 }, 25000);
 
                 // Handle Redirects (NCBA Gateway often redirects on invalid paths/headers)
