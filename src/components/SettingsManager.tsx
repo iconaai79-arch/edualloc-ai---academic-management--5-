@@ -1826,16 +1826,17 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem]">
                                         <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client ID</label>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client ID (Consumer Key)</label>
                                             <input 
                                                 type="text" 
                                                 value={localInstNcbaConfig.clientId || ''} 
                                                 onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientId: e.target.value })}
                                                 className="form-input" 
+                                                placeholder="Enter Consumer Key / Client ID"
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client Secret</label>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client Secret (Secret Key)</label>
                                             <input 
                                                 type="password" 
                                                 value={localInstNcbaConfig.clientSecret || ''} 

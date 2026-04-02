@@ -2921,17 +2921,17 @@ Please change it after login.`;
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">OAuth Client ID</label>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">OAuth Client ID (Consumer Key)</label>
                                                         <input 
                                                             type="text" 
                                                             value={localCompanyInfo.ncbaConfig?.clientId || ''} 
                                                             onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, clientId: e.target.value } as any })}
                                                             className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
-                                                            placeholder="Enter Client ID"
+                                                            placeholder="Enter Consumer Key / Client ID"
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">NCBA Client Secret</label>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">NCBA Client Secret (Secret Key)</label>
                                                         <input 
                                                             type="password" 
                                                             value={localCompanyInfo.ncbaConfig?.clientSecret || ''} 

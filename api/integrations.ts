@@ -796,8 +796,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return 'mock-access-token-ncba-12345';
             }
 
-            const cId = (ncbaConfig.clientId || ncbaConfig.client_id || '').trim();
-            const cSec = (ncbaConfig.clientSecret || ncbaConfig.client_secret || '').trim();
+            const cId = (ncbaConfig.clientId || ncbaConfig.client_id || ncbaConfig.consumerKey || ncbaConfig.consumer_key || '').trim();
+            const cSec = (ncbaConfig.clientSecret || ncbaConfig.client_secret || ncbaConfig.secretKey || ncbaConfig.secret_key || ncbaConfig.consumerSecret || ncbaConfig.consumer_secret || '').trim();
             
             if (!cId || !cSec) throw new Error('NCBA Client ID or Client Secret is missing.');
             
