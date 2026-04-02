@@ -788,7 +788,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const tokenUrl = `${tokenBase}/oauth/v1/generate?grant_type=client_credentials`;
             
             console.log(`[NCBA Auth] Fetching token from: ${tokenUrl}`);
-            const auth = Buffer.from(`${cId}:${cSec}`).toString('base64');
+            const auth = Buffer.from(`${cId}`).toString('base64'); // Only using Client ID as per user feedback
             let tokenRes: Response;
             try {
                 tokenRes = await fetchWithTimeout(tokenUrl, {
@@ -841,8 +841,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     method: 'POST',
                     headers: mergeHeaders({
                         'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                        'X-API-Key': ncbaConfig.apiKey || ncbaConfig.api_key
+                        'Content-Type': 'application/json'
                     }, ncbaConfig.headers),
                     body: JSON.stringify(mergeParams({
                         TelephoneNo: normalizePhoneNCBA(phone),
@@ -888,8 +887,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 method: 'POST',
                 headers: mergeHeaders({
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                    'X-API-Key': ncbaConfig.apiKey || ncbaConfig.api_key
+                    'Content-Type': 'application/json'
                 }, ncbaConfig.headers),
                 body: JSON.stringify(mergeParams({
                     TransactionID: checkoutRequestId
@@ -1538,11 +1536,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 console.log(`[NCBA ncbaQueryStatus] Query URL: ${queryUrl}`);
                 const resStatus = await fetchWithTimeout(queryUrl, {
                     method: 'POST',
-                    headers: mergeHeaders({ 
+                    headers: { 
                         'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                        'X-API-Key': ncbaConfig.apiKey
-                    }, ncbaConfig.headers),
+                        'Content-Type': 'application/json'
+                    },
                     body: JSON.stringify(mergeParams({ TransactionID: checkoutRequestId }, ncbaConfig.params))
                 });
                 if (resStatus.ok) {

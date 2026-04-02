@@ -187,12 +187,8 @@ export interface Institution {
 
 export interface NcbaConfig {
     clientId: string;
-    clientSecret: string;
-    apiKey: string;
     baseUrl: string;
     accountNumber: string;
-    merchantId?: string;
-    webhookSecret?: string;
     shortCode?: string;
     environment?: 'sandbox' | 'production';
     headers?: { name: string; value: string }[];

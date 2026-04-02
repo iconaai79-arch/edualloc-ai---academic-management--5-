@@ -26,12 +26,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     businessSubType: '',
     ncbaConfig: {
       clientId: '',
-      clientSecret: '',
-      apiKey: '',
       baseUrl: '',
       accountNumber: '',
-      merchantId: '',
-      webhookSecret: '',
       shortCode: '',
       environment: 'sandbox' as 'sandbox' | 'production',
       callbackUsername: '',
@@ -63,12 +59,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         businessSubType: institution.businessSubType || '',
         ncbaConfig: {
           clientId: institution.ncbaConfig?.clientId || '',
-          clientSecret: institution.ncbaConfig?.clientSecret || '',
-          apiKey: institution.ncbaConfig?.apiKey || '',
           baseUrl: institution.ncbaConfig?.baseUrl || '',
           accountNumber: institution.ncbaConfig?.accountNumber || '',
-          merchantId: institution.ncbaConfig?.merchantId || '',
-          webhookSecret: institution.ncbaConfig?.webhookSecret || '',
           shortCode: institution.ncbaConfig?.shortCode || '',
           environment: institution.ncbaConfig?.environment || 'sandbox',
           callbackUsername: institution.ncbaConfig?.callbackUsername || '',
@@ -422,26 +414,6 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                           onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, clientId: e.target.value } })}
                           className="form-input text-[10px] h-10"
                           placeholder="NCBA Client ID"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Client Secret</label>
-                        <input
-                          type="password"
-                          value={formData.ncbaConfig.clientSecret}
-                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, clientSecret: e.target.value } })}
-                          className="form-input text-[10px] h-10"
-                          placeholder="••••••••"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Merchant ID</label>
-                        <input
-                          type="text"
-                          value={formData.ncbaConfig.merchantId}
-                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, merchantId: e.target.value } })}
-                          className="form-input text-[10px] h-10 font-mono"
-                          placeholder="Merchant ID"
                         />
                       </div>
                       <div>
