@@ -941,13 +941,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 )}
 
                 {activeTab === 'retail' && (
-                    <ModuleAccessGuard
-                        moduleId="school_store"
-                        moduleName="School Store & Inventory"
-                        description="Manage your school's inventory, sales, and retail operations with a premium store module."
-                        institution={props.currentInstitution}
-                        onActivateTrial={onActivateModuleTrial}
-                    >
+                    isRetailAgency ? (
+                        // Retail Agency institutions: render directly, no school_store guard needed
                         <RetailManager
                             institutionId={props.currentInstitution?.id || ''}
                             businessSubType={props.currentInstitution?.businessSubType}
@@ -960,7 +955,29 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             onAddRequisition={props.onAddRequisition}
                             onUpdateRequisition={props.onUpdateRequisition}
                         />
-                    </ModuleAccessGuard>
+                    ) : (
+                        // Schools/non-retail: guard behind school_store module
+                        <ModuleAccessGuard
+                            moduleId="school_store"
+                            moduleName="School Store & Inventory"
+                            description="Manage your school's inventory, sales, and retail operations with a premium store module."
+                            institution={props.currentInstitution}
+                            onActivateTrial={onActivateModuleTrial}
+                        >
+                            <RetailManager
+                                institutionId={props.currentInstitution?.id || ''}
+                                businessSubType={props.currentInstitution?.businessSubType}
+                                currentUser={props.currentUser}
+                                retailStores={retailStores}
+                                inventory={inventory}
+                                retailExpenses={retailExpenses}
+                                onAddRetailExpense={props.onAddRetailExpense}
+                                requisitions={props.requisitions}
+                                onAddRequisition={props.onAddRequisition}
+                                onUpdateRequisition={props.onUpdateRequisition}
+                            />
+                        </ModuleAccessGuard>
+                    )
                 )}
 
                 {(() => {
