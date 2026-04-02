@@ -786,7 +786,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const tokenRes = await fetchWithTimeout(`${ncbaConfig.baseUrl || ncbaConfig.base_url || 'https://api.ncbagroup.com'}/oauth/v1/generate?grant_type=client_credentials`, {
                 method: 'POST',
                 headers: { 'Authorization': `Basic ${auth}` }
-            });
+            }, 25000);
             if (!tokenRes.ok) {
                 const errData = await safeParseJson(tokenRes, 'NCBA Auth failed').catch(e => ({ message: e.message }));
                 throw new Error(errData.message || `NCBA Auth failed: ${tokenRes.statusText} (${tokenRes.status})`);
@@ -810,9 +810,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             // Priority: pushStkUrl (new) -> 2024 spec default
             const effectivePath = ncbaConfig.pushStkUrl || '/payments/api/v1/stk-push/initiate';
-            const fullUrl = effectiveBase.endsWith('/') && effectivePath.startsWith('/') 
-                ? effectiveBase + effectivePath.substring(1) 
-                : (!effectiveBase.endsWith('/') && !effectivePath.startsWith('/') ? effectiveBase + '/' + effectivePath : effectiveBase + effectivePath);
+            // If the path field contains a full URL, use it directly; otherwise join with base
+            const fullUrl = effectivePath.startsWith('http')
+                ? effectivePath
+                : (effectiveBase.endsWith('/') && effectivePath.startsWith('/') 
+                    ? effectiveBase + effectivePath.substring(1) 
+                    : (!effectiveBase.endsWith('/') && !effectivePath.startsWith('/') ? effectiveBase + '/' + effectivePath : effectiveBase + effectivePath));
 
             console.log(`[NCBA STK] Initiation request to: ${fullUrl}`);
             const res = await fetchWithTimeout(fullUrl, {
@@ -846,9 +849,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!effectiveBase.startsWith('http')) effectiveBase = 'https://' + effectiveBase;
 
             const effectivePath = ncbaConfig.queryStkUrl || ncbaConfig.query_stk_url || '/payments/api/v1/stk-push/query';
-            const fullUrl = effectiveBase.endsWith('/') && effectivePath.startsWith('/') 
-                ? effectiveBase + effectivePath.substring(1) 
-                : (!effectiveBase.endsWith('/') && !effectivePath.startsWith('/') ? effectiveBase + '/' + effectivePath : effectiveBase + effectivePath);
+            // If the path field contains a full URL, use it directly; otherwise join with base
+            const fullUrl = effectivePath.startsWith('http')
+                ? effectivePath
+                : (effectiveBase.endsWith('/') && effectivePath.startsWith('/') 
+                    ? effectiveBase + effectivePath.substring(1) 
+                    : (!effectiveBase.endsWith('/') && !effectivePath.startsWith('/') ? effectiveBase + '/' + effectivePath : effectiveBase + effectivePath));
 
             console.log(`[NCBA Query] Status request for: ${checkoutRequestId} to: ${fullUrl}`);
             const res = await fetchWithTimeout(fullUrl, {
@@ -1496,9 +1502,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             try {
                 const token = await getNcbaToken(ncbaConfig);
-                const effectiveBase = ncbaConfig.stkPushBaseUrl || ncbaConfig.baseUrl;
-                // 2024 Spec: POST /payments/api/v1/stk-push/query
-                const resStatus = await fetchWithTimeout(`${effectiveBase}/payments/api/v1/stk-push/query`, {
+                const effectiveBase = (ncbaConfig.stkPushBaseUrl || ncbaConfig.baseUrl || '').trim();
+                const queryPath = ncbaConfig.queryStkUrl || '/payments/api/v1/stk-push/query';
+                // If queryStkUrl is a full URL, use it directly; otherwise join with base
+                const queryUrl = queryPath.startsWith('http')
+                    ? queryPath
+                    : (effectiveBase + (effectiveBase.endsWith('/') ? queryPath.replace(/^\//, '') : queryPath.startsWith('/') ? queryPath : '/' + queryPath));
+                console.log(`[NCBA ncbaQueryStatus] Query URL: ${queryUrl}`);
+                const resStatus = await fetchWithTimeout(queryUrl, {
                     method: 'POST',
                     headers: mergeHeaders({ 
                         'Authorization': `Bearer ${token}`,
