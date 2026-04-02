@@ -1347,16 +1347,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (action === 'ncbaInitiateStk') {
             const { institutionId, phone } = paramsMap;
+            const isPlatformService = ['sms', 'subscription', 'one-off'].includes(paramsMap.metadata?.type);
             
             // Prioritize config from request body (for testing unsaved changes)
             let ncbaConfig = bodyConfig;
             let targetInstId = institutionId;
 
             if (!ncbaConfig) {
+                // Try institution-specific config first
                 const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId || user?.user_metadata?.institutionId).maybeSingle();
-                if (!inst || !inst.ncbaConfig) return res.status(400).json({ success: false, message: 'NCBA Integration not configured for this institution.' });
-                ncbaConfig = inst.ncbaConfig;
-                targetInstId = inst.id;
+                
+                if (inst && inst.ncbaConfig) {
+                    ncbaConfig = inst.ncbaConfig;
+                    targetInstId = inst.id;
+                } else if (isPlatformService) {
+                    // Fallback to Global Super Admin config for platform services (SMS/Subscription)
+                    ncbaConfig = settings.ncba_config || settings.ncbaConfig;
+                    targetInstId = institutionId || user?.user_metadata?.institutionId || 'SYSTEM';
+                    console.log(`[NCBA Gateway] Falling back to global configuration for ${paramsMap.metadata?.type} purchase.`);
+                }
+
+                if (!ncbaConfig) {
+                    return res.status(400).json({ 
+                        success: false, 
+                        message: isPlatformService 
+                            ? 'NCBA Integration not configured. Please contact Super Admin to set up global payments.' 
+                            : 'NCBA Integration not configured for this institution.' 
+                    });
+                }
             }
 
             try {
@@ -1390,13 +1408,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (action === 'ncbaGenerateQr') {
             const { institutionId } = paramsMap;
+            const isPlatformService = ['sms', 'subscription', 'one-off'].includes(paramsMap.metadata?.type);
 
             // Prioritize config from request body
             let ncbaConfig = bodyConfig;
             if (!ncbaConfig) {
                 const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId || user?.user_metadata?.institutionId).maybeSingle();
-                if (!inst || !inst.ncbaConfig) return res.status(400).json({ success: false, message: 'NCBA Config missing' });
-                ncbaConfig = inst.ncbaConfig;
+                
+                if (inst && inst.ncbaConfig) {
+                    ncbaConfig = inst.ncbaConfig;
+                } else if (isPlatformService) {
+                    ncbaConfig = settings.ncba_config || settings.ncbaConfig;
+                }
+
+                if (!ncbaConfig) {
+                    return res.status(400).json({ success: false, message: 'NCBA Configuration is missing. Please apply Super Admin configuration for platform services.' });
+                }
             }
 
             try {
