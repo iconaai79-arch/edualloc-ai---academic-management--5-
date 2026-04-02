@@ -776,6 +776,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({ success: true, resetToken });
         }
         // --- NCBA Bank Helpers (2024 Spec) ---
+        const normalizeNcbaUrl = (url?: string): string => {
+            if (!url) return 'https://c2bapis.ncbagroup.com';
+            let normalized = url.trim().replace(/\/+$/, '');
+            if (!normalized.startsWith('http')) normalized = 'https://' + normalized;
+            
+            // Legacy Migration: Auto-swap old host for new gateway
+            if (normalized.includes('api.ncbagroup.com')) {
+                console.log(`[NCBA Integration] Auto-migrating legacy URL: ${normalized} -> https://c2bapis.ncbagroup.com`);
+                normalized = normalized.replace('api.ncbagroup.com', 'c2bapis.ncbagroup.com');
+            }
+            return normalized;
+        };
+
         const getNcbaToken = async (ncbaConfig: any) => {
             const isMock = ncbaConfig.isMock === true || ncbaConfig.isMock === 'true';
             if (isMock) {
@@ -789,8 +802,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!cId || !cSec) throw new Error('NCBA Client ID or Client Secret is missing.');
             
             // Normalize the base URL for the token endpoint
-            let tokenBase = (ncbaConfig.baseUrl || ncbaConfig.base_url || 'https://c2bapis.ncbagroup.com').trim().replace(/\/+$/, '');
-            if (!tokenBase.startsWith('http')) tokenBase = 'https://' + tokenBase;
+            const tokenBase = normalizeNcbaUrl(ncbaConfig.baseUrl || ncbaConfig.base_url);
             
             // On c2bapis, the path must be prefixed with /payments
             const isNewEndpoint = tokenBase.includes('c2bapis.ncbagroup.com');
@@ -861,14 +873,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const token = await getNcbaToken(ncbaConfig);
             
             // Priority: stkPushBaseUrl (new) -> baseUrl (legacy)
-            let effectiveBase = (ncbaConfig.stkPushBaseUrl || ncbaConfig.stk_push_base_url || ncbaConfig.baseUrl || ncbaConfig.base_url || '').trim();
+            const effectiveBase = normalizeNcbaUrl(ncbaConfig.stkPushBaseUrl || ncbaConfig.stk_push_base_url || ncbaConfig.baseUrl || ncbaConfig.base_url);
             if (!effectiveBase) throw new Error('NCBA Base URL or STK Push Base URL is missing in the configuration.');
-            
-            // Auto-prepend https if protocol is missing
-            if (!effectiveBase.startsWith('http')) {
-                effectiveBase = 'https://' + effectiveBase;
-                console.log(`[NCBA STK] Auto-prepended https to base: ${effectiveBase}`);
-            }
             
             // Priority: pushStkUrl (new) -> 2024 spec default
             const effectivePath = ncbaConfig.pushStkUrl || '/payments/api/v1/stk-push/initiate';

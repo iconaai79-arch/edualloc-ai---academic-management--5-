@@ -552,7 +552,14 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         const phoneNumber = prompt('Enter phone number for NCBA STK Push test:');
         if (!phoneNumber) return;
         try {
+            console.log('[NCBA Test] Initiating Institution STK Push test...', {
+                recipient: phoneNumber,
+                baseUrl: localCompanyInfo.ncbaConfig?.baseUrl,
+                stkPushBaseUrl: localCompanyInfo.ncbaConfig?.stkPushBaseUrl,
+                isMock: localCompanyInfo.ncbaConfig?.isMock
+            });
             const res = await apiService.initiatePayment('ncba', 1, phoneNumber, undefined, localCompanyInfo.ncbaConfig);
+            console.log('[NCBA Test] Response:', res);
             if (res.success) alert("NCBA STK Push request sent to phone.");
             else {
                 const detail = res.error || (res.details ? JSON.stringify(res.details) : '');
