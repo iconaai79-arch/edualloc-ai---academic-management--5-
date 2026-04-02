@@ -34,6 +34,7 @@ import { RectangleStackIcon } from './icons/RectangleStackIcon';
 import { Cog8ToothIcon } from './icons/Cog8ToothIcon';
 import { CheckIcon } from './icons/CheckIcon';
 import { ShieldIcon } from './icons/ShieldIcon';
+import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';

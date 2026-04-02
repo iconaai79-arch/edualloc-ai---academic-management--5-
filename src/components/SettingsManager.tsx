@@ -38,6 +38,7 @@ import { ClockIcon } from './icons/ClockIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 import { AcademicCapIcon } from './icons/AcademicCapIcon';
 import { ShieldIcon } from './icons/ShieldIcon';
+import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { MpesaIcon } from './icons/MpesaIcon';
 import { ArrowsRightLeftIcon } from './icons/ArrowsRightLeftIcon';
 import { CurrencyIcon } from './icons/CurrencyIcon';
