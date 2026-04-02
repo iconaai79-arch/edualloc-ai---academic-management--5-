@@ -771,7 +771,7 @@ export const apiService = {
     },
     async fetchInstitutions(institutionId?: string): Promise<Institution[]> { return this.fetchModuleRecords('institutions', institutionId); },
     async saveInstitution(inst: Institution): Promise<void> { 
-        const { countyId, ncbaConfig, ...rest } = inst;
+        const { countyId, ncbaConfig, moduleStates, ...rest } = inst as any;
         await this.saveModuleRecord('institutions', { 
             ...rest, 
             county_id: countyId,
