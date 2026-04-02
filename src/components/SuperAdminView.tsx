@@ -3744,6 +3744,7 @@ Please change it after login.`;
                     onSave={async (id, data) => { if (props.onUpdateInstitution) await props.onUpdateInstitution(id, data); setEditingInstitution(null); }}
                     defaultPrices={companyDetails.subscriptionConfig}
                     counties={counties}
+                    globalNcbaConfig={companyDetails?.ncbaConfig}
                 />
             )}
 
