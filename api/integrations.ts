@@ -844,6 +844,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return await res.json();
         };
 
+        const queryNcbaStkStatus = async (ncbaConfig: any, checkoutRequestId: string) => {
+            const token = await getNcbaToken(ncbaConfig);
+            
+            let effectiveBase = (ncbaConfig.stkPushBaseUrl || ncbaConfig.stk_push_base_url || ncbaConfig.baseUrl || ncbaConfig.base_url || '').trim();
+            if (!effectiveBase) throw new Error('NCBA Base URL is missing.');
+            if (!effectiveBase.startsWith('http')) effectiveBase = 'https://' + effectiveBase;
+
+            const effectivePath = ncbaConfig.queryStkUrl || ncbaConfig.query_stk_url || '/payments/api/v1/stk-push/query';
+            const fullUrl = effectiveBase.endsWith('/') && effectivePath.startsWith('/') 
+                ? effectiveBase + effectivePath.substring(1) 
+                : (!effectiveBase.endsWith('/') && !effectivePath.startsWith('/') ? effectiveBase + '/' + effectivePath : effectiveBase + effectivePath);
+
+            console.log(`[NCBA Query] Status request for: ${checkoutRequestId} to: ${fullUrl}`);
+            const res = await fetchWithTimeout(fullUrl, {
+                method: 'POST',
+                headers: mergeHeaders({
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'X-API-Key': ncbaConfig.apiKey || ncbaConfig.api_key
+                }, ncbaConfig.headers),
+                body: JSON.stringify(mergeParams({
+                    TransactionID: checkoutRequestId
+                }, ncbaConfig.params))
+            });
+
+            if (!res.ok) {
+                const text = await res.text();
+                console.error(`[NCBA Query] Gateway error (${res.status}):`, text);
+                try { return JSON.parse(text); } catch (e) { return { StatusCode: 'ERROR', StatusDescription: text }; }
+            }
+            return await res.json();
+        };
+
         const generateNcbaQr = async (ncbaConfig: any, amount: number) => {
             const token = await getNcbaToken(ncbaConfig);
             // 2024 Spec: POST /payments/api/v1/qr/generate
@@ -1490,6 +1523,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(resStatus.status).json({ success: false, message: 'Failed to query NCBA status.' });
             } catch (err: any) {
                 return res.status(500).json({ success: false, message: 'Error querying NCBA status.', error: err.message });
+            }
+        }
+
+        if (action === 'ncbaQueryStk') {
+            const { institutionId, checkoutRequestId } = paramsMap;
+            const isPlatformService = true; // Status check is always allowed if we have config
+
+            let ncbaConfig = bodyConfig ? toCamelCase(bodyConfig) : null;
+            if (!ncbaConfig) {
+                const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId || user?.user_metadata?.institutionId).maybeSingle();
+                if (inst && inst.ncbaConfig) {
+                    ncbaConfig = toCamelCase(inst.ncbaConfig);
+                } else {
+                    ncbaConfig = toCamelCase(settings.ncba_config || settings.ncbaConfig);
+                }
+            }
+
+            if (!ncbaConfig) return res.status(400).json({ success: false, message: 'NCBA Integration not configured.' });
+
+            try {
+                const result = await queryNcbaStkStatus(ncbaConfig, checkoutRequestId);
+                return res.status(200).json({ success: true, status: result });
+            } catch (err: any) {
+                console.error(`[NCBA Query Fatal]:`, err);
+                return res.status(500).json({ success: false, message: 'NCBA Status Query failed.', error: err.message });
             }
         }
 

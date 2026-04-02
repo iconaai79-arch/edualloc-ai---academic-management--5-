@@ -2897,9 +2897,22 @@ Please change it after login.`;
                                                         <input 
                                                             type="text" 
                                                             value={localCompanyInfo.ncbaConfig?.pushStkUrl || ''} 
+                                                        <input 
+                                                            type="text" 
+                                                            value={localCompanyInfo.ncbaConfig?.pushStkUrl || ''} 
                                                             onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, pushStkUrl: e.target.value } as any })}
                                                             className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
                                                             placeholder="/v1/stk/push"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">STK Push Query URL Path</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={localCompanyInfo.ncbaConfig?.queryStkUrl || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, queryStkUrl: e.target.value } as any })}
+                                                            className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
+                                                            placeholder="/v1/stk/query"
                                                         />
                                                     </div>
                                                     <div>

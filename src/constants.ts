@@ -50,7 +50,7 @@ export const INITIAL_COMPANY_DETAILS: CompanyDetails = {
         pricingAmount: 150,
         customUrl: "https://marketplace.eduai.co.ke"
     },
-    ncbaConfig: { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', accountNumber: '', environment: 'sandbox' }
+    ncbaConfig: { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', accountNumber: '', environment: 'sandbox', queryStkUrl: '' }
 };
 
 const generatePeriods = (count: number, duration: number, start: string): TimetablePeriod[] => {

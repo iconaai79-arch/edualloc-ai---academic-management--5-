@@ -203,6 +203,7 @@ export interface NcbaConfig {
     stkPushBaseUrl?: string;
     requestUrl?: string;
     pushStkUrl?: string;
+    queryStkUrl?: string;
 }
 
 
