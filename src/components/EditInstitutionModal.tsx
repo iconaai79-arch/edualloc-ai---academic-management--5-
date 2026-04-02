@@ -662,7 +662,6 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                         Required for STK Push and QR Code notifications. NCBA should use the **Callback Username** and **Callback Secret** as Basic Auth credentials.
                       </p>
                     </div>
-                    </div>
                   </div>
                 </div>
               </div>
