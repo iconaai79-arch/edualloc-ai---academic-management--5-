@@ -8,10 +8,9 @@ interface EditInstitutionModalProps {
   onSave: (institutionId: string, data: Partial<Omit<Institution, 'id'>>) => void;
   defaultPrices: SubscriptionConfig;
   counties: County[];
-  globalNcbaConfig?: any;
 }
 
-export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ institution, onClose, onSave, defaultPrices, counties, globalNcbaConfig }) => {
+export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ institution, onClose, onSave, defaultPrices, counties }) => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -382,7 +381,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                           value={formData.ncbaConfig.stkPushBaseUrl}
                           onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, stkPushBaseUrl: e.target.value } })}
                           className="form-input text-[10px] h-10 font-mono"
-                          placeholder={globalNcbaConfig?.stkPushBaseUrl || "https://api.ncbagroup.com"}
+                          placeholder="https://api.ncbagroup.com"
                         />
                       </div>
                       <div>
@@ -392,7 +391,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                           value={formData.ncbaConfig.requestUrl}
                           onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, requestUrl: e.target.value } })}
                           className="form-input text-[10px] h-10 font-mono"
-                          placeholder={globalNcbaConfig?.requestUrl || "/v1/stk/request"}
+                          placeholder="/v1/stk/request"
                         />
                       </div>
                       <div>
@@ -402,17 +401,17 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                           value={formData.ncbaConfig.pushStkUrl}
                           onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, pushStkUrl: e.target.value } })}
                           className="form-input text-[10px] h-10 font-mono"
-                          placeholder={globalNcbaConfig?.pushStkUrl || '/v1/stk/push'}
+                          placeholder="/v1/stk/push"
                         />
                       </div>
                       <div>
-                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">STK Push Query URL Path</label>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">STK Push Query URL (POST)</label>
                         <input
                           type="text"
-                          value={formData.ncbaConfig.queryStkUrl}
+                          value={formData.ncbaConfig.queryStkUrl || ''}
                           onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, queryStkUrl: e.target.value } })}
                           className="form-input text-[10px] h-10 font-mono"
-                          placeholder={globalNcbaConfig?.queryStkUrl || '/v1/stk/query'}
+                          placeholder="/v1/stk/query"
                         />
                       </div>
                       <div>
@@ -422,7 +421,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                           value={formData.ncbaConfig.clientId}
                           onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, clientId: e.target.value } })}
                           className="form-input text-[10px] h-10"
-                          placeholder={globalNcbaConfig?.clientId || "NCBA Client ID"}
+                          placeholder="NCBA Client ID"
                         />
                       </div>
                       <div>
@@ -442,7 +441,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                           value={formData.ncbaConfig.merchantId}
                           onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, merchantId: e.target.value } })}
                           className="form-input text-[10px] h-10 font-mono"
-                          placeholder={globalNcbaConfig?.merchantId || "Merchant ID"}
+                          placeholder="Merchant ID"
                         />
                       </div>
                       <div>
@@ -452,7 +451,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                           value={formData.ncbaConfig.shortCode}
                           onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, shortCode: e.target.value } })}
                           className="form-input text-[10px] h-10 font-mono"
-                          placeholder={globalNcbaConfig?.shortCode || "e.g. 123456"}
+                          placeholder="e.g. 123456"
                         />
                       </div>
                       <div>

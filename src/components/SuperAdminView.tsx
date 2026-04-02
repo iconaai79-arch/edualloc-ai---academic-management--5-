@@ -3029,7 +3029,7 @@ Please change it after login.`;
                                                                         value={header.name} 
                                                                         placeholder="Name"
                                                                         onChange={e => {
-                                                                            const newHeaders = [...localCompanyInfo.ncbaConfig.headers];
+                                                                            const newHeaders = [...(localCompanyInfo.ncbaConfig.headers || [])];
                                                                             newHeaders[idx].name = e.target.value;
                                                                             setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, headers: newHeaders } as any });
                                                                         }}
@@ -3040,7 +3040,7 @@ Please change it after login.`;
                                                                         value={header.value} 
                                                                         placeholder="Value"
                                                                         onChange={e => {
-                                                                            const newHeaders = [...localCompanyInfo.ncbaConfig.headers];
+                                                                            const newHeaders = [...(localCompanyInfo.ncbaConfig.headers || [])];
                                                                             newHeaders[idx].value = e.target.value;
                                                                             setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, headers: newHeaders } as any });
                                                                         }}
@@ -3049,7 +3049,7 @@ Please change it after login.`;
                                                                     <button 
                                                                         type="button"
                                                                         onClick={() => {
-                                                                            const newHeaders = localCompanyInfo.ncbaConfig.headers.filter((_: any, i: number) => i !== idx);
+                                                                            const newHeaders = (localCompanyInfo.ncbaConfig.headers || []).filter((_: any, i: number) => i !== idx);
                                                                             setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, headers: newHeaders } as any });
                                                                         }}
                                                                         className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl"
@@ -3086,7 +3086,7 @@ Please change it after login.`;
                                                                         value={param.name} 
                                                                         placeholder="Key"
                                                                         onChange={e => {
-                                                                            const newParams = [...localCompanyInfo.ncbaConfig.params];
+                                                                            const newParams = [...(localCompanyInfo.ncbaConfig.params || [])];
                                                                             newParams[idx].name = e.target.value;
                                                                             setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, params: newParams } as any });
                                                                         }}
@@ -3097,7 +3097,7 @@ Please change it after login.`;
                                                                         value={param.value} 
                                                                         placeholder="Value"
                                                                         onChange={e => {
-                                                                            const newParams = [...localCompanyInfo.ncbaConfig.params];
+                                                                            const newParams = [...(localCompanyInfo.ncbaConfig.params || [])];
                                                                             newParams[idx].value = e.target.value;
                                                                             setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, params: newParams } as any });
                                                                         }}
@@ -3106,7 +3106,7 @@ Please change it after login.`;
                                                                     <button 
                                                                         type="button"
                                                                         onClick={() => {
-                                                                            const newParams = localCompanyInfo.ncbaConfig.params.filter((_: any, i: number) => i !== idx);
+                                                                            const newParams = (localCompanyInfo.ncbaConfig.params || []).filter((_: any, i: number) => i !== idx);
                                                                             setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, params: newParams } as any });
                                                                         }}
                                                                         className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl"
@@ -3744,7 +3744,6 @@ Please change it after login.`;
                     onSave={async (id, data) => { if (props.onUpdateInstitution) await props.onUpdateInstitution(id, data); setEditingInstitution(null); }}
                     defaultPrices={companyDetails.subscriptionConfig}
                     counties={counties}
-                    globalNcbaConfig={companyDetails?.ncbaConfig}
                 />
             )}
 

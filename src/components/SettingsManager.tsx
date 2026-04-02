@@ -276,13 +276,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
     // Per-institution SMS gateway config state (for admin SMS Gateway sub-tab)
     const [localInstSmsConfig, setLocalInstSmsConfig] = useState<SmsConfig>(
-        props.currentInstitution?.smsConfig || props.companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' }
+        props.currentInstitution?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' }
     );
     const [localInstNcbaConfig, setLocalInstNcbaConfig] = useState<NcbaConfig>(
-        props.currentInstitution?.ncbaConfig || (props.companyDetails as any)?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox', headers: [], params: [] }
+        props.currentInstitution?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox', headers: [], params: [], accountNumber: '' }
     );
     const [localInstMpesaConfig, setLocalInstMpesaConfig] = useState<MpesaConfig>(
-        props.currentInstitution?.mpesaConfig || props.companyDetails?.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' }
+        props.currentInstitution?.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' }
     );
     const [isSavingInstSms, setIsSavingInstSms] = useState(false);
     const [saveInstSmsStatus, setSaveInstSmsStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -290,10 +290,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [saveInstGatewaysStatus, setSaveInstGatewaysStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
     useEffect(() => {
-        setLocalInstSmsConfig(props.currentInstitution?.smsConfig || props.companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
-        setLocalInstNcbaConfig(props.currentInstitution?.ncbaConfig || (props.companyDetails as any)?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox', headers: [], params: [] });
-        setLocalInstMpesaConfig(props.currentInstitution?.mpesaConfig || props.companyDetails?.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' });
-    }, [props.currentInstitution, props.companyDetails?.smsConfig, props.companyDetails?.mpesaConfig]);
+        setLocalInstSmsConfig(props.currentInstitution?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
+        setLocalInstNcbaConfig(props.currentInstitution?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox', headers: [], params: [], accountNumber: '' });
+        setLocalInstMpesaConfig(props.currentInstitution?.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' });
+    }, [props.currentInstitution]);
     // Update local state when profile changes
     useEffect(() => {
         if (selectedProfileId === 'default') {
@@ -1388,6 +1388,16 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                 placeholder="/v1/stk/push"
                                                             />
                                                         </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">STK Push Query (POST)</label>
+                                                            <input 
+                                                                type="text" 
+                                                                value={localCompanyInfo.ncbaConfig?.queryStkUrl || ''} 
+                                                                onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, queryStkUrl: e.target.value } as any })}
+                                                                className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
+                                                                placeholder="/v1/stk/query"
+                                                            />
+                                                        </div>
                                                     </div>
                                                     <div>
                                                         <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Gateway Base URL</label>
@@ -1853,6 +1863,16 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 value={localInstNcbaConfig.pushStkUrl || ''} 
                                                 placeholder="/v1/stk/push"
                                                 onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, pushStkUrl: e.target.value })}
+                                                className="form-input font-mono" 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">STK Query URL (POST)</label>
+                                            <input 
+                                                type="text" 
+                                                value={localInstNcbaConfig.queryStkUrl || ''} 
+                                                placeholder="/v1/stk/query"
+                                                onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, queryStkUrl: e.target.value })}
                                                 className="form-input font-mono" 
                                             />
                                         </div>
@@ -2928,9 +2948,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             </button>
                                             <button 
                                                 onClick={async () => {
+                                                    if (!props.onUpdateInstitution || !props.currentInstitution) return;
                                                     try {
-                                                        await props.onUpdateInstitution({
-                                                            ...props.currentInstitution!,
+                                                        await props.onUpdateInstitution(props.currentInstitution.id, {
                                                             ncbaConfig: localInstNcbaConfig,
                                                         });
                                                         alert('Institution NCBA configuration updated successfully.');
