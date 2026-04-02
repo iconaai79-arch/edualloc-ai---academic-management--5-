@@ -552,7 +552,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             cpanelSecret: '',
             items: []
         },
-        ncbaConfig: companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', accountNumber: '', environment: 'sandbox' }
+        ncbaConfig: companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', accountNumber: '', environment: 'sandbox', headers: [], params: [] }
     });
 
     const [localSmsConfig, setLocalSmsConfig] = useState<SmsConfig>(companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -586,7 +586,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     cpanelSecret: '',
                     items: []
                 },
-                ncbaConfig: companyDetails.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', accountNumber: '', environment: 'sandbox' }
+                ncbaConfig: companyDetails.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', accountNumber: '', environment: 'sandbox', headers: [], params: [] }
             });
             setLocalSmsConfig(companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '', smsUnitPrice: 1, minSmsUnits: 100 });
             setLocalEmailConfig(companyDetails.emailConfig || { host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
@@ -754,6 +754,20 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             else alert("Failed to initiate payment. Please check your M-Pesa settings.");
         } catch (e) {
             alert("M-Pesa gateway connection error.");
+        } finally {
+            setIsTesting(false);
+        }
+    };
+
+    const handleTestGlobalNcbaStk = async () => {
+        if (!testRecipient) return alert("Enter a phone number for NCBA STK Push test.");
+        setIsTesting(true);
+        try {
+            const res = await apiService.initiatePayment('ncba', 1, testRecipient, undefined, localCompanyInfo.ncbaConfig);
+            if (res.success) alert("NCBA STK Push request sent to phone.");
+            else alert("Failed to initiate NCBA payment. Please check your settings.");
+        } catch (e) {
+            alert("NCBA gateway connection error.");
         } finally {
             setIsTesting(false);
         }
@@ -2939,12 +2953,137 @@ Please change it after login.`;
                                                         <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">API Environment</label>
                                                         <select 
                                                             value={localCompanyInfo.ncbaConfig?.environment || 'sandbox'} 
-                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, environment: e.target.value } as any })}
-                                                            className="form-select h-12 font-bold"
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, environment: e.target.value as any } as any })}
+                                                            className="form-select text-[10px] h-12 font-black uppercase tracking-widest bg-white dark:bg-slate-900 border-slate-200"
                                                         >
-                                                            <option value="sandbox">Sandbox / Testing</option>
+                                                            <option value="sandbox">Sandbox / Staging</option>
                                                             <option value="production">Live Production</option>
                                                         </select>
+                                                    </div>
+
+                                                    <div className="md:col-span-2 pt-6 border-t border-slate-100 dark:border-slate-800">
+                                                        <div className="flex justify-between items-center mb-4">
+                                                            <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest">Custom HTTP Headers</label>
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => setLocalCompanyInfo({
+                                                                    ...localCompanyInfo,
+                                                                    ncbaConfig: {
+                                                                        ...localCompanyInfo.ncbaConfig,
+                                                                        headers: [...(localCompanyInfo.ncbaConfig.headers || []), { name: '', value: '' }]
+                                                                    } as any
+                                                                })}
+                                                                className="text-[10px] font-black uppercase text-indigo-600 flex items-center gap-1 hover:underline"
+                                                            >
+                                                                <PlusIcon className="w-3 h-3" /> Add Header
+                                                            </button>
+                                                        </div>
+                                                        <div className="space-y-3">
+                                                            {(localCompanyInfo.ncbaConfig.headers || []).map((header: any, idx: number) => (
+                                                                <div key={idx} className="flex gap-2 items-center animate-fade-in">
+                                                                    <input 
+                                                                        type="text" 
+                                                                        value={header.name} 
+                                                                        placeholder="Name"
+                                                                        onChange={e => {
+                                                                            const newHeaders = [...localCompanyInfo.ncbaConfig.headers];
+                                                                            newHeaders[idx].name = e.target.value;
+                                                                            setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, headers: newHeaders } as any });
+                                                                        }}
+                                                                        className="form-input text-[10px] h-10 bg-white dark:bg-slate-900 font-mono" 
+                                                                    />
+                                                                    <input 
+                                                                        type="text" 
+                                                                        value={header.value} 
+                                                                        placeholder="Value"
+                                                                        onChange={e => {
+                                                                            const newHeaders = [...localCompanyInfo.ncbaConfig.headers];
+                                                                            newHeaders[idx].value = e.target.value;
+                                                                            setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, headers: newHeaders } as any });
+                                                                        }}
+                                                                        className="form-input text-[10px] h-10 bg-white dark:bg-slate-900 font-mono" 
+                                                                    />
+                                                                    <button 
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            const newHeaders = localCompanyInfo.ncbaConfig.headers.filter((_: any, i: number) => i !== idx);
+                                                                            setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, headers: newHeaders } as any });
+                                                                        }}
+                                                                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl"
+                                                                    >
+                                                                        <XIcon className="w-5 h-5" />
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="md:col-span-2 pt-6 border-t border-slate-100 dark:border-slate-800">
+                                                        <div className="flex justify-between items-center mb-4">
+                                                            <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest">Custom Parameters</label>
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => setLocalCompanyInfo({
+                                                                    ...localCompanyInfo,
+                                                                    ncbaConfig: {
+                                                                        ...localCompanyInfo.ncbaConfig,
+                                                                        params: [...(localCompanyInfo.ncbaConfig.params || []), { name: '', value: '' }]
+                                                                    } as any
+                                                                })}
+                                                                className="text-[10px] font-black uppercase text-indigo-600 flex items-center gap-1 hover:underline"
+                                                            >
+                                                                <PlusIcon className="w-3 h-3" /> Add Parameter
+                                                            </button>
+                                                        </div>
+                                                        <div className="space-y-3">
+                                                            {(localCompanyInfo.ncbaConfig.params || []).map((param: any, idx: number) => (
+                                                                <div key={idx} className="flex gap-2 items-center animate-fade-in">
+                                                                    <input 
+                                                                        type="text" 
+                                                                        value={param.name} 
+                                                                        placeholder="Key"
+                                                                        onChange={e => {
+                                                                            const newParams = [...localCompanyInfo.ncbaConfig.params];
+                                                                            newParams[idx].name = e.target.value;
+                                                                            setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, params: newParams } as any });
+                                                                        }}
+                                                                        className="form-input text-[10px] h-10 bg-white dark:bg-slate-900 font-mono" 
+                                                                    />
+                                                                    <input 
+                                                                        type="text" 
+                                                                        value={param.value} 
+                                                                        placeholder="Value"
+                                                                        onChange={e => {
+                                                                            const newParams = [...localCompanyInfo.ncbaConfig.params];
+                                                                            newParams[idx].value = e.target.value;
+                                                                            setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, params: newParams } as any });
+                                                                        }}
+                                                                        className="form-input text-[10px] h-10 bg-white dark:bg-slate-900 font-mono" 
+                                                                    />
+                                                                    <button 
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            const newParams = localCompanyInfo.ncbaConfig.params.filter((_: any, i: number) => i !== idx);
+                                                                            setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, params: newParams } as any });
+                                                                        }}
+                                                                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl"
+                                                                    >
+                                                                        <XIcon className="w-5 h-5" />
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="md:col-span-2 pt-6">
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleTestGlobalNcbaStk}
+                                                            disabled={isTesting}
+                                                            className="btn-primary px-8 h-12 bg-indigo-600"
+                                                        >
+                                                            {isTesting ? 'Testing...' : 'Test NCBA STK Push'}
+                                                        </button>
                                                     </div>
 
                                                     <div className="md:col-span-2 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">

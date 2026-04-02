@@ -36,7 +36,9 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       environment: 'sandbox' as 'sandbox' | 'production',
       callbackUsername: '',
       callbackSecret: '',
-      notificationApiKey: ''
+      notificationApiKey: '',
+      headers: [] as { name: string; value: string }[],
+      params: [] as { name: string; value: string }[]
     }
   });
 
@@ -67,7 +69,9 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
           environment: institution.ncbaConfig?.environment || 'sandbox',
           callbackUsername: institution.ncbaConfig?.callbackUsername || '',
           callbackSecret: institution.ncbaConfig?.callbackSecret || '',
-          notificationApiKey: institution.ncbaConfig?.notificationApiKey || ''
+          notificationApiKey: institution.ncbaConfig?.notificationApiKey || '',
+          headers: institution.ncbaConfig?.headers || [],
+          params: institution.ncbaConfig?.params || []
         }
       });
     }
@@ -126,6 +130,20 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         notificationApiKey: `key_${generateRandomString(24)}`
       }
     }));
+  };
+
+  const handleTestNcbaStk = async () => {
+    const phoneNumber = prompt('Enter phone number for NCBA STK Push test:', formData.phoneNumber);
+    if (!phoneNumber) return;
+
+    try {
+      const { apiService } = await import('../services/apiService');
+      const res = await apiService.initiatePayment('ncba', 1, phoneNumber, undefined, formData.ncbaConfig);
+      if (res.success) alert('NCBA STK Push initiated successfully. Check your phone.');
+      else alert(`NCBA STK Push failed: ${res.message || 'Unknown error'}`);
+    } catch (e: any) {
+      alert(`Test failed: ${e.message}`);
+    }
   };
 
   const [activeTab, setActiveTab] = useState<'identity' | 'financials'>('identity');
@@ -385,6 +403,141 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                           placeholder="e.g. 123456"
                         />
                       </div>
+                      <div>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">API Environment</label>
+                        <select
+                          value={formData.ncbaConfig.environment}
+                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, environment: e.target.value as any } })}
+                          className="form-select text-[10px] h-10 font-black uppercase tracking-widest"
+                        >
+                          <option value="sandbox">Sandbox</option>
+                          <option value="production">Production</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">Custom HTTP Headers</label>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({
+                            ...formData,
+                            ncbaConfig: {
+                              ...formData.ncbaConfig,
+                              headers: [...(formData.ncbaConfig.headers || []), { name: '', value: '' }]
+                            }
+                          })}
+                          className="text-[9px] font-black uppercase text-indigo-600 hover:underline"
+                        >
+                          + Add Header
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        {(formData.ncbaConfig.headers || []).map((header, idx) => (
+                          <div key={idx} className="flex gap-2 items-center">
+                            <input
+                              type="text"
+                              value={header.name}
+                              placeholder="Name"
+                              onChange={e => {
+                                const newHeaders = [...formData.ncbaConfig.headers];
+                                newHeaders[idx].name = e.target.value;
+                                setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, headers: newHeaders } });
+                              }}
+                              className="form-input text-[10px] h-8 bg-slate-50 dark:bg-slate-950 font-mono"
+                            />
+                            <input
+                              type="text"
+                              value={header.value}
+                              placeholder="Value"
+                              onChange={e => {
+                                const newHeaders = [...formData.ncbaConfig.headers];
+                                newHeaders[idx].value = e.target.value;
+                                setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, headers: newHeaders } });
+                              }}
+                              className="form-input text-[10px] h-8 bg-slate-50 dark:bg-slate-950 font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newHeaders = formData.ncbaConfig.headers.filter((_, i) => i !== idx);
+                                setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, headers: newHeaders } });
+                              }}
+                              className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">Custom Parameters</label>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({
+                            ...formData,
+                            ncbaConfig: {
+                              ...formData.ncbaConfig,
+                              params: [...(formData.ncbaConfig.params || []), { name: '', value: '' }]
+                            }
+                          })}
+                          className="text-[9px] font-black uppercase text-indigo-600 hover:underline"
+                        >
+                          + Add Parameter
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        {(formData.ncbaConfig.params || []).map((param, idx) => (
+                          <div key={idx} className="flex gap-2 items-center">
+                            <input
+                              type="text"
+                              value={param.name}
+                              placeholder="Key"
+                              onChange={e => {
+                                const newParams = [...formData.ncbaConfig.params];
+                                newParams[idx].name = e.target.value;
+                                setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, params: newParams } });
+                              }}
+                              className="form-input text-[10px] h-8 bg-slate-50 dark:bg-slate-950 font-mono"
+                            />
+                            <input
+                              type="text"
+                              value={param.value}
+                              placeholder="Value"
+                              onChange={e => {
+                                const newParams = [...formData.ncbaConfig.params];
+                                newParams[idx].value = e.target.value;
+                                setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, params: newParams } });
+                              }}
+                              className="form-input text-[10px] h-8 bg-slate-50 dark:bg-slate-950 font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newParams = formData.ncbaConfig.params.filter((_, i) => i !== idx);
+                                setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, params: newParams } });
+                              }}
+                              className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-4 flex justify-start">
+                      <button
+                        type="button"
+                        onClick={handleTestNcbaStk}
+                        className="text-[9px] font-black uppercase text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-xl transition-all shadow-md active:scale-95"
+                      >
+                        Test NCBA STK Push
+                      </button>
                     </div>
 
                     <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">

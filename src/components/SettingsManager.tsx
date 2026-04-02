@@ -532,6 +532,30 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     }, [props.companyDetails]);
 
 
+    const handleTestInstNcbaStk = async () => {
+        const phoneNumber = prompt('Enter phone number for NCBA STK Push test:');
+        if (!phoneNumber) return;
+        try {
+            const res = await apiService.initiatePayment('ncba', 1, phoneNumber, undefined, localInstNcbaConfig);
+            if (res.success) alert("NCBA STK Push request sent to phone.");
+            else alert("Failed to initiate NCBA payment. Please check your settings.");
+        } catch (e) {
+            alert("NCBA gateway connection error.");
+        }
+    };
+
+    const handleTestGlobalNcbaStk = async () => {
+        const phoneNumber = prompt('Enter phone number for NCBA STK Push test:');
+        if (!phoneNumber) return;
+        try {
+            const res = await apiService.initiatePayment('ncba', 1, phoneNumber, undefined, localCompanyInfo.ncbaConfig);
+            if (res.success) alert("NCBA STK Push request sent to phone.");
+            else alert("Failed to initiate NCBA payment. Please check your settings.");
+        } catch (e) {
+            alert("NCBA gateway connection error.");
+        }
+    };
+
     const handleSaveGlobalConfigs = async () => {
         if (!props.onUpdateCompanyDetails || !props.companyDetails) return;
         setIsSavingConfigs(true);
@@ -1492,7 +1516,16 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         These credentials allow the platform to initiate settlements and query transaction statuses directly from NCBA bank APIs. Ensure they are kept confidential.
                                                     </p>
                                                 </div>
-                                                <button onClick={handleSaveGlobalConfigs} className="btn-primary h-14 px-12 shadow-xl shadow-teal-100 dark:shadow-none bg-teal-600 border-none uppercase tracking-widest text-[10px]">Save NCBA Config</button>
+                                                <div className="flex gap-4">
+                                                    <button 
+                                                        type="button"
+                                                        onClick={handleTestGlobalNcbaStk}
+                                                        className="btn-secondary h-14 px-8 border-teal-200 text-teal-600 uppercase tracking-widest text-[10px]"
+                                                    >
+                                                        Test STK Push
+                                                    </button>
+                                                    <button onClick={handleSaveGlobalConfigs} className="btn-primary h-14 px-12 shadow-xl shadow-teal-100 dark:shadow-none bg-teal-600 border-none uppercase tracking-widest text-[10px]">Save NCBA Config</button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -2808,6 +2841,40 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         >
                                             <PlusIcon className="w-5 h-5" /> Define Stream
                                         </button>
+                                    </div>
+
+                                    <div className="flex flex-col sm:flex-row justify-between items-center gap-6 p-6 bg-white/50 dark:bg-slate-900/50 rounded-3xl border border-teal-100 dark:border-teal-800/30">
+                                        <div className="flex items-center gap-3">
+                                            <InformationCircleIcon className="w-5 h-5 text-teal-600" />
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase leading-relaxed max-w-md">
+                                                These credentials allow the platform to initiate settlements and query transaction statuses directly from NCBA bank APIs. Ensure they are kept confidential.
+                                            </p>
+                                        </div>
+                                        <div className="flex gap-4">
+                                            <button 
+                                                type="button"
+                                                onClick={handleTestInstNcbaStk}
+                                                className="btn-secondary h-14 px-8 border-teal-200 text-teal-600 uppercase tracking-widest text-[10px]"
+                                            >
+                                                Test STK Push
+                                            </button>
+                                            <button 
+                                                onClick={async () => {
+                                                    try {
+                                                        await props.onUpdateInstitution({
+                                                            ...props.currentInstitution!,
+                                                            ncbaConfig: localInstNcbaConfig,
+                                                        });
+                                                        alert('Institution NCBA configuration updated successfully.');
+                                                    } catch (err: any) {
+                                                        alert('Failed to update NCBA configuration: ' + err.message);
+                                                    }
+                                                }} 
+                                                className="btn-primary h-14 px-12 shadow-xl shadow-teal-100 dark:shadow-none bg-teal-600 border-none uppercase tracking-widest text-[10px]"
+                                            >
+                                                Update Institution Config
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
