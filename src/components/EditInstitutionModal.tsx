@@ -38,6 +38,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       requestUrl: '',
       pushStkUrl: '',
       queryStkUrl: '',
+      isMock: false,
       headers: [] as { name: string; value: string }[],
       params: [] as { name: string; value: string }[]
     }
@@ -72,6 +73,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
           requestUrl: institution.ncbaConfig?.requestUrl || '',
           pushStkUrl: institution.ncbaConfig?.pushStkUrl || '',
           queryStkUrl: institution.ncbaConfig?.queryStkUrl || '',
+          isMock: institution.ncbaConfig?.isMock || false,
           headers: institution.ncbaConfig?.headers || [],
           params: institution.ncbaConfig?.params || []
         }
@@ -449,6 +451,21 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                           <option value="production">Production</option>
                         </select>
                       </div>
+                      <div className="md:col-span-2">
+                        <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/20">
+                          <input
+                            type="checkbox"
+                            id="ncba-mock-mode"
+                            checked={formData.ncbaConfig.isMock}
+                            onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, isMock: e.target.checked } })}
+                            className="h-5 w-5 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                          />
+                          <div>
+                            <label htmlFor="ncba-mock-mode" className="text-[10px] font-black uppercase text-amber-900 dark:text-amber-200 tracking-widest block">Enable Bank Mock Mode</label>
+                            <p className="text-[9px] text-amber-700/70 dark:text-amber-400/60 font-bold uppercase tracking-tight">Simulates successful payments without hitting live bank APIs. Use for testing when bank gateway is unreachable.</p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -644,6 +661,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       <p className="text-[9px] text-slate-400 italic leading-relaxed">
                         Required for STK Push and QR Code notifications. NCBA should use the **Callback Username** and **Callback Secret** as Basic Auth credentials.
                       </p>
+                    </div>
                     </div>
                   </div>
                 </div>

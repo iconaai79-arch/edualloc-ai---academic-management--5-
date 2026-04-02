@@ -201,6 +201,7 @@ export interface NcbaConfig {
     requestUrl?: string;
     pushStkUrl?: string;
     queryStkUrl?: string;
+    isMock?: boolean;
 }
 
 

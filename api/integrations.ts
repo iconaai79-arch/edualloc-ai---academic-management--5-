@@ -777,13 +777,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         // --- NCBA Bank Helpers (2024 Spec) ---
         const getNcbaToken = async (ncbaConfig: any) => {
+            const isMock = ncbaConfig.isMock === true || ncbaConfig.isMock === 'true';
+            if (isMock) {
+                console.log('[NCBA Auth] Mock Mode active. Returning dummy token.');
+                return 'mock-access-token-ncba-12345';
+            }
+
             const cId = ncbaConfig.clientId || ncbaConfig.client_id;
             const cSec = ncbaConfig.clientSecret || ncbaConfig.client_secret;
             
             if (!cId || !cSec) throw new Error('NCBA Client ID or Client Secret is missing.');
             
             // Normalize the base URL for the token endpoint
-            let tokenBase = (ncbaConfig.baseUrl || ncbaConfig.base_url || 'https://api.ncbagroup.com').trim().replace(/\/+$/, '');
+            let tokenBase = (ncbaConfig.baseUrl || ncbaConfig.base_url || 'https://c2bapis.ncbagroup.com').trim().replace(/\/+$/, '');
             if (!tokenBase.startsWith('http')) tokenBase = 'https://' + tokenBase;
             const tokenUrl = `${tokenBase}/oauth/v1/generate`;
             
@@ -827,6 +833,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         };
 
         const initiateNcbaPayment = async (ncbaConfig: any, amount: number, phone: string) => {
+            const isMock = ncbaConfig.isMock === true || ncbaConfig.isMock === 'true';
+            if (isMock) {
+                console.log('[NCBA STK] Mock Mode active. Returning successful initiation.');
+                return {
+                    ResponseCode: '0',
+                    ResponseDescription: 'Success. Request accepted for processing (Mock Mode)',
+                    MerchantRequestID: `mock-mrid-${Date.now()}`,
+                    CheckoutRequestID: `mock-crid-${Math.random().toString(36).substring(7)}`,
+                    CustomerMessage: 'Success. Request accepted for processing (Mock Mode)'
+                };
+            }
             const token = await getNcbaToken(ncbaConfig);
             
             // Priority: stkPushBaseUrl (new) -> baseUrl (legacy)
@@ -882,6 +899,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         };
 
         const queryNcbaStkStatus = async (ncbaConfig: any, checkoutRequestId: string) => {
+            const isMock = ncbaConfig.isMock === true || ncbaConfig.isMock === 'true';
+            if (isMock || (checkoutRequestId && checkoutRequestId.startsWith('mock-'))) {
+                console.log(`[NCBA Query] Mock Mode active for CRID: ${checkoutRequestId}. Returning COMPLETED.`);
+                return {
+                    ResponseCode: '0',
+                    ResponseDescription: 'The service request has been accepted successfully (Mock Mode)',
+                    ResultCode: '0',
+                    ResultDesc: 'The service request has been accepted successfully (Mock Mode)',
+                    MerchantRequestID: 'mock-mrid',
+                    CheckoutRequestID: checkoutRequestId,
+                    Amount: '1',
+                    MpesaReceiptNumber: `MOCK${Date.now()}`,
+                    TransactionDate: new Date().toISOString(),
+                    PhoneNumber: '254700000000',
+                    ResultDescription: 'The service request has been accepted successfully (Mock Mode)'
+                };
+            }
             const token = await getNcbaToken(ncbaConfig);
             
             let effectiveBase = (ncbaConfig.stkPushBaseUrl || ncbaConfig.stk_push_base_url || ncbaConfig.baseUrl || ncbaConfig.base_url || '').trim();

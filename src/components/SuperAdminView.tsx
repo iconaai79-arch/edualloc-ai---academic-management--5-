@@ -552,7 +552,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             cpanelSecret: '',
             items: []
         },
-        ncbaConfig: companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', accountNumber: '', environment: 'sandbox', headers: [], params: [], stkPushBaseUrl: '', requestUrl: '', pushStkUrl: '', callbackUsername: '', callbackSecret: '', notificationApiKey: '' }
+        ncbaConfig: companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', accountNumber: '', environment: 'sandbox', isMock: false, headers: [], params: [], stkPushBaseUrl: '', requestUrl: '', pushStkUrl: '', callbackUsername: '', callbackSecret: '', notificationApiKey: '' }
     });
 
     const [localSmsConfig, setLocalSmsConfig] = useState<SmsConfig>(companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -586,7 +586,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     cpanelSecret: '',
                     items: []
                 },
-                ncbaConfig: companyDetails.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', accountNumber: '', environment: 'sandbox', headers: [], params: [], stkPushBaseUrl: '', requestUrl: '', pushStkUrl: '', callbackUsername: '', callbackSecret: '', notificationApiKey: '' }
+                ncbaConfig: companyDetails.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', accountNumber: '', environment: 'sandbox', isMock: false, headers: [], params: [], stkPushBaseUrl: '', requestUrl: '', pushStkUrl: '', callbackUsername: '', callbackSecret: '', notificationApiKey: '' }
             });
             setLocalSmsConfig(companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '', smsUnitPrice: 1, minSmsUnits: 100 });
             setLocalEmailConfig(companyDetails.emailConfig || { host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
@@ -3165,6 +3165,24 @@ Please change it after login.`;
                                                         <p className="text-[10px] text-slate-400 italic">This is the standardized NCBA 2024 compliance endpoint for settlement. NCBA should use the **Callback Username** and **Callback Secret** as Basic Auth credentials.</p>
                                                     </div>
                                                 </div>
+                                            </div>
+
+                                            <div className="md:col-span-2 p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/20 flex items-center justify-between mt-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded-lg">
+                                                        <ShieldCheckIcon className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] font-black uppercase text-amber-700 dark:text-amber-400">Bank Mock Mode</p>
+                                                        <p className="text-[9px] text-amber-600/70 font-bold uppercase">Intercept all NCBA calls and return simulated success.</p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, isMock: !localCompanyInfo.ncbaConfig?.isMock } as any })}
+                                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${localCompanyInfo.ncbaConfig?.isMock ? 'bg-amber-500' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                                >
+                                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${localCompanyInfo.ncbaConfig?.isMock ? 'translate-x-6' : 'translate-x-1'}`} />
+                                                </button>
                                             </div>
 
                                             <div className="flex justify-end pt-4 gap-4">
