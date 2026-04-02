@@ -820,7 +820,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                     {renderOutboxTab()}
                 </div>
             )}
-            {isBuySMSModalOpen && currentInstitution && mpesaConfig && (
+            {isBuySMSModalOpen && currentInstitution && (
                 <BuySMSModal
                     isOpen={isBuySMSModalOpen}
                     onClose={() => setIsBuySMSModalOpen(false)}

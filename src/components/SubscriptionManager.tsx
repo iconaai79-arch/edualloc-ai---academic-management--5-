@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Institution, CompanyDetails, MpesaTransaction, TransactionStatus, Invoice, Receipt, InvoiceItem, ExtensionRequest, SmsConfig } from '../types';
+import { BuySMSModal } from './BuySMSModal';
 import { PayNowModal } from './PayNowModal';
 import { MpesaIcon } from './icons/MpesaIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
@@ -537,6 +538,27 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                     airtelMoneyConfig={institution.airtelMoneyConfig || (companyDetails as any).airtelMoneyConfig}
                     intasendConfig={institution.intasendConfig || (companyDetails as any).intasendConfig}
                     ncbaConfig={institution.ncbaConfig || (companyDetails as any).ncbaConfig}
+                />
+            )}
+            {isBuySMSModalOpen && (
+                <BuySMSModal
+                    isOpen={isBuySMSModalOpen}
+                    onClose={() => setIsBuySMSModalOpen(false)}
+                    onPurchaseComplete={(purchasedUnits) => {
+                        if (onRefreshData) {
+                            onRefreshData();
+                            alert(`SMS purchase successful! ${purchasedUnits.toLocaleString()} units have been added.`);
+                        }
+                    }}
+                    mpesaConfig={institution.mpesaConfig || companyDetails.mpesaConfig!}
+                    airtelMoneyConfig={institution.airtelMoneyConfig || (companyDetails as any).airtelMoneyConfig}
+                    intasendConfig={institution.intasendConfig || (companyDetails as any).intasendConfig}
+                    ncbaConfig={institution.ncbaConfig || (companyDetails as any).ncbaConfig}
+                    institutionId={institution.id}
+                    institutionCode={institution.institutionCode || 'SYSTEM'}
+                    institutionName={institution.name}
+                    smsUnitPrice={institution.customSmsPrice || (smsConfig as any)?.smsUnitPrice || 2}
+                    minSmsUnits={(smsConfig as any)?.minSmsUnits || 0}
                 />
             )}
         </div>
