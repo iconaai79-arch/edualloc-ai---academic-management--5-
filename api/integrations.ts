@@ -857,15 +857,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return p; // Expected format: 254XXXXXXXXX
         };
 
-        const mergeParams = (base: any, customParams?: { name: string; value: string }[]) => {
-            if (!customParams || customParams.length === 0) return base;
-            const extra = customParams.reduce((acc, p) => ({ ...acc, [p.name || '']: p.value }), {});
+        const mergeHeaders = (base: any, customHeaders?: { name: string; value: string }[]) => {
+            if (!customHeaders || customHeaders.length === 0) return base;
+            const extra = customHeaders
+                .filter(h => h.name && h.name.trim())
+                .reduce((acc, h) => ({ ...acc, [h.name.trim()]: h.value }), {});
             return { ...base, ...extra };
         };
 
-        const mergeHeaders = (base: any, customHeaders?: { name: string; value: string }[]) => {
-            if (!customHeaders || customHeaders.length === 0) return base;
-            const extra = customHeaders.reduce((acc, h) => ({ ...acc, [h.name || '']: h.value }), {});
+        const mergeParams = (base: any, customParams?: { name: string; value: string }[]) => {
+            if (!customParams || customParams.length === 0) return base;
+            const extra = customParams
+                .filter(p => p.name && p.name.trim())
+                .reduce((acc, p) => ({ ...acc, [p.name.trim()]: p.value }), {});
             return { ...base, ...extra };
         };
 
@@ -1374,7 +1378,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
                 return res.status(400).json({ success: false, message: resData.StatusDescription || 'NCBA gateway error.', details: resData });
             } catch (err: any) {
-                return res.status(500).json({ success: false, message: 'NCBA initiation failed.', error: err.message });
+                console.error(`[NCBA STK Fatal] Request failed for ${paramsMap.phone || recipient}:`, err);
+                return res.status(500).json({ 
+                    success: false, 
+                    message: 'NCBA initiation failed.', 
+                    error: err.message,
+                    hint: err.message.includes('fetch') ? 'The server could not reach the NCBA gateway. Check your Base URL and ensure it is publicly accessible.' : undefined
+                });
             }
         }
 
