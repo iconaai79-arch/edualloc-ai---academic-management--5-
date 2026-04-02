@@ -1152,7 +1152,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 id: `txn_${Date.now()}`,
                 transaction_id: `AIRTEL_${requestId}`,
                 checkout_request_id: requestId,
-                institution_id: paramsMap.metadata?.institutionId || user.user_metadata?.institutionId || 'SYSTEM',
+                institution_id: paramsMap.metadata?.institutionId || user?.user_metadata?.institutionId || 'SYSTEM',
                 amount: amount,
                 phone_number: recipient,
                 status: 'pending',
@@ -1181,10 +1181,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     body: JSON.stringify({
                         amount: amount,
                         currency: "KES",
-                        email: user.email,
+                        email: user?.email || '',
                         phone_number: recipient.replace(/[^\d]/g, ''),
-                        first_name: user.name?.split(' ')[0] || "User",
-                        last_name: user.name?.split(' ')[1] || "Customer",
+                        first_name: user?.name?.split(' ')[0] || "User",
+                        last_name: user?.name?.split(' ')[1] || "Customer",
                         method: "M-PESA",
                         redirect_url: `https://${req.headers.host}/payment-success`,
                     })
@@ -1197,7 +1197,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         id: `txn_${Date.now()}`,
                         transaction_id: `INTASEND_${checkoutId}`,
                         checkout_request_id: checkoutId,
-                        institution_id: paramsMap.metadata?.institutionId || user.user_metadata?.institutionId || 'SYSTEM',
+                        institution_id: paramsMap.metadata?.institutionId || user?.user_metadata?.institutionId || 'SYSTEM',
                         amount: amount,
                         phone_number: recipient,
                         status: 'pending',
@@ -1281,7 +1281,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const stkData = (await stkRes.json()) as any;
             if (stkRes.ok && stkData.ResponseCode === '0') {
-                const institutionId = paramsMap.metadata?.institutionId || user.user_metadata?.institutionId || 'SYSTEM';
+                const institutionId = paramsMap.metadata?.institutionId || user?.user_metadata?.institutionId || 'SYSTEM';
                 await supabase.from('mpesa_transactions').insert({
                     id: `txn_${Date.now()}`,
                     transaction_id: `STK_${stkData.CheckoutRequestID}`,
@@ -1331,7 +1331,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let targetInstId = institutionId;
 
             if (!ncbaConfig) {
-                const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId || user.user_metadata?.institutionId).maybeSingle();
+                const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId || user?.user_metadata?.institutionId).maybeSingle();
                 if (!inst || !inst.ncbaConfig) return res.status(400).json({ success: false, message: 'NCBA Integration not configured for this institution.' });
                 ncbaConfig = inst.ncbaConfig;
                 targetInstId = inst.id;
@@ -1366,7 +1366,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Prioritize config from request body
             let ncbaConfig = bodyConfig;
             if (!ncbaConfig) {
-                const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId || user.user_metadata?.institutionId).maybeSingle();
+                const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId || user?.user_metadata?.institutionId).maybeSingle();
                 if (!inst || !inst.ncbaConfig) return res.status(400).json({ success: false, message: 'NCBA Config missing' });
                 ncbaConfig = inst.ncbaConfig;
             }
