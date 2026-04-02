@@ -1,7 +1,7 @@
 const https = require('https');
 const dns = require('dns');
 
-const targetUrl = process.argv[2] || 'https://api.ncbagroup.com/oauth/v1/generate';
+const targetUrl = process.argv[2] || 'https://c2bapis.ncbagroup.com/oauth/v1/generate';
 const url = new URL(targetUrl);
 
 console.log(`\n--- NCBA Connectivity Diagnostic Tool ---`);

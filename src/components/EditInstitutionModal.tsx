@@ -377,7 +377,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                           value={formData.ncbaConfig.stkPushBaseUrl}
                           onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, stkPushBaseUrl: e.target.value } })}
                           className="form-input text-[10px] h-10 font-mono"
-                          placeholder="https://api.ncbagroup.com"
+                          placeholder="https://c2bapis.ncbagroup.com"
                         />
                       </div>
                       <div>

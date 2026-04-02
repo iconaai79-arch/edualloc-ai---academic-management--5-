@@ -2880,7 +2880,7 @@ Please change it after login.`;
                                                             value={localCompanyInfo.ncbaConfig?.stkPushBaseUrl || ''} 
                                                             onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, stkPushBaseUrl: e.target.value } as any })}
                                                             className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm text-indigo-600" 
-                                                            placeholder="https://api.ncbagroup.com"
+                                                            placeholder="https://c2bapis.ncbagroup.com"
                                                         />
                                                     </div>
                                                     <div>
@@ -2938,7 +2938,7 @@ Please change it after login.`;
                                                         <input 
                                                             type="text" 
                                                             value={localCompanyInfo.ncbaConfig?.baseUrl || ''} 
-                                                            placeholder="https://api.ncbagroup.com"
+                                                            placeholder="https://c2bapis.ncbagroup.com"
                                                             onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, baseUrl: e.target.value } as any })}
                                                             className="form-input h-12" 
                                                         />

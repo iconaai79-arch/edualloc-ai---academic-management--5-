@@ -1355,7 +1355,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                             value={localCompanyInfo.ncbaConfig?.stkPushBaseUrl || ''} 
                                                             onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, stkPushBaseUrl: e.target.value } as any })}
                                                             className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm text-teal-600" 
-                                                            placeholder="https://api.ncbagroup.com"
+                                                            placeholder="https://c2bapis.ncbagroup.com"
                                                         />
                                                     </div>
                                                     <div className="grid grid-cols-2 gap-4">
@@ -1397,7 +1397,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                             value={localCompanyInfo.ncbaConfig?.baseUrl || ''} 
                                                             onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, baseUrl: e.target.value } as any })}
                                                             className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm text-teal-600" 
-                                                            placeholder="https://api.ncbagroup.com"
+                                                            placeholder="https://c2bapis.ncbagroup.com"
                                                         />
                                                     </div>
                                                     <div>
@@ -1842,7 +1842,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <input 
                                                 type="text" 
                                                 value={localInstNcbaConfig.stkPushBaseUrl || ''} 
-                                                placeholder="https://api.ncbagroup.com"
+                                                placeholder="https://c2bapis.ncbagroup.com"
                                                 onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, stkPushBaseUrl: e.target.value })}
                                                 className="form-input text-indigo-600 font-mono" 
                                             />
@@ -1882,7 +1882,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <input 
                                                 type="text" 
                                                 value={localInstNcbaConfig.baseUrl || ''} 
-                                                placeholder="https://api.ncbagroup.com"
+                                                placeholder="https://c2bapis.ncbagroup.com"
                                                 onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, baseUrl: e.target.value })}
                                                 className="form-input" 
                                             />
