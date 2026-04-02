@@ -807,10 +807,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }, 25000);
             } catch (fetchErr: any) {
                 const isAbort = fetchErr?.name === 'AbortError';
+                console.error(`[NCBA Auth Connection Error] URL: ${tokenUrl}`, fetchErr);
+                const errorCode = fetchErr.code || fetchErr.errno || 'N/A';
                 throw new Error(
                     isAbort
-                        ? `NCBA Auth timed out (25s). The server at ${tokenBase} did not respond in time. Check the Base URL is correct and publicly accessible.`
-                        : `NCBA Auth network error: ${fetchErr.message}. The server could not reach ${tokenBase}. Verify the Base URL is correct.`
+                        ? `NCBA Auth timed out (25s) while connecting to ${tokenUrl}. The server did not respond.`
+                        : `NCBA Auth connection error (${errorCode}): ${fetchErr.message}. Target: ${tokenUrl}. Please verify your internet connection and that the Bank's API endpoint is reachable from your server.`
                 );
             }
             if (!tokenRes.ok) {
