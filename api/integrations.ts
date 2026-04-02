@@ -803,8 +803,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let tokenBase = (ncbaConfig.baseUrl || ncbaConfig.base_url || 'https://api.ncbagroup.com').trim().replace(/\/+$/, '');
             if (!tokenBase.startsWith('http')) tokenBase = 'https://' + tokenBase;
 
-            // Priority: ncbaConfig.requestUrl (configurable via UI) -> Standard NCBA v2 -> Fallback Safaricom-like v1
-            const tokenPath = ncbaConfig.requestUrl || ncbaConfig.request_url || '/oauth/v2/token';
+            // Priority: ncbaConfig.requestUrl (configurable via UI) -> Standard NCBA v1 (fallback)
+            const tokenPath = ncbaConfig.requestUrl || ncbaConfig.request_url || '/oauth/v1/generate';
             const tokenUrl = tokenPath.startsWith('http') 
                 ? tokenPath 
                 : `${tokenBase}${tokenPath.startsWith('/') ? '' : '/'}${tokenPath}${tokenPath.includes('?') ? '' : '?grant_type=client_credentials'}`;
@@ -816,8 +816,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 tokenRes = await fetchWithTimeout(tokenUrl, {
                     method: 'POST',
                     headers: mergeHeaders({ 
-                        'Authorization': `Basic ${auth}`,
-                        'X-API-Key': ncbaConfig.apiKey || ncbaConfig.api_key
+                        'Authorization': `Basic ${auth}`
                     }, ncbaConfig.headers)
                 }, 25000);
             } catch (fetchErr: any) {
