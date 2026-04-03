@@ -2237,7 +2237,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         }}
                                                         className="text-[9px] font-black uppercase text-indigo-500 hover:text-indigo-600 flex items-center gap-1"
                                                     >
-                                                        <MagicWandIcon className="w-2.5 h-2.5" /> Auto-Generate
+                                                        <SparklesIcon className="w-2.5 h-2.5" /> Auto-Generate
                                                     </button>
                                                 </div>
                                                 <input 
@@ -2259,7 +2259,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         }}
                                                         className="text-[9px] font-black uppercase text-indigo-500 hover:text-indigo-600 flex items-center gap-1"
                                                     >
-                                                        <MagicWandIcon className="w-2.5 h-2.5" /> Auto-Generate
+                                                        <SparklesIcon className="w-2.5 h-2.5" /> Auto-Generate
                                                     </button>
                                                 </div>
                                                 <input 
