@@ -115,6 +115,7 @@ interface CooperativeManagerProps {
     onAddSale?: (data: Partial<CoopAgrovetSales>) => Promise<void>;
     onAddSales?: (data: Partial<CoopAgrovetSales>[]) => Promise<void>;
     onSendSms?: (recipient: string, message: string, config?: any, units?: number, institutionId?: string) => Promise<any>;
+    onAddSaccoAccount?: (data: Partial<SaccoAccount>) => Promise<void>;
 }
 
 export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
@@ -171,7 +172,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     onAddInventory,
     onAddSale,
     onAddSales,
-    onSendSms
+    onSendSms,
+    onAddSaccoAccount
 }) => {
     const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'communication' | 'settings'>('overview');
     const [farmerSubTab, setFarmerSubTab] = useState<'registry' | 'collections' | 'logistics' | 'payouts'>('registry');
@@ -208,6 +210,11 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [isAddingInventory, setIsAddingInventory] = useState(false);
     const [isRecordingSale, setIsRecordingSale] = useState(false);
     const [isAddingRider, setIsAddingRider] = useState(false);
+    const [isOpeningAccount, setIsOpeningAccount] = useState(false);
+    const [newSaccoAccount, setNewSaccoAccount] = useState<Partial<SaccoAccount>>({
+        accountType: 'savings',
+        status: 'active'
+    });
     const [newInventory, setNewInventory] = useState<any>({});
     const [newSale, setNewSale] = useState<Partial<CoopAgrovetSales>>({
         saleDate: formatDateString(new Date()),
@@ -600,6 +607,31 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             setIsProcessing(false);
         }
     }
+    
+    const handleSubmitSaccoAccount = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newSaccoAccount.farmerId || !newSaccoAccount.accountType) {
+            alert("Please select a farmer and account type");
+            return;
+        }
+        setIsProcessing(true);
+        try {
+            await onAddSaccoAccount?.({
+                ...newSaccoAccount,
+                id: `sa_${Date.now()}`,
+                institutionId: currentInstitution?.id || '',
+                createdAt: new Date().toISOString()
+            });
+            setIsOpeningAccount(false);
+            setNewSaccoAccount({ accountType: 'savings', status: 'active' });
+            if (onLogAction) await onLogAction(`Opened SACCO account for farmer ${newSaccoAccount.farmerId}`);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to open SACCO account");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
 
     const handleSubmitInventory = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -2803,7 +2835,13 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             <div className="p-8">
                                 <div className="flex items-center justify-between mb-8">
                                     <h2 className="text-xl font-black tracking-tighter uppercase">SACCO Accounts</h2>
-                                    <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95">Open Account</button>
+                                    <button 
+                                        onClick={() => setIsOpeningAccount(true)}
+                                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
+                                    >
+                                        <PlusIcon className="w-4 h-4" />
+                                        Open Account
+                                    </button>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left border-separate border-spacing-y-4">
@@ -3898,6 +3936,76 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 {isProcessing ? 'Updating...' : 'Save Changes'}
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {isOpeningAccount && (
+                <div className="fixed inset-0 bg-slate-900/40 dark:bg-slate-900/80 z-[300] flex items-center justify-center p-4 backdrop-blur-md animate-fade-in" onClick={() => setIsOpeningAccount(false)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 dark:border-slate-800 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tight">Open SACCO Account</h3>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">New Financial Identity</p>
+                            </div>
+                            <button onClick={() => setIsOpeningAccount(false)} className="p-3 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">
+                                <XIcon className="w-6 h-6" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmitSaccoAccount} className="p-10 space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Farmer</label>
+                                <select 
+                                    value={newSaccoAccount.farmerId || ''} 
+                                    onChange={e => setNewSaccoAccount({...newSaccoAccount, farmerId: e.target.value})}
+                                    required
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                >
+                                    <option value="">-- Choose Farmer --</option>
+                                    {farmers.map(f => (
+                                        <option key={f.id} value={f.id}>{f.name} ({f.memberId})</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Account Type</label>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {(['savings', 'shares'] as const).map(type => (
+                                        <button
+                                            key={type}
+                                            type="button"
+                                            onClick={() => setNewSaccoAccount({...newSaccoAccount, accountType: type})}
+                                            className={`p-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                newSaccoAccount.accountType === type 
+                                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-none' 
+                                                : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            {type}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 p-6 rounded-3xl space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <AlertIcon className="w-4 h-4 text-amber-600" />
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-amber-800 dark:text-amber-200">Pre-Opening Notice</span>
+                                </div>
+                                <p className="text-[10px] text-amber-700 dark:text-amber-300 font-bold leading-relaxed uppercase">
+                                    New accounts are initialized with KES 0.00 balance. Monthly deductions will be automated from milk collections.
+                                </p>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={isProcessing}
+                                className="w-full bg-slate-900 dark:bg-white dark:text-slate-900 text-white py-5 rounded-[2rem] text-xs font-black uppercase tracking-widest shadow-xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                            >
+                                {isProcessing ? 'Opening Account...' : 'Confirm & Open Account'}
+                            </button>
+                        </form>
                     </div>
                 </div>
             )}

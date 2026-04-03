@@ -2940,7 +2940,8 @@ Please change it after login.`;
                                                                                     stkPushBaseUrl: sandboxBase,
                                                                                     pushStkUrl: '/v1/stk/push',
                                                                                     queryStkUrl: '/v1/stk/query',
-                                                                                    environment: 'sandbox'
+                                                                                    environment: 'sandbox',
+                                                                                    authMethod: 'bearer'
                                                                                 } as any
                                                                             });
                                                                         }}
@@ -2960,7 +2961,8 @@ Please change it after login.`;
                                                                                     stkPushBaseUrl: productionBase,
                                                                                     pushStkUrl: '/payments/api/v1/stk-push/initiate',
                                                                                     queryStkUrl: '/payments/api/v1/stk-push/query',
-                                                                                    environment: 'production'
+                                                                                    environment: 'production',
+                                                                                    authMethod: 'bearer'
                                                                                 } as any
                                                                             });
                                                                         }}
@@ -3047,6 +3049,20 @@ Please change it after login.`;
                                                         >
                                                             <option value="sandbox">Sandbox / Staging</option>
                                                             <option value="production">Live Production</option>
+                                                        </select>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Authentication Strategy</label>
+                                                        <select 
+                                                            value={localCompanyInfo.ncbaConfig?.authMethod || 'bearer'} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, authMethod: e.target.value as any } as any })}
+                                                            className="form-select text-[10px] h-14 font-black uppercase tracking-widest bg-white dark:bg-slate-900 border-slate-200"
+                                                        >
+                                                            <option value="bearer">OAuth2 (Bearer Response Token)</option>
+                                                            <option value="basic">Bank Direct (Basic / Static Auth)</option>
+                                                        </select>
+                                                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight ml-1">Select 'Direct' if using static portal credentials.</p>
+                                                    </div>
                                                     <div className="md:col-span-2 space-y-4 pt-6 border-t border-slate-100 dark:border-slate-800">
                                                         <h5 className="text-[10px] font-black uppercase text-indigo-500 tracking-widest ml-1 flex items-center gap-2">
                                                             <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div>

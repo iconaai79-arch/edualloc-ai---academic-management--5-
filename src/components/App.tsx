@@ -1456,6 +1456,20 @@ export const App: React.FC = () => {
         loadData();
     }, [activeInstitution, currentUser, loadData, handleLogAction]);
 
+    const handleAddSaccoAccount = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId) return;
+        const payload = { 
+            ...data, 
+            id: `sacco_${Date.now()}`, 
+            institutionId: instId,
+            createdAt: new Date().toISOString()
+        };
+        await apiService.saveModuleRecord('sacco_accounts', payload);
+        await handleLogAction(`Opened SACCO account for farmer ID: ${data.farmerId}`);
+        loadData();
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
     const handleImportFarmers = useCallback(async (farmers: any[]) => {
         const instId = activeInstitution?.id || currentUser?.institutionId;
         if (!instId) return;
@@ -3531,6 +3545,7 @@ export const App: React.FC = () => {
                                     agrovetInventory={coopAgrovetInventory}
                                     notifications={notifications.filter(n => n.userId === currentUser.id || n.institutionId === currentUser.institutionId)}
                                     onUpdateFarmer={handleUpdateFarmer}
+                                    onAddSaccoAccount={handleAddSaccoAccount}
                                     onLogout={handleLogout}
                                 />
                             ) : activeRole === 'rider' ? (

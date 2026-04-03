@@ -804,7 +804,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!cId || !cSec) throw new Error('NCBA Client ID or Client Secret is missing.');
             
             // Debugging: Show fingerprint to user (Safe for production logs)
-            console.log(`[NCBA Debug] Credential Fingerprint - ID: ${cId.substring(0, 4)}... (Length: ${cId.length}), Secret Length: ${cSec.length}`);
+            console.log(`[NCBA Debug] Credential Fingerprint - ID: ${cId.substring(0, 4)}... (Length: ${cId.length}), Secret Length: ${cSec.length}, Method: ${ncbaConfig.authMethod || 'bearer'}`);
+            
+            // If authMethod is 'basic', we skip fetching a token as we'll use Basic Auth directly on the request
+            if (ncbaConfig.authMethod === 'basic') {
+                console.log('[NCBA Auth] Direct Basic Auth requested. Skipping token generation.');
+                return null; 
+            }
             
             const tokenBase = normalizeNcbaUrl(ncbaConfig.baseUrl || ncbaConfig.base_url);
             const isNewEndpoint = tokenBase.includes('c2bapis.ncbagroup.com');
@@ -988,6 +994,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 };
             }
             const token = await getNcbaToken(ncbaConfig);
+            const authMethod = (ncbaConfig.authMethod || 'bearer').toLowerCase();
+            const cId = (ncbaConfig.clientId || ncbaConfig.client_id || '').trim();
+            const cSec = (ncbaConfig.clientSecret || ncbaConfig.client_secret || '').trim();
+            const authHeader = authMethod === 'basic' 
+                ? `Basic ${Buffer.from(`${cId}:${cSec}`).toString('base64')}`
+                : `Bearer ${token}`;
             
             let effectiveBase = (ncbaConfig.stkPushBaseUrl || ncbaConfig.stk_push_base_url || ncbaConfig.baseUrl || ncbaConfig.base_url || '').trim();
             if (!effectiveBase) throw new Error('NCBA Base URL is missing.');
@@ -1001,11 +1013,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     ? effectiveBase + effectivePath.substring(1) 
                     : (!effectiveBase.endsWith('/') && !effectivePath.startsWith('/') ? effectiveBase + '/' + effectivePath : effectiveBase + effectivePath));
 
-            console.log(`[NCBA Query] Status request for: ${checkoutRequestId} to: ${fullUrl}`);
+            console.log(`[NCBA Query] Status request for: ${checkoutRequestId} to: ${fullUrl} (Auth: ${authMethod})`);
             const res = await fetchWithTimeout(fullUrl, {
                 method: 'POST',
                 headers: mergeHeaders({
-                    'Authorization': `Bearer ${token}`,
+                    'Authorization': authHeader,
                     'Content-Type': 'application/json'
                 }, ncbaConfig.headers),
                 body: JSON.stringify(mergeParams({
@@ -1021,11 +1033,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const generateNcbaQr = async (ncbaConfig: any, amount: number) => {
             const token = await getNcbaToken(ncbaConfig);
+            const authMethod = (ncbaConfig.authMethod || 'bearer').toLowerCase();
+            const cId = (ncbaConfig.clientId || ncbaConfig.client_id || '').trim();
+            const cSec = (ncbaConfig.clientSecret || ncbaConfig.client_secret || '').trim();
+            const authHeader = authMethod === 'basic' 
+                ? `Basic ${Buffer.from(`${cId}:${cSec}`).toString('base64')}`
+                : `Bearer ${token}`;
+
             // 2024 Spec: POST /payments/api/v1/qr/generate
             const res = await fetchWithTimeout(`${ncbaConfig.baseUrl || ncbaConfig.base_url}/payments/api/v1/qr/generate`, {
                 method: 'POST',
                 headers: mergeHeaders({
-                    'Authorization': `Bearer ${token}`,
+                    'Authorization': authHeader,
                     'Content-Type': 'application/json'
                 }, ncbaConfig.headers),
                 body: JSON.stringify(mergeParams({
@@ -1319,8 +1338,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (ncba && (ncba.clientId || ncba.client_id)) {
                     try {
                         const token = await getNcbaToken(ncba);
+                        const authHeader = token ? `Bearer ${token}` : `Basic ${Buffer.from(`${ncba.clientId || ncba.client_id}:${ncba.clientSecret || ncba.client_secret}`).toString('base64')}`;
+                        
                         const resStatus = await fetchWithTimeout(`${ncba.baseUrl}/payments/v1/status/${checkoutRequestId}`, {
-                            headers: { 'Authorization': `Bearer ${token}`, 'X-API-Key': ncba.apiKey }
+                            headers: { 'Authorization': authHeader, 'X-API-Key': ncba.apiKey }
                         });
                         if (resStatus.ok) {
                             const statusData = await resStatus.json() as any;

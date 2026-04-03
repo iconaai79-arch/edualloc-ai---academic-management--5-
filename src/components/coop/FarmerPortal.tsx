@@ -27,6 +27,8 @@ import { CreditCardIcon as CreditCard } from '../icons/CreditCardIcon';
 import { ChatBubbleLeftRightIcon as MessageSquare } from '../icons/ChatBubbleLeftRightIcon';
 import { Cog8ToothIcon as CogIcon } from '../icons/Cog8ToothIcon';
 import { CheckCircleIcon as CheckCircle } from '../icons/CheckCircleIcon';
+import { XIcon } from '../icons/XIcon';
+import { ExclamationIcon as AlertIcon } from '../icons/ExclamationIcon';
 
 interface FarmerPortalProps {
     currentUser: User;
@@ -39,6 +41,7 @@ interface FarmerPortalProps {
     notifications?: AppNotification[];
     farmer?: CoopFarmer | null;
     onUpdateFarmer?: (id: string, data: Partial<CoopFarmer>) => Promise<void>;
+    onAddSaccoAccount?: (data: Partial<SaccoAccount>) => Promise<void>;
     onLogout: () => void;
 }
 
@@ -53,12 +56,19 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
     notifications = [],
     farmer = null,
     onUpdateFarmer,
+    onAddSaccoAccount,
     onLogout
 }) => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'collections' | 'sacco' | 'agrovet' | 'statements' | 'notifications' | 'settings'>('dashboard');
     const [isSaving, setIsSaving] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
     const [selectedMethod, setSelectedMethod] = useState<string>(farmer?.paymentMethod || 'mpesa');
+    const [isOpeningAccount, setIsOpeningAccount] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [newSaccoAccount, setNewSaccoAccount] = useState<Partial<SaccoAccount>>({
+        accountType: 'savings',
+        status: 'active'
+    });
 
     const stats = useMemo(() => {
         const totalQty = collections.reduce((sum, c) => sum + Number(c.quantity), 0);
@@ -72,6 +82,31 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
             pendingCredit: agrovetSales.filter(s => s.paymentStatus === 'credit').reduce((sum, s) => sum + s.amount, 0)
         };
     }, [collections, saccoAccounts, payouts, agrovetSales]);
+
+    const handleSubmitSaccoAccount = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newSaccoAccount.accountType) {
+            alert("Please select an account type");
+            return;
+        }
+        setIsProcessing(true);
+        try {
+            await onAddSaccoAccount?.({
+                ...newSaccoAccount,
+                id: `sa_${Date.now()}`,
+                farmerId: currentUser.id,
+                institutionId: currentUser.institutionId || '',
+                createdAt: new Date().toISOString()
+            });
+            setIsOpeningAccount(false);
+            setNewSaccoAccount({ accountType: 'savings', status: 'active' });
+        } catch (err) {
+            console.error(err);
+            alert("Failed to open SACCO account");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 font-sans flex">
@@ -315,11 +350,14 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">SACCO Accounts</h3>
                              </div>
                              <div className="flex gap-4">
-                                <button className="bg-slate-900 dark:bg-slate-800 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">
+                                 <button className="bg-slate-900 dark:bg-slate-800 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">
                                     Apply for Loan
                                 </button>
-                                <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-200 dark:shadow-none">
-                                    Request Advance
+                                <button 
+                                    onClick={() => setIsOpeningAccount(true)}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-200 dark:shadow-none"
+                                >
+                                    Join SACCO / Open Account
                                 </button>
                              </div>
                         </div>
@@ -689,8 +727,69 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
                             </div>
                         </div>
                     </div>
-                )}
+                    </div>
             </main>
+
+            {isOpeningAccount && (
+                <div className="fixed inset-0 bg-slate-900/40 dark:bg-slate-900/80 z-[300] flex items-center justify-center p-4 backdrop-blur-md animate-fade-in" onClick={() => setIsOpeningAccount(false)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 dark:border-slate-800 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tight">Open SACCO Account</h3>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Join the Cooperative SACCO</p>
+                            </div>
+                            <button onClick={() => setIsOpeningAccount(false)} className="p-3 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">
+                                <XIcon className="w-6 h-6" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmitSaccoAccount} className="p-10 space-y-6">
+                            <div className="space-y-4">
+                                <p className="text-xs font-bold text-slate-600 dark:text-slate-400 leading-relaxed">
+                                    Hello <span className="text-indigo-600">{currentUser.name}</span>, you are about to open a SACCO account with <span className="font-black">Icona Cooperative SACCO</span>.
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Account Type</label>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {(['savings', 'shares'] as const).map(type => (
+                                        <button
+                                            key={type}
+                                            type="button"
+                                            onClick={() => setNewSaccoAccount({...newSaccoAccount, accountType: type})}
+                                            className={`p-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                newSaccoAccount.accountType === type 
+                                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-none' 
+                                                : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            {type}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 p-6 rounded-3xl space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <AlertIcon className="w-4 h-4 text-amber-600" />
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-amber-800 dark:text-amber-200">Registration Notice</span>
+                                </div>
+                                <p className="text-[10px] text-amber-700 dark:text-amber-300 font-bold leading-relaxed uppercase">
+                                    Account opening is free for all active farmers. Your account will be activated instantly upon submission.
+                                </p>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={isProcessing}
+                                className="w-full bg-slate-900 dark:bg-white dark:text-slate-900 text-white py-5 rounded-[2rem] text-xs font-black uppercase tracking-widest shadow-xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                            >
+                                {isProcessing ? 'Processing...' : 'Confirm & Open Account'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

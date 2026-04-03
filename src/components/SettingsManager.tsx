@@ -2125,6 +2125,71 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         </div>
                                     </div>
 
+                                    <div className="pt-6 border-t border-slate-100 dark:border-slate-700">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                                                <BuildingLibraryIcon className="w-5 h-5 text-indigo-600" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-sm font-black uppercase tracking-tight">NCBA Bank Direct Gateway</h3>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase">Direct B2C / STK Push integration for NCBA Group</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                            <div className="md:col-span-2">
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Authentication Strategy</label>
+                                                <select 
+                                                    value={localInstNcbaConfig.authMethod || 'bearer'} 
+                                                    onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, authMethod: e.target.value as any })}
+                                                    className="form-select h-12 font-bold text-xs"
+                                                >
+                                                    <option value="bearer">OAuth2 (Dynamic Token)</option>
+                                                    <option value="basic">Bank Direct (Static Basic Auth)</option>
+                                                </select>
+                                                <p className="text-[9px] text-slate-400 font-bold uppercase mt-1.5 ml-1">Use 'Direct' if using static credentials or if facing 401 token errors.</p>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Consumer Key / Client ID</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={localInstNcbaConfig.clientId || ''} 
+                                                    onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientId: e.target.value })}
+                                                    className="form-input" 
+                                                    placeholder="Enter NCBA Client ID"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Consumer Secret / Client Secret</label>
+                                                <input 
+                                                    type="password" 
+                                                    value={localInstNcbaConfig.clientSecret || ''} 
+                                                    onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientSecret: e.target.value })}
+                                                    className="form-input" 
+                                                    placeholder="••••••••••••••••"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">API Key (X-API-KEY)</label>
+                                                <input 
+                                                    type="password" 
+                                                    value={localInstNcbaConfig.apiKey || ''} 
+                                                    onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, apiKey: e.target.value })}
+                                                    className="form-input" 
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Paybill / Short Code</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={localInstNcbaConfig.shortCode || ''} 
+                                                    onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, shortCode: e.target.value })}
+                                                    className="form-input font-mono" 
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/20 flex items-center justify-between mb-4">
                                         <div className="flex items-center gap-3">
                                             <div className="p-2 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded-lg">

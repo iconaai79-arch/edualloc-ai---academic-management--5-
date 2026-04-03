@@ -192,6 +192,7 @@ export interface NcbaConfig {
     accountNumber: string;
     shortCode?: string;
     environment?: 'sandbox' | 'production';
+    authMethod?: 'bearer' | 'basic';
     headers?: { name: string; value: string }[];
     params?: { name: string; value: string }[];
     callbackUsername?: string;
