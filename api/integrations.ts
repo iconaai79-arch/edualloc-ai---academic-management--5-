@@ -796,10 +796,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return 'mock-access-token-ncba-12345';
             }
 
-            const cId = (ncbaConfig.clientId || ncbaConfig.client_id || ncbaConfig.consumerKey || ncbaConfig.consumer_key || '').trim();
-            const cSec = (ncbaConfig.clientSecret || ncbaConfig.client_secret || ncbaConfig.secretKey || ncbaConfig.secret_key || ncbaConfig.consumerSecret || ncbaConfig.consumer_secret || '').trim();
+            // Sanitize: Strip any non-printable or whitespace characters that might have sneaked in
+            const sanitize = (s: string) => s.replace(/[^\x20-\x7E]/g, '').trim();
+            const cId = sanitize(ncbaConfig.clientId || ncbaConfig.client_id || ncbaConfig.consumerKey || ncbaConfig.consumer_key || '');
+            const cSec = sanitize(ncbaConfig.clientSecret || ncbaConfig.client_secret || ncbaConfig.secretKey || ncbaConfig.secret_key || ncbaConfig.consumerSecret || ncbaConfig.consumer_secret || '');
             
             if (!cId || !cSec) throw new Error('NCBA Client ID or Client Secret is missing.');
+            
+            // Debugging: Show fingerprint to user (Safe for production logs)
+            console.log(`[NCBA Debug] Credential Fingerprint - ID: ${cId.substring(0, 4)}... (Length: ${cId.length}), Secret Length: ${cSec.length}`);
             
             const tokenBase = normalizeNcbaUrl(ncbaConfig.baseUrl || ncbaConfig.base_url);
             const isNewEndpoint = tokenBase.includes('c2bapis.ncbagroup.com');

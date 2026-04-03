@@ -2945,26 +2945,48 @@ Please change it after login.`;
                                                     <div className="md:col-span-2">
                                                         <div className="flex items-center justify-between gap-4 py-4 border-t border-slate-200 dark:border-slate-700">
                                                             <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">NCBA Gateway Quick Config</label>
-                                                            <button 
-                                                                onClick={(e) => {
-                                                                    e.preventDefault();
-                                                                    const productionBase = 'https://c2bapis.ncbagroup.com';
-                                                                    setLocalCompanyInfo({
-                                                                        ...localCompanyInfo,
-                                                                        ncbaConfig: {
-                                                                            ...localCompanyInfo.ncbaConfig,
-                                                                            baseUrl: productionBase,
-                                                                            stkPushBaseUrl: productionBase,
-                                                                            pushStkUrl: '/payments/api/v1/stk-push/initiate',
-                                                                            queryStkUrl: '/payments/api/v1/stk-push/query',
-                                                                            environment: 'production'
-                                                                        } as any
-                                                                    });
-                                                                }}
-                                                                className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-[9px] font-black uppercase tracking-widest rounded-lg transition-all shadow-md active:scale-95"
-                                                            >
-                                                                Auto-Configure Production
-                                                            </button>
+                                                                <div className="flex gap-2">
+                                                                    <button 
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            const sandboxBase = 'https://api.ncbagroup.com';
+                                                                            setLocalCompanyInfo({
+                                                                                ...localCompanyInfo,
+                                                                                ncbaConfig: {
+                                                                                    ...localCompanyInfo.ncbaConfig,
+                                                                                    baseUrl: sandboxBase,
+                                                                                    stkPushBaseUrl: sandboxBase,
+                                                                                    pushStkUrl: '/v1/stk/push',
+                                                                                    queryStkUrl: '/v1/stk/query',
+                                                                                    environment: 'sandbox'
+                                                                                } as any
+                                                                            });
+                                                                        }}
+                                                                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-[9px] font-black uppercase tracking-widest rounded-lg transition-all shadow-md active:scale-95"
+                                                                    >
+                                                                        Auto-Configure Sandbox
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            const productionBase = 'https://c2bapis.ncbagroup.com';
+                                                                            setLocalCompanyInfo({
+                                                                                ...localCompanyInfo,
+                                                                                ncbaConfig: {
+                                                                                    ...localCompanyInfo.ncbaConfig,
+                                                                                    baseUrl: productionBase,
+                                                                                    stkPushBaseUrl: productionBase,
+                                                                                    pushStkUrl: '/payments/api/v1/stk-push/initiate',
+                                                                                    queryStkUrl: '/payments/api/v1/stk-push/query',
+                                                                                    environment: 'production'
+                                                                                } as any
+                                                                            });
+                                                                        }}
+                                                                        className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-[9px] font-black uppercase tracking-widest rounded-lg transition-all shadow-md active:scale-95"
+                                                                    >
+                                                                        Auto-Configure Production
+                                                                    </button>
+                                                                </div>
                                                         </div>
                                                     </div>
 
