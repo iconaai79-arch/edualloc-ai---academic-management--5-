@@ -1614,23 +1614,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             };
 
             try {
-                if (authMethod === 'basic') {
-                    diagnostics.tokenStatus = 'Skipped (Basic Auth Mode)';
-                    // Attempt a dummy HEAD or GET to the base URL to check IP whitelisting
-                    const testUrl = normalizeNcbaUrl(ncba.baseUrl || ncba.base_url);
-                    const headRes = await fetchWithTimeout(testUrl, { method: 'HEAD' }).catch(() => null);
-                    diagnostics.gatewayReachable = !!headRes;
+                // Attempt a real token generation to verify credentials
+                const token = await getNcbaToken(ncba);
+                
+                if (token) {
+                    diagnostics.tokenStatus = 'Success';
+                    diagnostics.gatewayReachable = true;
+                    return res.status(200).json({ success: true, diagnostics, hint: 'Authentication successful!' });
                 } else {
-                    const token = await getNcbaToken(ncba);
-                    diagnostics.tokenStatus = token ? 'Success' : 'Failed';
+                    diagnostics.tokenStatus = 'Failed: No token returned';
+                    return res.status(200).json({ success: false, diagnostics, hint: 'Bank server reached, but no token was issued.' });
                 }
-                return res.status(200).json({ success: true, diagnostics });
             } catch (err: any) {
+                diagnostics.tokenStatus = `Failed: ${err.message}`;
+                // Fallback: check if the gateway is at least reachable
+                const testUrl = normalizeNcbaUrl(ncba.baseUrl || ncba.base_url);
+                const headRes = await fetchWithTimeout(testUrl, { method: 'HEAD' }).catch(() => null);
+                diagnostics.gatewayReachable = !!headRes;
+
                 return res.status(200).json({ 
                     success: false, 
                     diagnostics, 
                     error: err.message,
-                    hint: err.message.includes('401') ? 'Authentication failed. Check your Client ID and Secret for hidden spaces/newlines.' : 'Connection error. Verify IP whitelisting and Base URL.'
+                    hint: err.message.includes('401') 
+                        ? `Bank rejected your 10-char ID/Secret. Error: ${err.message}` 
+                        : `Network timeout or unreachable URL. Gateway: ${diagnostics.gatewayReachable ? 'UP' : 'DOWN'}`
                 });
             }
         }
