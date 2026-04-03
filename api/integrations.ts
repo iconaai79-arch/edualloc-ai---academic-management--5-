@@ -1610,7 +1610,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 authMethod,
                 baseUrl: !!(ncba.baseUrl || ncba.base_url),
                 stkPushUrl: !!(ncba.stkPushBaseUrl || ncba.stk_push_base_url || ncba.baseUrl || ncba.base_url),
-                isMock: ncba.isMock === true || ncba.isMock === 'true'
+                isMock: ncba.isMock === true || ncba.isMock === 'true',
+                serverIp: await fetch('https://api.ipify.org?format=json').then(r => r.json()).then(d => d.ip).catch(() => 'Unknown')
             };
 
             try {
