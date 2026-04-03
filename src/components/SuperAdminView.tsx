@@ -2966,7 +2966,17 @@ Please change it after login.`;
                                                         <input 
                                                             type="text" 
                                                             value={localCompanyInfo.ncbaConfig?.clientId || ''} 
-                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, clientId: e.target.value } as any })}
+                                                            onChange={e => {
+                                                                const val = e.target.value;
+                                                                setLocalCompanyInfo({ 
+                                                                    ...localCompanyInfo, 
+                                                                    ncbaConfig: { 
+                                                                        ...localCompanyInfo.ncbaConfig, 
+                                                                        clientId: val,
+                                                                        callbackUsername: val // Sync Callback Username with Client ID
+                                                                    } as any 
+                                                                });
+                                                            }}
                                                             className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
                                                             placeholder="Enter Consumer Key / Client ID"
                                                         />
