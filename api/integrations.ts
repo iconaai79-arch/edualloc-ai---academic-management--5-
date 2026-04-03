@@ -847,6 +847,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const headers: Record<string, string> = {
                     'Content-Type': 'application/x-www-form-urlencoded',
                     'Accept': 'application/json',
+                    'X-API-Key': ncbaConfig.apiKey || ncbaConfig.api_key || '',
+                    'X-Correlation-ID': `edualloc-auth-${Date.now()}`,
                     'User-Agent': 'EduAlloc-AI/1.0.1 (Bank-Auth-Client)',
                     'Cache-Control': 'no-cache',
                     'Pragma': 'no-cache'
