@@ -891,9 +891,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     CustomerMessage: 'Success. Request accepted for processing (Mock Mode)'
                 };
             }
-            const token = await getNcbaToken(ncbaConfig);
-            const maskedToken = token ? `${token.substring(0, 8)}...${token.substring(token.length - 8)}` : 'null';
-            console.log(`[NCBA STK] Using Bearer Token: ${maskedToken}`);
+            const cId = (ncbaConfig.clientId || ncbaConfig.client_id || ncbaConfig.consumerKey || ncbaConfig.consumer_key || '').trim();
+            const cSec = (ncbaConfig.clientSecret || ncbaConfig.client_secret || ncbaConfig.secretKey || ncbaConfig.secret_key || ncbaConfig.consumerSecret || ncbaConfig.consumer_secret || '').trim();
+            
+            // Standard: Bearer (OAuth2). Alternative: Basic (Bank Direct).
+            const authMethod = (ncbaConfig.authMethod || 'bearer').toLowerCase();
+            let authHeader = '';
+
+            if (authMethod === 'basic') {
+                const basic = Buffer.from(`${cId}:${cSec}`).toString('base64');
+                authHeader = `Basic ${basic}`;
+                console.log(`[NCBA STK] Using DIRECT Basic Auth (${cId}) instead of OAuth2 Bearer token.`);
+            } else {
+                const token = await getNcbaToken(ncbaConfig);
+                const maskedToken = token ? `${token.substring(0, 8)}...${token.substring(token.length - 8)}` : 'null';
+                authHeader = `Bearer ${token}`;
+                console.log(`[NCBA STK] Using Bearer Token: ${maskedToken}`);
+            }
             
             // Priority: stkPushBaseUrl (new) -> baseUrl (legacy)
             const effectiveBase = normalizeNcbaUrl(ncbaConfig.stkPushBaseUrl || ncbaConfig.stk_push_base_url || ncbaConfig.baseUrl || ncbaConfig.base_url);
@@ -914,7 +928,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 res = await fetchWithTimeout(fullUrl, {
                     method: 'POST',
                     headers: mergeHeaders({
-                        'Authorization': `Bearer ${token}`,
+                        'Authorization': authHeader,
                         'Content-Type': 'application/json',
                         'Accept': 'application/json',
                         'User-Agent': 'EduAlloc-AI/1.0.0 (Bank-Integration-Client)'

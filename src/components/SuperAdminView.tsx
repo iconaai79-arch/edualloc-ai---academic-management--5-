@@ -2897,6 +2897,21 @@ Please change it after login.`;
 
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
                                                     <div className="md:col-span-2">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">NCBA Authorization Mode</label>
+                                                        <select 
+                                                            value={localCompanyInfo.ncbaConfig?.authMethod || 'bearer'} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, authMethod: e.target.value } as any })}
+                                                            className="form-input h-14 bg-white dark:bg-slate-900 font-bold text-sm"
+                                                        >
+                                                            <option value="bearer">OAuth2 (Bearer Token + WSO2)</option>
+                                                            <option value="basic">Bank Direct (Basic Auth)</option>
+                                                        </select>
+                                                        <p className="mt-2 text-[9px] font-black uppercase tracking-widest text-indigo-500/70">
+                                                            Select "Basic Auth" for direct bank APIs or "OAuth2" for modern WSO2 managed gateways.
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="md:col-span-2">
                                                         <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">STK Push Base URL</label>
                                                         <input 
                                                             type="text" 
