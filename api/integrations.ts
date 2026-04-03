@@ -805,15 +805,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const isNewEndpoint = tokenBase.includes('c2bapis.ncbagroup.com');
             const tokenPath = isNewEndpoint ? '/payments/oauth/v1/generate' : '/oauth/v1/generate';
 
-            // Standard OAuth2 expects grant_type in the body for POST, 
-            // but some WSO2 implementations prefer it in the query string too.
-            const tokenUrl = `${tokenBase}${tokenPath}?grant_type=client_credentials`;
+            // Standard OAuth2 strictly expects grant_type in the body for POST.
+            // We use the "Double Auth" technique (credentials in both header and body) 
+            // to maximize compatibility with the bank's WSO2 gateway.
+            const tokenUrl = `${tokenBase}${tokenPath}`; // Removed query param
             const auth = Buffer.from(`${cId}:${cSec}`).toString('base64');
             
             const body = new URLSearchParams();
             body.append('grant_type', 'client_credentials');
+            body.append('client_id', cId);         // Part of Double Auth
+            body.append('client_secret', cSec);     // Part of Double Auth
 
-            process.stdout.write(`[NCBA Auth] Attempting token retrieval from: ${tokenUrl}\n`);
+            process.stdout.write(`[NCBA Auth] Attempting token retrieval from: ${tokenUrl} (${isNewEndpoint ? 'New' : 'Legacy'} Gateway)\n`);
 
             let tokenRes: Response;
             try {
@@ -823,8 +826,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'Authorization': `Basic ${auth}`,
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'Accept': 'application/json',
-                        'User-Agent': 'EduAlloc-AI/1.0 (Integration-Client)',
-                        'Cache-Control': 'no-cache'
+                        'User-Agent': 'EduAlloc-AI/1.0.0 (Bank-Auth-Client)',
+                        'Cache-Control': 'no-cache',
+                        'Pragma': 'no-cache'
                     },
                     body: body.toString(),
                     redirect: 'manual'
@@ -841,12 +845,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (!tokenRes.ok) {
                 const errBody = await tokenRes.text().catch(() => 'No body');
-                console.error(`[NCBA Auth] 401/Error: ${tokenRes.status} - ${errBody}`);
-                throw new Error(`NCBA Auth failed (${tokenRes.status}). Ensure Client ID/Secret and IP whitelisting are correct.`);
+                console.error(`[NCBA Auth] 401/Unauthorized Detail: ${tokenRes.status} - ${errBody}`);
+                
+                let hint = 'Check Client ID/Secret.';
+                if (tokenRes.status === 401) {
+                    hint = 'Most likely IP Whitelisting is NOT completed or credentials are invalid. Ref: ' + (errBody.includes('whitelist') ? 'IP Rejected' : 'Auth Rejected');
+                }
+                
+                throw new Error(`NCBA Auth failed (${tokenRes.status}). ${hint}`);
             }
 
             const data = await safeParseJson(tokenRes) as any;
-            if (!data.access_token) throw new Error('NCBA Auth succeeded but no access_token found in response.');
+            if (!data.access_token) {
+                console.error('[NCBA Auth] Response missing token:', JSON.stringify(data));
+                throw new Error('NCBA Auth succeeded but no access_token found in response.');
+            }
             return data.access_token;
         };
 
