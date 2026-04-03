@@ -797,8 +797,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const getNcbaCredentials = (config: any) => {
             const callbackUser = sanitizeNcbaVal(config.callbackUsername || config.callback_username || '');
             
-            // Treat the Client ID as optional; if missing, we use Callback Username
-            const id = sanitizeNcbaVal(config.clientId || config.client_id || config.consumerKey || config.consumer_key || callbackUser);
+            // Strictly use Callback Username as the primary ID if provided, ignoring the 32-char Client ID
+            const id = callbackUser || sanitizeNcbaVal(config.clientId || config.client_id || config.consumerKey || config.consumer_key || '');
             const sec = sanitizeNcbaVal(config.clientSecret || config.client_secret || config.secretKey || config.secret_key || config.consumerSecret || config.consumer_secret || '');
             
             return { id, sec, callbackUser };
