@@ -623,24 +623,6 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         }
     };
 
-    const generateGlobalNcbaCredentials = () => {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        const generateRandomString = (length: number) => {
-            const array = new Uint32Array(length);
-            window.crypto.getRandomValues(array);
-            return Array.from(array).map(x => chars[x % chars.length]).join('');
-        };
-
-        setLocalCompanyInfo({
-            ...localCompanyInfo,
-            ncbaConfig: {
-                ...localCompanyInfo.ncbaConfig,
-                callbackUsername: `sys_${generateRandomString(6)}`,
-                callbackSecret: generateRandomString(32),
-                notificationApiKey: `sys_key_${generateRandomString(24)}`
-            } as any
-        });
-    };
 
     const handleSaveGlobalConfigs = async () => {
         setIsSavingConfigs(true);
@@ -3001,27 +2983,23 @@ Please change it after login.`;
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">OAuth Client ID (Consumer Key)</label>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">NCBA Callback Username (Client ID)</label>
                                                         <input 
                                                             type="text" 
                                                             value={localCompanyInfo.ncbaConfig?.clientId || ''} 
-                                                            onChange={e => {
-                                                                const val = e.target.value;
-                                                                setLocalCompanyInfo({ 
-                                                                    ...localCompanyInfo, 
-                                                                    ncbaConfig: { 
-                                                                        ...localCompanyInfo.ncbaConfig, 
-                                                                        clientId: val,
-                                                                        callbackUsername: val // Sync Callback Username with Client ID
-                                                                    } as any 
-                                                                });
-                                                            }}
+                                                            onChange={e => setLocalCompanyInfo({ 
+                                                                ...localCompanyInfo, 
+                                                                ncbaConfig: { 
+                                                                    ...localCompanyInfo.ncbaConfig, 
+                                                                    clientId: e.target.value 
+                                                                } as any 
+                                                            })}
                                                             className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
-                                                            placeholder="Enter Consumer Key / Client ID"
+                                                            placeholder="Enter Callback Username"
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">NCBA Client Secret (Secret Key)</label>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">NCBA Secret Key (Client Secret)</label>
                                                         <input 
                                                             type="password" 
                                                             value={localCompanyInfo.ncbaConfig?.clientSecret || ''} 
@@ -3197,50 +3175,6 @@ Please change it after login.`;
                                                         </button>
                                                     </div>
 
-                                                    <div className="md:col-span-2 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
-                                                        <div className="flex items-center justify-between">
-                                                            <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest ml-1">Platform Callback Authentication</label>
-                                                            <button 
-                                                                onClick={generateGlobalNcbaCredentials}
-                                                                className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-900/10 px-4 py-1.5 rounded-xl transition-all border border-indigo-100 dark:border-indigo-950 shadow-sm"
-                                                            >
-                                                                Generate Perspective Keys
-                                                            </button>
-                                                        </div>
-
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in-up">
-                                                            <div className="space-y-1">
-                                                                <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">Callback Username</label>
-                                                                <input 
-                                                                    type="text" 
-                                                                    value={localCompanyInfo.ncbaConfig?.callbackUsername || ''} 
-                                                                    onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, callbackUsername: e.target.value } as any })}
-                                                                    className="form-input h-10 font-mono text-xs" 
-                                                                    placeholder="sys_xxxx"
-                                                                />
-                                                            </div>
-                                                            <div className="space-y-1">
-                                                                <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">Callback Secret Key</label>
-                                                                <input 
-                                                                    type="text" 
-                                                                    value={localCompanyInfo.ncbaConfig?.callbackSecret || ''} 
-                                                                    onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, callbackSecret: e.target.value } as any })}
-                                                                    className="form-input h-10 font-mono text-xs" 
-                                                                    placeholder="Long global secret"
-                                                                />
-                                                            </div>
-                                                            <div className="md:col-span-2 space-y-1">
-                                                                <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">Notification API Key (Optional)</label>
-                                                                <input 
-                                                                    type="text" 
-                                                                    value={localCompanyInfo.ncbaConfig?.notificationApiKey || ''} 
-                                                                    onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, notificationApiKey: e.target.value } as any })}
-                                                                    className="form-input h-10 font-mono text-xs" 
-                                                                    placeholder="sys_key_xxxx"
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    </div>
                                                     <div className="md:col-span-2 space-y-3 mt-4">
                                                         <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest ml-1">Settlement Callback URL (Mandatory)</label>
                                                         <div className="flex gap-2">
