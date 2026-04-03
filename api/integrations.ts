@@ -805,61 +805,77 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const isNewEndpoint = tokenBase.includes('c2bapis.ncbagroup.com');
             const tokenPath = isNewEndpoint ? '/payments/oauth/v1/generate' : '/oauth/v1/generate';
 
-            // Standard OAuth2 strictly expects grant_type in the body for POST.
-            // We use the "Double Auth" technique (credentials in both header and body) 
-            // to maximize compatibility with the bank's WSO2 gateway.
-            const tokenUrl = `${tokenBase}${tokenPath}`; // Removed query param
+            // --- NCBA Smart Auth Strategy (2024 Hardening) ---
+            // Tier 1: Standard RFC 6749 Header-based Basic Auth
+            // Tier 2: Body-only Auth (Credentials strictly in the body)
+            // This handles inconsistent WSO2/NCBA gateway configurations.
+
+            const tokenUrl = `${tokenBase}${tokenPath}`;
             const auth = Buffer.from(`${cId}:${cSec}`).toString('base64');
             
-            const body = new URLSearchParams();
-            body.append('grant_type', 'client_credentials');
-            body.append('client_id', cId);         // Part of Double Auth
-            body.append('client_secret', cSec);     // Part of Double Auth
+            const makeTokenRequest = async (authType: 'header' | 'body') => {
+                const bodyObj = new URLSearchParams();
+                bodyObj.append('grant_type', 'client_credentials');
+                
+                const headers: Record<string, string> = {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Accept': 'application/json',
+                    'User-Agent': 'EduAlloc-AI/1.0.1 (Bank-Auth-Client)',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                };
 
-            process.stdout.write(`[NCBA Auth] Attempting token retrieval from: ${tokenUrl} (${isNewEndpoint ? 'New' : 'Legacy'} Gateway)\n`);
+                if (authType === 'header') {
+                    headers['Authorization'] = `Basic ${auth}`;
+                } else {
+                    // Body-based auth (Alternative for stricter/picky gateways)
+                    bodyObj.append('client_id', cId);
+                    bodyObj.append('client_secret', cSec);
+                }
 
-            let tokenRes: Response;
-            try {
-                tokenRes = await fetchWithTimeout(tokenUrl, {
+                process.stdout.write(`[NCBA Auth] Attempting ${authType}-based token retrieval from: ${tokenUrl}...\n`);
+                
+                const res = await fetchWithTimeout(tokenUrl, {
                     method: 'POST',
-                    headers: { 
-                        'Authorization': `Basic ${auth}`,
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Accept': 'application/json',
-                        'User-Agent': 'EduAlloc-AI/1.0.0 (Bank-Auth-Client)',
-                        'Cache-Control': 'no-cache',
-                        'Pragma': 'no-cache'
-                    },
-                    body: body.toString(),
+                    headers,
+                    body: bodyObj.toString(),
                     redirect: 'manual'
                 }, 15000);
 
-                if (tokenRes.status === 301 || tokenRes.status === 302) {
-                    const location = tokenRes.headers.get('location');
-                    throw new Error(`NCBA Gateway Redirect (${tokenRes.status}) to ${location}. Verify Base URL.`);
+                if (res.status === 301 || res.status === 302) {
+                    const loc = res.headers.get('location');
+                    throw new Error(`NCBA Gateway Redirect (${res.status}) to ${loc}. Check Base URL.`);
                 }
-            } catch (fetchErr: any) {
-                if (fetchErr.message.includes('Redirect')) throw fetchErr;
-                throw new Error(`NCBA Auth connection failed: ${fetchErr.message}`);
+                return res;
+            };
+
+            let tokenRes = await makeTokenRequest('header');
+
+            // Fallback: If 401/400 (Unauthorized/Bad Request), try Body-based Auth
+            if (tokenRes.status === 401 || tokenRes.status === 400) {
+                const errBody = await tokenRes.clone().text().catch(() => 'No body');
+                console.warn(`[NCBA Auth] Attempt 1 (Header-based) rejected: ${tokenRes.status}. Details: ${errBody}. Retrying with Body-based Auth...`);
+                tokenRes = await makeTokenRequest('body');
             }
 
             if (!tokenRes.ok) {
-                const errBody = await tokenRes.text().catch(() => 'No body');
-                console.error(`[NCBA Auth] 401/Unauthorized Detail: ${tokenRes.status} - ${errBody}`);
+                const finalErrBody = await tokenRes.text().catch(() => 'No body');
+                console.error(`[NCBA Auth] Permanent Failure: ${tokenRes.status} - ${finalErrBody}`);
                 
-                let hint = 'Check Client ID/Secret.';
+                let hint = 'Check Client ID/Secret and IP whitelisting.';
                 if (tokenRes.status === 401) {
-                    hint = 'Most likely IP Whitelisting is NOT completed or credentials are invalid. Ref: ' + (errBody.includes('whitelist') ? 'IP Rejected' : 'Auth Rejected');
+                    hint = 'Gateway persists 401. If credentials are correct, IP Whitelisting is definitely missing. Ref: ' + finalErrBody;
                 }
-                
                 throw new Error(`NCBA Auth failed (${tokenRes.status}). ${hint}`);
             }
 
             const data = await safeParseJson(tokenRes) as any;
             if (!data.access_token) {
-                console.error('[NCBA Auth] Response missing token:', JSON.stringify(data));
-                throw new Error('NCBA Auth succeeded but no access_token found in response.');
+                console.error('[NCBA Auth] Response missing access_token:', JSON.stringify(data));
+                throw new Error('NCBA Auth succeeded but No access_token returned.');
             }
+            
+            console.log(`[NCBA Auth] Token successfully retrieved via fallback strategy.`);
             return data.access_token;
         };
 
