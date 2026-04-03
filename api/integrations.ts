@@ -808,11 +808,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
+            const fingerprint = `ID: ${cId.substring(0, 4)}... (Len: ${cId.length}), Secret: *** (Len: ${cSec.length})`;
             
-            if (!cId || !cSec) throw new Error('NCBA Client ID or Client Secret is missing.');
+            if (!cId || !cSec) throw new Error(`NCBA Configuration incomplete: ${!cId ? 'Client ID' : 'Client Secret'} is missing.`);
             
             // Debugging: Show fingerprint to user (Safe for production logs)
-            console.log(`[NCBA Debug] Credential Fingerprint - ID: ${cId.substring(0, 4)}... (Length: ${cId.length}), Secret Length: ${cSec.length}, Method: ${ncbaConfig.authMethod || 'bearer'}`);
+            console.log(`[NCBA Debug] Attempting authentication with: ${fingerprint}, Method: ${ncbaConfig.authMethod || 'bearer'}`);
             
             // If authMethod is 'basic', we skip fetching a token as we'll use Basic Auth directly on the request
             if (ncbaConfig.authMethod === 'basic') {
@@ -881,11 +882,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const finalErrBody = await tokenRes.text().catch(() => 'No body');
                 console.error(`[NCBA Auth] Permanent Failure: ${tokenRes.status} - ${finalErrBody}`);
                 
-                let hint = 'Check Client ID/Secret and IP whitelisting.';
+                let hint = `Check your credentials. Actually using ${fingerprint}.`;
                 if (tokenRes.status === 401) {
-                    hint = 'Gateway persists 401. If credentials are correct, IP Whitelisting is definitely missing. Ref: ' + finalErrBody;
+                    hint = `Gateway persists 401. If ${fingerprint} is correct, your server IP might not be whitelisted at NCBA. Ref: ${finalErrBody}`;
+                } else if (tokenRes.status === 404) {
+                    hint = `NCBA Endpoint not found. Verify your Base URL and Path. Check if they match the 2024 spec.`;
                 }
-                throw new Error(`NCBA Auth failed (${tokenRes.status}). ${hint}`);
+                throw new Error(`NCBA Authentication failed (${tokenRes.status}): ${hint}`);
             }
 
             const data = await safeParseJson(tokenRes) as any;
@@ -911,7 +914,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 };
             }
             const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
-            if (!cId || !cSec) throw new Error('NCBA Client ID or Client Secret is missing for STK initiation.');
+            const fingerprint = `ID: ${cId.substring(0, 4)}... (Len: ${cId.length}), Secret: *** (Len: ${cSec.length})`;
+            
+            if (!cId || !cSec) {
+                throw new Error(`NCBA Configuration incomplete: ${!cId ? 'Client ID' : 'Client Secret'} is missing from your global/institution settings.`);
+            }
             
             // Standard: Bearer (OAuth2). Alternative: Basic (Bank Direct).
             const authMethod = (ncbaConfig.authMethod || 'bearer').toLowerCase();
@@ -978,7 +985,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (!res.ok) {
-                return await safeParseJson(res, 'NCBA STK initiation rejected').catch(e => ({ success: false, StatusCode: 'ERROR', StatusDescription: e.message }));
+                const errData = await safeParseJson(res, 'NCBA STK initiation rejected').catch(e => ({ success: false, StatusCode: 'ERROR', StatusDescription: e.message }));
+                // Enrich the error object with diagnostic context
+                return {
+                    ...errData,
+                    success: false,
+                    diagHint: res.status === 401 ? `Gateway rejected your credentials during STK push. (Using ${fingerprint})` : `NCBA Gateway error ${res.status}.`,
+                };
             }
             return await safeParseJson(res);
         };
