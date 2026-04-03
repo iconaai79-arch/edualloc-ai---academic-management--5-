@@ -289,6 +289,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [saveInstSmsStatus, setSaveInstSmsStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const [isSavingInstGateways, setIsSavingInstGateways] = useState(false);
     const [saveInstGatewaysStatus, setSaveInstGatewaysStatus] = useState<'idle' | 'success' | 'error'>('idle');
+    const [isTestingInstNcba, setIsTestingInstNcba] = useState(false);
+    const [instNcbaTestResult, setInstNcbaTestResult] = useState<{ success: boolean; message?: string; diagnostics?: any; error?: string } | null>(null);
+    const [isTestingGlobalNcba, setIsTestingGlobalNcba] = useState(false);
+    const [globalNcbaTestResult, setGlobalNcbaTestResult] = useState<{ success: boolean; message?: string; diagnostics?: any; error?: string } | null>(null);
 
     useEffect(() => {
         setLocalInstSmsConfig(props.currentInstitution?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -531,6 +535,25 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             setLocalSubConfig(props.companyDetails.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
         }
     }, [props.companyDetails]);
+    const handleTestNcbaAuth = async (type: 'global' | 'inst') => {
+        const setTesting = type === 'global' ? setIsTestingGlobalNcba : setIsTestingInstNcba;
+        const setResult = type === 'global' ? setGlobalNcbaTestResult : setInstNcbaTestResult;
+        const config = type === 'global' ? localCompanyInfo.ncbaConfig : localInstNcbaConfig;
+
+        setTesting(true);
+        setResult(null);
+        try {
+            const res = await apiService.post('/api/integrations', {
+                action: 'testNcbaAuth',
+                config
+            });
+            setResult(res);
+        } catch (err: any) {
+            setResult({ success: false, error: err.message || 'Connection failed' });
+        } finally {
+            setTesting(false);
+        }
+    };
 
 
     const handleTestInstNcbaStk = async () => {
@@ -1364,6 +1387,59 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                             className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm text-teal-600" 
                                                             placeholder="https://c2bapis.ncbagroup.com"
                                                         />
+                                                    </div>
+
+                                                    <div className="pt-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleTestNcbaAuth('global')}
+                                                            disabled={isTestingGlobalNcba}
+                                                            className="w-full h-12 bg-white hover:bg-slate-50 text-indigo-600 border border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 group disabled:opacity-50"
+                                                        >
+                                                            {isTestingGlobalNcba ? (
+                                                                <div className="w-4 h-4 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+                                                            ) : (
+                                                                <BeakerIcon className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                                            )}
+                                                            {isTestingGlobalNcba ? 'Verifying Gateway...' : 'Test NCBA Connection'}
+                                                        </button>
+
+                                                        {globalNcbaTestResult && (
+                                                            <div className={`mt-4 p-5 rounded-2xl border animate-fade-in-up ${globalNcbaTestResult.success ? 'bg-emerald-50/50 border-emerald-100' : 'bg-red-50/50 border-red-100'}`}>
+                                                                <div className="flex items-start gap-4">
+                                                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${globalNcbaTestResult.success ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                                                                        {globalNcbaTestResult.success ? <CheckCircleIcon className="w-5 h-5" /> : <XIcon className="w-5 h-5" />}
+                                                                    </div>
+                                                                    <div className="flex-1 space-y-3">
+                                                                        <div>
+                                                                            <h6 className={`text-[10px] font-black uppercase tracking-tight ${globalNcbaTestResult.success ? 'text-emerald-700' : 'text-red-700'}`}>
+                                                                                {globalNcbaTestResult.success ? 'Gateway Verified' : 'Connection Failed'}
+                                                                            </h6>
+                                                                            <p className="text-[10px] text-slate-500 font-medium leading-tight mt-1">
+                                                                                {globalNcbaTestResult.message || globalNcbaTestResult.error || (globalNcbaTestResult.success ? 'Token retrieved successfully.' : 'Check credentials for errors.')}
+                                                                            </p>
+                                                                            {globalNcbaTestResult.diagnostics?.hint && (
+                                                                                <p className="text-[9px] text-amber-600 font-black uppercase mt-2">{globalNcbaTestResult.diagnostics.hint}</p>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {globalNcbaTestResult.diagnostics?.fields && (
+                                                                            <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                                                                                {Object.entries(globalNcbaTestResult.diagnostics.fields).map(([key, field]: [string, any]) => (
+                                                                                    <div key={key} className="flex items-center justify-between">
+                                                                                        <span className="text-[9px] font-bold text-slate-500 uppercase">{key}</span>
+                                                                                        <div className="flex items-center gap-2">
+                                                                                            <span className="text-[9px] font-mono text-slate-400">{field.fingerprint}***</span>
+                                                                                            {!field.validChars && <ExclamationTriangleIcon className="w-3 h-3 text-red-500" />}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <div className="grid grid-cols-2 gap-4">
                                                         <div>
@@ -2206,6 +2282,59 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         >
                                             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${localInstNcbaConfig.isMock ? 'translate-x-6' : 'translate-x-1'}`} />
                                         </button>
+                                    </div>
+
+                                    <div className="mb-6">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleTestNcbaAuth('inst')}
+                                            disabled={isTestingInstNcba}
+                                            className="w-full h-12 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 group disabled:opacity-50"
+                                        >
+                                            {isTestingInstNcba ? (
+                                                <div className="w-4 h-4 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+                                            ) : (
+                                                <BeakerIcon className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                            )}
+                                            {isTestingInstNcba ? 'Verifying Gateway...' : 'Test NCBA Connection'}
+                                        </button>
+
+                                        {instNcbaTestResult && (
+                                            <div className={`mt-4 p-5 rounded-2xl border animate-fade-in-up ${instNcbaTestResult.success ? 'bg-emerald-50/50 border-emerald-100' : 'bg-red-50/50 border-red-100'}`}>
+                                                <div className="flex items-start gap-4">
+                                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${instNcbaTestResult.success ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                                                        {instNcbaTestResult.success ? <CheckCircleIcon className="w-5 h-5" /> : <XIcon className="w-5 h-5" />}
+                                                    </div>
+                                                    <div className="flex-1 space-y-3">
+                                                        <div>
+                                                            <h6 className={`text-[10px] font-black uppercase tracking-tight ${instNcbaTestResult.success ? 'text-emerald-700' : 'text-red-700'}`}>
+                                                                {instNcbaTestResult.success ? 'Gateway Verified' : 'Connection Failed'}
+                                                            </h6>
+                                                            <p className="text-[10px] text-slate-500 font-medium leading-tight mt-1">
+                                                                {instNcbaTestResult.message || instNcbaTestResult.error || (instNcbaTestResult.success ? 'Token retrieved successfully.' : 'Check credentials for errors.')}
+                                                            </p>
+                                                            {instNcbaTestResult.diagnostics?.hint && (
+                                                                <p className="text-[9px] text-amber-600 font-black uppercase mt-2">{instNcbaTestResult.diagnostics.hint}</p>
+                                                            )}
+                                                        </div>
+
+                                                        {instNcbaTestResult.diagnostics?.fields && (
+                                                            <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                                                                {Object.entries(instNcbaTestResult.diagnostics.fields).map(([key, field]: [string, any]) => (
+                                                                    <div key={key} className="flex items-center justify-between">
+                                                                        <span className="text-[9px] font-bold text-slate-500 uppercase">{key}</span>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-[9px] font-mono text-slate-400">{field.fingerprint}***</span>
+                                                                            {!field.validChars && <ExclamationTriangleIcon className="w-3 h-3 text-red-500" />}
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="flex items-center justify-end gap-4 pt-4">

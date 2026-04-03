@@ -1530,6 +1530,65 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(stkRes.status).json({ success: false, message: stkData.CustomerMessage || 'M-Pesa gateway rejected the request.', details: stkData });
         }
 
+        if (action === 'testNcbaAuth') {
+            const ncba = bodyConfig || settings?.ncba_config || settings?.ncbaConfig || {};
+            const diagnostics: any = {
+                fields: {},
+                connection: {},
+                tips: []
+            };
+
+            const fields = [
+                'clientId', 'client_id', 'consumerKey', 'consumer_key', 
+                'callbackUsername', 'callback_username',
+                'clientSecret', 'client_secret', 'secretKey', 'secret_key',
+                'consumerSecret', 'consumer_secret'
+            ];
+
+            fields.forEach(f => {
+                const val = ncba[f];
+                if (val !== undefined && val !== null && String(val).trim() !== '') {
+                    const strVal = String(val);
+                    const sanitized = strVal.replace(/[^\x20-\x7E]/g, '').trim();
+                    diagnostics.fields[f] = {
+                        present: true,
+                        fingerprint: sanitized.substring(0, 4),
+                        length: strVal.length,
+                        validChars: strVal === sanitized
+                    };
+                }
+            });
+
+            const authMethod = (ncba.authMethod || 'bearer').toLowerCase();
+            diagnostics.connection = {
+                authMethod,
+                baseUrl: !!(ncba.baseUrl || ncba.base_url),
+                stkPushUrl: !!(ncba.stkPushBaseUrl || ncba.stk_push_base_url || ncba.baseUrl || ncba.base_url),
+                isMock: ncba.isMock === true || ncba.isMock === 'true'
+            };
+
+            try {
+                if (authMethod === 'basic') {
+                    diagnostics.tokenStatus = 'Skipped (Basic Auth Mode)';
+                    // Attempt a dummy HEAD or GET to the base URL to check IP whitelisting
+                    const testUrl = normalizeNcbaUrl(ncba.baseUrl || ncba.base_url);
+                    const headRes = await fetchWithTimeout(testUrl, { method: 'HEAD' }).catch(() => null);
+                    diagnostics.gatewayReachable = !!headRes;
+                } else {
+                    const token = await getNcbaToken(ncba);
+                    diagnostics.tokenStatus = token ? 'Success' : 'Failed';
+                }
+                return res.status(200).json({ success: true, diagnostics });
+            } catch (err: any) {
+                return res.status(200).json({ 
+                    success: false, 
+                    diagnostics, 
+                    error: err.message,
+                    hint: err.message.includes('401') ? 'Authentication failed. Check your Client ID and Secret for hidden spaces/newlines.' : 'Connection error. Verify IP whitelisting and Base URL.'
+                });
+            }
+        }
+
         if (action === 'verifyTransactionManually') {
             if (user.role !== 'super_admin') {
                 return res.status(403).json({ success: false, message: 'Permission denied: Manual verification requires Super Admin privileges.' });

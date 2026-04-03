@@ -563,6 +563,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [localSubConfig, setLocalSubConfig] = useState<SubscriptionConfig>(companyDetails?.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
 
     const [isSavingConfigs, setIsSavingConfigs] = useState(false);
+    const [isTestingNcba, setIsTestingNcba] = useState(false);
+    const [ncbaTestResult, setNcbaTestResult] = useState<{ success: boolean; message?: string; diagnostics?: any; error?: string } | null>(null);
 
     useEffect(() => {
         if (companyDetails) {
@@ -623,6 +625,22 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         }
     };
 
+
+    const handleTestNcbaConnection = async () => {
+        setIsTestingNcba(true);
+        setNcbaTestResult(null);
+        try {
+            const res = await apiService.post('/api/integrations', {
+                action: 'testNcbaAuth',
+                config: localCompanyInfo.ncbaConfig
+            });
+            setNcbaTestResult(res);
+        } catch (err: any) {
+            setNcbaTestResult({ success: false, error: err.message || 'Connection failed' });
+        } finally {
+            setIsTestingNcba(false);
+        }
+    };
 
     const handleSaveGlobalConfigs = async () => {
         setIsSavingConfigs(true);
@@ -3062,6 +3080,65 @@ Please change it after login.`;
                                                             <option value="basic">Bank Direct (Basic / Static Auth)</option>
                                                         </select>
                                                         <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight ml-1">Select 'Direct' if using static portal credentials.</p>
+                                                        <div className="pt-4">
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleTestNcbaConnection}
+                                                                disabled={isTestingNcba}
+                                                                className="w-full h-12 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 group disabled:opacity-50"
+                                                            >
+                                                                {isTestingNcba ? (
+                                                                    <div className="w-4 h-4 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+                                                                ) : (
+                                                                    <BeakerIcon className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                                                )}
+                                                                {isTestingNcba ? 'Verifying Gateway...' : 'Test NCBA Connection'}
+                                                            </button>
+                                                        </div>
+
+                                                        {ncbaTestResult && (
+                                                            <div className={`mt-4 p-6 rounded-[2rem] border animate-fade-in-up ${ncbaTestResult.success ? 'bg-emerald-50/50 border-emerald-100' : 'bg-red-50/50 border-red-100'}`}>
+                                                                <div className="flex items-start gap-4">
+                                                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${ncbaTestResult.success ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                                                                        {ncbaTestResult.success ? <CheckCircleIcon className="w-5 h-5" /> : <XIcon className="w-5 h-5" />}
+                                                                    </div>
+                                                                    <div className="flex-1 space-y-3">
+                                                                        <div>
+                                                                            <h6 className={`text-[11px] font-black uppercase tracking-tight ${ncbaTestResult.success ? 'text-emerald-700' : 'text-red-700'}`}>
+                                                                                {ncbaTestResult.success ? 'Gateway Verified Successfully' : 'Authentication Failed'}
+                                                                            </h6>
+                                                                            <p className="text-[10px] text-slate-500 font-medium leading-relaxed mt-1">
+                                                                                {ncbaTestResult.message || ncbaTestResult.error || (ncbaTestResult.success ? 'The platform was able to retrieve a token from NCBA.' : 'The gateway rejected the request with a 401 Unauthorized error.')}
+                                                                            </p>
+                                                                            {ncbaTestResult.diagnostics?.hint && (
+                                                                                <p className="text-[10px] text-amber-600 font-black uppercase tracking-widest mt-2">{ncbaTestResult.diagnostics.hint}</p>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {ncbaTestResult.diagnostics?.fields && (
+                                                                            <div className="pt-3 border-t border-slate-100 space-y-2">
+                                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Diagnostic Details:</p>
+                                                                                {Object.entries(ncbaTestResult.diagnostics.fields).map(([key, field]: [string, any]) => (
+                                                                                    <div key={key} className="flex items-center justify-between bg-white/50 p-2 rounded-lg">
+                                                                                        <span className="text-[9px] font-bold text-slate-600">{key}</span>
+                                                                                        <div className="flex items-center gap-3">
+                                                                                            <span className="text-[9px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{field.fingerprint}*** ({field.length} chars)</span>
+                                                                                            {field.validChars ? (
+                                                                                                <span className="text-[8px] font-black text-emerald-500 uppercase">Valid</span>
+                                                                                            ) : (
+                                                                                                <span className="flex items-center gap-1 text-[8px] font-black text-red-500 uppercase">
+                                                                                                    <ExclamationTriangleIcon className="w-2.5 h-2.5" /> Hidden Chars
+                                                                                                </span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <div className="md:col-span-2 space-y-4 pt-6 border-t border-slate-100 dark:border-slate-800">
                                                         <h5 className="text-[10px] font-black uppercase text-indigo-500 tracking-widest ml-1 flex items-center gap-2">
