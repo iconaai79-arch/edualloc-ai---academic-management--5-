@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { 
     User, 
@@ -66,7 +65,7 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
     const [isOpeningAccount, setIsOpeningAccount] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [newSaccoAccount, setNewSaccoAccount] = useState<Partial<SaccoAccount>>({
-        accountType: 'savings',
+        accountType: 'Savings',
         status: 'active'
     });
 
@@ -95,11 +94,10 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
                 ...newSaccoAccount,
                 id: `sa_${Date.now()}`,
                 farmerId: currentUser.id,
-                institutionId: currentUser.institutionId || '',
-                createdAt: new Date().toISOString()
+                institutionId: currentUser.institutionId || ''
             });
             setIsOpeningAccount(false);
-            setNewSaccoAccount({ accountType: 'savings', status: 'active' });
+            setNewSaccoAccount({ accountType: 'Savings', status: 'active' });
         } catch (err) {
             console.error(err);
             alert("Failed to open SACCO account");
@@ -727,7 +725,7 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
                             </div>
                         </div>
                     </div>
-                    </div>
+                )}
             </main>
 
             {isOpeningAccount && (
@@ -752,7 +750,7 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Account Type</label>
                                 <div className="grid grid-cols-2 gap-4">
-                                    {(['savings', 'shares'] as const).map(type => (
+                                    {(['Savings', 'Shares'] as const).map(type => (
                                         <button
                                             key={type}
                                             type="button"
