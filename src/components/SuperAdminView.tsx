@@ -3047,7 +3047,52 @@ Please change it after login.`;
                                                         >
                                                             <option value="sandbox">Sandbox / Staging</option>
                                                             <option value="production">Live Production</option>
-                                                        </select>
+                                                    <div className="md:col-span-2 space-y-4 pt-6 border-t border-slate-100 dark:border-slate-800">
+                                                        <h5 className="text-[10px] font-black uppercase text-indigo-500 tracking-widest ml-1 flex items-center gap-2">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div>
+                                                            Advanced Request Headers & Parameters
+                                                        </h5>
+                                                        
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                            <div className="space-y-2">
+                                                                <div className="flex items-center justify-between px-1">
+                                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Custom HTTP Headers (JSON)</label>
+                                                                    <span className="text-[8px] text-indigo-400 font-bold uppercase tracking-tighter">Overrides default Bearer/Basic Auth</span>
+                                                                </div>
+                                                                <textarea 
+                                                                    value={localCompanyInfo.ncbaConfig?.headers ? JSON.stringify(localCompanyInfo.ncbaConfig.headers, null, 2) : ''} 
+                                                                    onChange={e => {
+                                                                        try {
+                                                                            const val = e.target.value ? JSON.parse(e.target.value) : null;
+                                                                            setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, headers: val } as any });
+                                                                        } catch (err) {}
+                                                                    }}
+                                                                    className="form-input min-h-[120px] bg-white dark:bg-slate-900 font-mono text-[11px] leading-relaxed resize-none p-4" 
+                                                                    placeholder='{ "X-Source-System": "EDUALLOC", "X-Correlation-ID": "..." }'
+                                                                />
+                                                            </div>
+
+                                                            <div className="space-y-2">
+                                                                <div className="flex items-center justify-between px-1">
+                                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Additional API Parameters (JSON)</label>
+                                                                    <span className="text-[8px] text-indigo-400 font-bold uppercase tracking-tighter">Merged into STK Push Body</span>
+                                                                </div>
+                                                                <textarea 
+                                                                    value={localCompanyInfo.ncbaConfig?.params ? JSON.stringify(localCompanyInfo.ncbaConfig.params, null, 2) : ''} 
+                                                                    onChange={e => {
+                                                                        try {
+                                                                            const val = e.target.value ? JSON.parse(e.target.value) : null;
+                                                                            setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, params: val } as any });
+                                                                        } catch (err) {}
+                                                                    }}
+                                                                    className="form-input min-h-[120px] bg-white dark:bg-slate-900 font-mono text-[11px] leading-relaxed resize-none p-4" 
+                                                                    placeholder='{ "ShortCode": "880100", "Network": "Safaricom" }'
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400/70 ml-1">
+                                                            Tip: Use these fields to match exactly what your bank portal documentation requires for headers and payload structure.
+                                                        </p>
                                                     </div>
 
                                                     <div className="md:col-span-2 pt-6 border-t border-slate-100 dark:border-slate-800">
