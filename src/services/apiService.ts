@@ -1864,5 +1864,21 @@ export const apiService = {
     },
     async updateDemoRequestStatus(id: string, status: DemoRequest['status']): Promise<void> {
         await this.saveModuleRecord('demo_requests', { id, status });
+    },
+    async post(url: string, body: any): Promise<any> {
+        const token = await this.getAuthToken();
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': token ? `Bearer ${token}` : '',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.message || err.error || `HTTP error! status: ${response.status}`);
+        }
+        return response.json();
     }
 };
