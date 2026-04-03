@@ -795,12 +795,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const sanitizeNcbaVal = (s: string) => (s || '').replace(/[^\x20-\x7E]/g, '').trim();
         
         const getNcbaCredentials = (config: any) => {
-            // Strictly prioritize 32-char+ strings for OAuth2 Client ID/Secret
-            const id = sanitizeNcbaVal(config.clientId || config.client_id || config.consumerKey || config.consumer_key || '');
-            const sec = sanitizeNcbaVal(config.clientSecret || config.client_secret || config.secretKey || config.secret_key || config.consumerSecret || config.consumer_secret || '');
-            
-            // Other identifiers used in the payload (not the auth header)
             const callbackUser = sanitizeNcbaVal(config.callbackUsername || config.callback_username || '');
+            
+            // Treat the Client ID as optional; if missing, we use Callback Username
+            const id = sanitizeNcbaVal(config.clientId || config.client_id || config.consumerKey || config.consumer_key || callbackUser);
+            const sec = sanitizeNcbaVal(config.clientSecret || config.client_secret || config.secretKey || config.secret_key || config.consumerSecret || config.consumer_secret || '');
             
             return { id, sec, callbackUser };
         };
@@ -925,8 +924,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const { id: cId, sec: cSec, callbackUser } = getNcbaCredentials(ncbaConfig);
             const fingerprint = `ID: ${cId.substring(0, 4)}... (Len: ${cId.length}), Secret: *** (Len: ${cSec.length})`;
             
-            if (!cId || !cSec) {
-                throw new Error(`NCBA Configuration incomplete: ${!cId ? 'Client ID' : 'Client Secret'} is missing from your global/institution settings.`);
+            if (!cSec || (!cId && !callbackUser)) {
+                throw new Error(`NCBA Configuration incomplete: Your ${!cSec ? 'Secret Key' : 'ID'} is missing from your global/institution settings.`);
             }
             
             // Standard: Bearer (OAuth2). Alternative: Basic (Bank Direct).
