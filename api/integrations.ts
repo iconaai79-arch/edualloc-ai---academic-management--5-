@@ -801,6 +801,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             if (!cId || !cSec) throw new Error('NCBA Client ID or Client Secret is missing.');
             
+            const tokenBase = normalizeNcbaUrl(ncbaConfig.baseUrl || ncbaConfig.base_url);
+            const isNewEndpoint = tokenBase.includes('c2bapis.ncbagroup.com');
+            const tokenPath = isNewEndpoint ? '/payments/oauth/v1/generate' : '/oauth/v1/generate';
+
             // Standard OAuth2 expects grant_type in the body for POST, 
             // but some WSO2 implementations prefer it in the query string too.
             const tokenUrl = `${tokenBase}${tokenPath}?grant_type=client_credentials`;
