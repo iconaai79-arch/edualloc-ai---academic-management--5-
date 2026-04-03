@@ -795,9 +795,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const sanitizeNcbaVal = (s: string) => (s || '').replace(/[^\x20-\x7E]/g, '').trim();
         
         const getNcbaCredentials = (config: any) => {
-            const id = sanitizeNcbaVal(config.clientId || config.client_id || config.callbackUsername || config.callback_username || config.consumerKey || config.consumer_key || '');
+            // Strictly prioritize 32-char+ strings for OAuth2 Client ID/Secret
+            const id = sanitizeNcbaVal(config.clientId || config.client_id || config.consumerKey || config.consumer_key || '');
             const sec = sanitizeNcbaVal(config.clientSecret || config.client_secret || config.secretKey || config.secret_key || config.consumerSecret || config.consumer_secret || '');
-            return { id, sec };
+            
+            // Other identifiers used in the payload (not the auth header)
+            const callbackUser = sanitizeNcbaVal(config.callbackUsername || config.callback_username || '');
+            
+            return { id, sec, callbackUser };
         };
 
         const getNcbaToken = async (ncbaConfig: any) => {
@@ -964,6 +969,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         Amount: String(amount),
                         PayBillNo: ncbaConfig.paybill || '880100',
                         AccountNo: ncbaConfig.accountNumber || ncbaConfig.account_number,
+                        CallbackUserName: callbackUser || ncbaConfig.accountNumber || ncbaConfig.account_number,
                         Network: 'Safaricom',
                         TransactionType: 'CustomerPayBillOnline'
                     }, ncbaConfig.params)),

@@ -3004,7 +3004,7 @@ Please change it after login.`;
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">NCBA Callback Username (Client ID)</label>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">NCBA Client ID (OAuth2 Key)</label>
                                                         <input 
                                                             type="text" 
                                                             value={localCompanyInfo.ncbaConfig?.clientId || ''} 
@@ -3047,6 +3047,16 @@ Please change it after login.`;
                                                             onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, accountNumber: e.target.value } as any })}
                                                             className="form-input h-14 bg-white dark:bg-slate-900 font-bold" 
                                                             placeholder="Enter NCBA Account Number"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">STK Callback Username</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={localCompanyInfo.ncbaConfig?.callbackUsername || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, callbackUsername: e.target.value } as any })}
+                                                            className="form-input h-14 bg-white dark:bg-slate-900 font-mono" 
+                                                            placeholder="Enter Callback Username"
                                                         />
                                                     </div>
                                                     <div className="space-y-2">
