@@ -2879,6 +2879,21 @@ Please change it after login.`;
                                                     </div>
                                                 </div>
 
+                                                <div className="md:col-span-2 bg-indigo-50/50 dark:bg-indigo-900/10 p-5 rounded-2xl border border-indigo-100 dark:border-indigo-950/30 mb-8 animate-fade-in">
+                                                    <div className="flex items-start gap-4">
+                                                        <div className="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-indigo-100 dark:border-indigo-950">
+                                                            <GlobeAltIcon className="w-6 h-6 text-indigo-600" />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">NCBA Gateway Verification (v2.4)</h4>
+                                                            <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                                                                This implementation is optimized for the NCBA 2024 WSO2 gateway. 
+                                                                <span className="block mt-1 font-bold text-indigo-600 uppercase tracking-tighter">Required: Request the bank to whitelist your server IP for outbound 401 resolution.</span>
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
                                                     <div className="md:col-span-2">
                                                         <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">STK Push Base URL</label>
@@ -2907,9 +2922,34 @@ Please change it after login.`;
                                                             value={localCompanyInfo.ncbaConfig?.pushStkUrl || ''} 
                                                             onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, pushStkUrl: e.target.value } as any })}
                                                             className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
-                                                            placeholder="/v1/stk/push"
+                                                            placeholder="/payments/v1/stk/push"
                                                         />
                                                     </div>
+
+                                                    <div className="md:col-span-2">
+                                                        <div className="flex items-center justify-between gap-4 py-4 border-t border-slate-200 dark:border-slate-700">
+                                                            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">NCBA Gateway Quick Config</label>
+                                                            <button 
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    setLocalCompanyInfo({
+                                                                        ...localCompanyInfo,
+                                                                        ncbaConfig: {
+                                                                            ...localCompanyInfo.ncbaConfig,
+                                                                            baseUrl: 'https://c2bapis.ncbagroup.com',
+                                                                            pushStkUrl: '/payments/v1/stk/push',
+                                                                            queryStkUrl: '/payments/v1/stk/query',
+                                                                            environment: 'production'
+                                                                        } as any
+                                                                    });
+                                                                }}
+                                                                className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-[9px] font-black uppercase tracking-widest rounded-lg transition-all shadow-md active:scale-95"
+                                                            >
+                                                                Auto-Configure Production
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
                                                     <div>
                                                         <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">STK Push Query URL Path</label>
                                                         <input 
@@ -2947,7 +2987,7 @@ Please change it after login.`;
                                                             value={localCompanyInfo.ncbaConfig?.baseUrl || ''} 
                                                             placeholder="https://c2bapis.ncbagroup.com"
                                                             onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, baseUrl: e.target.value } as any })}
-                                                            className="form-input h-12" 
+                                                            className="form-input h-14 bg-white dark:bg-slate-900" 
                                                         />
                                                     </div>
                                                     <div className="space-y-2">
@@ -2956,7 +2996,7 @@ Please change it after login.`;
                                                             type="text" 
                                                             value={localCompanyInfo.ncbaConfig?.accountNumber || ''} 
                                                             onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, accountNumber: e.target.value } as any })}
-                                                            className="form-input h-12 font-bold" 
+                                                            className="form-input h-14 bg-white dark:bg-slate-900 font-bold" 
                                                             placeholder="Enter NCBA Account Number"
                                                         />
                                                     </div>
@@ -2966,7 +3006,7 @@ Please change it after login.`;
                                                             type="text" 
                                                             value={localCompanyInfo.ncbaConfig?.shortCode || ''} 
                                                             onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, shortCode: e.target.value } as any })}
-                                                            className="form-input h-12 font-mono" 
+                                                            className="form-input h-14 bg-white dark:bg-slate-900 font-mono" 
                                                             placeholder="Enter Short Code"
                                                         />
                                                     </div>
@@ -2975,7 +3015,7 @@ Please change it after login.`;
                                                         <select 
                                                             value={localCompanyInfo.ncbaConfig?.environment || 'sandbox'} 
                                                             onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, environment: e.target.value as any } as any })}
-                                                            className="form-select text-[10px] h-12 font-black uppercase tracking-widest bg-white dark:bg-slate-900 border-slate-200"
+                                                            className="form-select text-[10px] h-14 font-black uppercase tracking-widest bg-white dark:bg-slate-900 border-slate-200"
                                                         >
                                                             <option value="sandbox">Sandbox / Staging</option>
                                                             <option value="production">Live Production</option>
@@ -3151,17 +3191,18 @@ Please change it after login.`;
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    <div className="md:col-span-2 space-y-2 mt-4">
-                                                        <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest ml-1">Standard Platform Callback URL (Required)</label>
+                                                    <div className="md:col-span-2 space-y-3 mt-4">
+                                                        <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest ml-1">Settlement Callback URL (Mandatory)</label>
                                                         <div className="flex gap-2">
                                                             <input 
                                                                 type="text" 
                                                                 readOnly 
                                                                 value={`${window.location.origin}/api/ncba-callback?institutionId=SYSTEM`}
-                                                                className="form-input h-12 font-mono text-[10px] bg-slate-100 dark:bg-slate-800 border-dashed"
+                                                                className="form-input h-12 font-mono text-[10px] bg-slate-50 dark:bg-slate-800/50 border-indigo-100 dark:border-indigo-900 border-dashed"
                                                             />
                                                             <button 
-                                                                onClick={() => {
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
                                                                     navigator.clipboard.writeText(`${window.location.origin}/api/ncba-callback?institutionId=SYSTEM`);
                                                                     alert('Platform Callback URL copied');
                                                                 }}
@@ -3170,12 +3211,31 @@ Please change it after login.`;
                                                                 Copy
                                                             </button>
                                                         </div>
-                                                        <p className="text-[10px] text-slate-400 italic">This is the standardized NCBA 2024 compliance endpoint for settlement. NCBA should use the **Callback Username** and **Callback Secret** as Basic Auth credentials.</p>
+                                                        
+                                                        <div className="p-4 bg-teal-50 dark:bg-teal-900/10 rounded-xl border border-teal-100 dark:border-teal-900/30">
+                                                            <div className="flex gap-3">
+                                                                <div className="p-1.5 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-teal-100 dark:border-teal-900/30 h-fit">
+                                                                    <ShieldCheckIcon className="w-4 h-4 text-teal-600" />
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    <h5 className="text-[10px] font-black text-teal-800 dark:text-teal-400 uppercase tracking-wider">Settlement Security Guide</h5>
+                                                                    <p className="text-[10px] text-teal-700 dark:text-teal-500 leading-normal">
+                                                                        Provide the <strong>Callback URL</strong>, <strong>Callback Username</strong>, and <strong>Callback Secret</strong> to the NCBA implementation team. 
+                                                                        They must configure their system to use <strong>Basic Authentication</strong> when sending notifications to this endpoint. 
+                                                                        This prevents unauthorized transaction spoofing.
+                                                                    </p>
+                                                                    <div className="flex gap-2 text-[9px] font-bold">
+                                                                        <span className="px-2 py-0.5 bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 rounded uppercase">IP Whitelisting Required</span>
+                                                                        <span className="px-2 py-0.5 bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 rounded uppercase">TLS 1.2+ Only</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            <div className="md:col-span-2 p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/20 flex items-center justify-between mt-4">
+                                            <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/20 flex items-center justify-between">
                                                 <div className="flex items-center gap-3">
                                                     <div className="p-2 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded-lg">
                                                         <ShieldCheckIcon className="w-5 h-5" />
@@ -3193,7 +3253,7 @@ Please change it after login.`;
                                                 </button>
                                             </div>
 
-                                            <div className="flex justify-end pt-4 gap-4">
+                                            <div className="flex justify-end gap-4 p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
                                                 <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/20 text-xs text-amber-700 flex-1 max-w-xl">
                                                     <div className="flex gap-2 items-center mb-1"><InformationCircleIcon className="w-4 h-4" /><span className="font-bold uppercase tracking-tight">Security Notice</span></div>
                                                     <p>NCBA API credentials allow programmatic movement of funds. Ensure your client ID, client secret, and settlement accounts are stored securely. These settings apply globally to platform-level settlement.</p>

@@ -24,7 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-NCBA-Signature');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-NCBA-Signature, Authorization');
 
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
@@ -45,9 +45,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
         // --- 0. Security Verification ---
         let webhookSecret = '';
+        let callbackUsername = '';
+        let callbackSecret = '';
 
         if (institutionId === 'SYSTEM') {
-            webhookSecret = process.env.NCBA_WEBHOOK_SECRET || '';
+            // Fetch global config from system_settings
+            const { data: settingsData } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
+            if (settingsData?.data) {
+                const config = settingsData.data.ncbaConfig || settingsData.data.ncba_config;
+                if (config) {
+                    webhookSecret = config.webhookSecret || config.webhook_secret || '';
+                    callbackUsername = config.callbackUsername || config.callback_username || '';
+                    callbackSecret = config.callbackSecret || config.callback_secret || '';
+                }
+            }
+            // Fallback to Env
+            if (!webhookSecret) webhookSecret = process.env.NCBA_WEBHOOK_SECRET || '';
         } else if (institutionId) {
             const { data: inst } = await supabase
                 .from('institutions')
@@ -56,10 +69,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 .single();
             
             if (inst?.ncba_config) {
-                webhookSecret = (inst.ncba_config as any).webhook_secret || '';
+                const config = inst.ncba_config as any;
+                webhookSecret = config.webhook_secret || config.webhookSecret || '';
+                callbackUsername = config.callback_username || config.callbackUsername || '';
+                callbackSecret = config.callback_secret || config.callbackSecret || '';
             }
         }
 
+        // 0a. Basic Auth Verification (Callback Credentials / Perspective Keys)
+        if (callbackUsername && callbackSecret) {
+            const authHeader = req.headers.authorization;
+            if (!authHeader || !authHeader.startsWith('Basic ')) {
+                console.warn(`[NCBA Security] Missing Basic Auth for Institution: ${institutionId}`);
+                return res.status(401).json({ ResultCode: 1, ResultDesc: 'Authentication Required' });
+            }
+
+            const base64Credentials = authHeader.split(' ')[1];
+            const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
+            const [username, password] = credentials.split(':');
+
+            if (username !== callbackUsername || password !== callbackSecret) {
+                console.warn(`[NCBA Security] Invalid Credentials for Institution: ${institutionId}`);
+                return res.status(401).json({ ResultCode: 1, ResultDesc: 'Invalid Credentials' });
+            }
+            console.log(`[NCBA Security] Basic Auth Verified for Institution: ${institutionId}`);
+        }
+
+        // 0b. Signature Verification (HMAC)
         if (webhookSecret && signature) {
             const computedHmac = crypto
                 .createHmac('sha256', webhookSecret)
@@ -69,14 +105,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (computedHmac !== signature.toLowerCase()) {
                 console.warn(`[NCBA Security] Signature mismatch for Institution: ${institutionId}`);
                 // return res.status(401).json({ ResultCode: 1, ResultDesc: 'Invalid Signature' });
-                // Note: For now we log and continue to avoid absolute lockouts during transition, 
-                // but in production this should be a hard 401.
             } else {
                 console.log(`[NCBA Security] Signature Verified for Institution: ${institutionId}`);
             }
         } else if (webhookSecret) {
             console.warn(`[NCBA Security] Missing signature for protected institution: ${institutionId}`);
-            // return res.status(401).json({ ResultCode: 1, ResultDesc: 'Missing Signature' });
         }
         // Standard NCBA 2024 Payload mapping
         const transactionId = body.TransactionID || body.CheckoutRequestID || body.ReferenceID;

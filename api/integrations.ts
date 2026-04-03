@@ -801,22 +801,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             if (!cId || !cSec) throw new Error('NCBA Client ID or Client Secret is missing.');
             
-            // Normalize the base URL for the token endpoint
-            const tokenBase = normalizeNcbaUrl(ncbaConfig.baseUrl || ncbaConfig.base_url);
-            
-            // On c2bapis, the path must be prefixed with /payments
-            const isNewEndpoint = tokenBase.includes('c2bapis.ncbagroup.com');
-            const tokenPath = isNewEndpoint ? '/payments/oauth/v1/generate' : '/oauth/v1/generate';
-            // Some NCBA/WSO2 gateways require grant_type in the query string
+            // Standard OAuth2 expects grant_type in the body for POST, 
+            // but some WSO2 implementations prefer it in the query string too.
             const tokenUrl = `${tokenBase}${tokenPath}?grant_type=client_credentials`;
-                        process.stdout.write(`[NCBA Auth] Strategy: Dual Auth (Basic Header + Body params). URL: ${tokenUrl}\n`);
             const auth = Buffer.from(`${cId}:${cSec}`).toString('base64');
             
-            // Send credentials in BOTH header (Basic) and body (as fallback)
             const body = new URLSearchParams();
             body.append('grant_type', 'client_credentials');
-            body.append('client_id', cId);
-            body.append('client_secret', cSec);
+
+            process.stdout.write(`[NCBA Auth] Attempting token retrieval from: ${tokenUrl}\n`);
 
             let tokenRes: Response;
             try {
@@ -825,39 +818,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     headers: { 
                         'Authorization': `Basic ${auth}`,
                         'Content-Type': 'application/x-www-form-urlencoded',
-                        'Accept': 'application/json, text/plain, */*',
-                        'User-Agent': 'PostmanRuntime/7.32.3'
+                        'Accept': 'application/json',
+                        'User-Agent': 'EduAlloc-AI/1.0 (Integration-Client)',
+                        'Cache-Control': 'no-cache'
                     },
                     body: body.toString(),
                     redirect: 'manual'
+                }, 15000);
 
-                }, 25000);
-
-                // Handle Redirects (NCBA Gateway often redirects on invalid paths/headers)
                 if (tokenRes.status === 301 || tokenRes.status === 302) {
                     const location = tokenRes.headers.get('location');
-                    throw new Error(`NCBA Gateway Redirect detected (${tokenRes.status}). Target: ${location}. This usually indicates an incorrect API path or missing mandatory headers (User-Agent). Expected JSON, got Redirect.`);
+                    throw new Error(`NCBA Gateway Redirect (${tokenRes.status}) to ${location}. Verify Base URL.`);
                 }
             } catch (fetchErr: any) {
-                if (fetchErr.message.includes('Redirect')) throw fetchErr; // Re-throw our redirect error
-                
-                const isAbort = fetchErr?.name === 'AbortError';
-                console.error(`[NCBA Auth Connection Error] URL: ${tokenUrl}`, fetchErr);
-                const errorCode = fetchErr.code || fetchErr.errno || 'N/A';
-                throw new Error(
-                    isAbort
-                        ? `NCBA Auth timed out (25s) while connecting to ${tokenUrl}. The server did not respond.`
-                        : `NCBA Auth connection error (${errorCode}): ${fetchErr.message}. Target: ${tokenUrl}. Please verify your internet connection and that the Bank's API endpoint is reachable from your server.`
-                );
+                if (fetchErr.message.includes('Redirect')) throw fetchErr;
+                throw new Error(`NCBA Auth connection failed: ${fetchErr.message}`);
             }
+
             if (!tokenRes.ok) {
                 const errBody = await tokenRes.text().catch(() => 'No body');
-                console.error(`[NCBA Auth] Failed with status ${tokenRes.status}: ${errBody}`);
-                const errData = await safeParseJson({ text: () => Promise.resolve(errBody), ok: false } as any, 'NCBA Auth failed').catch(e => ({ message: e.message }));
-                throw new Error(errData.message || `NCBA Auth failed: ${tokenRes.statusText} (${tokenRes.status}) - Body: ${errBody}`);
+                console.error(`[NCBA Auth] 401/Error: ${tokenRes.status} - ${errBody}`);
+                throw new Error(`NCBA Auth failed (${tokenRes.status}). Ensure Client ID/Secret and IP whitelisting are correct.`);
             }
+
             const data = await safeParseJson(tokenRes) as any;
-            if (!data.access_token) throw new Error('NCBA Auth succeeded but no access_token was returned. Check client credentials.');
+            if (!data.access_token) throw new Error('NCBA Auth succeeded but no access_token found in response.');
             return data.access_token;
         };
 

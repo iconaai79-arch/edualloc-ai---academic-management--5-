@@ -1815,14 +1815,28 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                         {generalSubTab === 'gateways' && (
                             <div className="space-y-8 animate-fade-in">
                                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-3 bg-teal-50 dark:bg-teal-900/30 rounded-2xl text-teal-600">
-                                            <BuildingOfficeIcon className="w-6 h-6" />
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-3 bg-teal-50 dark:bg-teal-900/30 rounded-2xl text-teal-600">
+                                                <BuildingOfficeIcon className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-xl font-black uppercase tracking-tight">NCBA Bank Integration</h3>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase">Connect your NCBA Direct Debit & Settlement Gateway</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h3 className="text-xl font-black uppercase tracking-tight">NCBA Bank Integration</h3>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase">Connect your NCBA Direct Debit & Settlement Gateway</p>
-                                        </div>
+                                        <button 
+                                            onClick={() => setLocalInstNcbaConfig({
+                                                ...localInstNcbaConfig,
+                                                baseUrl: 'https://c2bapis.ncbagroup.com',
+                                                stkPushBaseUrl: '/payments/v1/stk/push',
+                                                queryStkUrl: '/payments/v1/stk/query',
+                                                environment: 'production'
+                                            })}
+                                            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-teal-500/20 active:scale-95"
+                                        >
+                                            Auto-Configure Production
+                                        </button>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem]">
                                         <div>
