@@ -835,7 +835,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Tier 2: Body-only Auth (Credentials strictly in the body)
             // This handles inconsistent WSO2/NCBA gateway configurations.
 
-            const tokenUrl = `${tokenBase}${tokenPath}`;
+            const tokenUrl = tokenBase.endsWith('/') && tokenPath.startsWith('/') 
+                ? tokenBase + tokenPath.substring(1) 
+                : (!tokenBase.endsWith('/') && !tokenPath.startsWith('/') ? tokenBase + '/' + tokenPath : tokenBase + tokenPath);
             const auth = Buffer.from(`${cId}:${cSec}`).toString('base64');
             
             const makeTokenRequest = async (authType: 'header' | 'body') => {
@@ -992,11 +994,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (!res.ok) {
                 const errData = await safeParseJson(res, 'NCBA STK initiation rejected').catch(e => ({ success: false, StatusCode: 'ERROR', StatusDescription: e.message }));
+                const bodyStr = JSON.stringify(errData);
+                console.error(`[NCBA STK] Initiation failed (${res.status}): ${bodyStr}`);
+                
                 // Enrich the error object with diagnostic context
                 return {
                     ...errData,
                     success: false,
-                    diagHint: res.status === 401 ? `Gateway rejected your credentials during STK push. (Using ${fingerprint})` : `NCBA Gateway error ${res.status}.`,
+                    diagHint: res.status === 401 
+                        ? `Gateway rejected your credentials during STK push. (Using ${fingerprint}). Bank response: ${bodyStr}` 
+                        : `NCBA Gateway error ${res.status}: ${bodyStr}`,
                 };
             }
             return await safeParseJson(res);
