@@ -3153,6 +3153,12 @@ Please change it after login.`;
                                                                         {ncbaTestResult.diagnostics?.fields && (
                                                                             <div className="pt-3 border-t border-slate-100 space-y-2">
                                                                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Diagnostic Details:</p>
+                                                                                 {ncbaTestResult.diagnostics?.serverIp && (
+                                                                                     <div className="flex items-center justify-between bg-indigo-50 p-2 rounded-lg border border-indigo-100 mb-2">
+                                                                                         <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Server Public IP</span>
+                                                                                         <span className="text-[10px] font-mono font-bold text-indigo-700 select-all cursor-copy" title="Click to select IP">{ncbaTestResult.diagnostics.serverIp}</span>
+                                                                                     </div>
+                                                                                 )}
                                                                                 {Object.entries(ncbaTestResult.diagnostics.fields).map(([key, field]: [string, any]) => (
                                                                                     <div key={key} className="flex items-center justify-between bg-white/50 p-2 rounded-lg">
                                                                                         <span className="text-[9px] font-bold text-slate-600">{key}</span>

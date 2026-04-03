@@ -2349,8 +2349,16 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                     <div key={key} className="flex items-center justify-between">
                                                                         <span className="text-[9px] font-bold text-slate-500 uppercase">{key}</span>
                                                                         <div className="flex items-center gap-2">
-                                                                            <span className="text-[9px] font-mono text-slate-400">{field.fingerprint}***</span>
                                                                             {!field.validChars && <ExclamationTriangleIcon className="w-3 h-3 text-red-500" />}
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                                {instNcbaTestResult.diagnostics.serverIp && (
+                                                                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 mt-2">
+                                                                        <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Server Public IP</span>
+                                                                        <span className="text-[10px] font-mono font-bold text-indigo-700 select-all cursor-copy">{instNcbaTestResult.diagnostics.serverIp}</span>
+                                                                    </div>
+                                                                )}
                                                                         </div>
                                                                     </div>
                                                                 ))}
