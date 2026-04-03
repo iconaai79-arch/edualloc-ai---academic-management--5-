@@ -71,6 +71,7 @@ import { ShoppingCartIcon } from './icons/ShoppingCartIcon';
 import { BanknotesIcon } from './icons/BanknotesIcon';
 import { ArrowTrendingUpIcon } from './icons/ArrowTrendingUpIcon';
 import { CalendarDaysIcon as CalendarIcon } from './icons/CalendarDaysIcon';
+import { GlobeAltIcon } from './icons/GlobeAltIcon';
 
 import { CommunicationsManager } from './CommunicationsManager';
 import { EditInstitutionModal } from './EditInstitutionModal';
