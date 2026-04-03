@@ -2226,6 +2226,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 </select>
                                                 <p className="text-[9px] text-slate-400 font-bold uppercase mt-1.5 ml-1">Use 'Direct' if using static credentials or if facing 401 token errors.</p>
                                             </div>
+                                            <div>
                                                 <div className="flex justify-between items-center mb-2 px-1">
                                                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Consumer Key / Client ID</label>
                                                     <button 
