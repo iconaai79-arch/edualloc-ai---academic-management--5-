@@ -788,6 +788,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             return normalized;
         };
+        
+        // --- NCBA Credential Hardening & Sanitization ---
+        // Strips non-printable characters (Control chars, \r, zero-width spaces) 
+        // that frequently cause '401 Unauthorized' failures in bank gateways.
+        const sanitizeNcbaVal = (s: string) => (s || '').replace(/[^\x20-\x7E]/g, '').trim();
+        
+        const getNcbaCredentials = (config: any) => {
+            const id = sanitizeNcbaVal(config.clientId || config.client_id || config.callbackUsername || config.callback_username || config.consumerKey || config.consumer_key || '');
+            const sec = sanitizeNcbaVal(config.clientSecret || config.client_secret || config.secretKey || config.secret_key || config.consumerSecret || config.consumer_secret || '');
+            return { id, sec };
+        };
 
         const getNcbaToken = async (ncbaConfig: any) => {
             const isMock = ncbaConfig.isMock === true || ncbaConfig.isMock === 'true';
@@ -796,10 +807,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return 'mock-access-token-ncba-12345';
             }
 
-            // Sanitize: Strip any non-printable or whitespace characters that might have sneaked in
-            const sanitize = (s: string) => s.replace(/[^\x20-\x7E]/g, '').trim();
-            const cId = sanitize(ncbaConfig.clientId || ncbaConfig.client_id || ncbaConfig.callbackUsername || ncbaConfig.callback_username || ncbaConfig.consumerKey || ncbaConfig.consumer_key || '');
-            const cSec = sanitize(ncbaConfig.clientSecret || ncbaConfig.client_secret || ncbaConfig.secretKey || ncbaConfig.secret_key || ncbaConfig.consumerSecret || ncbaConfig.consumer_secret || '');
+            const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
             
             if (!cId || !cSec) throw new Error('NCBA Client ID or Client Secret is missing.');
             
@@ -902,8 +910,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     CustomerMessage: 'Success. Request accepted for processing (Mock Mode)'
                 };
             }
-            const cId = (ncbaConfig.clientId || ncbaConfig.client_id || ncbaConfig.callbackUsername || ncbaConfig.callback_username || ncbaConfig.consumerKey || ncbaConfig.consumer_key || '').trim();
-            const cSec = (ncbaConfig.clientSecret || ncbaConfig.client_secret || ncbaConfig.secretKey || ncbaConfig.secret_key || ncbaConfig.consumerSecret || ncbaConfig.consumer_secret || '').trim();
+            const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
+            if (!cId || !cSec) throw new Error('NCBA Client ID or Client Secret is missing for STK initiation.');
             
             // Standard: Bearer (OAuth2). Alternative: Basic (Bank Direct).
             const authMethod = (ncbaConfig.authMethod || 'bearer').toLowerCase();
@@ -995,8 +1003,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             const token = await getNcbaToken(ncbaConfig);
             const authMethod = (ncbaConfig.authMethod || 'bearer').toLowerCase();
-            const cId = (ncbaConfig.clientId || ncbaConfig.client_id || '').trim();
-            const cSec = (ncbaConfig.clientSecret || ncbaConfig.client_secret || '').trim();
+            const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
             const authHeader = authMethod === 'basic' 
                 ? `Basic ${Buffer.from(`${cId}:${cSec}`).toString('base64')}`
                 : `Bearer ${token}`;
@@ -1034,8 +1041,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const generateNcbaQr = async (ncbaConfig: any, amount: number) => {
             const token = await getNcbaToken(ncbaConfig);
             const authMethod = (ncbaConfig.authMethod || 'bearer').toLowerCase();
-            const cId = (ncbaConfig.clientId || ncbaConfig.client_id || '').trim();
-            const cSec = (ncbaConfig.clientSecret || ncbaConfig.client_secret || '').trim();
+            const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
             const authHeader = authMethod === 'basic' 
                 ? `Basic ${Buffer.from(`${cId}:${cSec}`).toString('base64')}`
                 : `Bearer ${token}`;

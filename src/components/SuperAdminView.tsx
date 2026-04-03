@@ -654,6 +654,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     emailConfig: localEmailConfig,
                     mpesaConfig: localMpesaConfig,
                     subscriptionConfig: localSubConfig,
+                    ncbaConfig: localCompanyInfo.ncbaConfig,
                     chatAssistantConfig: {
                         ...companyDetails?.chatAssistantConfig,
                         welcomeMessage: localCompanyInfo.welcomeMessage,

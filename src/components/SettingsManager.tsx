@@ -605,6 +605,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 mpesaConfig: localMpesaConfig,
                 subscriptionConfig: localSubConfig,
                 enforceGlobalOtp: localCompanyInfo.enforceGlobalOtp,
+                ncbaConfig: localCompanyInfo.ncbaConfig,
                 chatAssistantConfig: {
                     ...props.companyDetails.chatAssistantConfig,
                     welcomeMessage: localCompanyInfo.welcomeMessage,
