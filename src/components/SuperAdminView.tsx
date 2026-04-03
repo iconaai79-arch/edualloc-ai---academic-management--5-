@@ -3004,7 +3004,19 @@ Please change it after login.`;
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">NCBA Client ID (OAuth2 Key)</label>
+                                                        <div className="flex justify-between items-center mb-2 px-1">
+                                                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">NCBA Client ID (OAuth2 Key)</label>
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const gen = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+                                                                    setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, clientId: gen } as any });
+                                                                }}
+                                                                className="text-[9px] font-black uppercase text-indigo-500 hover:text-indigo-600 flex items-center gap-1"
+                                                            >
+                                                                <MagicWandIcon className="w-2.5 h-2.5" /> Auto-Generate
+                                                            </button>
+                                                        </div>
                                                         <input 
                                                             type="text" 
                                                             value={localCompanyInfo.ncbaConfig?.clientId || ''} 
@@ -3016,11 +3028,23 @@ Please change it after login.`;
                                                                 } as any 
                                                             })}
                                                             className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
-                                                            placeholder="Enter Callback Username"
+                                                            placeholder="Enter 32-char Client ID"
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">NCBA Secret Key (Client Secret)</label>
+                                                        <div className="flex justify-between items-center mb-2 px-1">
+                                                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">NCBA Secret Key (Client Secret)</label>
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const gen = Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+                                                                    setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, clientSecret: gen } as any });
+                                                                }}
+                                                                className="text-[9px] font-black uppercase text-indigo-500 hover:text-indigo-600 flex items-center gap-1"
+                                                            >
+                                                                <MagicWandIcon className="w-2.5 h-2.5" /> Auto-Generate
+                                                            </button>
+                                                        </div>
                                                         <input 
                                                             type="password" 
                                                             value={localCompanyInfo.ncbaConfig?.clientSecret || ''} 

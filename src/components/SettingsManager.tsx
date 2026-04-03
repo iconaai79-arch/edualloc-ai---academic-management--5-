@@ -2226,8 +2226,19 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 </select>
                                                 <p className="text-[9px] text-slate-400 font-bold uppercase mt-1.5 ml-1">Use 'Direct' if using static credentials or if facing 401 token errors.</p>
                                             </div>
-                                            <div>
-                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Consumer Key / Client ID</label>
+                                                <div className="flex justify-between items-center mb-2 px-1">
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Consumer Key / Client ID</label>
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const gen = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+                                                            setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientId: gen });
+                                                        }}
+                                                        className="text-[9px] font-black uppercase text-indigo-500 hover:text-indigo-600 flex items-center gap-1"
+                                                    >
+                                                        <MagicWandIcon className="w-2.5 h-2.5" /> Auto-Generate
+                                                    </button>
+                                                </div>
                                                 <input 
                                                     type="text" 
                                                     value={localInstNcbaConfig.clientId || ''} 
@@ -2237,7 +2248,19 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Consumer Secret / Client Secret</label>
+                                                <div className="flex justify-between items-center mb-2 px-1">
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Consumer Secret / Client Secret</label>
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const gen = Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+                                                            setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientSecret: gen });
+                                                        }}
+                                                        className="text-[9px] font-black uppercase text-indigo-500 hover:text-indigo-600 flex items-center gap-1"
+                                                    >
+                                                        <MagicWandIcon className="w-2.5 h-2.5" /> Auto-Generate
+                                                    </button>
+                                                </div>
                                                 <input 
                                                     type="password" 
                                                     value={localInstNcbaConfig.clientSecret || ''} 
