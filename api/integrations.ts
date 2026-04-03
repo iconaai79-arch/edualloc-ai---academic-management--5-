@@ -239,7 +239,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // Fetch global platform settings (bypass RLS as we are on the server)
         let settings: any = {};
-        const { data: settingsData } = await supabase.from('settings').select('data').eq('id', 1).maybeSingle();
+        const { data: settingsData } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
         if (settingsData) settings = settingsData.data || {};
 
         if (action === 'sendEmail') {
