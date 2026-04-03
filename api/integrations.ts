@@ -964,7 +964,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'Authorization': authHeader,
                         'Content-Type': 'application/json',
                         'Accept': 'application/json',
-                        'User-Agent': 'EduAlloc-AI/1.0.0 (Bank-Integration-Client)'
+                        'X-API-Key': ncbaConfig.apiKey || ncbaConfig.api_key || '',
+                        'X-Callback-Username': callbackUser,
+                        'X-Correlation-ID': `edualloc-${Date.now()}`,
+                        'User-Agent': 'EduAlloc-AI/1.0.1 (Bank-Integration-Client)'
                     }, ncbaConfig.headers),
                     body: JSON.stringify(mergeParams({
                         TelephoneNo: normalizePhoneNCBA(phone),
