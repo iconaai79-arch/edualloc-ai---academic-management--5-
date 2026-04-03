@@ -237,10 +237,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
         }
 
-        // Fetch settings (bypass RLS as we are on the server)
+        // Fetch global platform settings (bypass RLS as we are on the server)
         let settings: any = {};
-        const { data: settingsData } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
-        if (settingsData) settings = settingsData.data;
+        const { data: settingsData } = await supabase.from('settings').select('data').eq('id', 1).maybeSingle();
+        if (settingsData) settings = settingsData.data || {};
 
         if (action === 'sendEmail') {
             const adminRoles = ['admin', 'super_admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'county_admin', 'county_staff', 'county_cec', 'county_governor', 'academics_officer'];
@@ -1180,7 +1180,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     : `Dear Admin, your payment of KES ${amt} for ${inst.name} subscription (${meta.plan || 'License'}) has been verified. Account active until ${new Date(inst.subscription_ends_at).toLocaleDateString()}. Ref: ${txn.id}`;
 
                 // Email Notification
-                const emailConfig = settings.email_config || settings.emailConfig;
+                const emailConfig = settings?.email_config || settings?.emailConfig;
                 if (emailConfig && inst.email) {
                     try {
                         const transporter = nodemailer.createTransport({
@@ -1200,7 +1200,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 // SMS Notification
-                const smsConfig = settings.sms_config;
+                const smsConfig = settings?.sms_config || settings?.smsConfig;
                 if (smsConfig && txn.phone_number) {
                     try {
                         const provider = smsConfig.provider || 'Zettatel';
@@ -1256,7 +1256,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let finalStatus = 'pending';
             let externalData: any = {};
 
-            const mpesa = bodyConfig || settings.mpesa_config || settings.mpesaConfig;
+            const mpesa = bodyConfig || settings?.mpesa_config || settings?.mpesaConfig || {};
 
             if (provider === 'mpesa') {
                 // Simplified poll for M-Pesa (inline logic from queryStkStatus)
@@ -1299,7 +1299,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
             } else if (provider === 'intasend') {
-                const intasend = bodyConfig || settings.intasend_config || settings.intasendConfig;
+                const intasend = bodyConfig || settings?.intasend_config || settings?.intasendConfig || {};
                 if (intasend && intasend.publishableKey) {
                     const baseUrl = intasend.environment === 'production' ? 'https://payment.intasend.com/api/v1' : 'https://sandbox.intasend.com/api/v1';
                     try {
@@ -1315,8 +1315,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     } catch (e) {}
                 }
             } else if (provider === 'ncba') {
-                const ncba = bodyConfig || settings.ncba_config || settings.ncbaConfig;
-                if (ncba && ncba.clientId) {
+                const ncba = bodyConfig || settings?.ncba_config || settings?.ncbaConfig || {};
+                if (ncba && (ncba.clientId || ncba.client_id)) {
                     try {
                         const token = await getNcbaToken(ncba);
                         const resStatus = await fetchWithTimeout(`${ncba.baseUrl}/payments/v1/status/${checkoutRequestId}`, {
@@ -1351,7 +1351,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'initiateAirtelMoneyStk') {
-            const airtel = bodyConfig || settings.airtel_money_config || settings.airtelMoneyConfig;
+            const airtel = bodyConfig || settings?.airtel_money_config || settings?.airtelMoneyConfig || {};
             if (!airtel || !airtel.apiKey) return res.status(400).json({ success: false, message: 'Airtel Money configuration is missing.' });
 
             console.log(`[Airtel Money] Initiating STK push for ${recipient} (Amount: ${amount})`);
@@ -1381,7 +1381,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'initiateIntasendPayment') {
-            const intasend = bodyConfig || settings.intasend_config || settings.intasendConfig;
+            const intasend = bodyConfig || settings?.intasend_config || settings?.intasendConfig || {};
             if (!intasend || !intasend.publishableKey) return res.status(400).json({ success: false, message: 'IntaSend configuration is missing.' });
 
             const baseUrl = intasend.environment === 'production' ? 'https://payment.intasend.com/api/v1' : 'https://sandbox.intasend.com/api/v1';
@@ -1425,7 +1425,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'initiateStkPush') {
-            const mpesa = bodyConfig || settings.mpesa_config || settings.mpesaConfig;
+            const mpesa = bodyConfig || settings?.mpesa_config || settings?.mpesaConfig || {};
             if (!mpesa) return res.status(400).json({ success: false, message: 'M-Pesa configuration is missing.' });
 
             const consumerKey = (mpesa.consumerKey || mpesa.consumer_key || '').trim();
@@ -1610,7 +1610,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     targetInstId = inst.id;
                 } else if (isPlatformService) {
                     // Normalize global fallback
-                    ncbaConfig = toCamelCase(settings.ncba_config || settings.ncbaConfig);
+                    ncbaConfig = toCamelCase(settings?.ncba_config || settings?.ncbaConfig);
                     targetInstId = institutionId || user?.user_metadata?.institutionId || 'SYSTEM';
                 }
             }
@@ -1686,7 +1686,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (inst && inst.ncbaConfig) {
                     ncbaConfig = toCamelCase(inst.ncbaConfig);
                 } else {
-                    ncbaConfig = toCamelCase(settings.ncba_config || settings.ncbaConfig);
+                    ncbaConfig = toCamelCase(settings?.ncba_config || settings?.ncbaConfig);
                 }
             }
 
