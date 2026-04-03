@@ -2933,13 +2933,15 @@ Please change it after login.`;
                                                             <button 
                                                                 onClick={(e) => {
                                                                     e.preventDefault();
+                                                                    const productionBase = 'https://c2bapis.ncbagroup.com';
                                                                     setLocalCompanyInfo({
                                                                         ...localCompanyInfo,
                                                                         ncbaConfig: {
                                                                             ...localCompanyInfo.ncbaConfig,
-                                                                            baseUrl: 'https://c2bapis.ncbagroup.com',
-                                                                            pushStkUrl: '/payments/v1/stk/push',
-                                                                            queryStkUrl: '/payments/v1/stk/query',
+                                                                            baseUrl: productionBase,
+                                                                            stkPushBaseUrl: productionBase,
+                                                                            pushStkUrl: '/payments/api/v1/stk-push/initiate',
+                                                                            queryStkUrl: '/payments/api/v1/stk-push/query',
                                                                             environment: 'production'
                                                                         } as any
                                                                     });
