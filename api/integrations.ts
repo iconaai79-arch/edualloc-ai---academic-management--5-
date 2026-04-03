@@ -798,7 +798,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // Sanitize: Strip any non-printable or whitespace characters that might have sneaked in
             const sanitize = (s: string) => s.replace(/[^\x20-\x7E]/g, '').trim();
-            const cId = sanitize(ncbaConfig.clientId || ncbaConfig.client_id || ncbaConfig.consumerKey || ncbaConfig.consumer_key || '');
+            const cId = sanitize(ncbaConfig.clientId || ncbaConfig.client_id || ncbaConfig.callbackUsername || ncbaConfig.callback_username || ncbaConfig.consumerKey || ncbaConfig.consumer_key || '');
             const cSec = sanitize(ncbaConfig.clientSecret || ncbaConfig.client_secret || ncbaConfig.secretKey || ncbaConfig.secret_key || ncbaConfig.consumerSecret || ncbaConfig.consumer_secret || '');
             
             if (!cId || !cSec) throw new Error('NCBA Client ID or Client Secret is missing.');
@@ -896,7 +896,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     CustomerMessage: 'Success. Request accepted for processing (Mock Mode)'
                 };
             }
-            const cId = (ncbaConfig.clientId || ncbaConfig.client_id || ncbaConfig.consumerKey || ncbaConfig.consumer_key || '').trim();
+            const cId = (ncbaConfig.clientId || ncbaConfig.client_id || ncbaConfig.callbackUsername || ncbaConfig.callback_username || ncbaConfig.consumerKey || ncbaConfig.consumer_key || '').trim();
             const cSec = (ncbaConfig.clientSecret || ncbaConfig.client_secret || ncbaConfig.secretKey || ncbaConfig.secret_key || ncbaConfig.consumerSecret || ncbaConfig.consumer_secret || '').trim();
             
             // Standard: Bearer (OAuth2). Alternative: Basic (Bank Direct).
