@@ -812,7 +812,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return 'mock-access-token-ncba-12345';
             }
 
-            const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
+            const { id: cId, sec: cSec, callbackUser } = getNcbaCredentials(ncbaConfig);
             const fingerprint = `ID: ${cId.substring(0, 4)}... (Len: ${cId.length}), Secret: *** (Len: ${cSec.length})`;
             
             if (!cId || !cSec) throw new Error(`NCBA Configuration incomplete: ${!cId ? 'Client ID' : 'Client Secret'} is missing.`);
@@ -918,7 +918,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     CustomerMessage: 'Success. Request accepted for processing (Mock Mode)'
                 };
             }
-            const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
+            const { id: cId, sec: cSec, callbackUser } = getNcbaCredentials(ncbaConfig);
             const fingerprint = `ID: ${cId.substring(0, 4)}... (Len: ${cId.length}), Secret: *** (Len: ${cSec.length})`;
             
             if (!cId || !cSec) {
@@ -1022,7 +1022,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             const token = await getNcbaToken(ncbaConfig);
             const authMethod = (ncbaConfig.authMethod || 'bearer').toLowerCase();
-            const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
+            const { id: cId, sec: cSec, callbackUser } = getNcbaCredentials(ncbaConfig);
             const authHeader = authMethod === 'basic' 
                 ? `Basic ${Buffer.from(`${cId}:${cSec}`).toString('base64')}`
                 : `Bearer ${token}`;
@@ -1060,7 +1060,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const generateNcbaQr = async (ncbaConfig: any, amount: number) => {
             const token = await getNcbaToken(ncbaConfig);
             const authMethod = (ncbaConfig.authMethod || 'bearer').toLowerCase();
-            const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
+            const { id: cId, sec: cSec, callbackUser } = getNcbaCredentials(ncbaConfig);
             const authHeader = authMethod === 'basic' 
                 ? `Basic ${Buffer.from(`${cId}:${cSec}`).toString('base64')}`
                 : `Bearer ${token}`;
