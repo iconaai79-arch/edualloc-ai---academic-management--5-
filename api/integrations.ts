@@ -892,6 +892,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 };
             }
             const token = await getNcbaToken(ncbaConfig);
+            const maskedToken = token ? `${token.substring(0, 8)}...${token.substring(token.length - 8)}` : 'null';
+            console.log(`[NCBA STK] Using Bearer Token: ${maskedToken}`);
             
             // Priority: stkPushBaseUrl (new) -> baseUrl (legacy)
             const effectiveBase = normalizeNcbaUrl(ncbaConfig.stkPushBaseUrl || ncbaConfig.stk_push_base_url || ncbaConfig.baseUrl || ncbaConfig.base_url);
