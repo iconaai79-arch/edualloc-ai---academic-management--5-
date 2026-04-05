@@ -41,6 +41,7 @@ const FarmerPortal = lazy(() => import('./coop/FarmerPortal').then(m => ({ defau
 const RiderPortal = lazy(() => import('./coop/RiderPortal').then(m => ({ default: m.RiderPortal })));
 const BoardingMasterView = lazy(() => import('./BoardingMasterView'));
 const ResellerDashboard = lazy(() => import('./ResellerDashboard'));
+const TenantStorefrontView = lazy(() => import('./retail/TenantStorefrontView').then(m => ({ default: m.TenantStorefrontView })));
 
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { getAdminRoleForInstitution } from '../utils/roleUtils';
@@ -450,13 +451,23 @@ export const App: React.FC = () => {
             return false;
         }
     });
+    const [activeStoreTenantId, setActiveStoreTenantId] = useState<string | null>(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('shop');
+        } catch (e) {
+            return null;
+        }
+    });
+    const [showTenantStore, setShowTenantStore] = useState(!!activeStoreTenantId);
+
     const [showMarketing, setShowMarketing] = useState(() => {
         try {
             const params = new URLSearchParams(window.location.search);
-            // Show if URL param set, or hostname is showcase/marketing, or no user and not marketplace/guest portals
+            // Show if URL param set, or hostname is showcase/marketing, or no user and not marketplace/guest portals/tenant stores
             const isMarketingSubdomain = window.location.hostname === 'showcase.eduai.co.ke' || window.location.hostname.includes('showcase') || window.location.hostname.includes('marketing');
             if (isMarketingSubdomain || params.get('view') === 'showcase') return true;
-            return !currentUser && !showMarketplace && !showGuestPortal && !showGuestFeedback;
+            return !currentUser && !showMarketplace && !showGuestPortal && !showGuestFeedback && !showTenantStore;
         } catch (e) {
             return !currentUser;
         }
@@ -4002,8 +4013,10 @@ export const App: React.FC = () => {
                     </main>
                     </>
                 ) : (
-                    <>
-                        {showMarketplace ? (
+                    <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                        {showTenantStore && activeStoreTenantId ? (
+                            <TenantStorefrontView institutionId={activeStoreTenantId} />
+                         ) : showMarketplace ? (
                             <PropertyMarketplaceView />
                         ) : showMarketing ? (
                             <MarketingLandingPage 
@@ -4172,14 +4185,14 @@ export const App: React.FC = () => {
                             {...commonLoginProps}
                         />
                         )}
-                    </>
+                    </Suspense>
                 )}
                 {companyDetails.chatAssistantConfig?.enabled && <ChatBot welcomeMessage={companyDetails.chatAssistantConfig?.welcomeMessage} currentInstitution={activeInstitution} />}
                 <PerspectiveReturnButton
                     role={impersonatedRole}
                     isImpersonatedSession={!!originalSuperAdminSession}
                     hasCurrentUser={!!currentUser}
-                    isPublicView={showMarketplace || showMarketing || showGuestPortal || showGuestFeedback}
+                    isPublicView={showMarketplace || showMarketing || showGuestPortal || showGuestFeedback || showTenantStore}
                     onReturn={() => {
                         setImpersonatedRole(null);
                         setShowGuestPortal(false);
