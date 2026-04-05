@@ -142,6 +142,7 @@ export interface Institution {
     phoneNumber: string;
     institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International' | 'Business' | 'Broadcaster' | 'Reseller' | 'TVET' | 'Kindergarten' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management';
     businessSubType?: string;
+    slug?: string;
     status: 'active' | 'trial' | 'suspended';
     subscriptionEndsAt?: string;
     trialEndsAt?: string;

@@ -48,6 +48,8 @@ import { EyeIcon } from './icons/EyeIcon';
 import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 import { CommandLineIcon } from './icons/CommandLineIcon';
 import { EnvelopeIcon } from './icons/EnvelopeIcon';
+import { SparklesIcon as SparklesIcon2 } from '../icons/SparklesIcon';
+import { StoreIcon } from '../icons/StoreIcon';
 import { PhoneIcon } from './icons/PhoneIcon';
 import { PaperAirplaneIcon } from './icons/PaperAirplaneIcon';
 import { SubjectManager } from './SubjectManager';
@@ -251,7 +253,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         aiModelTier: props.currentInstitution?.aiModelTier || 'premium',
         isOtpEnabled: props.currentInstitution?.isOtpEnabled ?? false,
         parentAbsenceNotificationsEnabled: props.currentInstitution?.parentAbsenceNotificationsEnabled ?? false,
-        farmerSmsBillingEnabled: props.currentInstitution?.farmerSmsBillingEnabled ?? false
+        farmerSmsBillingEnabled: props.currentInstitution?.farmerSmsBillingEnabled ?? false,
+        slug: props.currentInstitution?.slug || ''
     });
 
     // --- Exam Settings State ---
@@ -1737,6 +1740,60 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             </div>
                                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Utilises Gemini 3.0 Pro for elite reasoning and high-fidelity logical constraints.</p>
                                         </button>
+                                    </div>
+                                </div>
+
+                                <div className="mt-10 pt-10 border-t border-slate-100 dark:border-slate-800">
+                                    <h4 className="font-bold text-lg mb-6 flex items-center gap-2"><StoreIcon className="w-5 h-5 text-indigo-500" /> Storefront & Digital Identity</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Custom Store URL Slug</label>
+                                                <div className="relative group">
+                                                    <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-slate-400 font-mono text-[10px] uppercase">?shop=</div>
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="e.g. nairobi-agrovet"
+                                                        value={instProfile.slug || ''}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+                                                            setInstProfile({ ...instProfile, slug: val });
+                                                        }}
+                                                        className="form-input pl-16 font-mono text-xs font-bold"
+                                                    />
+                                                </div>
+                                                <p className="text-[9px] text-slate-400 font-bold uppercase mt-2 ml-1">Lowercase alphanumeric and hyphens only.</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-slate-700 flex flex-col justify-between">
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-2">Public Storefront Link</p>
+                                                <p className="text-xs font-mono font-bold text-slate-600 dark:text-slate-400 truncate">
+                                                    {window.location.origin}/?shop={instProfile.slug || props.currentInstitution?.id}
+                                                </p>
+                                            </div>
+                                            <div className="flex gap-2 mt-4">
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const url = `${window.location.origin}/?shop=${instProfile.slug || props.currentInstitution?.id}`;
+                                                        navigator.clipboard.writeText(url);
+                                                        alert('Storefront link copied to clipboard!');
+                                                    }}
+                                                    className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shadow-sm"
+                                                >
+                                                    Copy Link
+                                                </button>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => window.open(`/?shop=${instProfile.slug || props.currentInstitution?.id}`, '_blank')}
+                                                    className="bg-indigo-600 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-colors shadow-md"
+                                                >
+                                                    Preview
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 

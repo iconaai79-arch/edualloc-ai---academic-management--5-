@@ -9,10 +9,10 @@ import { ShoppingCartIcon } from '../icons/ShoppingCartIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { PhoneIcon } from '../icons/PhoneIcon';
 import { EnvelopeIcon } from '../icons/EnvelopeIcon';
-import { ArrowRightIcon } from '../icons/ArrowRightIcon';
 import { XIcon } from '../icons/XIcon';
 import { BuildingOfficeIcon } from '../icons/BuildingOfficeIcon';
 import { CheckBadgeIcon } from '../icons/CheckBadgeIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { ArrowRightIcon } from '../icons/ArrowRightIcon';
 
 interface TenantStorefrontViewProps {
@@ -42,24 +42,32 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
         const loadStorefront = async () => {
             setLoading(true);
             try {
-                // Fetch Tenant Details
-                const institutions = await apiService.fetchModuleRecords<Institution>('institutions', undefined, undefined, { filter: { id: institutionId } });
-                if (institutions && institutions.length > 0) {
-                    setTenant(institutions[0]);
+                // Fetch Tenant Details (Dual Lookup: ID or Slug)
+                let resolvedTenant: Institution | null = null;
+                
+                // Try direct ID lookup first
+                const institutionsById = await apiService.fetchModuleRecords<Institution>('institutions', undefined, undefined, { filter: { id: institutionId } });
+                if (institutionsById && institutionsById.length > 0) {
+                    resolvedTenant = institutionsById[0];
+                } else {
+                    // Try slug lookup
+                    const institutionsBySlug = await apiService.fetchModuleRecords<Institution>('institutions', undefined, undefined, { filter: { slug: institutionId } });
+                    if (institutionsBySlug && institutionsBySlug.length > 0) {
+                        resolvedTenant = institutionsBySlug[0];
+                    }
                 }
 
-                // Fetch Tenant Specific Items
-                const [instListings, instRetail] = await Promise.all([
-                    apiService.fetchModuleRecords<PMListing>('pm_listings', institutionId),
-                    apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId)
-                ]);
+                if (resolvedTenant) {
+                    setTenant(resolvedTenant);
+                    // Use the resolved unique ID for subsequent item fetches
+                    const [instListings, instRetail] = await Promise.all([
+                        apiService.fetchModuleRecords<PMListing>('pm_listings', resolvedTenant.id),
+                        apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', resolvedTenant.id)
+                    ]);
 
-                setListings(instListings.filter(l => l.status === 'Active' || l.status === 'Published'));
-                setRetailProducts(instRetail.filter(item => item.marketplaceEnabled === true));
-                
-                // SEO Branding
-                if (institutions[0]) {
-                    document.title = `${institutions[0].name} | Official Storefront`;
+                    setListings(instListings.filter(l => l.status === 'Active' || l.status === 'Published'));
+                    setRetailProducts(instRetail.filter(item => item.marketplaceEnabled === true));
+                    document.title = `${resolvedTenant.name} | Official Storefront`;
                 }
             } catch (error) {
                 console.error("Failed to load storefront:", error);
