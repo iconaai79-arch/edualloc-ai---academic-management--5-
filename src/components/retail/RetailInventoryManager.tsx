@@ -192,9 +192,9 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                 marketplaceEnabled: true
             });
             fetchInventory();
-        } catch (err) {
+        } catch (err: any) {
             console.error("Save error:", err);
-            alert('Failed to save item');
+            alert(`Failed to save item: ${err.message || 'Unknown error'}`);
         }
     };
 
@@ -259,10 +259,12 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                         onClick={() => {
                             setEditingItem(null);
                             setFormData({
+                                id: `rii_${Date.now()}`,
                                 name: '',
                                 sku: `SKU-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
                                 category: 'Smartphones',
                                 srpPrice: 0,
+                                basePrice: 0,
                                 costPrice: 0,
                                 quantity: 0,
                                 reorderLevel: 5,

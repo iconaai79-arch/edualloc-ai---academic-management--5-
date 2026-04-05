@@ -104,6 +104,7 @@ export const SmartRetailInventoryImporterModal: React.FC<SmartRetailInventoryImp
                 const description = userMapping.description ? String(row[userMapping.description] || '') : '';
 
                 validItems.push({
+                    id: `rii_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
                     name: String(name).trim(),
                     sku: sku.trim() || `SKU-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
                     barcode: barcode.trim(),
