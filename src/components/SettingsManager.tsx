@@ -2359,9 +2359,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                         <span className="text-[10px] font-mono font-bold text-indigo-700 select-all cursor-copy">{instNcbaTestResult.diagnostics.serverIp}</span>
                                                                     </div>
                                                                 )}
-                                                                        </div>
-                                                                    </div>
-                                                                ))}
                                                             </div>
                                                         )}
                                                     </div>
