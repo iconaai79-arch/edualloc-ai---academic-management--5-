@@ -595,7 +595,9 @@ export const apiService = {
                     errData = { error: await response.text().catch(() => `Status ${response.status}`) };
                 }
                 console.error(`Save API Error [${module}]:`, response.status, errData);
-                throw new Error(errData.error || `Failed to save ${module}`);
+                const reasonStr = errData.reason ? ` Reason: ${errData.reason}` : '';
+                const debugStr = errData.debug?.token ? ` Debug: ${errData.debug.token}` : '';
+                throw new Error(`${errData.error || `Failed to save ${module}`}${reasonStr}${debugStr}`);
             }
 
             const savedData = await response.json();
@@ -650,7 +652,9 @@ export const apiService = {
                     errData = { error: await response.text().catch(() => `Status ${response.status}`) };
                 }
                 console.error(`Bulk Save API Error [${module}]:`, response.status, errData);
-                throw new Error(errData.error || `Failed to bulk save ${module}`);
+                const reasonStr = errData.reason ? ` Reason: ${errData.reason}` : '';
+                const debugStr = errData.debug?.token ? ` Debug: ${errData.debug.token}` : '';
+                throw new Error(`${errData.error || `Failed to save ${module}`}${reasonStr}${debugStr}`);
             }
 
             const savedData = await response.json();
