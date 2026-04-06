@@ -33,6 +33,8 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
     return type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || subType.includes('coop') || subType.includes('sacco');
   }, [currentInstitution]);
 
+  const isPm = currentInstitution?.institutionType === 'Property Management';
+
   useEffect(() => {
     if (user) {
       setName(user.name);
@@ -68,7 +70,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
 
     const needsDepartment = roles.some(r => rolesWithDepartment.includes(r));
 
-    if (!isSchool && !isCoop && needsDepartment && !assignedDepartmentId) {
+    if (!isSchool && !isCoop && !isPm && needsDepartment && !assignedDepartmentId && isEdu) {
       alert("Please assign a department for one of the selected professional roles.");
       return;
     }
@@ -83,7 +85,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
         expertise: expertiseArray,
         role: uniqueRoles[0], // Keep first as primary
         roles: uniqueRoles,
-        departmentId: (needsDepartment && !isCoop) ? assignedDepartmentId : undefined,
+        departmentId: (needsDepartment && !isCoop && !isPm && isEdu) ? assignedDepartmentId : undefined,
         gender,
         driverType: roles.includes('driver') ? driverType : undefined
       });

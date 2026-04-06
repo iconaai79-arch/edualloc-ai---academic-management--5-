@@ -2428,6 +2428,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({
                         logoUrl={logoUrl}
                         footerImageUrl={footerImageUrl}
                         isAdding={isAddingStaff}
+                        isPm={true}
                     />
                 </div>
             )}

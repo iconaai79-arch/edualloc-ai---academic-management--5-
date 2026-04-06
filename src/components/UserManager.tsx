@@ -172,9 +172,10 @@ interface SmartUserImporterModalProps {
     onAddTransaction?: (data: Omit<MpesaTransaction, 'id' | 'transactionId' | 'timestamp' | 'status'>, items: InvoiceItem[]) => Promise<TransactionStatus>;
     companyDetails?: CompanyDetails;
     isRetailAgency?: boolean;
+    isPm?: boolean;
 }
 
-const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose, onImport, existingUsers, departments, currentInstitution, currentUser, onLogAction, onAddTransaction, companyDetails, isRetailAgency }) => {
+const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose, onImport, existingUsers, departments, currentInstitution, currentUser, onLogAction, onAddTransaction, companyDetails, isRetailAgency, isPm: isPmProp }) => {
     const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing' | 'finalizing' | 'success' | 'error'>('upload');
     const [fileHeaders, setFileHeaders] = useState<string[]>([]);
     const [userMapping, setUserMapping] = useState<Record<UserMappingField, string | null>>(ALL_USER_MAPPING_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<UserMappingField, string | null>));
@@ -196,6 +197,11 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
     const isChurch = useMemo(() => {
         return currentInstitution?.institutionType === 'Church';
     }, [currentInstitution]);
+
+    const isPm = useMemo(() => {
+        if (typeof isPmProp === 'boolean') return isPmProp;
+        return currentInstitution?.institutionType === 'Property Management';
+    }, [currentInstitution, isPmProp]);
 
     const availableRolesForImport = useMemo(() => {
         const roles = getRolesForInstitution(currentInstitution);
@@ -477,7 +483,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                         <div className="space-y-4">
                             <p className="text-sm text-slate-500">Map columns from your file. Skip fields to auto-generate them.</p>
                             {ALL_USER_MAPPING_FIELDS
-                                .filter(f => !(isRetailAgency || isCoop) || f !== 'departmentName')
+                                .filter(f => !(isRetailAgency || isCoop || isPm) || f !== 'departmentName')
                                 .map(field => (
                                     <div key={field} className="grid grid-cols-2 gap-4 items-center">
                                         <label className="text-right text-sm font-medium capitalize">
@@ -834,6 +840,7 @@ interface UserManagerProps {
     isCoop?: boolean;
     isAdding?: boolean;
     onAddExtensionRequest?: (reason: string) => void;
+    isPm?: boolean;
 }
 
 export const UserManager: React.FC<UserManagerProps> = (props) => {
@@ -843,7 +850,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         onEditUser, currentUser, currentInstitution,
         onAddParent, onDeleteParent, onAddTimeOffRequest,
         onUpdateRequest, showOnly, onSendBulkCredentials, onAddTransaction, companyDetails, isRetailAgency: isRetailAgencyProp,
-        isCoop: isCoopProp,
+        isCoop: isCoopProp, isPm: isPmProp,
         isAdding: isAddingProp = false, onAddExtensionRequest
     } = props;
     const isRetailAgency = isRetailAgencyProp ?? RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
@@ -879,6 +886,11 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                type?.toLowerCase() === 'cooperative' || type?.toLowerCase() === 'sacco' ||
                subType.includes('coop') || subType.includes('sacco');
     }, [currentInstitution, isCoopProp]);
+
+    const isPm = useMemo(() => {
+        if (typeof isPmProp === 'boolean') return isPmProp;
+        return currentInstitution?.institutionType === 'Property Management';
+    }, [currentInstitution, isPmProp]);
 
     const isEdu = useMemo(() => {
         const type = currentInstitution?.institutionType;
@@ -1046,7 +1058,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         };
 
         if (activeTab === 'staff') {
-            userData.departmentId = (isCoop || isRetailAgency || isChurch) ? undefined : ((currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto') ? currentUser.departmentId : departmentId);
+            userData.departmentId = (isCoop || isRetailAgency || isChurch || isPm) ? undefined : ((currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto') ? currentUser.departmentId : departmentId);
         }
         else {
             userData.courseId = courseId;
@@ -1261,7 +1273,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                             ))}
                                         </div>
                                     </div>
-                                    {!isRetailAgency && !isCoop && !isChurch && (
+                                    {!isRetailAgency && !isCoop && !isChurch && !isPm && (
                                         <div>
                                             <label className="block text-sm font-medium mb-1">Department</label>
                                             <select
@@ -1525,6 +1537,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                     onAddTransaction={onAddTransaction}
                     companyDetails={companyDetails}
                     isRetailAgency={isRetailAgency}
+                    isPm={isPm}
                 />
             )}
 
