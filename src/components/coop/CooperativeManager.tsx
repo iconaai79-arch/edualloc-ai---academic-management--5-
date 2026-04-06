@@ -3547,7 +3547,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         const result = await apiService.sendSms(
                                             recipient,
                                             message,
-                                            undefined,
+                                            smsConfig,
                                             undefined,
                                             instId || currentInstitution?.id || ''
                                         );

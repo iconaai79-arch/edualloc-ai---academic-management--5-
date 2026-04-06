@@ -243,7 +243,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (settingsData) settings = settingsData.data || {};
 
         if (action === 'sendEmail') {
-            const adminRoles = ['admin', 'super_admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'county_admin', 'county_staff', 'county_cec', 'county_governor', 'academics_officer'];
+            const adminRoles = [
+                'admin', 'super_admin', 'reseller', 'county_admin', 'county_staff', 'county_cec', 'county_governor', 'county_director', 'county_co', 
+                'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'academics_officer',
+                'agrovet_admin', 'coop_admin', 'coop_chairman', 'sacco_officer', 'cooperative_manager',
+                'property_admin', 'landlord', 'his_admin', 'carwash_admin', 'transport_admin', 'mechanic_admin', 'church_admin'
+            ];
             // Regular authenticated sendEmail requires admin privileges. 
             // 'system' user or isSystemMessage (OTP, Reset) is allowed for all categories
             if (!adminRoles.includes(user.role) && user.id !== 'system' && !isSystemMessage) {
@@ -283,7 +288,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'sendSms') {
-            const adminRoles = ['admin', 'super_admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'county_admin', 'county_staff', 'county_cec', 'county_governor', 'academics_officer'];
+            const adminRoles = [
+                'admin', 'super_admin', 'reseller', 'county_admin', 'county_staff', 'county_cec', 'county_governor', 'county_director', 'county_co', 
+                'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'academics_officer',
+                'agrovet_admin', 'coop_admin', 'coop_chairman', 'sacco_officer', 'cooperative_manager',
+                'property_admin', 'landlord', 'his_admin', 'carwash_admin', 'transport_admin', 'mechanic_admin', 'church_admin'
+            ];
 
             if (!adminRoles.includes(user.role) && user.id !== 'system' && !isSystemMessage) {
                 return res.status(403).json({ success: false, message: 'Permission denied: Only administrative accounts can send system SMS.' });
