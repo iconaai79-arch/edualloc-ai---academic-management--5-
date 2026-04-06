@@ -483,7 +483,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                         <div className="space-y-4">
                             <p className="text-sm text-slate-500">Map columns from your file. Skip fields to auto-generate them.</p>
                             {ALL_USER_MAPPING_FIELDS
-                                .filter(f => !(isRetailAgency || isCoop || isPm) || f !== 'departmentName')
+                                .filter(f => (isEdu && !(isRetailAgency || isCoop || isPm)) || f !== 'departmentName')
                                 .map(field => (
                                     <div key={field} className="grid grid-cols-2 gap-4 items-center">
                                         <label className="text-right text-sm font-medium capitalize">
@@ -889,7 +889,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
     const isPm = useMemo(() => {
         if (typeof isPmProp === 'boolean') return isPmProp;
-        return currentInstitution?.institutionType === 'Property Management';
+        const type = currentInstitution?.institutionType;
+        const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
+        return type === 'Property Management' || subType.includes('property management');
     }, [currentInstitution, isPmProp]);
 
     const isEdu = useMemo(() => {
@@ -1273,7 +1275,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                             ))}
                                         </div>
                                     </div>
-                                    {!isRetailAgency && !isCoop && !isChurch && !isPm && (
+                                    {!isRetailAgency && !isCoop && !isChurch && !isPm && isEdu && (
                                         <div>
                                             <label className="block text-sm font-medium mb-1">Department</label>
                                             <select

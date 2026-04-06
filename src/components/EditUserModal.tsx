@@ -33,7 +33,11 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
     return type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || subType.includes('coop') || subType.includes('sacco');
   }, [currentInstitution]);
 
-  const isPm = currentInstitution?.institutionType === 'Property Management';
+  const isPm = useMemo(() => {
+    const type = currentInstitution?.institutionType;
+    const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
+    return type === 'Property Management' || subType.includes('property management');
+  }, [currentInstitution]);
 
   useEffect(() => {
     if (user) {
@@ -204,7 +208,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                     </div>
                   </div>
 
-                  {roles.some(r => rolesWithDepartment.includes(r)) && !isRetailAgency && isEdu && !isCoop && (
+                  {roles.some(r => rolesWithDepartment.includes(r)) && !isRetailAgency && isEdu && !isCoop && !isPm && (
                     <div className="md:col-span-2">
                       <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Assigned Department</label>
                       <select value={assignedDepartmentId} onChange={(e) => setAssignedDepartmentId(e.target.value)} required disabled={!!fixedDepartmentId} className="form-select disabled:opacity-60">
