@@ -3,7 +3,7 @@ import {
     ArchiveBoxIcon, PlusIcon, SparklesIcon, SearchIcon, CheckCircleIcon, 
     ClipboardListIcon, CurrencyIcon, ExclamationTriangleIcon, BeakerIcon, 
     PencilIcon, DocumentTextIcon, ClockIcon, UserIcon, TrashIcon,
-    ArrowPathIcon, ChartBarIcon, DocumentTextIcon, CreditCardIcon,
+    ArrowPathIcon, ChartBarIcon, DocumentTextIcon, CreditCardIcon, EnvelopeIcon, PhoneIcon,
     ShieldCheckIcon, CheckBadgeIcon, UsersIcon, BanknotesIcon, BellIcon, SettingsIcon
 } from '../icons';
 import { apiService } from '../../services/apiService';
@@ -1010,7 +1010,7 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                                 <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-10 text-emerald-400">Connectivity <span className="text-white">& Outreach</span></h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div className="space-y-4">
-                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-4 flex items-center gap-2"><MailIcon className="w-3 h-3 text-emerald-500" /> Dispatch Email</label>
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-4 flex items-center gap-2"><EnvelopeIcon className="w-3 h-3 text-emerald-500" /> Dispatch Email</label>
                                         <input 
                                             type="email" 
                                             value={settings.pharmacyEmail || ''} 
