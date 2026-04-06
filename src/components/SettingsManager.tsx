@@ -51,6 +51,7 @@ import { EnvelopeIcon } from './icons/EnvelopeIcon';
 import { StoreIcon } from './icons/StoreIcon';
 import { PhoneIcon } from './icons/PhoneIcon';
 import { PaperAirplaneIcon } from './icons/PaperAirplaneIcon';
+import { BeakerIcon } from './icons/BeakerIcon';
 import { SubjectManager } from './SubjectManager';
 import { CourseManager } from './CourseManager';
 import { DepartmentManager } from './DepartmentManager';
@@ -207,6 +208,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'ncba'>('mpesa');
     const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>('departments');
     const [showPaperPreview, setShowPaperPreview] = useState(false);
+    const [showInstNcbaCallbackSecret, setShowInstNcbaCallbackSecret] = useState(false);
+    const [showInstNcbaClientSecret, setShowInstNcbaClientSecret] = useState(false);
 
 
     // External tab navigation sync
@@ -1380,7 +1383,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                                                 <div className="space-y-6">
                                                     <div>
-                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">OAuth Client ID</label>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Consumer Key / Client ID</label>
                                                         <input 
                                                             type="text" 
                                                             value={localCompanyInfo.ncbaConfig?.clientId || ''} 
@@ -1390,7 +1393,19 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">OAuth Client Secret</label>
+                                                        <div className="flex justify-between items-center mb-2 px-1">
+                                                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Secret Key / Client Secret</label>
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const gen = Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+                                                                    setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, clientSecret: gen } as any });
+                                                                }}
+                                                                className="text-[9px] font-black uppercase text-indigo-500 hover:text-indigo-600 flex items-center gap-1"
+                                                            >
+                                                                <SparklesIcon className="w-2.5 h-2.5" /> Auto-Generate
+                                                            </button>
+                                                        </div>
                                                         <input 
                                                             type="password" 
                                                             value={localCompanyInfo.ncbaConfig?.clientSecret || ''} 
@@ -1494,6 +1509,40 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                 onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, queryStkUrl: e.target.value } as any })}
                                                                 className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
                                                                 placeholder="/v1/stk/query"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-8 border-t border-teal-100/30 pt-6">
+                                                        <div className="md:col-span-1">
+                                                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Notification Username</label>
+                                                            <input 
+                                                                type="text" 
+                                                                value={localCompanyInfo.ncbaConfig?.callbackUsername || ''} 
+                                                                onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, callbackUsername: e.target.value } as any })}
+                                                                className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
+                                                                placeholder="Enter Notification Username"
+                                                            />
+                                                        </div>
+                                                        <div className="md:col-span-1">
+                                                            <div className="flex justify-between items-center mb-2 px-1">
+                                                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Notification Password / Secret Key</label>
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        const gen = Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+                                                                        setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, callbackSecret: gen } as any });
+                                                                    }}
+                                                                    className="text-[9px] font-black uppercase text-indigo-500 hover:text-indigo-600 flex items-center gap-1"
+                                                                >
+                                                                    <SparklesIcon className="w-2.5 h-2.5" /> Auto-Generate
+                                                                </button>
+                                                            </div>
+                                                            <input 
+                                                                type="password" 
+                                                                value={localCompanyInfo.ncbaConfig?.callbackSecret || ''} 
+                                                                onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, callbackSecret: e.target.value } as any })}
+                                                                className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
+                                                                placeholder="••••••••••••••••"
                                                             />
                                                         </div>
                                                     </div>
@@ -2023,7 +2072,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem]">
                                         <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client ID (Consumer Key)</label>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Consumer Key / Client ID</label>
                                             <input 
                                                 type="text" 
                                                 value={localInstNcbaConfig.clientId || ''} 
@@ -2033,7 +2082,19 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client Secret (Secret Key)</label>
+                                            <div className="flex justify-between items-center mb-2 px-1">
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Secret Key / Client Secret</label>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const gen = Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+                                                        setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientSecret: gen });
+                                                    }}
+                                                    className="text-[9px] font-black uppercase text-indigo-500 hover:text-indigo-600 flex items-center gap-1"
+                                                >
+                                                    <SparklesIcon className="w-2.5 h-2.5" /> Auto-Generate
+                                                </button>
+                                            </div>
                                             <input 
                                                 type="password" 
                                                 value={localInstNcbaConfig.clientSecret || ''} 
@@ -2113,17 +2174,29 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="block text-[10px] font-black uppercase text-teal-600 mb-2 ml-1">Notification Username</label>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Notification Username</label>
                                             <input 
                                                 type="text" 
                                                 value={localInstNcbaConfig.callbackUsername || ''} 
                                                 onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, callbackUsername: e.target.value })}
                                                 className="form-input font-bold" 
-                                                placeholder="Username for Bank Push"
+                                                placeholder="Enter Notification Username"
                                             />
                                         </div>
                                         <div className="md:col-span-2">
-                                            <label className="block text-[10px] font-black uppercase text-teal-600 mb-2 ml-1">Notification Password / Secret Key</label>
+                                            <div className="flex justify-between items-center mb-2 px-1">
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Notification Password / Secret Key</label>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const gen = Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+                                                        setLocalInstNcbaConfig({ ...localInstNcbaConfig, callbackSecret: gen });
+                                                    }}
+                                                    className="text-[9px] font-black uppercase text-indigo-500 hover:text-indigo-600 flex items-center gap-1"
+                                                >
+                                                    <SparklesIcon className="w-2.5 h-2.5" /> Auto-Generate
+                                                </button>
+                                            </div>
                                             <input 
                                                 type="password" 
                                                 value={localInstNcbaConfig.callbackSecret || ''} 
@@ -2331,7 +2404,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     <div className="pt-6 border-t border-slate-100 dark:border-slate-700">
                                         <div className="flex items-center gap-3 mb-6">
                                             <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
-                                                <BuildingLibraryIcon className="w-5 h-5 text-indigo-600" />
+                                                <BuildingOfficeIcon className="w-5 h-5 text-indigo-600" />
                                             </div>
                                             <div>
                                                 <h3 className="text-sm font-black uppercase tracking-tight">NCBA Bank Direct Gateway</h3>
@@ -2388,20 +2461,29 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         <SparklesIcon className="w-2.5 h-2.5" /> Auto-Generate
                                                     </button>
                                                 </div>
-                                                <input 
-                                                    type="password" 
-                                                    value={localInstNcbaConfig.clientSecret || ''} 
-                                                    onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientSecret: e.target.value })}
-                                                    className="form-input" 
-                                                    placeholder="••••••••••••••••"
-                                                />
+                                                <div className="relative">
+                                                    <input 
+                                                        type={showInstNcbaClientSecret ? "text" : "password"} 
+                                                        value={localInstNcbaConfig.clientSecret || ''} 
+                                                        onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientSecret: e.target.value })}
+                                                        className="form-input" 
+                                                        placeholder="Enter Client Secret"
+                                                    />
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => setShowInstNcbaClientSecret(!showInstNcbaClientSecret)}
+                                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-500 transition-colors"
+                                                    >
+                                                        {showInstNcbaClientSecret ? <EyeIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4 opacity-50" />}
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">API Key (X-API-KEY)</label>
                                                 <input 
                                                     type="password" 
-                                                    value={localInstNcbaConfig.apiKey || ''} 
-                                                    onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, apiKey: e.target.value })}
+                                                    value={localInstNcbaConfig.notificationApiKey || ''} 
+                                                    onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, notificationApiKey: e.target.value })}
                                                     className="form-input" 
                                                 />
                                             </div>
@@ -2413,6 +2495,47 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, shortCode: e.target.value })}
                                                     className="form-input font-mono" 
                                                 />
+                                            </div>
+                                            <div className="md:col-span-1">
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Notification Username</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={localInstNcbaConfig.callbackUsername || ''} 
+                                                    onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, callbackUsername: e.target.value })}
+                                                    className="form-input" 
+                                                    placeholder="Enter Notification Username"
+                                                />
+                                            </div>
+                                            <div className="md:col-span-1">
+                                                <div className="flex justify-between items-center mb-2 px-1">
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Notification Password / Secret Key</label>
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const gen = Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+                                                            setLocalInstNcbaConfig({ ...localInstNcbaConfig, callbackSecret: gen });
+                                                        }}
+                                                        className="text-[9px] font-black uppercase text-indigo-500 hover:text-indigo-600 flex items-center gap-1"
+                                                    >
+                                                        <SparklesIcon className="w-2.5 h-2.5" /> Auto-Generate
+                                                    </button>
+                                                </div>
+                                                <div className="relative">
+                                                    <input 
+                                                        type={showInstNcbaCallbackSecret ? "text" : "password"} 
+                                                        value={localInstNcbaConfig.callbackSecret || ''} 
+                                                        onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, callbackSecret: e.target.value })}
+                                                        className="form-input" 
+                                                        placeholder="Enter Notification Secret"
+                                                    />
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => setShowInstNcbaCallbackSecret(!showInstNcbaCallbackSecret)}
+                                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-500 transition-colors"
+                                                    >
+                                                        {showInstNcbaCallbackSecret ? <EyeIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4 opacity-50" />}
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

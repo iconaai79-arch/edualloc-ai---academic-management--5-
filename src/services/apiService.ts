@@ -133,7 +133,7 @@ export const apiService = {
         // 1. Try Supabase session (JWT)
         if (_supabase) {
             try {
-                const { data } = await _supabase.auth.getSession();
+                const { data } = _supabase.auth ? await _supabase.auth.getSession() : { data: { session: null } };
                 if (data?.session?.access_token) return data.session.access_token;
             } catch (e) { }
 
@@ -148,7 +148,7 @@ export const apiService = {
         }
 
         // 2. Fallback to session ID
-        const session = this.getSession();
+        const session = apiService.getSession();
         const token = session?.id || '';
         // Changed to debug to avoid console noise during high-frequency data fetching
         if (token && token.length > 0) {
@@ -159,7 +159,7 @@ export const apiService = {
     getToken(): string {
         // Synchronous version for legacy/simple calls
         // Since getAuthToken is async, this one will just return the session ID as a fallback
-        const session = this.getSession();
+        const session = apiService.getSession();
         return session?.id || '';
     },
     async uploadBlob(path: string, blob: Blob, contentType?: string): Promise<string> {
@@ -189,7 +189,7 @@ export const apiService = {
         }
 
         try {
-            const token = await this.getAuthToken();
+            const token = await apiService.getAuthToken();
             const response = await fetch(`${window.location.origin}/api/system?action=rpc`, {
                 method: 'POST',
                 headers: {
@@ -222,8 +222,8 @@ export const apiService = {
     async testDatabaseConnection(url?: string, key?: string): Promise<any> {
         // Skip redundant checks if performed within the last 5 seconds to prevent render loops
         const now = Date.now();
-        if (!url && !key && this._lastConnectionTest && (now - this._lastConnectionTest.timestamp < 5000)) {
-            return { ...this._lastConnectionTest, timestamp: new Date(this._lastConnectionTest.timestamp).toISOString(), cached: true };
+        if (!url && !key && apiService._lastConnectionTest && (now - apiService._lastConnectionTest.timestamp < 5000)) {
+            return { ...apiService._lastConnectionTest, timestamp: new Date(apiService._lastConnectionTest.timestamp).toISOString(), cached: true };
         }
 
         const timestampStr = new Date().toISOString();
@@ -240,11 +240,10 @@ export const apiService = {
 
         try {
             // Increased timeout to 15 seconds to handle cold starts
-            const timestamp = new Date().toISOString();
-            const insts = await this.fetchModuleRecords('institutions', undefined, undefined, { limit: 1 });
+            const insts = await apiService.fetchModuleRecords('institutions', undefined, undefined, { limit: 1 });
             if (insts) {
                 const res = { success: true, status: 'online', dbName: 'PostgreSQL', message: 'Handshake successful.' };
-                this._lastConnectionTest = { ...res, timestamp: Date.now() };
+                apiService._lastConnectionTest = { ...res, timestamp: Date.now() };
                 return { ...res, timestamp: timestampStr };
             }
             throw new Error("Handshake failed");
@@ -255,7 +254,7 @@ export const apiService = {
                 message: `Connection Error: ${e.message || 'Handshake failed'}. Ensure SUPABASE_URL and ANON_KEY are correctly configured in your environment.`, 
                 dbName: 'Error'
             };
-            this._lastConnectionTest = { ...errRes, timestamp: Date.now() };
+            apiService._lastConnectionTest = { ...errRes, timestamp: Date.now() };
             return { ...errRes, timestamp: new Date().toISOString() };
         }
     },
@@ -363,7 +362,7 @@ export const apiService = {
                 public.get_curr_user_inst_id() as calculated_inst_id,
                 current_setting('role') as current_role_setting;
         `;
-        return this.runMigration(sql);
+        return apiService.runMigration(sql);
     },
     async uploadFile(bucket: string, path: string, file: File, contentType?: string): Promise<string | null> {
         try {
@@ -495,7 +494,7 @@ export const apiService = {
 
         try {
             // Determine Auth Token (Try JWT then ID fallback)
-            const token = await this.getAuthToken();
+            const token = await apiService.getAuthToken();
 
             const url = new URL(`${window.location.origin}/api/records`);
             url.searchParams.append('module', module);
@@ -555,7 +554,7 @@ export const apiService = {
         academic_year: string; status: string; notes?: string | null;
     }): Promise<any> {
         if (!_supabase) {
-            return this.saveModuleRecord('bed_allocations', toCamelCase(payload));
+            return apiService.saveModuleRecord('bed_allocations', toCamelCase(payload));
         }
         const { data, error } = await _supabase.rpc('create_bed_allocation', {
             allocation_data: payload
@@ -575,7 +574,7 @@ export const apiService = {
         }
 
         try {
-            const token = await this.getAuthToken();
+            const token = await apiService.getAuthToken();
 
             const response = await fetch('/api/records?module=' + module, {
                 method: 'POST',
@@ -608,15 +607,15 @@ export const apiService = {
         }
     },
     async fetchSmsOutbox(institutionId: string): Promise<any[]> {
-        return this.fetchModuleRecords('sms_outbox', institutionId, undefined, {
+        return apiService.fetchModuleRecords('sms_outbox', institutionId, undefined, {
             order: 'created_at.desc'
         });
     },
     async saveToSmsOutbox(messages: any[]): Promise<void> {
-        await this.saveModuleRecord('sms_outbox', messages);
+        await apiService.saveModuleRecord('sms_outbox', messages);
     },
     async removeFromSmsOutbox(id: string): Promise<void> {
-        await this.deleteModuleRecord('sms_outbox', id);
+        await apiService.deleteModuleRecord('sms_outbox', id);
     },
     async clearSmsOutbox(institutionId: string): Promise<void> {
         // Since we don't have a bulk delete by filter in proxy, 
@@ -632,7 +631,7 @@ export const apiService = {
         }
 
         try {
-            const token = await this.getAuthToken();
+            const token = await apiService.getAuthToken();
 
             const response = await fetch('/api/records?module=' + module, {
                 method: 'POST',
@@ -665,7 +664,7 @@ export const apiService = {
         }
     },
     async fetchNotifications(userId: string): Promise<AppNotification[]> {
-        return this.fetchModuleRecords('app_notifications', undefined, undefined, {
+        return apiService.fetchModuleRecords('app_notifications', undefined, undefined, {
             filter: { user_id: userId },
             order: 'timestamp.desc'
         });
@@ -679,29 +678,29 @@ export const apiService = {
             isRead: false,
             timestamp: new Date().toISOString()
         };
-        await this.saveModuleRecord('app_notifications', notification);
+        await apiService.saveModuleRecord('app_notifications', notification);
     },
     async markNotificationAsRead(id: string): Promise<void> {
-        await this.saveModuleRecord('app_notifications', { id, isRead: true } as any);
+        await apiService.saveModuleRecord('app_notifications', { id, isRead: true } as any);
     },
     async notifySuperAdmins(message: string, type: string = 'info'): Promise<void> {
-        const admins = await this.fetchModuleRecords<User>('users', undefined, undefined, { 
+        const admins = await apiService.fetchModuleRecords<User>('users', undefined, undefined, { 
             filter: { role: 'super_admin' } 
         });
         if (admins && admins.length > 0) {
             for (const admin of admins) {
-                await this.createNotification(admin.id, message, type);
+                await apiService.createNotification(admin.id, message, type);
             }
         }
     },
     async notifyCoopAdmins(institutionId: string, message: string, type: string = 'info'): Promise<void> {
         // Fetch users in this institution to find Chairman/Managers
-        const users = await this.fetchModuleRecords<User>('users', institutionId);
+        const users = await apiService.fetchModuleRecords<User>('users', institutionId);
         const targets = users.filter(u => u.role === 'coop_chairman' || u.role === 'cooperative_manager' || u.role === 'coop_admin');
         
         if (targets.length > 0) {
             for (const target of targets) {
-                await this.createNotification(target.id, message, type);
+                await apiService.createNotification(target.id, message, type);
             }
         }
     },
@@ -717,16 +716,16 @@ export const apiService = {
         // This is tricky without a bulk update in api proxy. 
         // For now, let's use a simple loop or just update them one by one.
         // Better: add a bulk update to the api proxy if needed, but for now:
-        const notifications = await this.fetchNotifications(userId);
+        const notifications = await apiService.fetchNotifications(userId);
         for (const n of notifications) {
             if (!n.isRead) {
-                await this.markNotificationAsRead(n.id);
+                await apiService.markNotificationAsRead(n.id);
             }
         }
     },
     async activateModuleTrial(moduleId: string, institutionId: string): Promise<void> {
         // First check if a record already exists to avoid unique constraint violations
-        const existing = await this.fetchModuleRecords<InstitutionModuleState>('institution_module_states', institutionId, undefined, {
+        const existing = await apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', institutionId, undefined, {
             filter: { module_id: moduleId }
         });
 
@@ -744,7 +743,7 @@ export const apiService = {
             updatedAt: now.toISOString()
         } as any;
 
-        await this.saveModuleRecord('institution_module_states', moduleState);
+        await apiService.saveModuleRecord('institution_module_states', moduleState);
     },
     async deleteModuleRecord(module: string, id: string): Promise<void> {
         if (!_supabase) {
@@ -752,7 +751,7 @@ export const apiService = {
             return;
         }
 
-        const token = await this.getAuthToken();
+        const token = await apiService.getAuthToken();
 
         const response = await fetch(`/api/records?module=${module}&id=${id}`, {
             method: 'DELETE',
@@ -773,24 +772,24 @@ export const apiService = {
             throw new Error(errData.error || `Failed to delete ${module}`);
         }
     },
-    async fetchInstitutions(institutionId?: string): Promise<Institution[]> { return this.fetchModuleRecords('institutions', institutionId); },
+    async fetchInstitutions(institutionId?: string): Promise<Institution[]> { return apiService.fetchModuleRecords('institutions', institutionId); },
     async saveInstitution(inst: Institution): Promise<void> { 
         const { countyId, ncbaConfig, moduleStates, ...rest } = inst as any;
-        await this.saveModuleRecord('institutions', { 
+        await apiService.saveModuleRecord('institutions', { 
             ...rest, 
             county_id: countyId,
             ncba_config: ncbaConfig 
         }); 
     },
-    async fetchUsers(institutionId?: string): Promise<User[]> { return this.fetchModuleRecords('users', institutionId); },
+    async fetchUsers(institutionId?: string): Promise<User[]> { return apiService.fetchModuleRecords('users', institutionId); },
     async saveUser(user: Partial<User>): Promise<void> { 
         const { countyId, ...rest } = user;
-        await this.saveModuleRecord('users', { ...rest, county_id: countyId }); 
+        await apiService.saveModuleRecord('users', { ...rest, county_id: countyId }); 
     },
     async checkEmailExists(email: string): Promise<boolean> {
         if (!email) return false;
         try {
-            const token = await this.getAuthToken();
+            const token = await apiService.getAuthToken();
             const response = await fetch(`${window.location.origin}/api/system?action=checkEmail&email=${encodeURIComponent(email.toLowerCase())}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -799,21 +798,21 @@ export const apiService = {
         } catch (e) {
             console.error("Error checking email existence:", e);
             // Fallback to local check if system API fails
-            const records = await this.fetchModuleRecords('users', undefined, undefined, { filter: { email: email.toLowerCase() } });
+            const records = await apiService.fetchModuleRecords('users', undefined, undefined, { filter: { email: email.toLowerCase() } });
             return Array.isArray(records) && records.length > 0;
         }
     },
     async registerUser(userData: Partial<User>, institutionName?: string): Promise<void> {
         const password = userData.password || (userData.role === 'student' ? 'student123' : 'password123');
         const userWithPass = { ...userData, password };
-        await this.saveUser(userWithPass);
+        await apiService.saveUser(userWithPass);
 
         if (userData.email) {
             const subject = "Welcome to Eduai Automation - Account Credentials";
             const body = `Dear ${userData.name},\n\nYour account has been created on the Eduai Automation Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${userData.email}\nPassword: ${password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
 
             // Send email asynchronously so we don't block the UI
-            this.sendEmail(userData.email, subject, body).catch(e => {
+            apiService.sendEmail(userData.email, subject, body).catch(e => {
                 console.error("Failed to send welcome email:", e);
             });
         }
@@ -828,13 +827,13 @@ export const apiService = {
                 smsMessage = `Welcome to the Logistics Team. Your rider account is active. ID: ${userData.phoneNumber}, Pass: ${password}. Access portal at ${window.location.origin}`;
             }
 
-            this.sendSms(userData.phoneNumber, smsMessage).catch(e => {
+            apiService.sendSms(userData.phoneNumber, smsMessage).catch(e => {
                 console.error("Failed to send welcome SMS:", e);
             });
         }
     },
-    async fetchAllocations(institutionId?: string): Promise<AllocationRequest[]> { return this.fetchModuleRecords('allocation_requests', institutionId); },
-    async saveAllocation(data: Partial<AllocationRequest>): Promise<void> { await this.saveModuleRecord('allocation_requests', data); },
+    async fetchAllocations(institutionId?: string): Promise<AllocationRequest[]> { return apiService.fetchModuleRecords('allocation_requests', institutionId); },
+    async saveAllocation(data: Partial<AllocationRequest>): Promise<void> { await apiService.saveModuleRecord('allocation_requests', data); },
     async fetchCompanySettings(): Promise<CompanyDetails | null> {
         if (!_supabase) {
             const data = ls.get('system_settings').find((s: any) => s.id === 1);
@@ -872,7 +871,7 @@ export const apiService = {
             throw new Error(errData.error || 'Failed to save settings');
         }
     },
-    async fetchTimetable(institutionId: string): Promise<TimetableEntry[]> { return this.fetchModuleRecords('timetable_entries', institutionId); },
+    async fetchTimetable(institutionId: string): Promise<TimetableEntry[]> { return apiService.fetchModuleRecords('timetable_entries', institutionId); },
     async saveTimetable(institutionId: string, ayId: string, semId: string, entries: TimetableEntry[]): Promise<void> {
         const snakeEntries = entries.map(e => ({ ...toSnakeCase(e), institution_id: institutionId, academic_year_id: ayId, semester_id: semId }));
 
@@ -890,7 +889,7 @@ export const apiService = {
             // But timetable entries usually have unique IDs or we can rely on UPSERT if we have PKs.
             // If we really need to delete first, we'd need a multi-filter delete proxy.
             // For now, let's use the proxy save.
-            await this.saveModuleRecord('timetable_entries', snakeEntries);
+            await apiService.saveModuleRecord('timetable_entries', snakeEntries);
         } catch (e) { console.error("Timetable Save Error:", e); }
     },
     async updateAllocationStatus(requestId: string, status: RequestStatus, justification?: string, priority?: Priority): Promise<void> {
@@ -918,7 +917,7 @@ export const apiService = {
             return;
         }
 
-        const existingRecords = await this.fetchModuleRecords<any>('allocation_requests', undefined, undefined, {
+        const existingRecords = await apiService.fetchModuleRecords<any>('allocation_requests', undefined, undefined, {
             filter: { id: requestId },
             limit: 1
         });
@@ -937,20 +936,20 @@ export const apiService = {
             updates.justification = justification;
         }
         
-        await this.saveModuleRecord('allocation_requests', { id: requestId, ...updates });
+        await apiService.saveModuleRecord('allocation_requests', { id: requestId, ...updates });
     },
     async onAddTransaction(data: Omit<MpesaTransaction, 'id' | 'transactionId' | 'timestamp' | 'status'>, items: InvoiceItem[]): Promise<TransactionStatus> {
         if (!_supabase) {
             const id = `txn_${Date.now()}`;
             const transaction: MpesaTransaction = { ...data, id, transactionId: `MPESA${id}`, timestamp: new Date().toISOString(), status: 'completed' };
-            await this.saveModuleRecord('mpesa_transactions', transaction);
+            await apiService.saveModuleRecord('mpesa_transactions', transaction);
             return 'completed';
         }
 
         // Check if this transaction already exists (to avoid duplicates from STK push)
         // If payerName is empty, we might be able to find the existing record by amount and phone
         try {
-            const existing = await this.fetchModuleRecords<any>('mpesa_transactions', data.institutionId, undefined, {
+            const existing = await apiService.fetchModuleRecords<any>('mpesa_transactions', data.institutionId, undefined, {
                 filter: { 
                     amount: data.amount,
                     phone_number: data.phoneNumber,
@@ -970,7 +969,7 @@ export const apiService = {
 
         const id = `txn_${Date.now()}`;
         const transaction: MpesaTransaction = { ...data, id, transactionId: `MPESA${id}`, timestamp: new Date().toISOString(), status: 'completed' };
-        await this.saveModuleRecord('mpesa_transactions', transaction);
+        await apiService.saveModuleRecord('mpesa_transactions', transaction);
         return 'completed';
     },
     async sendSms(recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string, authToken?: string): Promise<any> {
@@ -980,7 +979,7 @@ export const apiService = {
         }
 
         try {
-            const { data } = await _supabase.auth.getSession();
+            const { data } = _supabase.auth ? await _supabase.auth.getSession() : { data: { session: null } };
             let token = data?.session?.access_token;
 
             if (!token) {
@@ -998,7 +997,7 @@ export const apiService = {
                 if (authToken) {
                     token = authToken;
                 } else {
-                    const session = this.getSession();
+                    const session = apiService.getSession();
                     if (session?.id) token = session.id;
                 }
             }
@@ -1048,35 +1047,35 @@ export const apiService = {
             throw new Error("Portal service is not active. Please subscribe to use this feature.");
         }
 
-        const res = await this.sendSms(recipient, message);
+        const res = await apiService.sendSms(recipient, message);
         if (res.success) {
             const updatedDriver = { ...driver, smsBalance: driver.smsBalance - 1 };
-            await this.saveUser(updatedDriver);
-            this.storeSession(updatedDriver);
+            await apiService.saveUser(updatedDriver);
+            apiService.storeSession(updatedDriver);
         }
         return res;
     },
     async sendLibraryOverdueReminder(recipient: string, bookTitle: string, dueDate: string, institutionId: string): Promise<any> {
         const message = `REMINDER: Your library book "${bookTitle}" was due on ${new Date(dueDate).toLocaleDateString()}. Please return it to avoid further fines.`;
-        return this.sendSms(recipient, message, undefined, 1, institutionId);
+        return apiService.sendSms(recipient, message, undefined, 1, institutionId);
     },
     async fetchTransportBills(driverId: string): Promise<TransportBill[]> {
-        return this.fetchModuleRecords('transport_bills', undefined, undefined, {
+        return apiService.fetchModuleRecords('transport_bills', undefined, undefined, {
             filter: { driver_id: driverId }
         });
     },
     async saveTransportBill(bill: TransportBill): Promise<void> {
-        await this.saveModuleRecord('transport_bills', bill);
+        await apiService.saveModuleRecord('transport_bills', bill);
     },
     async topUpDriverSms(driver: User, amount: number, units: number): Promise<void> {
         const updatedUser = {
             ...driver,
             smsBalance: (driver.smsBalance || 0) + units
         };
-        await this.saveUser(updatedUser);
-        this.storeSession(updatedUser);
+        await apiService.saveUser(updatedUser);
+        apiService.storeSession(updatedUser);
         // Record as transaction
-        await this.onAddTransaction({
+        await apiService.onAddTransaction({
             amount,
             phoneNumber: driver.phoneNumber,
             institutionId: driver.institutionId,
@@ -1097,10 +1096,10 @@ export const apiService = {
             subscriptionStatus: 'active',
             subscriptionExpiry: baseDate.toISOString()
         };
-        await this.saveUser(updatedUser);
-        this.storeSession(updatedUser);
+        await apiService.saveUser(updatedUser);
+        apiService.storeSession(updatedUser);
 
-        await this.onAddTransaction({
+        await apiService.onAddTransaction({
             amount: months * 1000, // Example scale
             phoneNumber: driver.phoneNumber,
             institutionId: driver.institutionId,
@@ -1116,7 +1115,7 @@ export const apiService = {
         }
 
         try {
-            const { data } = await _supabase.auth.getSession();
+            const { data } = _supabase.auth ? await _supabase.auth.getSession() : { data: { session: null } };
             let token = data?.session?.access_token;
 
             if (!token) {
@@ -1134,7 +1133,7 @@ export const apiService = {
                 if (authToken) {
                     token = authToken;
                 } else {
-                    const session = this.getSession();
+                    const session = apiService.getSession();
                     if (session?.id) token = session.id;
                 }
             }
@@ -1183,9 +1182,9 @@ export const apiService = {
             try {
                 let res;
                 if (method === 'email' && user.email) {
-                    res = await this.sendEmail(user.email, subject, body);
+                    res = await apiService.sendEmail(user.email, subject, body);
                 } else if (method === 'sms' && user.phoneNumber) {
-                    res = await this.sendSms(user.phoneNumber, smsBody);
+                    res = await apiService.sendSms(user.phoneNumber, smsBody);
                 }
 
                 if (res?.success) success_count++;
@@ -1202,7 +1201,7 @@ export const apiService = {
             return { success: false, message: "Database service (Supabase) not initialized. Live payments require an active backend." };
         }
         try {
-            const token = await this.getAuthToken();
+            const token = await apiService.getAuthToken();
 
             let action = 'initiateStkPush';
             if (provider === 'airtel') action = 'initiateAirtelMoneyStk';
@@ -1221,7 +1220,7 @@ export const apiService = {
             const result = await response.json();
             if (response.ok && result.success && metadata?.invoiceId) {
                 // Auto-record a pending transaction
-                await this.recordPayment({
+                await apiService.recordPayment({
                     transactionId: result.checkoutRequestId || result.requestId || `PENDING_${Date.now()}`,
                     amount,
                     phoneNumber: formattedPhone,
@@ -1242,7 +1241,7 @@ export const apiService = {
     async generateNcbaQr(amount: number, institutionId?: string) {
         if (!_supabase) return { success: false, message: "Database service not initialized." };
         try {
-            const token = await this.getAuthToken();
+            const token = await apiService.getAuthToken();
             const response = await fetch('/api/integrations', {
                 method: 'POST',
                 headers: {
@@ -1271,7 +1270,7 @@ export const apiService = {
             });
             const result = await response.json();
             if (result.status === 'completed' && result.metadata?.invoiceId) {
-                await this.reconcilePayment(result);
+                await apiService.reconcilePayment(result);
             }
             return result;
         } catch (e) {
@@ -1280,7 +1279,7 @@ export const apiService = {
         }
     },
     async recordPayment(data: Partial<MpesaTransaction>) {
-        return this.saveModuleRecord('mpesa_transactions', {
+        return apiService.saveModuleRecord('mpesa_transactions', {
             ...data,
             timestamp: data.timestamp || new Date().toISOString(),
             status: data.status || 'pending'
@@ -1293,7 +1292,7 @@ export const apiService = {
             if (!invoiceId) return;
 
             // 1. Create a receipt
-            await this.saveModuleRecord('receipts', {
+            await apiService.saveModuleRecord('receipts', {
                 id: `RCT_${Date.now()}`,
                 receiptNumber: `RCT-${Date.now()}`,
                 institutionId: transaction.institutionId,
@@ -1307,13 +1306,13 @@ export const apiService = {
             });
 
             // 2. Update invoice status if fully paid
-            const invoice = await this.fetchModuleRecords<Invoice>('invoices', undefined, undefined, { filter: { id: invoiceId }, limit: 1 });
+            const invoice = await apiService.fetchModuleRecords<Invoice>('invoices', undefined, undefined, { filter: { id: invoiceId }, limit: 1 });
             if (invoice?.[0]) {
-                const totalPaid = (await this.fetchModuleRecords<Receipt>('receipts', undefined, undefined, { filter: { invoice_id: invoiceId } }))
+                const totalPaid = (await apiService.fetchModuleRecords<Receipt>('receipts', undefined, undefined, { filter: { invoice_id: invoiceId } }))
                     .reduce((sum, r) => sum + (r.amountPaid || 0), 0);
                 
                 if (totalPaid >= invoice[0].totalAmount) {
-                    await this.saveModuleRecord('invoices', { id: invoiceId, status: 'paid' });
+                    await apiService.saveModuleRecord('invoices', { id: invoiceId, status: 'paid' });
                 }
             }
         } catch (e) {
@@ -1321,7 +1320,7 @@ export const apiService = {
         }
     },
     async initiateMpesaPayment(amount: number, phoneNumber: string, metadata?: any, config?: MpesaConfig) {
-        return this.initiatePayment('mpesa', amount, phoneNumber, metadata, config);
+        return apiService.initiatePayment('mpesa', amount, phoneNumber, metadata, config);
     },
     async checkMpesaStatus(checkoutRequestId: string, config?: MpesaConfig) {
         try {
@@ -1346,7 +1345,7 @@ export const apiService = {
             console.error("Status Check Query Error:", e);
             // Fallback to database check in case API fails
             try {
-                const data = await this.fetchModuleRecords<any>('mpesa_transactions', undefined, undefined, {
+                const data = await apiService.fetchModuleRecords<any>('mpesa_transactions', undefined, undefined, {
                     select: 'status',
                     filter: { checkout_request_id: checkoutRequestId },
                     limit: 1
@@ -1390,7 +1389,7 @@ export const apiService = {
     async verifyMpesaTransaction(transactionId: string) {
         if (!_supabase) return { success: false, message: "Bridge unavailable" };
         try {
-            const token = await this.getAuthToken();
+            const token = await apiService.getAuthToken();
 
             const response = await fetch('/api/integrations', {
                 method: 'POST',
@@ -1408,31 +1407,31 @@ export const apiService = {
             return { success: false, message: e.message || "Request failed" };
         }
     },
-    async fetchDepartments(instId?: string): Promise<Department[]> { return this.fetchModuleRecords('departments', instId); },
-    async fetchSubjects(instId?: string): Promise<Subject[]> { return this.fetchModuleRecords('subjects', instId); },
-    async saveSubject(data: any) { return this.saveModuleRecord('subjects', data); },
-    async fetchCourses(instId?: string): Promise<Course[]> { return this.fetchModuleRecords('courses', instId); },
-    async fetchAcademicYears(instId?: string): Promise<AcademicYear[]> { return this.fetchModuleRecords('academic_years', instId); },
-    async fetchSemesters(instId?: string): Promise<Semester[]> { return this.fetchModuleRecords('semesters', instId); },
-    async fetchRooms(instId?: string): Promise<Room[]> { return this.fetchModuleRecords('rooms', instId); },
-    async fetchAcademicLevels(instId?: string): Promise<AcademicLevel[]> { return this.fetchModuleRecords('academic_levels', instId); },
-    async fetchVoteHeads(instId?: string): Promise<VoteHead[]> { return this.fetchModuleRecords('vote_heads', instId); },
-    async fetchFeeStructures(instId?: string): Promise<FeeStructure[]> { return this.fetchModuleRecords('fee_structures', instId); },
-    async fetchFinancialPeriods(instId?: string): Promise<FinancialPeriod[]> { return this.fetchModuleRecords('financial_periods', instId); },
-    async fetchTransactions(instId?: string): Promise<MpesaTransaction[]> { return this.fetchModuleRecords('mpesa_transactions', instId); },
-    async fetchReceipts(instId?: string): Promise<Receipt[]> { return this.fetchModuleRecords('receipts', instId); },
-    async fetchInvoices(instId?: string): Promise<Invoice[]> { return this.fetchModuleRecords('invoices', instId); },
-    async fetchSmsLogs(instId?: string): Promise<SmsLog[]> { return this.fetchModuleRecords('sms_logs', instId); },
-    async fetchExtensionRequests(instId?: string): Promise<ExtensionRequest[]> { return this.fetchModuleRecords('institution_extension_requests', instId); },
+    async fetchDepartments(instId?: string): Promise<Department[]> { return apiService.fetchModuleRecords('departments', instId); },
+    async fetchSubjects(instId?: string): Promise<Subject[]> { return apiService.fetchModuleRecords('subjects', instId); },
+    async saveSubject(data: any) { return apiService.saveModuleRecord('subjects', data); },
+    async fetchCourses(instId?: string): Promise<Course[]> { return apiService.fetchModuleRecords('courses', instId); },
+    async fetchAcademicYears(instId?: string): Promise<AcademicYear[]> { return apiService.fetchModuleRecords('academic_years', instId); },
+    async fetchSemesters(instId?: string): Promise<Semester[]> { return apiService.fetchModuleRecords('semesters', instId); },
+    async fetchRooms(instId?: string): Promise<Room[]> { return apiService.fetchModuleRecords('rooms', instId); },
+    async fetchAcademicLevels(instId?: string): Promise<AcademicLevel[]> { return apiService.fetchModuleRecords('academic_levels', instId); },
+    async fetchVoteHeads(instId?: string): Promise<VoteHead[]> { return apiService.fetchModuleRecords('vote_heads', instId); },
+    async fetchFeeStructures(instId?: string): Promise<FeeStructure[]> { return apiService.fetchModuleRecords('fee_structures', instId); },
+    async fetchFinancialPeriods(instId?: string): Promise<FinancialPeriod[]> { return apiService.fetchModuleRecords('financial_periods', instId); },
+    async fetchTransactions(instId?: string): Promise<MpesaTransaction[]> { return apiService.fetchModuleRecords('mpesa_transactions', instId); },
+    async fetchReceipts(instId?: string): Promise<Receipt[]> { return apiService.fetchModuleRecords('receipts', instId); },
+    async fetchInvoices(instId?: string): Promise<Invoice[]> { return apiService.fetchModuleRecords('invoices', instId); },
+    async fetchSmsLogs(instId?: string): Promise<SmsLog[]> { return apiService.fetchModuleRecords('sms_logs', instId); },
+    async fetchExtensionRequests(instId?: string): Promise<ExtensionRequest[]> { return apiService.fetchModuleRecords('institution_extension_requests', instId); },
     async updateExtensionRequestStatus(requestId: string, status: 'approved' | 'rejected', extensionDays: number = 14): Promise<void> {
         try {
             // 1. Fetch current request to preserve mandatory fields (requester_id, institution_id, etc.)
-            const existingRequests = await this.fetchModuleRecords<ExtensionRequest>('institution_extension_requests', undefined, undefined, { filter: { id: requestId } });
+            const existingRequests = await apiService.fetchModuleRecords<ExtensionRequest>('institution_extension_requests', undefined, undefined, { filter: { id: requestId } });
             const currentRequest = existingRequests[0];
             if (!currentRequest) throw new Error("Extension request not found");
 
             // 2. Update the request status and add resolved metadata
-            const request = await this.saveModuleRecord('institution_extension_requests', { 
+            const request = await apiService.saveModuleRecord('institution_extension_requests', { 
                 ...currentRequest, 
                 status,
                 resolved_at: new Date().toISOString()
@@ -1444,7 +1443,7 @@ export const apiService = {
 
             // 3. If approved, extend the institution's trial
             if (status === 'approved' && finalRequest.institutionId) {
-                const insts = await this.fetchModuleRecords<any>('institutions', finalRequest.institutionId);
+                const insts = await apiService.fetchModuleRecords<any>('institutions', finalRequest.institutionId);
                 const inst = insts[0];
                 if (!inst) throw new Error("Institution not found for the given request ID: " + finalRequest.institutionId);
 
@@ -1453,7 +1452,7 @@ export const apiService = {
                 const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
                 const newExpiry = new Date(baseDate.getTime() + (extensionDays * 24 * 60 * 60 * 1000));
 
-                await this.saveModuleRecord('institutions', {
+                await apiService.saveModuleRecord('institutions', {
                     id: (request as any).institutionId,
                     status: 'trial', 
                     trialEndsAt: newExpiry.toISOString()
@@ -1464,18 +1463,18 @@ export const apiService = {
             throw error;
         }
     },
-    async fetchAbsenceRequests(instId?: string): Promise<AbsenceRequest[]> { return this.fetchModuleRecords('absence_requests', instId); },
-    async fetchAssessmentMarks(instId?: string): Promise<AssessmentMark[]> { return this.fetchModuleRecords('assessment_marks', instId); },
-    async fetchExamTimetable(institutionId: string): Promise<ExamTimetableEntry[]> { return this.fetchModuleRecords('exam_timetable_entries', institutionId); },
+    async fetchAbsenceRequests(instId?: string): Promise<AbsenceRequest[]> { return apiService.fetchModuleRecords('absence_requests', instId); },
+    async fetchAssessmentMarks(instId?: string): Promise<AssessmentMark[]> { return apiService.fetchModuleRecords('assessment_marks', instId); },
+    async fetchExamTimetable(institutionId: string): Promise<ExamTimetableEntry[]> { return apiService.fetchModuleRecords('exam_timetable_entries', institutionId); },
     async saveExamTimetable(institutionId: string, ayId: string, semId: string, entries: ExamTimetableEntry[]): Promise<void> {
         try {
             const snakeEntries = entries.map(e => ({ ...toSnakeCase(e), institution_id: institutionId, academic_year_id: ayId, semester_id: semId }));
             // Use bulk save via proxy
-            await this.saveModuleRecord('exam_timetable_entries', snakeEntries);
+            await apiService.saveModuleRecord('exam_timetable_entries', snakeEntries);
         } catch (e) { console.error("Exam Timetable Save Error:", e); }
     },
     async onAssociateSubjectToCourseLevel(subjectId: string | string[], levelId: string) {
-        const courses = await this.fetchCourses();
+        const courses = await apiService.fetchCourses();
         const course = courses.find(c => c.levels && c.levels.some(l => l.id === levelId));
         const subjectIds = Array.isArray(subjectId) ? subjectId : [subjectId];
 
@@ -1488,11 +1487,11 @@ export const apiService = {
                 }
                 return l;
             });
-            await this.saveModuleRecord('courses', { ...course, levels: updatedLevels });
+            await apiService.saveModuleRecord('courses', { ...course, levels: updatedLevels });
         }
     },
     async onDisassociateSubjectFromCourseLevel(subjectId: string, levelId: string) {
-        const courses = await this.fetchCourses();
+        const courses = await apiService.fetchCourses();
         const course = courses.find(c => c.levels && c.levels.some(l => l.id === levelId));
 
         if (course) {
@@ -1504,7 +1503,7 @@ export const apiService = {
                 }
                 return l;
             });
-            await this.saveModuleRecord('courses', { ...course, levels: updatedLevels });
+            await apiService.saveModuleRecord('courses', { ...course, levels: updatedLevels });
         }
     },
     async onImportUsers(imported: any[], institutionId?: string, institutionName?: string): Promise<void> {
@@ -1518,19 +1517,19 @@ export const apiService = {
             password: u.password || 'password123' // Default password if missing
         }));
 
-        await this.saveModuleRecord('users', sanitizedData);
+        await apiService.saveModuleRecord('users', sanitizedData);
 
         // Send welcome emails and SMS
         sanitizedData.forEach(user => {
             if (user.email) {
                 const subject = "Welcome to Eduai Automation - Account Credentials";
                 const body = `Dear ${user.name},\n\nYour account has been created on the Eduai Automation Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${user.email}\nPassword: ${user.password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
-                this.sendEmail(user.email, subject, body).catch(e => console.error(`Failed to send email to ${user.email}:`, e));
+                apiService.sendEmail(user.email, subject, body).catch(e => console.error(`Failed to send email to ${user.email}:`, e));
             }
 
             if (user.phoneNumber) {
                 const smsMessage = `Welcome to Eduai Automation. Your account is ready. Email: ${user.email || user.staffId}, Password: ${user.password}. Portal: ${window.location.origin}`;
-                this.sendSms(user.phoneNumber, smsMessage, undefined, 1, institutionId).catch(e => console.error(`Failed to send SMS to ${user.phoneNumber}:`, e));
+                apiService.sendSms(user.phoneNumber, smsMessage, undefined, 1, institutionId).catch(e => console.error(`Failed to send SMS to ${user.phoneNumber}:`, e));
             }
         });
     },
@@ -1545,19 +1544,19 @@ export const apiService = {
             password: s.password || 'student123' // Default password if missing
         }));
         
-        await this.saveModuleRecord('users', sanitizedData);
+        await apiService.saveModuleRecord('users', sanitizedData);
 
         // Send welcome emails and SMS
         sanitizedData.forEach(user => {
             if (user.email) {
                 const subject = "Welcome to Eduai Automation - Account Credentials";
                 const body = `Dear ${user.name},\n\nYour student account has been created on the Eduai Automation Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${user.email}\nPassword: ${user.password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
-                this.sendEmail(user.email, subject, body).catch(e => console.error(`Failed to send email to ${user.email}:`, e));
+                apiService.sendEmail(user.email, subject, body).catch(e => console.error(`Failed to send email to ${user.email}:`, e));
             }
 
             if (user.phoneNumber) {
                 const smsMessage = `Welcome to Eduai Automation Hub. Your student account is ready. Email: ${user.email || user.staffId}, Password: ${user.password}. Portal: ${window.location.origin}`;
-                this.sendSms(user.phoneNumber, smsMessage, undefined, 1, institutionId).catch(e => console.error(`Failed to send SMS to ${user.phoneNumber}:`, e));
+                apiService.sendSms(user.phoneNumber, smsMessage, undefined, 1, institutionId).catch(e => console.error(`Failed to send SMS to ${user.phoneNumber}:`, e));
             }
         });
     },
@@ -1569,31 +1568,31 @@ export const apiService = {
             curriculumType: c.curriculumType || '8-4-4'
         }));
 
-        await this.saveModuleRecord('courses', enrichedCourses);
+        await apiService.saveModuleRecord('courses', enrichedCourses);
     },
     async onImportDepartments(departments: any[]): Promise<void> {
         const enriched = departments.map((d, i) => ({
             ...d,
             id: d.id || `dept_${Date.now()}_${i}`
         }));
-        await this.saveModuleRecord('departments', enriched);
+        await apiService.saveModuleRecord('departments', enriched);
     },
     async onImportRooms(rooms: any[]): Promise<void> {
         const enriched = rooms.map((r, i) => ({
             ...r,
             id: r.id || `room_${Date.now()}_${i}`
         }));
-        await this.saveModuleRecord('rooms', enriched);
+        await apiService.saveModuleRecord('rooms', enriched);
     },
     async onImportBuildings(buildings: any[]): Promise<void> {
         const enriched = buildings.map((b, i) => ({
             ...b,
             id: b.id || `bldg_${Date.now()}_${i}`
         }));
-        await this.saveModuleRecord('buildings', enriched);
+        await apiService.saveModuleRecord('buildings', enriched);
     },
     async onImportSubjectsAndAssociate(subjects: any[], institutionId?: string): Promise<void> {
-        const currentUser = this.getSession();
+        const currentUser = apiService.getSession();
         const effectiveInstitutionId = institutionId || currentUser?.institutionId;
 
         const subjectsToInsert = subjects.map(s => ({
@@ -1608,55 +1607,55 @@ export const apiService = {
             hasExam: true
         }));
 
-        await this.saveModuleRecord('subjects', subjectsToInsert);
+        await apiService.saveModuleRecord('subjects', subjectsToInsert);
     },
     migrateLocalDataToCloud: async (onProgress: (msg: string) => void) => {
         onProgress('Analyzing local registry...');
         return { success: true, message: "Registry migration successful." };
     },
     async fetchBoardingRooms(houseId: string): Promise<any[]> {
-        return this.fetchModuleRecords('boarding_rooms', undefined, undefined, {
+        return apiService.fetchModuleRecords('boarding_rooms', undefined, undefined, {
             select: '*,boarding_houses!inner(name),boarding_beds(*)',
             filter: { house_id: houseId },
             order: 'room_number.asc'
         });
     },
     async fetchAvailableBeds(institutionId: string): Promise<any[]> {
-        return this.fetchModuleRecords('boarding_beds', institutionId, undefined, {
+        return apiService.fetchModuleRecords('boarding_beds', institutionId, undefined, {
             select: '*,boarding_rooms!inner(id,room_number,boarding_houses!inner(id,name,gender,institution_id))',
             filter: { status: 'Available' }
         });
     },
     async fetchBedAllocations(institutionId: string): Promise<any[]> {
-        return this.fetchModuleRecords('bed_allocations', institutionId, undefined, {
+        return apiService.fetchModuleRecords('bed_allocations', institutionId, undefined, {
             select: '*,usersStudentIdFkey:users!student_id(name, email, gender),usersAllocatedByFkey:users!allocated_by(name),boardingBeds:boarding_beds(bed_number,boardingRooms:boarding_rooms(room_number,boardingHouses:boarding_houses(name, institution_id))),boarding_checkins(id),boarding_checkouts(id)',
             order: 'allocation_date.desc'
         });
     },
     async fetchMaintenanceLogs(institutionId: string): Promise<any[]> {
-        return this.fetchModuleRecords('boarding_maintenance_logs', institutionId, undefined, {
+        return apiService.fetchModuleRecords('boarding_maintenance_logs', institutionId, undefined, {
             select: '*,boarding_houses(name),boarding_rooms(room_number),boarding_beds(bed_number),users!boarding_maintenance_logs_reported_by_fkey(name),users!boarding_maintenance_logs_resolved_by_fkey(name)',
             order: 'reported_date.desc'
         });
     },
     async fetchBoardingCheckIns(institutionId: string): Promise<any[]> {
-        return this.fetchModuleRecords('boarding_checkins', institutionId, undefined, {
+        return apiService.fetchModuleRecords('boarding_checkins', institutionId, undefined, {
             order: 'check_in_date.desc'
         });
     },
     async fetchBoardingCheckOuts(institutionId: string): Promise<any[]> {
-        return this.fetchModuleRecords('boarding_checkouts', institutionId, undefined, {
+        return apiService.fetchModuleRecords('boarding_checkouts', institutionId, undefined, {
             order: 'check_out_date.desc'
         });
     },
     // Transport Module
-    async fetchVehicles(instId?: string): Promise<Vehicle[]> { return this.fetchModuleRecords('vehicles', instId); },
-    async fetchTransportOnboarding(instId?: string): Promise<TransportOnboarding[]> { return this.fetchModuleRecords('transport_onboarding', instId); },
-    async fetchVehicleLogs(instId?: string): Promise<VehicleLog[]> { return this.fetchModuleRecords('vehicle_logs', instId); },
+    async fetchVehicles(instId?: string): Promise<Vehicle[]> { return apiService.fetchModuleRecords('vehicles', instId); },
+    async fetchTransportOnboarding(instId?: string): Promise<TransportOnboarding[]> { return apiService.fetchModuleRecords('transport_onboarding', instId); },
+    async fetchVehicleLogs(instId?: string): Promise<VehicleLog[]> { return apiService.fetchModuleRecords('vehicle_logs', instId); },
     async clearInstitutionalData(institutionId: string, currentUserId: string): Promise<void> {
         // Supabase Logic - Moved to secure proxy
         try {
-            const token = await this.getAuthToken();
+            const token = await apiService.getAuthToken();
             const response = await fetch(`${window.location.origin}/api/system?action=clearData`, {
                 method: 'POST',
                 headers: {
@@ -1677,61 +1676,61 @@ export const apiService = {
         }
     },
     async fetchSecurityAlerts(institutionId: string): Promise<SecurityAlert[]> {
-        return this.fetchModuleRecords('security_alerts', institutionId);
+        return apiService.fetchModuleRecords('security_alerts', institutionId);
     },
     async fetchCoopFarmers(institutionId?: string): Promise<CoopFarmer[]> {
-        return this.fetchModuleRecords('coop_farmers', institutionId);
+        return apiService.fetchModuleRecords('coop_farmers', institutionId);
     },
     async saveCoopFarmer(data: Partial<CoopFarmer>): Promise<void> {
-        await this.saveModuleRecord('coop_farmers', data);
+        await apiService.saveModuleRecord('coop_farmers', data);
     },
     async fetchCoopCollections(institutionId?: string): Promise<CoopCollection[]> {
-        return this.fetchModuleRecords('coop_collections', institutionId);
+        return apiService.fetchModuleRecords('coop_collections', institutionId);
     },
     async saveCoopCollection(data: Partial<CoopCollection>): Promise<void> {
-        await this.saveModuleRecord('coop_collections', data);
+        await apiService.saveModuleRecord('coop_collections', data);
     },
     async fetchCoopRiders(institutionId?: string): Promise<CoopRider[]> {
-        return this.fetchModuleRecords('coop_riders', institutionId);
+        return apiService.fetchModuleRecords('coop_riders', institutionId);
     },
     async saveCoopRider(data: Partial<CoopRider>): Promise<void> {
-        await this.saveModuleRecord('coop_riders', data);
+        await apiService.saveModuleRecord('coop_riders', data);
     },
     async fetchCoopAgrovetInventory(institutionId?: string): Promise<CoopAgrovetInventory[]> {
-        return this.fetchModuleRecords('coop_agrovet_inventory', institutionId);
+        return apiService.fetchModuleRecords('coop_agrovet_inventory', institutionId);
     },
     async saveCoopAgrovetInventory(data: Partial<CoopAgrovetInventory>): Promise<void> {
-        await this.saveModuleRecord('coop_agrovet_inventory', data);
+        await apiService.saveModuleRecord('coop_agrovet_inventory', data);
     },
     async fetchCoopAgrovetSales(institutionId?: string): Promise<CoopAgrovetSales[]> {
-        return this.fetchModuleRecords('coop_agrovet_sales', institutionId);
+        return apiService.fetchModuleRecords('coop_agrovet_sales', institutionId);
     },
     async saveCoopAgrovetSale(data: Partial<CoopAgrovetSales>): Promise<void> {
-        await this.saveModuleRecord('coop_agrovet_sales', data);
+        await apiService.saveModuleRecord('coop_agrovet_sales', data);
     },
     async fetchSaccoAccounts(institutionId?: string): Promise<SaccoAccount[]> {
-        return this.fetchModuleRecords('sacco_accounts', institutionId);
+        return apiService.fetchModuleRecords('sacco_accounts', institutionId);
     },
     async fetchSaccoTransactions(institutionId?: string): Promise<SaccoTransaction[]> {
-        return this.fetchModuleRecords('sacco_transactions', institutionId);
+        return apiService.fetchModuleRecords('sacco_transactions', institutionId);
     },
     async fetchCoopMonthlyPayouts(institutionId?: string): Promise<CoopMonthlyPayout[]> {
-        return this.fetchModuleRecords('coop_monthly_payouts', institutionId);
+        return apiService.fetchModuleRecords('coop_monthly_payouts', institutionId);
     },
     async fetchCoopExpenses(institutionId?: string): Promise<CoopExpense[]> {
-        return this.fetchModuleRecords('coop_expenses', institutionId);
+        return apiService.fetchModuleRecords('coop_expenses', institutionId);
     },
     async saveCoopExpense(data: Partial<CoopExpense>): Promise<void> {
-        await this.saveModuleRecord('coop_expenses', data);
+        await apiService.saveModuleRecord('coop_expenses', data);
     },
     async fetchCoopIncome(institutionId?: string): Promise<CoopIncome[]> {
-        return this.fetchModuleRecords('coop_income', institutionId);
+        return apiService.fetchModuleRecords('coop_income', institutionId);
     },
     async saveCoopIncome(data: Partial<CoopIncome>): Promise<void> {
-        await this.saveModuleRecord('coop_income', data);
+        await apiService.saveModuleRecord('coop_income', data);
     },
     async confirmCoopCollection(id: string, finalQuantity: number, confirmedBy: string): Promise<void> {
-        const collections = await this.fetchCoopCollections();
+        const collections = await apiService.fetchCoopCollections();
         const collection = collections.find(c => c.id === id);
         if (!collection) throw new Error("Collection not found");
 
@@ -1748,7 +1747,7 @@ export const apiService = {
             smsStatus: 'pending'
         };
 
-        await this.saveModuleRecord('coop_collections', update);
+        await apiService.saveModuleRecord('coop_collections', update);
     },
     async approveCoopCollection(id: string, approvedBy: string, status: 'approved' | 'rejected'): Promise<void> {
         // Optimized update payload to prevent 'text = uuid' type mismatch by avoiding full object spread
@@ -1759,7 +1758,7 @@ export const apiService = {
             approvedAt: new Date().toISOString(),
             smsStatus: status === 'approved' ? 'pending' : 'failed'
         };
-        await this.saveModuleRecord('coop_collections', update);
+        await apiService.saveModuleRecord('coop_collections', update);
     },
     async updatePayoutStatus(idOrIds: string | string[], status: 'initiated' | 'approved' | 'paid' | 'rejected' | string, userId?: string): Promise<void> {
         const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
@@ -1818,7 +1817,7 @@ export const apiService = {
         await new Promise(resolve => setTimeout(resolve, 1500));
 
         // Update all payouts to 'paid' status
-        await Promise.all(ids.map(id => this.updatePayoutStatus(id, 'paid', userId)));
+        await Promise.all(ids.map(id => apiService.updatePayoutStatus(id, 'paid', userId)));
 
         return {
             success: true,
@@ -1828,49 +1827,49 @@ export const apiService = {
         };
     },
     async fetchChurchSacraments(institutionId?: string): Promise<ChurchSacrament[]> {
-        return this.fetchModuleRecords('church_sacraments', institutionId);
+        return apiService.fetchModuleRecords('church_sacraments', institutionId);
     },
     async saveChurchSacrament(data: Partial<ChurchSacrament>): Promise<void> {
-        await this.saveModuleRecord('church_sacraments', data);
+        await apiService.saveModuleRecord('church_sacraments', data);
     },
     async fetchChurchMassIntentions(institutionId?: string): Promise<ChurchMassIntention[]> {
-        return this.fetchModuleRecords('church_mass_intentions', institutionId);
+        return apiService.fetchModuleRecords('church_mass_intentions', institutionId);
     },
     async saveChurchMassIntention(data: Partial<ChurchMassIntention>): Promise<void> {
-        await this.saveModuleRecord('church_mass_intentions', data);
+        await apiService.saveModuleRecord('church_mass_intentions', data);
     },
     async fetchChurchCellGroups(institutionId?: string): Promise<ChurchCellGroup[]> {
-        return this.fetchModuleRecords('church_cell_groups', institutionId);
+        return apiService.fetchModuleRecords('church_cell_groups', institutionId);
     },
     async saveChurchCellGroup(data: Partial<ChurchCellGroup>): Promise<void> {
-        await this.saveModuleRecord('church_cell_groups', data);
+        await apiService.saveModuleRecord('church_cell_groups', data);
     },
     async fetchChurchFollowUps(institutionId?: string): Promise<ChurchFollowUp[]> {
-        return this.fetchModuleRecords('church_follow_ups', institutionId);
+        return apiService.fetchModuleRecords('church_follow_ups', institutionId);
     },
     async saveChurchFollowUp(data: Partial<ChurchFollowUp>): Promise<void> {
-        await this.saveModuleRecord('church_follow_ups', data);
+        await apiService.saveModuleRecord('church_follow_ups', data);
     },
     async fetchChurchFastingPeriods(institutionId?: string): Promise<ChurchFastingPeriod[]> {
-        return this.fetchModuleRecords('church_fasting_periods', institutionId);
+        return apiService.fetchModuleRecords('church_fasting_periods', institutionId);
     },
     async saveChurchFastingPeriod(data: Partial<ChurchFastingPeriod>): Promise<void> {
-        await this.saveModuleRecord('church_fasting_periods', data);
+        await apiService.saveModuleRecord('church_fasting_periods', data);
     },
     async fetchChurchSaintDays(institutionId?: string): Promise<ChurchSaintDay[]> {
-        return this.fetchModuleRecords('church_saint_days', institutionId);
+        return apiService.fetchModuleRecords('church_saint_days', institutionId);
     },
     async saveChurchSaintDay(data: Partial<ChurchSaintDay>): Promise<void> {
-        await this.saveModuleRecord('church_saint_days', data);
+        await apiService.saveModuleRecord('church_saint_days', data);
     },
     async fetchDemoRequests(): Promise<DemoRequest[]> {
-        return this.fetchModuleRecords('demo_requests', undefined, undefined, { order: 'requested_at.desc' });
+        return apiService.fetchModuleRecords('demo_requests', undefined, undefined, { order: 'requested_at.desc' });
     },
     async updateDemoRequestStatus(id: string, status: DemoRequest['status']): Promise<void> {
-        await this.saveModuleRecord('demo_requests', { id, status });
+        await apiService.saveModuleRecord('demo_requests', { id, status });
     },
     async post(url: string, body: any): Promise<any> {
-        const token = await this.getAuthToken();
+        const token = await apiService.getAuthToken();
         const response = await fetch(url, {
             method: 'POST',
             headers: {
