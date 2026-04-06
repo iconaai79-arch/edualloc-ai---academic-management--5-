@@ -255,6 +255,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         farmerSmsBillingEnabled: props.currentInstitution?.farmerSmsBillingEnabled ?? false,
         slug: props.currentInstitution?.slug || ''
     });
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
 
     // --- Exam Settings State ---
     const [localExamSettings, setLocalExamSettings] = useState<ExamTimetableSettings>(props.examTimetableSettings);
@@ -300,6 +301,18 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         setLocalInstSmsConfig(props.currentInstitution?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
         setLocalInstNcbaConfig(props.currentInstitution?.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', environment: 'sandbox', headers: [], params: [], accountNumber: '' });
         setLocalInstMpesaConfig(props.currentInstitution?.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' });
+        
+        // Sync instProfile
+        setInstProfile({
+            email: props.currentInstitution?.email || '',
+            phoneNumber: props.currentInstitution?.phoneNumber || '',
+            useAllocationRequests: props.currentInstitution?.useAllocationRequests ?? true,
+            aiModelTier: props.currentInstitution?.aiModelTier || 'premium',
+            isOtpEnabled: props.currentInstitution?.isOtpEnabled ?? false,
+            parentAbsenceNotificationsEnabled: props.currentInstitution?.parentAbsenceNotificationsEnabled ?? false,
+            farmerSmsBillingEnabled: props.currentInstitution?.farmerSmsBillingEnabled ?? false,
+            slug: props.currentInstitution?.slug || ''
+        });
     }, [props.currentInstitution]);
     // Update local state when profile changes
     useEffect(() => {
@@ -323,10 +336,18 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     }, [selectedProfileId, props.timetableSettings, props.currentInstitution]);
 
 
-    const handleSaveInstitutionProfile = () => {
+    const handleSaveInstitutionProfile = async () => {
         if (!props.currentInstitution) return;
-        props.onUpdateInstitution?.(props.currentInstitution.id, instProfile);
-        alert('Institution records updated.');
+        setIsSavingProfile(true);
+        try {
+            await props.onUpdateInstitution?.(props.currentInstitution.id, instProfile);
+            alert('Institution records updated successfully.');
+        } catch (err: any) {
+            console.error('Update Profile Failure:', err);
+            alert('Failed to update profile: ' + err.message);
+        } finally {
+            setIsSavingProfile(false);
+        }
     };
 
     const handleSaveTimetable = () => {
@@ -1796,7 +1817,16 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     </div>
                                 </div>
 
-                                <div className="mt-8 flex justify-end"><button onClick={handleSaveInstitutionProfile} className="btn-primary h-12 px-8 shadow-lg shadow-indigo-100">Update Profile</button></div>
+                                <div className="mt-8 flex justify-end">
+                                    <button 
+                                        disabled={isSavingProfile}
+                                        onClick={handleSaveInstitutionProfile} 
+                                        className="btn-primary h-12 px-8 shadow-lg shadow-indigo-100 flex items-center gap-3"
+                                    >
+                                        {isSavingProfile && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
+                                        {isSavingProfile ? 'Updating Profile...' : 'Update Profile'}
+                                    </button>
+                                </div>
                             </div>
                         )}
                         {generalSubTab === 'academic_settings' && (
@@ -2749,10 +2779,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
                                 <div className="flex justify-end pt-4">
                                     <button 
+                                        disabled={isSavingProfile}
                                         onClick={handleSaveInstitutionProfile}
-                                        className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100 dark:shadow-none bg-indigo-600 border-none uppercase tracking-[0.2em] text-[10px] font-black"
+                                        className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100 dark:shadow-none bg-indigo-600 border-none uppercase tracking-[0.2em] text-[10px] font-black flex items-center gap-3"
                                     >
-                                        Update Billing Registry
+                                        {isSavingProfile && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
+                                        {isSavingProfile ? 'Updating Registrar...' : 'Update Billing Registry'}
                                     </button>
                                 </div>
                             </div>
