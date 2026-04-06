@@ -95,14 +95,14 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
 
     const handleSubmitInquiry = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!inquiryListing && !inquiryProduct) return;
+        if (!tenant || (!inquiryListing && !inquiryProduct)) return;
         setInquirySubmitting(true);
 
         try {
             if (inquiryListing) {
                 const pmInquiry = {
                     id: `inq_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                    institutionId: institutionId,
+                    institutionId: tenant.id,
                     listingId: inquiryListing.id,
                     customerName: inquiryName,
                     phoneNumber: inquiryPhone,
@@ -115,7 +115,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
             } else if (inquiryProduct) {
                 const lead = {
                     id: `wish_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                    institutionId: institutionId,
+                    institutionId: tenant.id,
                     customerName: inquiryName,
                     phoneNumber: inquiryPhone,
                     productQuery: inquiryProduct.name,

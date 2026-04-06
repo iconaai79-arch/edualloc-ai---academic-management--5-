@@ -135,6 +135,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (getStrParam(id)) q = q.eq('id', getStrParam(id));
             if (getStrParam(queryInstitutionId)) q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', getStrParam(queryInstitutionId));
 
+            // Custom filters from other query params
+            const reservedParams = ['module', 'id', 'select', 'order', 'limit', 'institutionId', 'countyId'];
+            Object.entries(req.query).forEach(([key, value]) => {
+                if (!reservedParams.includes(key) && value) {
+                    const strVal = getStrParam(value);
+                    if (strVal) q = q.eq(key, strVal);
+                }
+            });
+
             if (order && typeof order === 'string') {
                 const [col, dir] = order.split('.');
                 q = q.order(col, { ascending: dir !== 'desc' });
