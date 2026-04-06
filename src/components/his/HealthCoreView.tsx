@@ -33,12 +33,12 @@ import { AddWardModal } from './AddWardModal';
 import { AddVisitModal } from './AddVisitModal';
 import { AddPrescriptionModal } from './AddPrescriptionModal';
 import { LabDiagnosticsView } from './LabDiagnosticsView';
-import { PharmacyView } from './PharmacyView';
+import { ModernPharmacyManager } from './ModernPharmacyManager';
 import { generateInstitutionalDemoData } from '../../utils/demoData';
 import { apiService } from '../../services/apiService';
 import { generateOphthalPrescriptionPdf } from '../../services/pdfService';
 
-type HISModule = 'general' | 'inpatient' | 'pharmacy' | 'dental' | 'eye' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics';
+type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics';
 
 interface HealthCoreProps {
     activeRole?: Role;
@@ -293,7 +293,6 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                         {[
                             { id: 'general', label: 'Patient 360', icon: HeartIcon },
                             { id: 'inpatient', label: 'Admissions', icon: BuildingOfficeIcon },
-                            { id: 'pharmacy', label: 'Pharmacy Hub', icon: BeakerIcon },
                             { id: 'diagnostics', label: 'Diagnostics', icon: BeakerIcon },
                             { id: 'dental', label: 'Dental Core', icon: ScissorsIcon },
                             { id: 'eye', label: 'Ocular Hub', icon: EyeIcon },
@@ -319,7 +318,6 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                         switch (activeModule) {
                             case 'general': return <GeneralMedicineView activePatient={activePatient} vitals={activePatientVitals} events={activePatientEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} onAddPrescription={() => setIsPrescriptionModalOpen(true)} />;
                             case 'inpatient': return <InpatientView institutionId={institutionId} onAddWard={() => setIsAddWardOpen(true)} refreshTrigger={wardsRefreshTrigger} />;
-                            case 'pharmacy': return <PharmacyView institutionId={institutionId} />;
                             case 'diagnostics': return <LabDiagnosticsView institutionId={institutionId} activeRole={activeRole} userName={userName} activePatientId={activePatientId} />;
                             case 'dental': return <DentalView onAddVisit={() => setIsAddVisitOpen(true)} />;
                             case 'eye': return <OphthalmologyView onAddVisit={() => setIsAddVisitOpen(true)} onPrintRx={handlePrintOphthalRx} />;

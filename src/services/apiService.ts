@@ -1826,6 +1826,48 @@ export const apiService = {
             timestamp: new Date().toISOString()
         };
     },
+    async triggerMpesaStkPush(params: { amount: number; phoneNumber: string; reference: string; description: string; institutionId: string }): Promise<any> {
+        try {
+            const token = await apiService.getAuthToken();
+            const response = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    action: 'stkPush',
+                    ...params
+                })
+            });
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.message || 'STK Push failed');
+            }
+            return response.json();
+        } catch (error) {
+            console.error('M-Pesa STK Push error:', error);
+            throw error;
+        }
+    },
+    async checkMpesaPaymentStatus(checkoutRequestId: string): Promise<any> {
+        try {
+            const token = await apiService.getAuthToken();
+            const response = await fetch(`/api/integrations?action=stkPushQuery&checkoutRequestId=${checkoutRequestId}`, {
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : ''
+                }
+            });
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.message || 'Status query failed');
+            }
+            return response.json();
+        } catch (error) {
+            console.error('M-Pesa Status query error:', error);
+            throw error;
+        }
+    },
     async fetchChurchSacraments(institutionId?: string): Promise<ChurchSacrament[]> {
         return apiService.fetchModuleRecords('church_sacraments', institutionId);
     },

@@ -14,6 +14,7 @@ import { RetailCustomerPortal } from './retail/RetailCustomerPortal';
 import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
 import { CarServiceView } from './carservice/CarServiceView';
 import { HealthCoreView } from './his/HealthCoreView';
+import { ModernPharmacyManager } from './his/ModernPharmacyManager';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
 import { MarketingLandingPage } from './public/MarketingLandingPage';
@@ -341,6 +342,7 @@ export const App: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [institutions, setInstitutions] = useState<Institution[]>([]);
     const [isHealthSystemOpen, setIsHealthSystemOpen] = useState(false);
+    const [isPharmacySystemOpen, setIsPharmacySystemOpen] = useState(false);
     const [counties, setCounties] = useState<County[]>([]);
     const [companyDetails, setCompanyDetails] = useState<CompanyDetails>(INITIAL_COMPANY_DETAILS);
     const [activityLog, setActivityLog] = useState<ActivityLog[]>([]);
@@ -2466,11 +2468,17 @@ export const App: React.FC = () => {
                             onSwitchRole={(r) => setSelectedRole(r)}
                             onExitPerspective={impersonatedRole ? () => setImpersonatedRole(null) : undefined}
                             onToggleHealthSystem={() => setIsHealthSystemOpen(!isHealthSystemOpen)}
+                            onTogglePharmacySystem={() => setIsPharmacySystemOpen(!isPharmacySystemOpen)}
                             isHealthSystemOpen={isHealthSystemOpen}
+                            isPharmacySystemOpen={isPharmacySystemOpen}
                         />
                         <main className={`flex-grow mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full transition-all duration-300 ${isFullWidthLayout ? 'max-w-[1600px]' : 'max-w-7xl'}`}>
                             <Suspense fallback={<SystemPulseLoader message="Initializing Portal..." status="Loading perspective environment" />}>
-                                {((activeRole === 'admin' || activeRole === 'head_teacher') && !['Property Management', 'Agrovet', 'Cooperative', 'SACCO', 'Church', 'HIS', 'Car Wash'].includes(activeInstitution?.institutionType || '') && !activeInstitution?.businessSubType?.toLowerCase().includes('property management') && !activeInstitution?.businessSubType?.toLowerCase().includes('agrovet')) ? (
+                                {isPharmacySystemOpen ? (
+                                    <div className="p-8 bg-slate-950 min-h-[80vh] rounded-[3rem] overflow-hidden shadow-2xl">
+                                        <ModernPharmacyManager institutionId={activeInstitution?.id || currentUser?.institutionId || ''} />
+                                    </div>
+                                ) : ((activeRole === 'admin' || activeRole === 'head_teacher') && !['Property Management', 'Agrovet', 'Cooperative', 'SACCO', 'Church', 'HIS', 'Car Wash'].includes(activeInstitution?.institutionType || '') && !activeInstitution?.businessSubType?.toLowerCase().includes('property management') && !activeInstitution?.businessSubType?.toLowerCase().includes('agrovet')) ? (
                                 <AdminView
                                     currentUser={currentUser}
                                     activeRole={activeRole || undefined}
@@ -2840,6 +2848,14 @@ export const App: React.FC = () => {
                                         loadData();
                                     }}
                                 />
+                             ) : (activeRole === 'pharmacist') ? (
+                                <div className="p-8 bg-slate-950 min-h-screen">
+                                    <ModernPharmacyManager institutionId={activeInstitution?.id || currentUser?.institutionId || ''} />
+                                </div>
+                             ) : (isPharmacySystemOpen) ? (
+                                <div className="p-8 bg-slate-950 min-h-screen">
+                                    <ModernPharmacyManager institutionId={activeInstitution?.id || currentUser?.institutionId || ''} />
+                                </div>
                             ) : ((isHealthSystemOpen && !['property_admin', 'landlord', 'tenant'].includes(activeRole || '') && activeInstitution?.institutionType !== 'Property Management') || activeRole === 'his_admin') ? (
                                 <HealthCoreView 
                                     activeRole={activeRole as Role} 

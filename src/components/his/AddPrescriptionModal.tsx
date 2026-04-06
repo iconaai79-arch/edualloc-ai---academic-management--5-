@@ -27,6 +27,7 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
     const [selectedItems, setSelectedItems] = useState<any[]>([]);
     const [notes, setNotes] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+    const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
 
     useEffect(() => {
         const loadDrugs = async () => {
@@ -75,12 +76,22 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
         setIsSaving(true);
         try {
             const prescId = `prc_${Date.now()}`;
+            
+            // Upload files first if any
+            const fileUrls = [];
+            for (const file of attachedFiles) {
+                const path = `presc_${prescId}_${file.name}`;
+                const url = await apiService.uploadFile('prescriptions', path, file);
+                if (url) fileUrls.push(url);
+            }
+
             await apiService.saveModuleRecord('his_prescriptions', {
                 id: prescId,
                 institutionId,
                 patientId,
                 doctorName: doctorName || 'Attending Physician',
                 notes,
+                attached_files: fileUrls,
                 status: 'pending'
             });
 
@@ -208,6 +219,30 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
                                 placeholder="E.g. Take with food, watch for allergic signals..."
                              ></textarea>
                          </div>
+
+                         <div className="space-y-4">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] italic">Prescription Documentation (Scans/Files)</label>
+                              <div className="flex items-center gap-4">
+                                  <input 
+                                      type="file" 
+                                      multiple 
+                                      onChange={(e) => setAttachedFiles([...attachedFiles, ...Array.from(e.target.files || [])])}
+                                      className="hidden" 
+                                      id="presc-upload" 
+                                  />
+                                  <label htmlFor="presc-upload" className="px-8 py-4 bg-white/5 border border-dashed border-white/20 rounded-2xl text-[9px] font-black uppercase tracking-widest cursor-pointer hover:bg-white/10 transition-all">
+                                      Upload Archive Node
+                                  </label>
+                                  <div className="flex gap-2">
+                                      {attachedFiles.map((f, i) => (
+                                          <div key={i} className="px-3 py-1 bg-indigo-500/10 text-indigo-400 text-[8px] rounded-lg border border-indigo-400/20 flex items-center gap-2">
+                                              {f.name}
+                                              <button onClick={() => setAttachedFiles(attachedFiles.filter((_, idx) => idx !== i))} className="text-rose-500">×</button>
+                                          </div>
+                                      ))}
+                                  </div>
+                              </div>
+                          </div>
                     </div>
                 </div>
 

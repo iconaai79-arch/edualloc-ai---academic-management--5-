@@ -19,6 +19,8 @@ import { ShareIcon } from './icons/ShareIcon';
 import { QrCodeIcon } from './icons/QrCodeIcon';
 import { CheckIcon } from './icons/CheckIcon';
 import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { TruckIcon } from './icons/TruckIcon';
+import { CourierSignupModal } from './retail/CourierSignupModal';
 
 interface PropertyMarketplaceViewProps {
     onInquire?: (listing: PMListing) => void;
@@ -36,11 +38,127 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
     const [selectedProduct, setSelectedProduct] = useState<RetailInventoryItem | null>(null);
     const [inquiryListing, setInquiryListing] = useState<PMListing | null>(null);
     const [inquiryProduct, setInquiryProduct] = useState<RetailInventoryItem | null>(null);
+    const [inquiryData, setInquiryData] = useState({ name: '', email: '', phone: '', message: '' });
+    const [inquirySubmitting, setInquirySubmitting] = useState(false);
+    const [inquirySuccess, setInquirySuccess] = useState(false);
+
+    // Logistics & Checkout State
+    const [deliveryRates, setDeliveryRates] = useState<any[]>([]);
+    const [selectedRate, setSelectedRate] = useState<any | null>(null);
+    const [checkoutStep, setCheckoutStep] = useState<'details' | 'delivery' | 'payment'>('details');
+    const [mpesaProcessing, setMpesaProcessing] = useState(false);
+    const [paymentId, setPaymentId] = useState<string | null>(null);
+    const [showCourierSignup, setShowCourierSignup] = useState(false);
+    const [registratorInstId, setRegistratorInstId] = useState<string>('');
+
+    useEffect(() => {
+        if (inquiryProduct) {
+            fetchLogisticsOptions(inquiryProduct.institutionId);
+            setCheckoutStep('details');
+        }
+    }, [inquiryProduct]);
+
+    const fetchLogisticsOptions = async (instId: string) => {
+        try {
+            const rates = await apiService.fetchModuleRecords('retail_delivery_rates', instId);
+            setDeliveryRates(rates);
+        } catch (error) {
+            console.error('Failed to fetch delivery rates:', error);
+        }
+    };
+
+    const handleProcessPayment = async () => {
+        if (!inquiryProduct || !selectedRate || !inquiryData.phone) return;
+
+        setMpesaProcessing(true);
+        try {
+            const amount = Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0) + Number(selectedRate.rate);
+            
+            // 1. Create the order record in 'Pending' status
+            const orderId = crypto.randomUUID();
+            await apiService.saveModuleRecord('retail_marketplace_orders', {
+                id: orderId,
+                institutionId: inquiryProduct.institutionId,
+                product_id: inquiryProduct.id,
+                customer_name: inquiryData.name,
+                customer_phone: inquiryData.phone,
+                customer_email: inquiryData.email,
+                destination: selectedRate.destination,
+                delivery_fee: selectedRate.rate,
+                total_amount: amount,
+                payment_status: 'Pending',
+                order_status: 'Received'
+            });
+
+            // 2. Trigger M-Pesa STK Push
+            const response = await apiService.triggerMpesaStkPush({
+                amount: 1, // Using 1 KES for testing/safety or the real amount
+                phoneNumber: inquiryData.phone.replace(/\+/g, ''),
+                reference: `ORD-${orderId.slice(0, 8)}`,
+                description: `Payment for ${inquiryProduct.name}`,
+                institutionId: inquiryProduct.institutionId
+            });
+
+            if (response.CheckoutRequestID) {
+                setPaymentId(response.CheckoutRequestID);
+                // Start polling for payment status
+                pollPaymentStatus(response.CheckoutRequestID, orderId);
+            }
+        } catch (error) {
+            console.error('Checkout failed:', error);
+            alert('Payment initialization failed. Please check your phone number and try again.');
+            setMpesaProcessing(false);
+        }
+    };
+
+    const pollPaymentStatus = async (checkoutId: string, orderId: string) => {
+        let attempts = 0;
+        const interval = setInterval(async () => {
+            attempts++;
+            if (attempts > 30) { // 2 minutes timeout
+                clearInterval(interval);
+                setMpesaProcessing(false);
+                alert('Payment timeout. Please check your phone or try again.');
+                return;
+            }
+
+            try {
+                const status = await apiService.checkMpesaPaymentStatus(checkoutId);
+                if (status.ResultCode === '0') {
+                    clearInterval(interval);
+                    
+                    // Finalize order
+                    await apiService.saveModuleRecord('retail_marketplace_orders', {
+                        id: orderId,
+                        payment_status: 'Paid',
+                        payment_reference: status.MpesaReceiptNumber
+                    });
+
+                    // Decrement inventory
+                    if (inquiryProduct) {
+                        await apiService.saveModuleRecord('retail_inventory', {
+                            id: inquiryProduct.id,
+                            quantity: Math.max(0, (inquiryProduct.quantity || 0) - 1)
+                        });
+                    }
+
+                    setInquirySuccess(true);
+                    setMpesaProcessing(false);
+                } else if (status.ResultCode) {
+                    // Payment failed
+                    clearInterval(interval);
+                    setMpesaProcessing(false);
+                    alert(`Payment failed: ${status.ResultDesc}`);
+                }
+            } catch (error) {
+                console.error('Polling error:', error);
+            }
+        }, 4000);
+    };
+
     const [inquiryName, setInquiryName] = useState('');
     const [inquiryPhone, setInquiryPhone] = useState('');
     const [inquiryDate, setInquiryDate] = useState('');
-    const [inquirySubmitting, setInquirySubmitting] = useState(false);
-    const [inquirySuccess, setInquirySuccess] = useState(false);
     const [currentSlide, setCurrentSlide] = useState(0);
     const [showShareModal, setShowShareModal] = useState(false);
     const [sharingItem, setSharingItem] = useState<{ id: string; title: string; type: 'property' | 'retail' } | null>(null);
@@ -59,18 +177,22 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
         return () => clearInterval(timer);
     }, [promotedItems.length]);
 
-    const openInquiry = (listing: PMListing | RetailInventoryItem) => {
-        if ('listingType' in listing) {
-            setInquiryListing(listing);
+    const openInquiry = (item: PMListing | RetailInventoryItem) => {
+        if ('listingType' in item) {
+            setInquiryListing(item);
             setInquiryProduct(null);
+            setInquiryName('');
+            setInquiryPhone('');
+            setInquiryDate('');
         } else {
-            setInquiryProduct(listing);
+            setInquiryProduct(item);
             setInquiryListing(null);
+            setInquiryData({ name: '', email: '', phone: '', message: '' });
+            setCheckoutStep('details');
+            setSelectedRate(null);
         }
-        setInquiryName('');
-        setInquiryPhone('');
-        setInquiryDate('');
         setInquirySuccess(false);
+        setInquirySubmitting(false);
     };
 
     const createMarketplaceNotification = async (institutionId: string, message: string, type: string, link?: string) => {
@@ -807,6 +929,44 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                             </div>
                         )}
                     </div>
+
+                    {/* Partner Section */}
+                    <div className="mt-40 relative group overflow-hidden rounded-[4rem] bg-indigo-900 min-h-[400px] flex items-center p-12 md:p-20">
+                        {/* Background Decoration */}
+                        <div className="absolute top-0 right-0 w-1/2 h-full bg-indigo-800/30 -skew-x-12 translate-x-1/4"></div>
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-indigo-500/10 rounded-full blur-[120px]"></div>
+
+                        <div className="relative z-10 max-w-2xl space-y-8">
+                            <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-xl px-5 py-2 rounded-full border border-white/10">
+                                <TruckIcon className="w-5 h-5 text-white" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-white italic">Logistics Network</span>
+                            </div>
+                            <h2 className="text-4xl md:text-7xl font-black text-white uppercase tracking-tighter italic leading-[0.9]">Partner <br />With Us Today</h2>
+                            <p className="text-indigo-200 text-lg font-bold">Are you a logistics provider? Join our growing delivery network and fulfill thousands of marketplace orders across the country.</p>
+                            
+                            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                                <button
+                                    onClick={() => {
+                                        setRegistratorInstId(retailProducts[0]?.institutionId || '');
+                                        setShowCourierSignup(true);
+                                    }}
+                                    className="px-10 py-5 bg-white text-indigo-900 rounded-[1.5rem] font-black uppercase tracking-widest text-[11px] shadow-2xl hover:scale-105 active:scale-95 transition-all"
+                                >
+                                    Apply as Courier
+                                </button>
+                                <button className="px-10 py-5 bg-indigo-800/50 backdrop-blur-xl text-white border border-white/10 rounded-[1.5rem] font-black uppercase tracking-widest text-[11px] hover:bg-indigo-700 transition-all">
+                                    Learn More
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Floating Icon Decoration */}
+                        <div className="hidden lg:block absolute right-20 top-1/2 -translate-y-1/2 animate-bounce-slow">
+                            <div className="w-32 h-32 bg-white/5 rounded-[2rem] border border-white/10 flex items-center justify-center backdrop-blur-3xl rotate-12">
+                                <TruckIcon className="w-16 h-16 text-white/20" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -1052,13 +1212,13 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 </div>
             )}
 
-            {/* ── Express Interest Modal ── */}
+            {/* ── Checkout / Express Interest Modal ── */}
             {(inquiryListing || inquiryProduct) && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
                     <div
                         className="absolute inset-0 bg-slate-950/80 backdrop-blur-2xl animate-in fade-in duration-500"
                         onClick={() => {
-                            if (!inquirySubmitting) {
+                            if (!inquirySubmitting && !mpesaProcessing) {
                                 setInquiryListing(null);
                                 setInquiryProduct(null);
                             }
@@ -1067,29 +1227,35 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                     <div className="relative w-full max-w-xl bg-white dark:bg-slate-900 rounded-[4rem] shadow-[0_50px_100px_rgba(0,0,0,0.5)] overflow-hidden animate-in zoom-in-95 duration-500">
                         {/* Header */}
                         <div className={`p-10 text-white relative overflow-hidden ${inquiryProduct ? 'bg-indigo-600' : 'bg-orange-600'}`}>
-                            {/* Animated Background shapes */}
                             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 animate-pulse"></div>
 
                             <div className="relative z-10 flex justify-between items-start">
                                 <div>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/60 mb-2">Protocol: Secure Inquiry</p>
-                                    <h3 className="text-3xl md:text-4xl font-black uppercase tracking-tighter italic leading-none truncate max-w-md">{inquiryListing?.title || inquiryProduct?.name}</h3>
-                                    <div className="flex items-center gap-4 mt-6">
-                                        <div className="glass-morphism px-4 py-2 rounded-xl">
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-white/50 mb-1">Valuation</p>
-                                            <p className="text-xl font-black italic leading-none">
-                                                KES {inquiryListing ? inquiryListing.price?.toLocaleString() : Number(inquiryProduct?.srpPrice || inquiryProduct?.costPrice || 0).toLocaleString()}
-                                            </p>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/60 mb-2">
+                                        {inquiryProduct ? 'Express Fulfillment' : 'Intelligence Protocol'}
+                                    </p>
+                                    <h3 className="text-3xl font-black uppercase tracking-tighter italic leading-none truncate max-w-md">
+                                        {inquiryListing?.title || inquiryProduct?.name}
+                                    </h3>
+                                    
+                                    {/* Progress Stepper for Retail */}
+                                    {inquiryProduct && !inquirySuccess && (
+                                        <div className="flex gap-2 mt-6">
+                                            {(['details', 'delivery', 'payment'] as const).map((step, idx) => (
+                                                <div key={step} className="flex items-center gap-2">
+                                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black border ${checkoutStep === step ? 'bg-white text-indigo-600 border-white' : 'border-white/30 text-white/50'}`}>
+                                                        {idx + 1}
+                                                    </div>
+                                                    {idx < 2 && <div className="w-4 h-px bg-white/20"></div>}
+                                                </div>
+                                            ))}
                                         </div>
-                                        <div className="glass-morphism px-4 py-2 rounded-xl">
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-white/50 mb-1">Status</p>
-                                            <p className="text-xl font-black italic leading-none uppercase">Verified</p>
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
                                 <button
+                                    disabled={inquirySubmitting || mpesaProcessing}
                                     onClick={() => { setInquiryListing(null); setInquiryProduct(null); }}
-                                    className="p-3 bg-white/10 hover:bg-white text-white hover:text-slate-900 rounded-2xl transition-all backdrop-blur-md"
+                                    className="p-3 bg-white/10 hover:bg-white text-white hover:text-slate-900 rounded-2xl transition-all"
                                 >
                                     <XIcon className="w-5 h-5" />
                                 </button>
@@ -1102,86 +1268,164 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                     <div className="absolute inset-0 bg-emerald-500/20 rounded-[2.5rem] animate-ping opacity-20"></div>
                                     <CheckCircleIcon className="w-12 h-12 text-emerald-500" />
                                 </div>
-                                <div className="space-y-2">
-                                    <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase italic tracking-tighter">Transmission Successful</h4>
-                                    <p className="text-slate-500 text-sm font-bold uppercase tracking-widest max-w-xs mx-auto">
-                                        Your signal has been received. Our agents will initialize contact at <span className="text-slate-900 dark:text-white">{inquiryPhone}</span> shortly.
+                                <div className="space-y-4">
+                                    <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase italic tracking-tighter">Order Authenticated</h4>
+                                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest leading-loose max-w-xs mx-auto">
+                                        {inquiryProduct 
+                                            ? `Retail logistics initialized. Your items will be dispatched to ${selectedRate?.destination} within ${selectedRate?.estimated_days} work days.` 
+                                            : `Transmission successful. Our field agents will contact you at ${inquiryPhone} for further intelligence.`}
                                     </p>
                                 </div>
                                 <button
                                     onClick={() => { setInquiryListing(null); setInquiryProduct(null); }}
                                     className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-6 rounded-3xl font-black text-[10px] uppercase tracking-[0.4em] shadow-xl hover:scale-105 transition-all"
                                 >
-                                    Terminate Connection
+                                    Terminate Protocol
                                 </button>
                             </div>
                         ) : (
-                            <form onSubmit={handleSubmitInquiry} className="p-10 space-y-8">
-                                <div className="space-y-4">
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-4">Identification</label>
-                                        <input
-                                            required
-                                            type="text"
-                                            value={inquiryName}
-                                            onChange={e => setInquiryName(e.target.value)}
-                                            placeholder="Enter Full Name"
-                                            className="w-full p-6 glass-card rounded-[2rem] font-bold text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 transition-all border-none"
-                                        />
+                            <div className="p-10">
+                                {checkoutStep === 'details' && (
+                                    <div className="space-y-8 animate-in slide-in-from-right duration-500">
+                                        <div className="space-y-4">
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-4">Full Identity</label>
+                                                <input
+                                                    type="text"
+                                                    value={inquiryProduct ? inquiryData.name : inquiryName}
+                                                    onChange={e => inquiryProduct ? setInquiryData({...inquiryData, name: e.target.value}) : setInquiryName(e.target.value)}
+                                                    placeholder="Quantum Alias or Name"
+                                                    className="w-full p-6 glass-card rounded-[2rem] font-bold text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 border-none"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-4">Communication Line</label>
+                                                <input
+                                                    type="tel"
+                                                    value={inquiryProduct ? inquiryData.phone : inquiryPhone}
+                                                    onChange={e => inquiryProduct ? setInquiryData({...inquiryData, phone: e.target.value}) : setInquiryPhone(e.target.value)}
+                                                    placeholder="+254..."
+                                                    className="w-full p-6 glass-card rounded-[2rem] font-bold text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 border-none"
+                                                />
+                                            </div>
+                                            {inquiryProduct && (
+                                                 <div className="space-y-2">
+                                                 <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-4">Email Channel</label>
+                                                 <input
+                                                     type="email"
+                                                     value={inquiryData.email}
+                                                     onChange={e => setInquiryData({...inquiryData, email: e.target.value})}
+                                                     placeholder="secure@mail.io"
+                                                     className="w-full p-6 glass-card rounded-[2rem] font-bold text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 border-none"
+                                                 />
+                                             </div>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={() => inquiryProduct ? setCheckoutStep('delivery') : handleSubmitInquiry(new Event('submit') as any)}
+                                            disabled={inquirySubmitting}
+                                            className="w-full py-7 rounded-[2.5rem] font-black text-xs uppercase tracking-[0.4em] shadow-2xl transition-all hover:scale-[1.02] active:scale-95 text-white bg-slate-900 dark:bg-indigo-600 shadow-indigo-600/30"
+                                        >
+                                            {inquirySubmitting ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : (inquiryProduct ? 'Configure Logistics' : 'Initialize Request')}
+                                        </button>
                                     </div>
+                                )}
 
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-4">Communication Line</label>
-                                        <div className="relative">
-                                            <PhoneIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-400" />
-                                            <input
-                                                required
-                                                type="tel"
-                                                value={inquiryPhone}
-                                                onChange={e => setInquiryPhone(e.target.value)}
-                                                placeholder="Mobile Number"
-                                                className="w-full pl-16 pr-6 py-6 glass-card rounded-[2rem] font-bold text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 transition-all border-none"
-                                            />
+                                {checkoutStep === 'delivery' && (
+                                    <div className="space-y-8 animate-in slide-in-from-right duration-500">
+                                        <div className="space-y-6">
+                                            <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] ml-4">Select Target Destination</h4>
+                                            <div className="space-y-3 max-h-64 overflow-y-auto no-scrollbar pr-2">
+                                                {deliveryRates.map(rate => (
+                                                    <button
+                                                        key={rate.id}
+                                                        onClick={() => setSelectedRate(rate)}
+                                                        className={`w-full p-6 rounded-[2rem] border-2 transition-all flex justify-between items-center ${selectedRate?.id === rate.id ? 'border-indigo-500 bg-indigo-500/5 shadow-lg' : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                                                    >
+                                                        <div className="flex flex-col items-start gap-1">
+                                                            <span className="font-black text-slate-900 dark:text-white uppercase italic">{rate.destination}</span>
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{rate.estimated_days} Day Delivery</span>
+                                                        </div>
+                                                        <span className="text-lg font-black text-indigo-600">KES {rate.rate}</span>
+                                                    </button>
+                                                ))}
+                                                {deliveryRates.length === 0 && (
+                                                    <div className="p-8 text-center glass-card rounded-[2rem]">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase italic">No logistics routes discovered for this zone yet.</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-4">
+                                            <button onClick={() => setCheckoutStep('details')} className="px-8 py-7 glass-card rounded-[2rem] font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">Back</button>
+                                            <button
+                                                disabled={!selectedRate}
+                                                onClick={() => setCheckoutStep('payment')}
+                                                className="flex-1 py-7 rounded-[2.5rem] font-black text-xs uppercase tracking-[0.4em] shadow-2xl transition-all hover:scale-[1.02] active:scale-95 text-white bg-indigo-600 shadow-indigo-600/30 disabled:opacity-50"
+                                            >
+                                                Next Protocol
+                                            </button>
                                         </div>
                                     </div>
+                                )}
 
-                                    {inquiryListing && (inquiryListing.listingType === 'Rent' || inquiryListing.listingType === 'Lease') && (
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-4">
-                                                Schedule Inspection
-                                            </label>
-                                            <input
-                                                required
-                                                type="date"
-                                                value={inquiryDate}
-                                                min={new Date().toISOString().split('T')[0]}
-                                                onChange={e => setInquiryDate(e.target.value)}
-                                                className="w-full p-6 glass-card rounded-[2rem] font-bold text-slate-900 dark:text-white outline-none focus:ring-2 ring-orange-500 border-none transition-all"
-                                            />
+                                {checkoutStep === 'payment' && inquiryProduct && (
+                                    <div className="space-y-8 animate-in slide-in-from-right duration-500">
+                                        <div className="glass-card p-10 rounded-[3rem] border border-indigo-500/10">
+                                            <div className="space-y-6">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Base Item</span>
+                                                    <span className="font-bold text-slate-900 dark:text-white italic">KES {Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0).toLocaleString()}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">{selectedRate?.destination} Transit</span>
+                                                    <span className="font-bold text-indigo-600 italic">KES {selectedRate?.rate?.toLocaleString()}</span>
+                                                </div>
+                                                <div className="h-px bg-slate-100 dark:bg-slate-800"></div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-[0.3em]">Total Intelligence</span>
+                                                    <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter italic">KES {(Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0) + Number(selectedRate?.rate || 0)).toLocaleString()}</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                    )}
-                                </div>
 
-                                <button
-                                    type="submit"
-                                    disabled={inquirySubmitting}
-                                    className={`w-full py-7 rounded-[2.5rem] font-black text-xs uppercase tracking-[0.4em] shadow-2xl transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-4 text-white ${inquiryProduct ? 'bg-indigo-600 shadow-indigo-600/30' : 'bg-orange-600 shadow-orange-600/30'}`}
-                                >
-                                    {inquirySubmitting ? (
-                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                    ) : (
-                                        <>
-                                            <SparklesIcon className="w-5 h-5" />
-                                            Initialize Request
-                                        </>
-                                    )}
-                                </button>
-                                <p className="text-[9px] text-center font-black text-slate-400 uppercase tracking-widest">Global Marketplace Security Protocol Active</p>
-                            </form>
+                                        <button
+                                            onClick={handleProcessPayment}
+                                            disabled={mpesaProcessing}
+                                            className="w-full bg-emerald-600 text-white py-8 rounded-[3rem] font-black text-sm uppercase tracking-[0.3em] shadow-2xl shadow-emerald-600/30 hover:scale-[1.03] active:scale-95 transition-all flex items-center justify-center gap-6"
+                                        >
+                                            {mpesaProcessing ? (
+                                                <>
+                                                    <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                                                    <span className="animate-pulse">Check Phone for STK</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className="flex -space-x-2">
+                                                        <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-emerald-600 font-bold text-[8px] border-2 border-emerald-600">MPESA</div>
+                                                    </div>
+                                                    STK Push Payment
+                                                </>
+                                            )}
+                                        </button>
+                                        <button onClick={() => setCheckoutStep('delivery')} disabled={mpesaProcessing} className="w-full text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900">Change Logistics Destination</button>
+                                    </div>
+                                )}
+                            </div>
                         )}
                     </div>
                 </div>
             )}
+
+            {/* Courier Signup Modal */}
+            <CourierSignupModal 
+                isOpen={showCourierSignup}
+                onClose={() => setShowCourierSignup(false)}
+                institutionId={registratorInstId}
+                onSuccess={() => {
+                    // Application submitted
+                }}
+            />
         </div>
     );
 };

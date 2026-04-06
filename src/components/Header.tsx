@@ -8,6 +8,7 @@ import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
 import { PencilIcon } from './icons/PencilIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
+import { BeakerIcon } from './icons/BeakerIcon';
 
 interface HeaderProps {
     currentUser: User | null;
@@ -26,6 +27,8 @@ interface HeaderProps {
     onExitPerspective?: () => void;
     onToggleHealthSystem?: () => void;
     isHealthSystemOpen?: boolean;
+    onTogglePharmacySystem?: () => void;
+    isPharmacySystemOpen?: boolean;
     primaryColor?: string;
     secondaryColor?: string;
 }
@@ -74,7 +77,7 @@ export const Header: React.FC<HeaderProps> = ({
     currentUser, institutionName, onLogout, onEditProfile, logoUrl, systemLogoUrl, 
     applicationTitle, notifications, onMarkAsRead, currentInstitution, 
     isApiOnline = true, activeRole, onSwitchRole, onExitPerspective, 
-    onToggleHealthSystem, isHealthSystemOpen, primaryColor, secondaryColor 
+    onToggleHealthSystem, isHealthSystemOpen, onTogglePharmacySystem, isPharmacySystemOpen, primaryColor, secondaryColor 
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
@@ -182,7 +185,6 @@ export const Header: React.FC<HeaderProps> = ({
                             </div>
                         )}
 
-                        {/* Health System toggle is now hidden as it's an independent module */}
                         {currentInstitution?.institutionType === 'HIS' && (() => {
                             const isPropertyManagement = activeRole === 'property_admin' || 
                                                         activeRole === 'landlord' || 
@@ -202,6 +204,28 @@ export const Header: React.FC<HeaderProps> = ({
                                 >
                                     <SparklesIcon className="w-3.5 h-3.5 text-indigo-400" />
                                     {isHealthSystemOpen ? 'Core ERP' : 'Health System'}
+                                </button>
+                            );
+                        })()}
+
+                        {(() => {
+                            const isPharmacist = activeRole === 'pharmacist' || 
+                                                currentInstitution?.institutionType === 'Pharmacy' ||
+                                                currentInstitution?.institutionType === 'HIS';
+                            
+                            if (!isPharmacist) return null;
+
+                            return (
+                                <button
+                                    onClick={onTogglePharmacySystem}
+                                    className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm active:scale-95 ${
+                                        isPharmacySystemOpen 
+                                        ? 'bg-rose-600 text-white border-rose-500 shadow-rose-500/20' 
+                                        : 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-800 hover:bg-rose-100'
+                                    }`}
+                                >
+                                    <BeakerIcon className="w-3.5 h-3.5 text-rose-400" />
+                                    {isPharmacySystemOpen ? 'Global Dashboard' : 'Pharmacy Terminal'}
                                 </button>
                             );
                         })()}
