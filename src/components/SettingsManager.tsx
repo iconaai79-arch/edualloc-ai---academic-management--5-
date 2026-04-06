@@ -1528,6 +1528,26 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                             <option value="production">Live Production</option>
                                                         </select>
                                                     </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-teal-600 tracking-widest mb-2 ml-1">Notification Username (Basic Auth)</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={localCompanyInfo.ncbaConfig?.callbackUsername || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, callbackUsername: e.target.value } as any })}
+                                                            className="form-input h-14 bg-white dark:bg-slate-900 font-bold" 
+                                                            placeholder="Username for Bank Push"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-teal-600 tracking-widest mb-2 ml-1">Notification Password / Secret Key</label>
+                                                        <input 
+                                                            type="password" 
+                                                            value={localCompanyInfo.ncbaConfig?.callbackSecret || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, callbackSecret: e.target.value } as any })}
+                                                            className="form-input h-14 bg-white dark:bg-slate-900" 
+                                                            placeholder="••••••••••••••••"
+                                                        />
+                                                    </div>
                                                 </div>
 
                                                 <div className="md:col-span-2 pt-4 border-t border-teal-100/50 dark:border-teal-900/20">
@@ -2091,6 +2111,26 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 <option value="sandbox">Sandbox / Testing</option>
                                                 <option value="production">Live Production</option>
                                             </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-teal-600 mb-2 ml-1">Notification Username</label>
+                                            <input 
+                                                type="text" 
+                                                value={localInstNcbaConfig.callbackUsername || ''} 
+                                                onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, callbackUsername: e.target.value })}
+                                                className="form-input font-bold" 
+                                                placeholder="Username for Bank Push"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <label className="block text-[10px] font-black uppercase text-teal-600 mb-2 ml-1">Notification Password / Secret Key</label>
+                                            <input 
+                                                type="password" 
+                                                value={localInstNcbaConfig.callbackSecret || ''} 
+                                                onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, callbackSecret: e.target.value })}
+                                                className="form-input" 
+                                                placeholder="••••••••••••••••"
+                                            />
                                         </div>
 
                                         <div className="md:col-span-2 pt-4">

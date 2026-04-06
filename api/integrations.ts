@@ -1841,6 +1841,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const institutionId = paramsMap.institutionId;
             console.log(`[NCBA Webhook] Received callback for Institution ${institutionId || 'Unknown'}:`, JSON.stringify(body));
 
+            // 1. Fetch Config for Authentication
+            let ncbaConfig = null;
+            if (institutionId) {
+                const { data: inst } = await supabase.from('institutions').select('ncba_config').eq('id', institutionId).maybeSingle();
+                if (inst?.ncba_config) ncbaConfig = toCamelCase(inst.ncba_config);
+            }
+            
+            if (!ncbaConfig) {
+                ncbaConfig = toCamelCase(settings?.ncba_config || settings?.ncbaConfig);
+            }
+
+            // 2. Verify Authentication if configured
+            const expectedUser = ncbaConfig?.callbackUsername;
+            const expectedPass = ncbaConfig?.callbackSecret;
+
+            if (expectedUser && expectedPass) {
+                const authHeader = req.headers.authorization || '';
+                const expectedAuth = `Basic ${Buffer.from(`${expectedUser}:${expectedPass}`).toString('base64')}`;
+                
+                if (authHeader !== expectedAuth) {
+                    console.warn(`[NCBA Webhook] Unauthorized access attempt for institution ${institutionId}`);
+                    return res.status(401).json({ success: false, message: 'Unauthorized' });
+                }
+            }
+
             // NCBA Spec: Payload contains TransactionID, ResultCode, etc.
             const checkoutRequestId = body.TransactionID || body.CheckoutRequestID;
             if (!checkoutRequestId) return res.status(400).json({ success: false, message: 'No TransactionID' });
