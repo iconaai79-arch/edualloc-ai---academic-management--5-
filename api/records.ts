@@ -101,7 +101,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const user = await getAuthUser(supabase, authHeader);
         const isPublicModule = PUBLIC_MODULES.includes(moduleName);
         const isPublicGet = req.method === 'GET' && isPublicModule;
-        const isRegistration = req.method === 'POST' && (['users', 'institutions', 'counties', 'demo_requests'].includes(moduleName));
+        const isRegistration = req.method === 'POST' && (['users', 'institutions', 'counties', 'demo_requests', 'pm_inquiries', 'retail_wishlist', 'app_notifications'].includes(moduleName));
         
         if (!user && !isPublicGet && !isRegistration) {
             const tokenSnippet = authHeader ? `${authHeader.substring(0, 15)}... (len: ${authHeader.length})` : 'NONE';

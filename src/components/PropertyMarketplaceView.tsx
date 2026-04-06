@@ -15,6 +15,10 @@ import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
 import { CurrencyIcon } from './icons/CurrencyIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { StarIcon } from './icons/StarIcon';
+import { ShareIcon } from './icons/ShareIcon';
+import { QrCodeIcon } from './icons/QrCodeIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
 
 interface PropertyMarketplaceViewProps {
     onInquire?: (listing: PMListing) => void;
@@ -38,6 +42,9 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
     const [inquirySubmitting, setInquirySubmitting] = useState(false);
     const [inquirySuccess, setInquirySuccess] = useState(false);
     const [currentSlide, setCurrentSlide] = useState(0);
+    const [showShareModal, setShowShareModal] = useState(false);
+    const [sharingItem, setSharingItem] = useState<{ id: string; title: string; type: 'property' | 'retail' } | null>(null);
+    const [copySuccess, setCopySuccess] = useState(false);
 
     const promotedItems = [
         ...listings.filter(l => l.isPromoted).map(l => ({ ...l, type: 'property' })),
@@ -226,6 +233,25 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
         loadMarketplace();
     }, []);
 
+    // Handle deep linking to specific items
+    useEffect(() => {
+        if (loading || (listings.length === 0 && retailProducts.length === 0)) return;
+        
+        const params = new URLSearchParams(window.location.search);
+        const itemId = params.get('item');
+        if (itemId) {
+            const property = listings.find(l => l.id === itemId);
+            if (property) {
+                setSelectedListing(property);
+                return;
+            }
+            const product = retailProducts.find(p => p.id === itemId);
+            if (product) {
+                setSelectedProduct(product);
+            }
+        }
+    }, [loading, listings, retailProducts]);
+
     // SEO: Dynamic Structured Data (JSON-LD)
     useEffect(() => {
         if (listings.length === 0 && retailProducts.length === 0) return;
@@ -275,6 +301,12 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             if (existing) existing.remove();
         };
     }, [listings, retailProducts]);
+
+    const handleCopyLink = (text: string) => {
+        navigator.clipboard.writeText(text);
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000);
+    };
 
     const filteredListings = listings.filter(l => {
         const matchesSearch = l.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -424,12 +456,95 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                             </div>
                         )}
 
-                        <button className="md:w-24 h-20 md:h-auto bg-gradient-to-br from-indigo-500 via-purple-600 to-rose-500 rounded-[3rem] flex items-center justify-center text-white shadow-[0_15px_35px_rgba(99,102,241,0.4)] hover:shadow-indigo-500/70 hover:scale-105 active:scale-95 transition-all">
+                        <button 
+                            onClick={() => {
+                                // Just a visual trigger for now
+                            }}
+                            className="md:w-24 h-20 md:h-auto bg-gradient-to-br from-indigo-500 via-purple-600 to-rose-500 rounded-[3rem] flex items-center justify-center text-white shadow-[0_15px_35px_rgba(99,102,241,0.4)] hover:shadow-indigo-500/70 hover:scale-105 active:scale-95 transition-all"
+                        >
                             <ArrowRightIcon className="w-8 h-8" />
                         </button>
                     </div>
                 </div>
             </div>
+
+            {/* Share Modal Component */}
+            {showShareModal && sharingItem && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center p-6">
+                    <div 
+                        className="absolute inset-0 bg-slate-950/90 backdrop-blur-3xl animate-in fade-in duration-500"
+                        onClick={() => setShowShareModal(false)}
+                    ></div>
+                    <div className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-[4rem] shadow-[0_50px_100px_rgba(0,0,0,0.5)] overflow-hidden animate-in zoom-in-95 duration-500 border border-white/10">
+                        <div className="p-12 space-y-10">
+                            <div className="flex justify-between items-start">
+                                <div className="space-y-1">
+                                    <h3 className="text-3xl font-black text-slate-900 dark:text-white uppercase italic tracking-tighter">Share Intelligence</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.35em]">{sharingItem.title}</p>
+                                </div>
+                                <button 
+                                    onClick={() => setShowShareModal(false)}
+                                    className="p-4 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-2xl hover:text-slate-900 transition-all"
+                                >
+                                    <XIcon className="w-6 h-6" />
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-6">
+                                <button 
+                                    onClick={async () => {
+                                        const shareData = {
+                                            title: sharingItem.title,
+                                            text: `Check out this ${sharingItem.type} on the EduAI Marketplace!`,
+                                            url: `${window.location.origin}/?view=marketplace&item=${sharingItem.id}`
+                                        };
+                                        if (navigator.share) {
+                                            try { await navigator.share(shareData); } catch (err) { console.error(err); }
+                                        } else {
+                                            handleCopyLink(shareData.url);
+                                        }
+                                    }}
+                                    className="flex flex-col items-center gap-4 p-8 glass-card rounded-[2.5rem] hover:scale-105 active:scale-95 transition-all group"
+                                >
+                                    <div className="w-16 h-16 rounded-[1.5rem] bg-indigo-500/10 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-all text-indigo-500">
+                                        <ShareIcon className="w-8 h-8" />
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-900">Native Share</span>
+                                </button>
+
+                                <div className="flex flex-col items-center gap-4 p-8 glass-card rounded-[2.5rem] group">
+                                    <div className="w-16 h-16 rounded-[1.5rem] bg-emerald-500/10 flex items-center justify-center text-emerald-500 overflow-hidden relative">
+                                        <img 
+                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${window.location.origin}/?view=marketplace&item=${sharingItem.id}`)}`} 
+                                            alt="QR Code"
+                                            className="w-full h-full object-cover scale-110"
+                                        />
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Scan Signal</span>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <label className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400 ml-4">Universal Link</label>
+                                <div className="relative">
+                                    <input 
+                                        readOnly
+                                        type="text" 
+                                        value={`${window.location.origin}/?view=marketplace&item=${sharingItem.id}`}
+                                        className="w-full pl-6 pr-20 py-6 glass-card rounded-[2rem] font-bold text-slate-900 dark:text-white text-[10px] truncate border-none outline-none"
+                                    />
+                                    <button 
+                                        onClick={() => handleCopyLink(`${window.location.origin}/?view=marketplace&item=${sharingItem.id}`)}
+                                        className={`absolute right-3 top-3 h-10 px-6 rounded-2xl flex items-center justify-center gap-2 transition-all ${copySuccess ? 'bg-emerald-500 text-white' : 'bg-slate-900 text-white hover:scale-105 active:scale-95'}`}
+                                    >
+                                        <span className="text-[8px] font-black uppercase tracking-widest">{copySuccess ? 'Copied' : 'Copy'}</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ── Section Navigation (Desktop Only) ── */}
             <div className="hidden md:block max-w-[1600px] mx-auto px-8 pt-32 pb-8">
@@ -812,6 +927,16 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                     >
                                         <ShoppingCartIcon className="w-6 h-6" /> Express Interest
                                     </button>
+
+                                    <button 
+                                        onClick={() => {
+                                            setSharingItem({ id: selectedListing.id, title: selectedListing.title, type: 'property' });
+                                            setShowShareModal(true);
+                                        }}
+                                        className="w-full mt-4 glass-card py-6 rounded-[2.5rem] font-black text-[10px] uppercase tracking-[0.3em] flex items-center justify-center gap-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-slate-200 dark:border-slate-800"
+                                    >
+                                        <ShareIcon className="w-4 h-4 text-indigo-500" /> Spread the Word
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -909,6 +1034,16 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                     className="w-full bg-indigo-600 text-white py-8 rounded-[3rem] font-black text-sm uppercase tracking-[0.3em] shadow-[0_25px_60px_-15px_rgba(79,70,229,0.5)] hover:scale-[1.03] active:scale-95 transition-all flex items-center justify-center gap-4"
                                 >
                                     <ShoppingCartIcon className="w-6 h-6" /> Buy it Now
+                                </button>
+
+                                <button 
+                                    onClick={() => {
+                                        setSharingItem({ id: selectedProduct.id, title: selectedProduct.name, type: 'retail' });
+                                        setShowShareModal(true);
+                                    }}
+                                    className="w-full mt-4 glass-card py-6 rounded-[2.5rem] font-black text-[10px] uppercase tracking-[0.3em] flex items-center justify-center gap-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-slate-200 dark:border-slate-800"
+                                >
+                                    <ShareIcon className="w-4 h-4 text-indigo-500" /> Spread the Word
                                 </button>
                                 <p className="text-[9px] text-center font-black text-slate-400 uppercase tracking-widest mt-8">Secure encrypted transaction via EduAI Quantum</p>
                             </div>
