@@ -78,12 +78,14 @@ interface PropertyManagementViewProps {
     letterheadConfig: LetterheadConfig;
     logoUrl: string | null;
     footerImageUrl: string | null;
+    onSendBulkCredentials?: (type: 'sms' | 'email', entries: User[]) => Promise<void>;
 }
 
 export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     currentUser, currentInstitution, companyDetails, users, onDataChange,
     onAddUser, onEditUser, onDeleteUser, onImportUsers, onLogAction,
-    smsConfig, departments, subjects, courses, letterheadConfig, logoUrl, footerImageUrl
+    smsConfig, departments, subjects, courses, letterheadConfig, logoUrl, footerImageUrl,
+    onSendBulkCredentials
 }) => {
     const institutionId = currentInstitution.id;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'payouts' | 'reports' | 'listings' | 'comms' | 'inquiries' | 'staff' | 'config'>('dashboard');
@@ -2429,6 +2431,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({
                         footerImageUrl={footerImageUrl}
                         isAdding={isAddingStaff}
                         isPm={true}
+                        onSendBulkCredentials={onSendBulkCredentials}
                     />
                 </div>
             )}

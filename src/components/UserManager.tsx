@@ -910,12 +910,15 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const [departmentId, setDepartmentId] = useState('');
     const [courseId, setCourseId] = useState('');
     const [courseLevelId, setCourseLevelId] = useState('');
-    const [driverType, setDriverType] = useState<'staff' | 'private'>('staff');
+    const [sendWelcomeSms, setSendWelcomeSms] = useState(false);
+    const [sendWelcomeEmail, setSendWelcomeEmail] = useState(false);
 
     const resetForm = () => {
         setName(''); setEmail(''); setPhone(''); setStaffId('');
         setGender('Male'); setRole('lecturer'); setRoles(['teacher']); setDepartmentId('');
         setCourseId(''); setCourseLevelId(''); setDriverType('staff');
+        setSendWelcomeSms(false);
+        setSendWelcomeEmail(false);
     };
 
     const toggleRole = (r: Role) => {
@@ -1093,13 +1096,29 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                 const isNewRegistration = !userData.id; // Basic check, though usually userData for onAddUser doesn't have id yet
                 const isCustomer = activeTab === 'customer' || (Array.isArray(userData.roles) && userData.roles.includes('customer'));
 
-                if (isRetailAgency && isCustomer && isNewRegistration) {
+                if ((isRetailAgency && isCustomer && isNewRegistration) || (isPm && isNewRegistration && (sendWelcomeSms || sendWelcomeEmail))) {
                     const generatedPassword = Math.random().toString(36).slice(-8).toUpperCase();
                     userData.password = generatedPassword;
 
                     await onAddUser(userData);
 
-                    if (props.onSendSms && userData.phoneNumber) {
+                    if (sendWelcomeSms && userData.phone && onSendBulkCredentials) {
+                        try {
+                            await onSendBulkCredentials([{ ...userData, id: 'temp' } as any], 'sms');
+                        } catch (e) {
+                            console.error('Failed to dispatch welcome credentials SMS', e);
+                        }
+                    }
+
+                    if (sendWelcomeEmail && userData.email && onSendBulkCredentials) {
+                        try {
+                            await onSendBulkCredentials([{ ...userData, id: 'temp' } as any], 'email');
+                        } catch (e) {
+                            console.error('Failed to dispatch welcome credentials Email', e);
+                        }
+                    }
+
+                    if (isRetailAgency && isCustomer && props.onSendSms && userData.phoneNumber) {
                         const smsMessage = `Welcome to ${currentInstitution?.name}! Access your Customer Portal to track records & more.\nLogin: ${userData.phoneNumber}\nPass: ${generatedPassword}`;
                         try {
                             await props.onSendSms(userData.phoneNumber, smsMessage, props.smsConfig, 1, currentInstitution?.id || '');
@@ -1321,6 +1340,28 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                         </select>
                                     </div>
                                 </>
+                            )}
+                            {isPm && activeTab === 'staff' && (
+                                <div className="col-span-2 flex flex-wrap gap-4 mt-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={sendWelcomeSms} 
+                                            onChange={(e) => setSendWelcomeSms(e.target.checked)}
+                                            className="w-4 h-4 rounded border-slate-300 text-indigo-600"
+                                        />
+                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Send Login via SMS</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={sendWelcomeEmail} 
+                                            onChange={(e) => setSendWelcomeEmail(e.target.checked)}
+                                            className="w-4 h-4 rounded border-slate-300 text-indigo-600"
+                                        />
+                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Send Login via Email</span>
+                                    </label>
+                                </div>
                             )}
                         </div>
                         <div className="flex justify-end pt-4">

@@ -3632,6 +3632,11 @@ export const App: React.FC = () => {
                                     letterheadConfig={activeLetterheadConfig}
                                     logoUrl={activeBranding.logoUrl}
                                     footerImageUrl={activeFooterImageUrl}
+                                    onSendBulkCredentials={async (users, method) => {
+                                        const res = await apiService.sendBulkCredentials(users, method);
+                                        await handleLogAction(`Sent bulk credentials to ${res.success_count} users via ${method}`);
+                                        return res;
+                                    }}
                                 />
                             ) : isAdminCatchAll ? (
                                 <AdminView
