@@ -3,8 +3,8 @@ import {
     ArchiveBoxIcon, PlusIcon, SparklesIcon, SearchIcon, CheckCircleIcon, 
     ClipboardListIcon, CurrencyIcon, ExclamationTriangleIcon, BeakerIcon, 
     PencilIcon, DocumentTextIcon, ClockIcon, UserIcon, TrashIcon,
-    ArrowPathIcon, ChartBarIcon, BriefcaseIcon, CreditCardIcon,
-    ShieldCheckIcon, IdentificationIcon, UsersIcon, BanknotesIcon, BellIcon
+    ArrowPathIcon, ChartBarIcon, DocumentTextIcon, CreditCardIcon,
+    ShieldCheckIcon, CheckBadgeIcon, UsersIcon, BanknotesIcon, BellIcon, SettingsIcon
 } from '../icons';
 import { apiService } from '../../services/apiService';
 import { 
@@ -12,51 +12,19 @@ import {
     HISPharmacyBatch, 
     HISPrescription,
     HISPrescriptionItem,
-    HISPatient
+    HISPatient,
+    PharmacySale,
+    PharmacyLedger,
+    PharmacyStaff,
+    PharmacySettings
 } from '../../types';
+import { AddPharmacyInventoryModal } from './AddPharmacyInventoryModal';
+import { SmartPharmacyInventoryImporterModal } from './SmartPharmacyInventoryImporterModal';
+import { DispenseMedicationModal } from './DispenseMedicationModal';
 
-// Extend types for the new tables
-interface PharmacySale {
-    id: string;
-    institutionId: string;
-    patientId?: string;
-    customerName?: string;
-    customerPhone?: string;
-    totalAmount: number;
-    paymentMethod: string;
-    paymentStatus: string;
-    staffId: string;
-    createdAt: string;
-}
-
-interface PharmacyLedger {
-    id: string;
-    institutionId: string;
-    type: 'Income' | 'Expense';
-    category: string;
-    amount: number;
-    referenceId?: string;
-    description: string;
-    recordedBy: string;
-    createdAt: string;
-}
-
-interface PharmacyStaff {
-    id: string;
-    institutionId: string;
-    userId: string;
-    role: string;
-    specialization: string;
-    licenseNumber: string;
-    salary: number;
-    hireDate: string;
-    shiftPreference: string;
-    status: string;
-    fullName?: string;
-}
 
 export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ institutionId }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'inventory' | 'prescriptions' | 'hr' | 'accounting' | 'automation'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'inventory' | 'prescriptions' | 'hr' | 'accounting' | 'automation' | 'config'>('dashboard');
     const [isLoading, setIsLoading] = useState(true);
     
     // Core Data
@@ -76,11 +44,15 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
     const [isProcessingSale, setIsProcessingSale] = useState(false);
     const [isAddStaffOpen, setIsAddStaffOpen] = useState(false);
     const [isAddLedgerOpen, setIsAddLedgerOpen] = useState(false);
+    const [isAddInventoryOpen, setIsAddInventoryOpen] = useState(false);
+    const [isImportInventoryOpen, setIsImportInventoryOpen] = useState(false);
+    const [selectedPrescriptionForDispense, setSelectedPrescriptionForDispense] = useState<HISPrescription | null>(null);
+    const [settings, setSettings] = useState<PharmacySettings | null>(null);
 
     const loadData = async () => {
         setIsLoading(true);
         try {
-            const [inv, batchRecords, prescs, saleRecords, ledgerRecords, staffRecords, patientRecords, alertRecords] = await Promise.all([
+            const [inv, batchRecords, prescs, saleRecords, ledgerRecords, staffRecords, patientRecords, alertRecords, settingsRecords] = await Promise.all([
                 apiService.fetchModuleRecords('his_pharmacy_inventory', institutionId),
                 apiService.fetchModuleRecords('his_pharmacy_batches', institutionId),
                 apiService.fetchModuleRecords('his_prescriptions', institutionId, undefined, { order: 'created_at.desc' }),
@@ -88,7 +60,8 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                 apiService.fetchModuleRecords('his_pharmacy_ledger', institutionId),
                 apiService.fetchModuleRecords('his_pharmacy_staff', institutionId),
                 apiService.fetchModuleRecords('his_patients', institutionId),
-                apiService.fetchModuleRecords('his_pharmacy_adherence_alerts', institutionId)
+                apiService.fetchModuleRecords('his_pharmacy_adherence_alerts', institutionId),
+                apiService.fetchModuleRecords('his_pharmacy_settings', institutionId)
             ]);
 
             setInventory(inv || []);
@@ -99,6 +72,19 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
             setStaff(staffRecords || []);
             setPatients(patientRecords || []);
             setAlerts(alertRecords || []);
+            
+            if (settingsRecords && settingsRecords.length > 0) {
+                setSettings(settingsRecords[0]);
+            } else {
+                setSettings({
+                    id: `set_${Date.now()}`,
+                    institutionId,
+                    pharmacyName: 'Modern Pharmacy Nexus',
+                    lowStockThreshold: 10,
+                    enableSmsReminders: true,
+                    updatedAt: new Date().toISOString()
+                });
+            }
         } catch (e) {
             console.error("Modern Pharmacy Load Error:", e);
         } finally {
@@ -114,7 +100,7 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
         const todaySales = sales.filter(s => s.createdAt.startsWith(today));
         const totalRevenue = sales.reduce((sum, s) => sum + Number(s.totalAmount), 0);
         const totalExpenses = ledger.filter(l => l.type === 'Expense').reduce((sum, l) => sum + Number(l.amount), 0);
-        const lowStock = inventory.filter(i => i.stockQuantity <= i.reorderLevel).length;
+        const lowStock = inventory.filter(i => i.stockQuantity <= (settings?.lowStockThreshold || 10)).length;
         const expiredBatches = batches.filter(b => new Date(b.expiryDate) < new Date()).length;
 
         return {
@@ -125,7 +111,7 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
             lowStock,
             expiredBatches
         };
-    }, [sales, ledger, inventory, batches]);
+    }, [sales, ledger, inventory, batches, settings]);
 
     const addToCart = (item: HISPharmacyInventory) => {
         const existing = posCart.find(c => c.id === item.id);
@@ -183,7 +169,7 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
             });
 
             // 4. Send SMS Reminder (Mock)
-            if (selectedPatient?.contact) {
+            if (selectedPatient?.contact && settings?.enableSmsReminders) {
                 await apiService.saveModuleRecord('sms_outbox', {
                     id: `sms_${Date.now()}`,
                     institutionId,
@@ -236,6 +222,100 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
         }
     };
 
+    const handleAddInventory = async (itemData: any) => {
+        try {
+            await apiService.saveModuleRecord('his_pharmacy_inventory', {
+                ...itemData,
+                id: `inv_${Date.now()}`,
+                institutionId,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            });
+            alert("Inventory item added!");
+            setIsAddInventoryOpen(false);
+            loadData();
+        } catch (e) {
+            alert("Failed to add inventory item.");
+        }
+    };
+
+    const handleImportInventory = async (items: any[]) => {
+        try {
+            await apiService.saveModuleRecords('his_pharmacy_inventory', items);
+            alert(`Bulk import of ${items.length} items completed!`);
+            setIsImportInventoryOpen(false);
+            loadData();
+        } catch (e) {
+            alert("Bulk import failed.");
+        }
+    };
+
+    const handleDispenseMedication = async (prescriptionId: string, dispenseData: any) => {
+        try {
+            const saleId = `sale_rx_${Date.now()}`;
+            const total = dispenseData.dispensedItems.reduce((s: number, i: any) => s + (i.unitPrice * i.quantity), 0);
+
+            // 1. Create Sale Record
+            await apiService.saveModuleRecord('his_pharmacy_sales', {
+                id: saleId,
+                institutionId,
+                patientId: dispenseData.patientId,
+                totalAmount: total,
+                paymentMethod: 'Cash',
+                paymentStatus: 'Paid'
+            });
+
+            // 2. Dispense items, update stock and create sale items
+            for (const item of dispenseData.dispensedItems) {
+                await apiService.saveModuleRecord('his_pharmacy_sale_items', {
+                    id: `item_${Date.now()}_${item.medicationId}`,
+                    saleId: saleId,
+                    medicationId: item.medicationId,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice,
+                    totalPrice: item.unitPrice * item.quantity
+                });
+
+                // Get current stock
+                const invItem = inventory.find(i => i.id === item.medicationId);
+                if (invItem) {
+                    await apiService.saveModuleRecord('his_pharmacy_inventory', {
+                        id: item.medicationId,
+                        stockQuantity: invItem.stockQuantity - item.quantity,
+                        updatedAt: new Date().toISOString()
+                    });
+                }
+            }
+
+            // 3. Update Prescription status and clinical notes
+            await apiService.saveModuleRecord('his_prescriptions', {
+                id: prescriptionId,
+                status: 'dispensed',
+                clinicalNotes: dispenseData.clinicalNotes,
+                medicationImage: dispenseData.medicationImage,
+                attachedFiles: dispenseData.attachedFiles
+            });
+
+            // 4. Record in Ledger
+            await apiService.saveModuleRecord('his_pharmacy_ledger', {
+                id: `ldg_${Date.now()}`,
+                institutionId,
+                type: 'Income',
+                category: 'Clinical Sales',
+                amount: total,
+                referenceId: saleId,
+                description: `Prescription Dispensed: ${prescriptionId}`
+            });
+
+            alert("Medication dispensed successfully!");
+            setSelectedPrescriptionForDispense(null);
+            loadData();
+        } catch (error) {
+            console.error("Dispensing failed:", error);
+            alert("Failed to finalize dispensing.");
+        }
+    };
+
     const handleSyncReminders = async () => {
         setIsLoading(true);
         try {
@@ -273,6 +353,24 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
         }
     };
 
+    const handleSaveSettings = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!settings) return;
+        setIsLoading(true);
+        try {
+            await apiService.saveModuleRecord('his_pharmacy_settings', {
+                ...settings,
+                updatedAt: new Date().toISOString()
+            });
+            alert("Pharmacy configuration updated successfully!");
+            loadData();
+        } catch (e) {
+            alert("Update failed.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-[#07070a] text-slate-200 p-8 font-sans selection:bg-indigo-500/30 selection:text-indigo-200">
             {/* Header / Nav */}
@@ -289,7 +387,7 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                 </div>
 
                 <div className="flex bg-white/5 backdrop-blur-3xl p-1.5 rounded-[2.5rem] border border-white/10 shadow-2xl">
-                    {(['dashboard', 'pos', 'inventory', 'prescriptions', 'hr', 'accounting', 'automation'] as const).map(tab => (
+                    {(['dashboard', 'pos', 'inventory', 'prescriptions', 'hr', 'accounting', 'automation', 'config'] as const).map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
@@ -304,6 +402,7 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                             {tab === 'hr' && <UsersIcon className="w-4 h-4" />}
                             {tab === 'accounting' && <BanknotesIcon className="w-4 h-4" />}
                             {tab === 'automation' && <SparklesIcon className="w-4 h-4" />}
+                            {tab === 'config' && <SettingsIcon className="w-4 h-4" />}
                             {tab}
                         </button>
                     ))}
@@ -552,10 +651,19 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                         <div className="flex gap-4">
                             <div className="flex items-center gap-4 bg-black/40 px-8 py-4 rounded-2xl border border-white/10 w-80">
                                 <SearchIcon className="w-4 h-4 text-slate-600" />
-                                <input type="text" placeholder="FILTER INVENTORY..." className="bg-transparent border-none outline-none text-[9px] font-black uppercase tracking-widest w-full text-white" />
+                                <input 
+                                    type="text" 
+                                    placeholder="FILTER INVENTORY..." 
+                                    className="bg-transparent border-none outline-none text-[9px] font-black uppercase tracking-widest w-full text-white" 
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
                             </div>
-                            <button onClick={() => setIsAddStaffOpen(true)} className="bg-indigo-500 text-white px-8 py-4 rounded-2xl flex items-center gap-3 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20">
-                                <PlusIcon className="w-4 h-4" /> Recruit New Operator
+                            <button onClick={() => setIsImportInventoryOpen(true)} className="bg-emerald-500 text-slate-950 px-8 py-4 rounded-2xl flex items-center gap-3 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-emerald-500/20">
+                                <SparklesIcon className="w-4 h-4" /> Import Excel
+                            </button>
+                            <button onClick={() => setIsAddInventoryOpen(true)} className="bg-indigo-500 text-white px-8 py-4 rounded-2xl flex items-center gap-3 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20">
+                                <PlusIcon className="w-4 h-4" /> Add Item Manually
                             </button>
                         </div>
                     </div>
@@ -778,11 +886,29 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                                         </div>
                                     ))}
                                     {(p as any).items?.length > 3 && <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">+{ (p as any).items?.length - 3} More Components</p>}
+                                    {p.clinicalNotes && (
+                                        <div className="mt-4 p-4 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl">
+                                            <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1 italic">Clinical Memo Attached</p>
+                                            <p className="text-[10px] text-slate-400 italic line-clamp-2">"{p.clinicalNotes}"</p>
+                                        </div>
+                                    )}
+                                    {p.medicationImage && (
+                                        <div className="mt-2 flex items-center gap-2 text-emerald-400">
+                                            <ShieldCheckIcon className="w-3.5 h-3.5" />
+                                            <span className="text-[8px] font-black uppercase tracking-widest">Dispatch Proof Linked</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex gap-4">
                                     <button className="flex-1 py-4 rounded-2xl bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">Full Audit</button>
-                                    <button className="flex-1 py-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[9px] font-black uppercase tracking-widest hover:bg-indigo-500 hover:text-white transition-all">Dispense Matrix</button>
+                                    <button 
+                                        onClick={() => setSelectedPrescriptionForDispense(p)}
+                                        className="flex-1 py-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[9px] font-black uppercase tracking-widest hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-30"
+                                        disabled={p.status === 'dispensed'}
+                                    >
+                                        {p.status === 'dispensed' ? 'Already Commited' : 'Dispense Matrix'}
+                                    </button>
                                 </div>
                             </div>
                         ))}
@@ -828,6 +954,123 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] mt-2 max-w-xs mx-auto">Automatically analyze prescriptions and generate SMS medication schedules in real-time.</p>
                              </div>
                          <button onClick={handleSyncReminders} className="px-12 py-5 rounded-[2rem] bg-indigo-500 text-white text-[10px] font-black uppercase tracking-[0.4em] shadow-2xl shadow-indigo-500/20 hover:scale-105 transition-all">Initialize Auto-Sync</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* CONFIGURATION CENTER */}
+            {activeTab === 'config' && settings && (
+                <div className="p-12 animate-fade-in space-y-12 no-scrollbar overflow-y-auto max-h-[75vh]">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+                        <div className="lg:col-span-2 space-y-12">
+                            <div className="glass-morphism-dark p-12 rounded-[4rem] border border-white/5 bg-gradient-to-br from-indigo-500/5 to-transparent">
+                                <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-10 text-indigo-400">Branding <span className="text-white">& Identity Vault</span></h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-4">Dispensing Point Name</label>
+                                        <input 
+                                            type="text" 
+                                            value={settings.pharmacyName} 
+                                            onChange={e => setSettings({...settings, pharmacyName: e.target.value})}
+                                            className="w-full bg-black/40 border border-white/5 rounded-3xl p-4 text-white text-sm outline-none focus:border-indigo-500/50 transition-all font-black uppercase tracking-widest italic" 
+                                        />
+                                    </div>
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-4">Nexus Logo URL</label>
+                                        <input 
+                                            type="text" 
+                                            value={settings.pharmacyLogo || ''} 
+                                            onChange={e => setSettings({...settings, pharmacyLogo: e.target.value})}
+                                            className="w-full bg-black/40 border border-white/5 rounded-3xl p-4 text-white text-sm outline-none focus:border-indigo-500/50 transition-all font-mono" 
+                                        />
+                                    </div>
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-4">License / PPB ID</label>
+                                        <input 
+                                            type="text" 
+                                            value={settings.pharmacyLicense || ''} 
+                                            onChange={e => setSettings({...settings, pharmacyLicense: e.target.value})}
+                                            className="w-full bg-black/40 border border-white/5 rounded-3xl p-4 text-white text-sm outline-none focus:border-indigo-500/50 transition-all uppercase font-bold" 
+                                        />
+                                    </div>
+                                    <div className="space-y-4 md:col-span-2">
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-4">Receipt Nexus Footer</label>
+                                        <textarea 
+                                            value={settings.receiptFooter || ''} 
+                                            onChange={e => setSettings({...settings, receiptFooter: e.target.value})}
+                                            className="w-full bg-black/40 border border-white/5 rounded-[2rem] p-6 text-white text-xs outline-none focus:border-indigo-500/50 transition-all h-24" 
+                                            placeholder="Thank you for trusting our Molecular Nexus..."
+                                        ></textarea>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="glass-morphism-dark p-12 rounded-[4rem] border border-white/5">
+                                <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-10 text-emerald-400">Connectivity <span className="text-white">& Outreach</span></h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-4 flex items-center gap-2"><MailIcon className="w-3 h-3 text-emerald-500" /> Dispatch Email</label>
+                                        <input 
+                                            type="email" 
+                                            value={settings.pharmacyEmail || ''} 
+                                            onChange={e => setSettings({...settings, pharmacyEmail: e.target.value})}
+                                            className="w-full bg-black/40 border border-white/5 rounded-3xl p-4 text-white text-sm outline-none focus:border-emerald-500/50 transition-all" 
+                                        />
+                                    </div>
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-4 flex items-center gap-2"><PhoneIcon className="w-3 h-3 text-emerald-500" /> Hot Matrix Phone</label>
+                                        <input 
+                                            type="text" 
+                                            value={settings.pharmacyPhone || ''} 
+                                            onChange={e => setSettings({...settings, pharmacyPhone: e.target.value})}
+                                            className="w-full bg-black/40 border border-white/5 rounded-3xl p-4 text-white text-sm outline-none focus:border-emerald-500/50 transition-all" 
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-12">
+                            <div className="glass-morphism-dark p-12 rounded-[4rem] border border-white/5 bg-gradient-to-b from-amber-500/5 to-transparent">
+                                <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-10 text-amber-500">Operation <span className="text-white">Logic</span></h3>
+                                <div className="space-y-10">
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center px-4">
+                                            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Low Stock Alert Level</label>
+                                            <span className="text-xl font-black italic text-amber-400">{settings.lowStockThreshold} Units</span>
+                                        </div>
+                                        <input 
+                                            type="range" 
+                                            min="0" 
+                                            max="100" 
+                                            value={settings.lowStockThreshold} 
+                                            onChange={e => setSettings({...settings, lowStockThreshold: parseInt(e.target.value)})}
+                                            className="w-full h-1 bg-white/5 rounded-lg appearance-none cursor-pointer range-indigo" 
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center justify-between p-8 bg-black/40 rounded-[2.5rem] border border-white/5 group hover:border-indigo-500/30 transition-all">
+                                        <div>
+                                            <p className="text-xs font-black uppercase italic text-white">Adherence SMS Triggers</p>
+                                            <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-1">Automatic GSM outreach</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => setSettings({...settings, enableSmsReminders: !settings.enableSmsReminders})}
+                                            className={`w-12 h-6 rounded-full p-1 transition-all flex items-center ${settings.enableSmsReminders ? 'bg-indigo-500 justify-end' : 'bg-slate-800 justify-start'}`}
+                                        >
+                                            <div className="w-4 h-4 rounded-full bg-white shadow-lg"></div>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button 
+                                onClick={handleSaveSettings}
+                                className="w-full py-8 rounded-[2rem] bg-indigo-500 text-white font-black uppercase tracking-[0.5em] italic shadow-2xl shadow-indigo-500/20 hover:scale-[1.02] active:scale-95 transition-all text-xs"
+                            >
+                                Commit Nexus Config
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -916,6 +1159,32 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                         </div>
                     </div>
                 </div>
+            )}
+
+            {isAddInventoryOpen && (
+                <AddPharmacyInventoryModal 
+                    institutionId={institutionId}
+                    onClose={() => setIsAddInventoryOpen(false)}
+                    onAdd={handleAddInventory}
+                />
+            )}
+
+            {isImportInventoryOpen && (
+                <SmartPharmacyInventoryImporterModal 
+                    institutionId={institutionId}
+                    onClose={() => setIsImportInventoryOpen(false)}
+                    onImport={handleImportInventory}
+                />
+            )}
+
+            {selectedPrescriptionForDispense && (
+                <DispenseMedicationModal 
+                    prescription={selectedPrescriptionForDispense}
+                    inventory={inventory}
+                    batches={batches}
+                    onClose={() => setSelectedPrescriptionForDispense(null)}
+                    onDispense={handleDispenseMedication}
+                />
             )}
         </div>
     );

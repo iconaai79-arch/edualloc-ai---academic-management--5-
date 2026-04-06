@@ -140,7 +140,7 @@ export interface Institution {
     name: string;
     email: string;
     phoneNumber: string;
-    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International' | 'Business' | 'Broadcaster' | 'Reseller' | 'TVET' | 'Kindergarten' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management';
+    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International' | 'Business' | 'Broadcaster' | 'Reseller' | 'TVET' | 'Kindergarten' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy';
     businessSubType?: string;
     slug?: string;
     status: 'active' | 'trial' | 'suspended';
@@ -2729,6 +2729,9 @@ export interface HISPrescription {
     notes?: string;
     createdAt: string;
     // Enhanced fields for UI
+    clinicalNotes?: string;
+    attachedFiles?: string[];
+    medicationImage?: string;
     patientName?: string;
     items?: HISPrescriptionItem[];
 }
@@ -2745,6 +2748,72 @@ export interface HISPrescriptionItem {
     unitPrice: number;
     totalPrice: number;
     instructions?: string;
+}
+
+export interface PharmacySale {
+    id: string;
+    institutionId: string;
+    patientId?: string;
+    customerName?: string;
+    customerPhone?: string;
+    totalAmount: number;
+    paymentMethod: string;
+    paymentStatus: string;
+    staffId?: string;
+    createdAt: string;
+}
+
+export interface PharmacySaleItem {
+    id: string;
+    saleId: string;
+    medicationId?: string;
+    batchId?: string;
+    quantity: number;
+    unitPrice: number;
+    totalPrice: number;
+    createdAt: string;
+}
+
+export interface PharmacyLedger {
+    id: string;
+    institutionId: string;
+    type: 'Income' | 'Expense';
+    category: string;
+    amount: number;
+    referenceId?: string;
+    description: string;
+    recordedBy: string;
+    createdAt: string;
+}
+
+export interface PharmacyStaff {
+    id: string;
+    institutionId: string;
+    userId: string;
+    fullName?: string;
+    role: string;
+    specialization: string;
+    licenseNumber: string;
+    salary: number;
+    hireDate: string;
+    shiftPreference: string;
+    status: string;
+    createdAt: string;
+}
+
+export interface PharmacySettings {
+    id: string;
+    institutionId: string;
+    pharmacyName: string;
+    pharmacyLogo?: string;
+    pharmacyLicense?: string;
+    pharmacyEmail?: string;
+    pharmacyPhone?: string;
+    receiptHeader?: string;
+    receiptFooter?: string;
+    lowStockThreshold: number;
+    enableSmsReminders: boolean;
+    updatedAt: string;
 }
 
 export interface RetailSaleItem {
