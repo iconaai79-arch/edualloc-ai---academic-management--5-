@@ -72,6 +72,7 @@ import { BanknotesIcon } from './icons/BanknotesIcon';
 import { ArrowTrendingUpIcon } from './icons/ArrowTrendingUpIcon';
 import { CalendarDaysIcon as CalendarIcon } from './icons/CalendarDaysIcon';
 import { GlobeAltIcon } from './icons/GlobeAltIcon';
+import { CrossIcon } from './icons/CrossIcon';
 
 import { CommunicationsManager } from './CommunicationsManager';
 import { EditInstitutionModal } from './EditInstitutionModal';
@@ -1068,6 +1069,7 @@ Please change it after login.`;
         { role: 'property_admin', label: 'Property Module', icon: <HomeIcon className="w-6 h-6" />, color: 'bg-cyan-50 text-cyan-600' },
         { role: 'carwash_admin', label: 'Car Wash Module', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-400' },
         { role: 'his_admin', label: 'Health System', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-teal-50 text-teal-600' },
+        { role: 'pharmacy_admin', label: 'Modern Pharmacy', icon: <CrossIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600' },
         { role: 'cooperative_manager', label: 'Cooperative Module', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
         { role: 'coop_chairman', label: 'Coop Chairman (Approvals)', icon: <CheckCircleIcon className="w-5 h-5 text-indigo-600" />, color: 'bg-indigo-50 text-indigo-600' },
         { role: 'farmer', label: 'Farmer Portal', icon: <UserGroupIcon className="w-5 h-5 text-emerald-600" />, color: 'bg-emerald-50 text-emerald-600' },

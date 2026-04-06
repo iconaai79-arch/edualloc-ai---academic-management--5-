@@ -2290,7 +2290,7 @@ export const App: React.FC = () => {
 
         return roleToUse;
     }, [impersonatedRole, currentUser, institutions, selectedRole]);
-    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'carwash_admin', 'transport_admin', 'retail_agent', 'his_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin'].includes(activeRole || '');
+    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'carwash_admin', 'transport_admin', 'retail_agent', 'his_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin'].includes(activeRole || '');
 
     const isFullWidthLayout = useMemo(() => {
         return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
@@ -2848,7 +2848,7 @@ export const App: React.FC = () => {
                                         loadData();
                                     }}
                                 />
-                             ) : (activeRole === 'pharmacist') ? (
+                             ) : (activeRole === 'pharmacist' || activeRole === 'pharmacy_admin') ? (
                                 <div className="p-8 bg-slate-950 min-h-screen">
                                     <ModernPharmacyManager institutionId={activeInstitution?.id || currentUser?.institutionId || ''} />
                                 </div>

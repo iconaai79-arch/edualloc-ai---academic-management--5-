@@ -210,6 +210,7 @@ export const Header: React.FC<HeaderProps> = ({
 
                         {(() => {
                             const isPharmacist = activeRole === 'pharmacist' || 
+                                                activeRole === 'pharmacy_admin' ||
                                                 currentInstitution?.institutionType === 'Pharmacy' ||
                                                 currentInstitution?.institutionType === 'HIS';
                             
