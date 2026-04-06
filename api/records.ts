@@ -192,6 +192,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json(data?.[0] || { success: true, id: (recordData as any)?.id || getStrParam(id), module: moduleName });
         }
 
+        if (req.method === 'DELETE') {
+            const idVal = getStrParam(id);
+            if (!idVal) return res.status(400).json({ success: false, error: 'ID required' });
+
+            let q = supabase.from(moduleName).delete().eq('id', idVal);
+
+            // Security: Only allow deleting records within own institution
+            if (user?.role !== 'super_admin' && !PUBLIC_MODULES.includes(moduleName)) {
+                q = q.eq('institution_id', user?.institutionId);
+            }
+
+            const { error } = await q;
+            if (error) return res.status(200).json({ success: false, error: error.message });
+            return res.status(200).json({ success: true, id: idVal, module: moduleName });
+        }
+
         return res.status(405).json({ success: false, error: 'Method not allowed' });
     } catch (err: any) {
         console.error('[API Records] Crash:', err);

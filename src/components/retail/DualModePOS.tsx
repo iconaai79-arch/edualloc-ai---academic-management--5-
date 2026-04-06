@@ -63,12 +63,15 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
     const fetchStores = async () => {
         try {
             const data = await apiService.fetchModuleRecords<RetailStore>('retail_stores', institutionId);
+            console.log(`[DualModePOS] Fetched ${data?.length || 0} stores for institution ${institutionId}`);
             setAllStores(data || []);
             if (data && data.length > 0) {
                 if (!activeStore) {
                     // In Field Ops: prefer a van_stock store for this agent, else pick first store
                     const agentStore = data.find(s => s.agentId === currentUser.id && s.storeType === 'van_stock');
-                    setActiveStore(agentStore || data[0]);
+                    const defaultStore = agentStore || data[0];
+                    setActiveStore(defaultStore);
+                    console.log(`[DualModePOS] Auto-selected store: ${defaultStore.name} (${defaultStore.id})`);
                 }
             }
         } catch (err) {
@@ -366,26 +369,51 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
             <div className="flex-1 flex flex-col bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-[3rem] shadow-sm border border-white dark:border-slate-800 overflow-hidden transition-all">
 
                 {/* Cyber-Header & Mode Switcher */}
-                <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
-                    <div className="flex bg-slate-200/50 dark:bg-slate-800/50 p-1.5 rounded-2xl w-fit backdrop-blur-md">
-                        <button
-                            onClick={() => setActiveMode('shop')}
-                            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeMode === 'shop'
-                                ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm scale-105'
-                                : 'text-slate-500 hover:text-indigo-500'}`}
-                        >
-                            <Store className="w-4 h-4" />
-                            In-Shop
-                        </button>
-                        <button
-                            onClick={() => setActiveMode('field')}
-                            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeMode === 'field'
-                                ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm scale-105'
-                                : 'text-slate-500 hover:text-indigo-500'}`}
-                        >
-                            <MapPin className="w-4 h-4" />
-                            Field Ops
-                        </button>
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+                        <div className="flex bg-slate-200/50 dark:bg-slate-800/50 p-1.5 rounded-2xl w-fit backdrop-blur-md">
+                            <button
+                                onClick={() => setActiveMode('shop')}
+                                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeMode === 'shop'
+                                    ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm scale-105'
+                                    : 'text-slate-500 hover:text-indigo-500'}`}
+                            >
+                                <Store className="w-4 h-4" />
+                                In-Shop
+                            </button>
+                            <button
+                                onClick={() => setActiveMode('field')}
+                                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeMode === 'field'
+                                    ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm scale-105'
+                                    : 'text-slate-500 hover:text-indigo-500'}`}
+                            >
+                                <MapPin className="w-4 h-4" />
+                                Field Ops
+                            </button>
+                        </div>
+
+                        {/* Store Selection Dropdown */}
+                        <div className="relative group">
+                            <select
+                                value={activeStore?.id || ''}
+                                onChange={(e) => {
+                                    const store = allStores.find(s => s.id === e.target.value);
+                                    if (store) setActiveStore(store);
+                                }}
+                                className="pl-10 pr-10 py-3 bg-white dark:bg-slate-800 border-none rounded-2xl text-[10px] font-black uppercase tracking-widest text-indigo-600 shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none appearance-none transition-all hover:bg-slate-50 dark:hover:bg-slate-700 min-w-[180px]"
+                            >
+                                <option value="" disabled>{allStores.length > 0 ? "Switch Point of Sale" : "No Stores Found"}</option>
+                                {allStores.map(s => (
+                                    <option key={s.id} value={s.id}>
+                                        {s.name} ({s.storeType.replace('_', ' ')})
+                                    </option>
+                                ))}
+                            </select>
+                            <Store className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-400 pointer-events-none" />
+                            <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                                <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" /></svg>
+                            </div>
+                        </div>
                     </div>
 
                     <button className="px-6 py-3 bg-fuchsia-100 dark:bg-fuchsia-900/20 text-fuchsia-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-fuchsia-600 hover:text-white transition-all flex items-center gap-2 group shadow-sm">
