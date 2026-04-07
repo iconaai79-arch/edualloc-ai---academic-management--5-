@@ -26,9 +26,9 @@ interface TimetableGeneratorProps {
     getLecturerById?: (id: string) => User | undefined;
     getSubjectById?: (id: string) => Subject | undefined;
     getRoomById?: (id: string) => Room | undefined;
-    onTimetableGenerated: (timetable: Omit<TimetableEntry, 'id' | 'institutionId' | 'academicYearId' | 'semesterId'>[], academicYearId: string, semesterId: string) => void;
+    onTimetableGenerated?: (timetable: any[], academicYearId: string, semesterId: string) => Promise<void> | void;
     generatedTimetable: TimetableEntry[];
-    onPublishTimetable?: (fileUrl: string) => void;
+    onPublishTimetable?: (fileUrl: string) => Promise<void> | void;
     finalTimetableUrl: string | null;
     onRemovePublishedTimetable?: () => void;
     letterheadConfig: LetterheadConfig;
@@ -51,7 +51,7 @@ interface TimetableGeneratorProps {
     onLogAction?: (action: string) => void;
     currentInstitution?: any;
     examTimetable: ExamTimetableEntry[];
-    onExamTimetableGenerated: (entries: any[], ay: string, sem: string) => void;
+    onExamTimetableGenerated?: (entries: any[], ay: string, sem: string) => Promise<void> | void;
     examTimetableSettings: ExamTimetableSettings;
 }
 
@@ -105,9 +105,8 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
         setIsLoading(true);
         setError(null);
         try {
-            // FIXED: Added currentInstitution?.scheduleProfiles || [] as the 9th argument
             const rawTimetable = await generateTimetable(allocations, subjects, lecturers, rooms, timetableSettings, courseSizes, courses, timeOffRequests, currentInstitution?.scheduleProfiles || [], currentInstitution?.aiModelTier);
-            onTimetableGenerated(rawTimetable, activeAcademicYear.id, activeSemester.id);
+            await onTimetableGenerated?.(rawTimetable as any, activeAcademicYear.id, activeSemester.id);
             onLogAction?.('Generated New Timetable');
         } catch (err: any) {
             setError(err.message || "An unknown error occurred during timetable generation.");
@@ -143,7 +142,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
 
             const subjectsWithExams = subjects.filter(s => s.hasExam !== false);
             const rawTimetable = await generateExamTimetable(subjectsWithExams, courses, lecturers, rooms, examPeriod, courseSizes, examTimetableSettings, currentInstitution?.aiModelTier);
-            onExamTimetableGenerated(rawTimetable, activeAcademicYear.id, activeSemester.id);
+            await onExamTimetableGenerated?.(rawTimetable, activeAcademicYear.id, activeSemester.id);
             onLogAction?.('Generated New Exam Timetable');
         } catch (err: any) {
             setError(err.message || "An error occurred during exam timetable generation.");
@@ -536,7 +535,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                     rooms={rooms}
                     courses={courses}
                     onImport={async (entries) => {
-                        await onTimetableGenerated(entries, activeAcademicYear.id, activeSemester.id);
+                        await onTimetableGenerated?.(entries, activeAcademicYear.id, activeSemester.id);
                         onLogAction?.('Imported Timetable from Excel');
                     }}
                     academicYearId={activeAcademicYear.id}

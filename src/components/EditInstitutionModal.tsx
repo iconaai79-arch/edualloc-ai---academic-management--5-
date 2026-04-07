@@ -439,18 +439,18 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                           placeholder="/v1/stk/query"
                         />
                       </div>
-                      <div>
-                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">OAuth Client ID</label>
+                       <div>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Username</label>
                         <input
                           type="text"
                           value={formData.ncbaConfig.clientId}
                           onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, clientId: e.target.value } })}
                           className="form-input text-[10px] h-10"
-                          placeholder="NCBA Client ID"
+                          placeholder="Username"
                         />
                       </div>
-                      <div>
-                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Client Secret</label>
+                       <div>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Secret Key</label>
                         <input
                           type="password"
                           value={formData.ncbaConfig.clientSecret}

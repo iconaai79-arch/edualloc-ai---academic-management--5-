@@ -153,7 +153,7 @@ export interface AdminViewProps {
     onUpdateRequestStatus?: (id: string, status: RequestStatus) => Promise<void>;
     onBulkUpdateRequestStatus?: (status: RequestStatus, deptId?: string) => Promise<void>;
     onDirectAssign?: (lecturerId: string, subjectIds: string[], priority: Priority, justification: string, courseLevelSelections: Record<string, string[]>) => void;
-    onTimetableGenerated?: (entries: TimetableEntry[], ay: string, sem: string) => Promise<void>;
+    onTimetableGenerated?: (timetable: any[], academicYearId: string, semesterId: string) => Promise<void> | void;
     onExamTimetableGenerated?: (entries: ExamTimetableEntry[], ay: string, sem: string) => Promise<void>;
     onSaveTimetableSettings?: (config: TimetableSettings) => void;
     onSaveExamTimetableSettings?: (config: ExamTimetableSettings) => void;
@@ -205,16 +205,16 @@ export interface AdminViewProps {
     getSubjectById?: (id: string) => Subject | undefined;
     getRoomById?: (id: string) => Room | undefined;
     
-    coopFarmers: CoopFarmer[];
-    coopCollections: CoopCollection[];
-    coopRiders: CoopRider[];
-    coopAgrovetInventory: CoopAgrovetInventory[];
-    coopAgrovetSales: CoopAgrovetSales[];
-    saccoAccounts: SaccoAccount[];
-    saccoTransactions: SaccoTransaction[];
-    coopPayouts: CoopMonthlyPayout[];
-    coopExpenses: CoopExpense[];
-    coopIncome: CoopIncome[];
+    coopFarmers?: CoopFarmer[];
+    coopCollections?: CoopCollection[];
+    coopRiders?: CoopRider[];
+    coopAgrovetInventory?: CoopAgrovetInventory[];
+    coopAgrovetSales?: CoopAgrovetSales[];
+    saccoAccounts?: SaccoAccount[];
+    saccoTransactions?: SaccoTransaction[];
+    coopPayouts?: CoopMonthlyPayout[];
+    coopExpenses?: CoopExpense[];
+    coopIncome?: CoopIncome[];
     notifications?: any[];
     vehicles?: TransportVehicle[];
     onAddVehicle?: (vehicle: Omit<TransportVehicle, 'id'>) => Promise<void>;
@@ -282,11 +282,23 @@ export interface AdminViewProps {
     feedbackSubmissions?: FeedbackSubmission[];
     lessonRatings?: LessonRating[];
     studentAbsenceRequests?: StudentAbsenceRequest[];
+    securityAlerts?: SecurityAlert[];
+    examTimetable?: ExamTimetableEntry[];
+    assessments?: Assessment[];
+    assessmentMarks?: AssessmentMark[];
+    visitors?: Visitor[];
+    studentAttendances?: StudentAttendance[];
+    studentCheckIns?: Record<string, string>;
+    onUpdateFeedbackStatus?: (id: string, status: string) => Promise<void> | void;
+    onAddAssessment?: (data: any) => Promise<void> | void;
+    onDeleteAssessment?: (id: string) => Promise<void> | void;
+    onUpdateAssessmentStatus?: (id: string, status: string) => Promise<void> | void;
+    onSaveAssessmentMarks?: (id: string, marks: any[]) => Promise<void> | void;
 }
 
 export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const { activeAcademicYear, activeSemester, requests = [] } = props;
-    const { subjects, users, rooms, courses, currentInstitution, companyDetails, courseSizes, retailStores = [], inventory = [], suppliers = [], retailExpenses = [] } = props;
+    const { subjects, users, rooms, courses, currentInstitution, companyDetails, courseSizes, retailStores = [], inventory = [], suppliers = [], retailExpenses = [], securityAlerts = [], assessments = [], assessmentMarks = [], visitors = [], studentAttendances = [], studentCheckIns = {} } = props;
     const { 
         coopFarmers = [], coopCollections = [], coopRiders = [], 
         coopAgrovetInventory = [], coopAgrovetSales = [], 
@@ -822,6 +834,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             ) : (
                                 <TimetableGenerator
                                     {...props}
+                                    examTimetable={[]}
+                                    courseSizes={props.courseSizes || new Map()}
                                     allocations={(props.requests || []).filter((r: AllocationRequest) => r && (r.status === 'approved' || r.status === 'hod_approved'))}
                                     lecturers={props.users || []}
                                     setActiveTab={(tab: string) => setActiveTab(tab as any)}
@@ -1062,7 +1076,6 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         </div>
                     </div>
                 )}
-
                 {activeTab === 'car_service' && (
                     <CarServiceView
                         currentUser={props.currentUser}
@@ -1184,9 +1197,16 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 getRoomById={props.getRoomById || (id => (props.rooms || []).find(r => r && r.id === id))}
                                 currentInstitution={props.currentInstitution}
                                 requests={requests || []}
+                                contracts={props.contracts || []}
                                 timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                                 activityLog={props.activityLog || []}
-                                courseSizes={props.courseSizes}
+                                courseSizes={props.courseSizes || new Map()}
+                                examTimetable={[]}
+                                studentAttendances={studentAttendances}
+                                studentCheckIns={studentCheckIns}
+                                assessments={assessments}
+                                assessmentMarks={assessmentMarks}
+                                visitors={visitors}
                             />
                         )}
                     </div>

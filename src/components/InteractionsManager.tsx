@@ -17,7 +17,7 @@ interface InteractionsManagerProps {
     absenceRequests?: AbsenceRequest[];
     onUpdateAbsenceRequest?: (requestId: string, newStatus: 'approved' | 'rejected') => void;
     timeOffRequests?: TimeOffRequest[];
-    onUpdateTimeOffRequestStatus?: (requestId: string, newStatus: TimeOffRequestStatus) => void;
+    onUpdateTimeOffRequestStatus?: (requestId: string, newStatus: TimeOffRequestStatus) => Promise<void>;
     contracts?: LecturerContract[];
 
     // Student Props
@@ -83,9 +83,12 @@ export const InteractionsManager: React.FC<InteractionsManagerProps> = (props) =
                     onBulkUpdateRequestStatus={props.onBulkUpdateRequestStatus || (async () => { })}
                     onOpenDirectAssign={props.onOpenDirectAssign || (() => { })}
                     onUpdateRequest={props.onUpdateRequest || (() => { })}
-                    onUpdateTimeOffRequestStatus={props.onUpdateTimeOffRequestStatus || (() => { })}
+                    onUpdateTimeOffRequestStatus={props.onUpdateTimeOffRequestStatus || (async () => { })}
                     requests={props.requests || []}
                     allocations={props.allocations || []}
+                    absenceRequests={props.absenceRequests || []}
+                    timeOffRequests={props.timeOffRequests || []}
+                    contracts={props.contracts || []}
                 />}
                 {activeInteractionTab === 'student' && !isSchool && <StudentInteractionManager
                     {...props}

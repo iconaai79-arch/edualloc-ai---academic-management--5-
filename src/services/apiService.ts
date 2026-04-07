@@ -1760,6 +1760,7 @@ export const apiService = {
         };
         await apiService.saveModuleRecord('coop_collections', update);
     },
+
     async updatePayoutStatus(idOrIds: string | string[], status: 'initiated' | 'approved' | 'paid' | 'rejected' | string, userId?: string): Promise<void> {
         const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
         const now = new Date().toISOString();

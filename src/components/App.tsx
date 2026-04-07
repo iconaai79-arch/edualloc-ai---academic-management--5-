@@ -1622,6 +1622,7 @@ export const App: React.FC = () => {
             loadData();
         } catch (err: any) {
             alert(`Approval failed: ${err.message}`);
+            throw err;
         }
     }, [loadData, handleLogAction, activeInstitution, currentUser]);
 
@@ -1636,6 +1637,7 @@ export const App: React.FC = () => {
             loadData();
         } catch (err: any) {
             alert(`Draft generation failed: ${err.message}`);
+            throw err;
         }
     }, [loadData, handleLogAction, activeInstitution, currentUser]);
 
@@ -1647,6 +1649,7 @@ export const App: React.FC = () => {
             loadData();
         } catch (err: any) {
             alert(`Disbursement failed: ${err.message}`);
+            throw err;
         }
     }, [loadData, handleLogAction]);
 
@@ -2508,7 +2511,7 @@ export const App: React.FC = () => {
                                     footerImageUrl={activeFooterImageUrl}
                                     themeColor={activeBranding.primaryColor}
                                     companyDetails={companyDetails}
-                                    onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d); loadData(); }}
+                                    onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d as any); loadData(); }}
                                     activityLog={activityLog}
                                     transactions={transactions}
                                     onAddTransaction={apiService.onAddTransaction.bind(apiService)}
@@ -2632,21 +2635,15 @@ export const App: React.FC = () => {
                                     onAddBuildings={async (b) => { }}
                                     timeOffRequests={timeOffRequests}
                                     onAddTimeOffRequest={handleAddTimeOffRequest}
-                                    onUpdateTimeOffRequestStatus={() => { }}
+                                    onUpdateTimeOffRequestStatus={async () => { }}
                                     enrollmentRequests={enrollmentRequests}
                                     absenceRequests={absenceRequests}
                                     studentAbsenceRequests={studentAbsenceRequests}
-                                    onUpdateEnrollmentRequest={() => { }}
-                                    onUpdateAbsenceRequest={() => { }}
-                                    onUpdateStudentAbsenceRequestStatus={() => { }}
-                                    isTimetableGenerating={false}
-                                    timetableGenerationProgress={0}
-                                    timetableGenerationMessage=""
-                                    timetableGenerationEta={null}
-                                    onAddSecurityAlert={() => { }}
-                                    onSetSettingsTab={() => { }}
-                                    onSetSettingsSubTab={() => { }}
-                                    onResolveSecurityAlert={() => { }}
+
+
+
+
+
                                     securityAlerts={securityAlerts}
                                     visitors={visitors}
                                     requisitions={requisitions}
@@ -2868,6 +2865,10 @@ export const App: React.FC = () => {
                                 />
                             ) : activeRole === 'super_admin' ? (
                                 <SuperAdminView
+                                    isTimetableGenerating={false}
+                                    timetableGenerationProgress={0}
+                                    timetableGenerationMessage=""
+                                    timetableGenerationEta={null}
                                     currentUser={currentUser}
                                     notifications={notifications}
                                     institutions={institutions}
@@ -2877,7 +2878,7 @@ export const App: React.FC = () => {
                                     departments={departments}
                                     courses={courses}
                                     companyDetails={companyDetails}
-                                    onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d); loadData(); }}
+                                    onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d as any); loadData(); }}
                                     transactions={transactions}
                                     demoRequests={demoRequests}
                                     onUpdateDemoStatus={onUpdateDemoStatus}
@@ -2977,17 +2978,13 @@ export const App: React.FC = () => {
                                     onAddExtensionRequest={handleAddExtensionRequest}
                                     timeOffRequests={timeOffRequests}
                                     onAddTimeOffRequest={handleAddTimeOffRequest}
-                                    onUpdateTimeOffRequestStatus={() => { }}
+                                    onUpdateTimeOffRequestStatus={async () => { }}
                                     enrollmentRequests={enrollmentRequests}
                                     absenceRequests={absenceRequests}
                                     studentAbsenceRequests={studentAbsenceRequests}
-                                    onUpdateEnrollmentRequest={() => { }}
-                                    onUpdateAbsenceRequest={() => { }}
-                                    onUpdateStudentAbsenceRequestStatus={() => { }}
-                                    isTimetableGenerating={false}
-                                    timetableGenerationProgress={0}
-                                    timetableGenerationMessage=""
-                                    timetableGenerationEta={null}
+
+
+
                                     securityAlerts={securityAlerts}
                                     visitors={visitors}
                                     requisitions={requisitions}
@@ -3684,7 +3681,7 @@ export const App: React.FC = () => {
                                     footerImageUrl={activeFooterImageUrl}
                                     themeColor={activeBranding.primaryColor}
                                     companyDetails={companyDetails}
-                                    onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d); loadData(); }}
+                                    onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d as any); loadData(); }}
                                     activityLog={activityLog}
                                     transactions={transactions}
                                     onAddTransaction={apiService.onAddTransaction.bind(apiService)}
@@ -3810,21 +3807,15 @@ export const App: React.FC = () => {
                                     onAddBuildings={async (b) => { }}
                                     timeOffRequests={timeOffRequests}
                                     onAddTimeOffRequest={handleAddTimeOffRequest}
-                                    onUpdateTimeOffRequestStatus={() => { }}
+                                    onUpdateTimeOffRequestStatus={async () => { }}
                                     enrollmentRequests={enrollmentRequests}
                                     absenceRequests={absenceRequests}
                                     studentAbsenceRequests={studentAbsenceRequests}
-                                    onUpdateEnrollmentRequest={() => { }}
-                                    onUpdateAbsenceRequest={() => { }}
-                                    onUpdateStudentAbsenceRequestStatus={() => { }}
-                                    isTimetableGenerating={false}
-                                    timetableGenerationProgress={0}
-                                    timetableGenerationMessage=""
-                                    timetableGenerationEta={null}
-                                    onAddSecurityAlert={() => { }}
-                                    onSetSettingsTab={() => { }}
-                                    onSetSettingsSubTab={() => { }}
-                                    onResolveSecurityAlert={() => { }}
+
+
+
+
+
                                     securityAlerts={securityAlerts}
                                     visitors={visitors}
                                     requisitions={requisitions}

@@ -854,7 +854,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 bodyObj.append('grant_type', 'client_credentials');
                 
                 const headers: Record<string, string> = {
-                    'Content-Type': 'application/x-www-form-urlencoded',
                     'Accept': 'application/json',
                     'X-API-Key': ncbaConfig.apiKey || ncbaConfig.api_key || '',
                     'X-Correlation-ID': `edualloc-auth-${Date.now()}`,
@@ -867,16 +866,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     headers['Authorization'] = `Basic ${auth}`;
                 } else {
                     // Body-based auth (Alternative for stricter/picky gateways)
-                    bodyObj.append('client_id', cId);
-                    bodyObj.append('client_secret', cSec);
+                    bodyObj.append('username', cId);
+                    bodyObj.append('password', cSec);
                 }
 
-                process.stdout.write(`[NCBA Auth] Attempting ${authType}-based token retrieval from: ${tokenUrl}...\n`);
+                const finalUrl = `${tokenUrl}?${bodyObj.toString()}`;
+                process.stdout.write(`[NCBA Auth] Attempting ${authType}-based token retrieval from: ${finalUrl} (GET)...\n`);
                 
-                const res = await fetchWithTimeout(tokenUrl, {
-                    method: 'POST',
+                const res = await fetchWithTimeout(finalUrl, {
+                    method: 'GET',
                     headers,
-                    body: bodyObj.toString(),
                     redirect: 'manual'
                 }, 15000);
 

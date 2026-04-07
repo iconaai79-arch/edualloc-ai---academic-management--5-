@@ -243,7 +243,7 @@ export interface SuperAdminViewProps {
     notifications: AppNotification[];
     timeOffRequests: TimeOffRequest[];
     onAddTimeOffRequest?: (data: Partial<TimeOffRequest>) => Promise<void>;
-    onUpdateTimeOffRequestStatus?: (id: string, status: TimeOffRequestStatus) => void;
+    onUpdateTimeOffRequestStatus?: (id: string, status: TimeOffRequestStatus) => Promise<void>;
     enrollmentRequests?: EnrollmentRequest[];
     absenceRequests: AbsenceRequest[];
     studentAbsenceRequests: StudentAbsenceRequest[];
@@ -3040,7 +3040,7 @@ Please change it after login.`;
                                                     </div>
                                                     <div>
                                                         <div className="flex justify-between items-center mb-2 px-1">
-                                                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">NCBA Client ID (OAuth2 Key)</label>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Username</label>
                                                             <button 
                                                                 type="button"
                                                                 onClick={() => {
@@ -3063,12 +3063,12 @@ Please change it after login.`;
                                                                 } as any 
                                                             })}
                                                             className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
-                                                            placeholder="Enter 32-char Client ID"
+                                                            placeholder="Enter Username"
                                                         />
                                                     </div>
                                                     <div>
                                                         <div className="flex justify-between items-center mb-2 px-1">
-                                                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">NCBA Secret Key (Client Secret)</label>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Secret Key</label>
                                                             <button 
                                                                 type="button"
                                                                 onClick={() => {
