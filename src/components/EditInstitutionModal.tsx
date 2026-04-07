@@ -32,9 +32,6 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       accountNumber: '',
       shortCode: '',
       environment: 'sandbox' as 'sandbox' | 'production',
-      callbackUsername: '',
-      callbackSecret: '',
-      notificationApiKey: '',
       stkPushBaseUrl: '',
       requestUrl: '',
       pushStkUrl: '',
@@ -68,9 +65,6 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
           accountNumber: institution.ncbaConfig?.accountNumber || '',
           shortCode: institution.ncbaConfig?.shortCode || '',
           environment: institution.ncbaConfig?.environment || 'sandbox',
-          callbackUsername: institution.ncbaConfig?.callbackUsername || '',
-          callbackSecret: institution.ncbaConfig?.callbackSecret || '',
-          notificationApiKey: institution.ncbaConfig?.notificationApiKey || '',
           stkPushBaseUrl: institution.ncbaConfig?.stkPushBaseUrl || '',
           requestUrl: institution.ncbaConfig?.requestUrl || '',
           pushStkUrl: institution.ncbaConfig?.pushStkUrl || '',
@@ -120,24 +114,6 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     onSave(institution.id, saveData);
   };
 
-  const generateNcbaCredentials = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    const generateRandomString = (length: number) => {
-      const array = new Uint32Array(length);
-      window.crypto.getRandomValues(array);
-      return Array.from(array).map(x => chars[x % chars.length]).join('');
-    };
-
-    setFormData(prev => ({
-      ...prev,
-      ncbaConfig: {
-        ...prev.ncbaConfig,
-        callbackUsername: `inst_${institution.id.slice(-6)}_${generateRandomString(4)}`,
-        callbackSecret: generateRandomString(32),
-        notificationApiKey: `key_${generateRandomString(24)}`
-      }
-    }));
-  };
 
   const handleTestNcbaStk = async () => {
     const phoneNumber = prompt('Enter phone number for NCBA STK Push test:', formData.phoneNumber);
@@ -621,76 +597,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       </button>
                     </div>
 
-                    <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-[9px] font-black text-indigo-500 uppercase ml-1 tracking-wider">Callback Authentication Creds</label>
-                        <button 
-                          type="button" 
-                          onClick={generateNcbaCredentials}
-                          className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-900/10 px-3 py-1.5 rounded-xl transition-all border border-indigo-100 dark:border-indigo-950 shadow-sm"
-                        >
-                          Generate Perspective Keys
-                        </button>
-                      </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in-up">
-                        <div>
-                          <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Callback Username</label>
-                          <input
-                            type="text"
-                            value={formData.ncbaConfig.callbackUsername}
-                            onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, callbackUsername: e.target.value } })}
-                            className="form-input text-[10px] h-10 font-mono"
-                            placeholder="inst_xxxx"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Callback Secret Key</label>
-                          <input
-                            type="text"
-                            value={formData.ncbaConfig.callbackSecret}
-                            onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, callbackSecret: e.target.value } })}
-                            className="form-input text-[10px] h-10 font-mono"
-                            placeholder="Long random secret"
-                          />
-                        </div>
-                        <div className="md:col-span-2">
-                          <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Notification API Key (Optional)</label>
-                          <input
-                            type="text"
-                            value={formData.ncbaConfig.notificationApiKey}
-                            onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, notificationApiKey: e.target.value } })}
-                            className="form-input text-[10px] h-10 font-mono"
-                            placeholder="key_xxxx"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">Tenant Callback URL</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          readOnly
-                          value={`${window.location.origin}/api/ncba-callback?institutionId=${institution.id}`}
-                          className="form-input font-mono text-[10px] bg-slate-100 dark:bg-slate-800 border-dashed h-10 flex-1"
-                        />
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            navigator.clipboard.writeText(`${window.location.origin}/api/ncba-callback?institutionId=${institution.id}`);
-                            alert('Callback URL copied to clipboard');
-                          }}
-                          className="px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[9px] font-bold uppercase hover:bg-slate-50 transition-colors"
-                        >
-                          Copy
-                        </button>
-                      </div>
-                      <p className="text-[9px] text-slate-400 italic leading-relaxed">
-                        Required for STK Push and QR Code notifications. NCBA should use the **Callback Username** and **Callback Secret** as Basic Auth credentials.
-                      </p>
-                    </div>
                   </div>
                 </div>
               </div>

@@ -805,13 +805,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const sanitizeNcbaVal = (s: string) => (s || '').replace(/[^\x20-\x7E]/g, '').trim();
         
         const getNcbaCredentials = (config: any) => {
-            const callbackUser = sanitizeNcbaVal(config.callbackUsername || config.callback_username || '');
-            
-            // Strictly use Callback Username as the primary ID if provided, ignoring the 32-char Client ID
-            const id = callbackUser || sanitizeNcbaVal(config.clientId || config.client_id || config.consumerKey || config.consumer_key || '');
+            // NCBA 2024 Simplified Model: Uses 10-char Username (clientId) and 32-char Secret Key (clientSecret)
+            const id = sanitizeNcbaVal(config.clientId || config.client_id || config.consumerKey || config.consumer_key || '');
             const sec = sanitizeNcbaVal(config.clientSecret || config.client_secret || config.secretKey || config.secret_key || config.consumerSecret || config.consumer_secret || '');
             
-            return { id, sec, callbackUser };
+            return { id, sec };
         };
 
         const getNcbaToken = async (ncbaConfig: any) => {
@@ -821,7 +819,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return 'mock-access-token-ncba-12345';
             }
 
-            const { id: cId, sec: cSec, callbackUser } = getNcbaCredentials(ncbaConfig);
+            const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
             const fingerprint = `ID: ${cId.substring(0, 4)}... (Len: ${cId.length}), Secret: *** (Len: ${cSec.length})`;
             
             if (!cId || !cSec) throw new Error(`NCBA Configuration incomplete: ${!cId ? 'Client ID' : 'Client Secret'} is missing.`);
@@ -855,7 +853,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 
                 const headers: Record<string, string> = {
                     'Accept': 'application/json',
-                    'X-API-Key': ncbaConfig.apiKey || ncbaConfig.api_key || '',
                     'X-Correlation-ID': `edualloc-auth-${Date.now()}`,
                     'User-Agent': 'EduAlloc-AI/1.0.1 (Bank-Auth-Client)',
                     'Cache-Control': 'no-cache',
@@ -930,7 +927,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     CustomerMessage: 'Success. Request accepted for processing (Mock Mode)'
                 };
             }
-            const { id: cId, sec: cSec, callbackUser } = getNcbaCredentials(ncbaConfig);
+            const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
             const fingerprint = `ID: ${cId.substring(0, 4)}... (Len: ${cId.length}), Secret: *** (Len: ${cSec.length})`;
             
             if (!cSec || (!cId && !callbackUser)) {
@@ -984,8 +981,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'Authorization': authHeader,
                         'Content-Type': 'application/json',
                         'Accept': 'application/json',
-                        'X-API-Key': ncbaConfig.apiKey || ncbaConfig.api_key || '',
-                        'X-Callback-Username': callbackUser,
+                        'X-Callback-Username': cId,
                         'X-Correlation-ID': `edualloc-${Date.now()}`,
                         'User-Agent': 'EduAlloc-AI/1.0.1 (Bank-Integration-Client)'
                     }, ncbaConfig.headers),
@@ -994,7 +990,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         Amount: String(amount),
                         PayBillNo: ncbaConfig.paybill || '880100',
                         AccountNo: ncbaConfig.accountNumber || ncbaConfig.account_number,
-                        CallbackUserName: callbackUser || ncbaConfig.accountNumber || ncbaConfig.account_number,
+                        CallbackUserName: cId || ncbaConfig.accountNumber || ncbaConfig.account_number,
                         Network: 'Safaricom',
                         TransactionType: 'CustomerPayBillOnline'
                     }, ncbaConfig.params)),
@@ -1396,7 +1392,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const authHeader = token ? `Bearer ${token}` : `Basic ${Buffer.from(`${ncba.clientId || ncba.client_id}:${ncba.clientSecret || ncba.client_secret}`).toString('base64')}`;
                         
                         const resStatus = await fetchWithTimeout(`${ncba.baseUrl}/payments/v1/status/${checkoutRequestId}`, {
-                            headers: { 'Authorization': authHeader, 'X-API-Key': ncba.apiKey }
+                            headers: { 'Authorization': authHeader }
                         });
                         if (resStatus.ok) {
                             const statusData = await resStatus.json() as any;
@@ -1603,9 +1599,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 'secretKey': 'Secret Key',
                 'secret_key': 'Secret Key',
                 'consumerSecret': 'Secret Key',
-                'consumer_secret': 'Secret Key',
-                'callbackUsername': 'Notification User',
-                'callback_username': 'Notification User'
+                'consumer_secret': 'Secret Key'
             };
 
             Object.keys(fieldMapping).forEach(f => {
@@ -1632,7 +1626,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 baseUrl: !!(ncba.baseUrl || ncba.base_url),
                 stkPushUrl: !!(ncba.stkPushBaseUrl || ncba.stk_push_base_url || ncba.baseUrl || ncba.base_url),
                 isMock: ncba.isMock === true || ncba.isMock === 'true',
-                serverIp: await fetch('https://api.ipify.org?format=json').then(r => r.json()).then(d => d.ip).catch(() => 'Unknown')
+                serverIp: await fetch('https://api.ipify.org?format=json').then(r => r.json()).then(d => (d as any).ip).catch(() => 'Unknown')
             };
 
             try {
@@ -1873,9 +1867,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 ncbaConfig = toCamelCase(settings?.ncba_config || settings?.ncbaConfig);
             }
 
-            // 2. Verify Authentication if configured
-            const expectedUser = ncbaConfig?.callbackUsername;
-            const expectedPass = ncbaConfig?.callbackSecret;
+            // 2. Verify Authentication (using primary API credentials)
+            const expectedUser = ncbaConfig?.clientId;
+            const expectedPass = ncbaConfig?.clientSecret;
 
             if (expectedUser && expectedPass) {
                 const authHeader = req.headers.authorization || '';
