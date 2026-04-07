@@ -1081,9 +1081,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             
             const rawData = await safeParseJson(res) as any;
-            const statusStr = (rawData.status || '').toUpperCase();
-            const isSuccess = statusStr === 'SUCCESS' || statusStr === 'COMPLETED' || rawData.ResultCode === '0' || rawData.ResponseCode === '0' || rawData.success === true;
-            const isFailure = statusStr === 'FAILED' || statusStr === 'REJECTED' || rawData.ResultCode === '1';
+            const statusStr = (rawData.status || rawData.TransactionStatus || rawData.Status || '').toUpperCase();
+            const isSuccess = statusStr === 'SUCCESS' || statusStr === 'COMPLETED' || 
+                             rawData.ResultCode === '0' || rawData.ResponseCode === '0' || 
+                             rawData.StatusCode === '0' || rawData.success === true ||
+                             String(rawData.ResponseCode) === '00';
+            const isFailure = statusStr === 'FAILED' || statusStr === 'REJECTED' || rawData.ResultCode === '1' || rawData.StatusCode === '1';
 
             // Map the bank's status to our platform's expected unified structure
             return {
@@ -1403,9 +1406,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const statusData = await queryNcbaStkStatus(ncba, checkoutRequestId);
                         externalData = statusData;
                         // Map 2024 spec 'status: SUCCESS' to our platform's completed state
-                        if (statusData.status === 'SUCCESS' || statusData.ResultCode === '0' || statusData.ResponseCode === '0' || statusData.success === true) {
+                        if (statusData.success === true || statusData.status === 'SUCCESS' || statusData.ResultCode === '0' || statusData.ResponseCode === '0' || statusData.StatusCode === '0') {
                             finalStatus = 'completed';
-                        } else if (statusData.status === 'FAILED' || statusData.ResultCode === '1') {
+                        } else if (statusData.status === 'FAILED' || statusData.ResultCode === '1' || statusData.StatusCode === '1') {
                             finalStatus = 'failed';
                         }
                     } catch (e) {
