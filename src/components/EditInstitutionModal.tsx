@@ -115,6 +115,26 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
   };
 
 
+  const [isTestingNcba, setIsTestingNcba] = useState(false);
+  const [ncbaTestResult, setNcbaTestResult] = useState<any>(null);
+
+  const handleTestNcbaAuth = async () => {
+    setIsTestingNcba(true);
+    setNcbaTestResult(null);
+    try {
+      const { apiService } = await import('../services/apiService');
+      const res = await apiService.post('/api/integrations', {
+        action: 'testNcbaAuth',
+        config: formData.ncbaConfig
+      });
+      setNcbaTestResult(res);
+    } catch (err: any) {
+      setNcbaTestResult({ success: false, error: err.message || 'Connection failed' });
+    } finally {
+      setIsTestingNcba(false);
+    }
+  };
+
   const handleTestNcbaStk = async () => {
     const phoneNumber = prompt('Enter phone number for NCBA STK Push test:', formData.phoneNumber);
     if (!phoneNumber) return;
@@ -587,14 +607,53 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       </div>
                     </div>
 
-                    <div className="pt-4 flex justify-start">
-                      <button
-                        type="button"
-                        onClick={handleTestNcbaStk}
-                        className="text-[9px] font-black uppercase text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-xl transition-all shadow-md active:scale-95"
-                      >
-                        Test NCBA STK Push
-                      </button>
+                    <div className="pt-4 flex flex-col gap-4">
+                      <div className="flex gap-4">
+                        <button
+                          type="button"
+                          onClick={handleTestNcbaAuth}
+                          disabled={isTestingNcba}
+                          className="flex items-center gap-2 text-[9px] font-black uppercase text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-5 py-2.5 rounded-xl transition-all border border-indigo-100 disabled:opacity-50"
+                        >
+                          {isTestingNcba ? (
+                            <div className="w-3 h-3 border border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                          )}
+                          {isTestingNcba ? 'Verifying Gateway...' : 'Verify Auth (Get Token)'}
+                        </button>
+                        
+                        <button
+                          type="button"
+                          onClick={handleTestNcbaStk}
+                          className="flex items-center gap-2 text-[9px] font-black uppercase text-white bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 rounded-xl transition-all shadow-md active:scale-95"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                          Test STK Push
+                        </button>
+                      </div>
+
+                      {ncbaTestResult && (
+                        <div className={`p-4 rounded-2xl border animate-fade-in-up ${ncbaTestResult.success ? 'bg-emerald-50/50 border-emerald-100' : 'bg-red-50/50 border-red-100'}`}>
+                          <div className="flex items-start gap-3">
+                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${ncbaTestResult.success ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                              {ncbaTestResult.success ? (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                              ) : (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                               <p className={`text-[10px] font-black uppercase tracking-tight ${ncbaTestResult.success ? 'text-emerald-700' : 'text-red-700'}`}>
+                                  {ncbaTestResult.success ? 'Gateway Verified' : 'Authentication Failed'}
+                               </p>
+                               <p className="text-[10px] text-slate-500 font-medium leading-tight mt-1 line-clamp-2">
+                                  {ncbaTestResult.hint || ncbaTestResult.message || ncbaTestResult.error || (ncbaTestResult.success ? 'Token retrieved successfully.' : 'Check credentials.')}
+                               </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
 

@@ -3153,7 +3153,7 @@ Please change it after login.`;
                                                                 ) : (
                                                                     <BeakerIcon className="w-4 h-4 group-hover:scale-110 transition-transform" />
                                                                 )}
-                                                                {isTestingNcba ? 'Verifying Gateway...' : 'Test NCBA Connection'}
+                                                                {isTestingNcba ? 'Verifying Handshake...' : 'Verify Auth Handshake (Get Token)'}
                                                             </button>
                                                         </div>
 
@@ -3169,7 +3169,7 @@ Please change it after login.`;
                                                                                 {ncbaTestResult.success ? 'Gateway Verified Successfully' : 'Authentication Failed'}
                                                                             </h6>
                                                                             <p className="text-[10px] text-slate-500 font-medium leading-relaxed mt-1">
-                                                                                {ncbaTestResult.message || ncbaTestResult.error || (ncbaTestResult.success ? 'The platform was able to retrieve a token from NCBA.' : 'The gateway rejected the request with a 401 Unauthorized error.')}
+                                                                                {ncbaTestResult.hint || ncbaTestResult.message || ncbaTestResult.error || (ncbaTestResult.success ? 'The platform was able to retrieve a token from NCBA.' : 'The gateway rejected the request with a 401 Unauthorized error.')}
                                                                             </p>
                                                                             {ncbaTestResult.diagnostics?.hint && (
                                                                                 <p className="text-[10px] text-amber-600 font-black uppercase tracking-widest mt-2">{ncbaTestResult.diagnostics.hint}</p>

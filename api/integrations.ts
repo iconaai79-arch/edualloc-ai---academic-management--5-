@@ -1636,7 +1636,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (token) {
                     diagnostics.tokenStatus = 'Success';
                     diagnostics.gatewayReachable = true;
-                    return res.status(200).json({ success: true, diagnostics, hint: 'Authentication successful!' });
+                    const maskedToken = token.length > 20 ? `${token.substring(0, 10)}...${token.substring(token.length - 10)}` : '***';
+                    return res.status(200).json({ success: true, diagnostics, hint: `Authentication successful! Token retrieved: ${maskedToken}` });
                 } else {
                     diagnostics.tokenStatus = 'Failed: No token returned';
                     return res.status(200).json({ success: false, diagnostics, hint: 'Bank server reached, but no token was issued.' });

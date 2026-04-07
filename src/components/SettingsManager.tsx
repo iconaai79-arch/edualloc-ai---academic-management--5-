@@ -1441,7 +1441,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                             ) : (
                                                                 <BeakerIcon className="w-4 h-4 group-hover:scale-110 transition-transform" />
                                                             )}
-                                                            {isTestingGlobalNcba ? 'Verifying Gateway...' : 'Test NCBA Connection'}
+                                                            {isTestingGlobalNcba ? 'Verifying Handshake...' : 'Verify Auth Handshake (Get Token)'}
                                                         </button>
 
                                                         {globalNcbaTestResult && (
@@ -1456,7 +1456,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                                 {globalNcbaTestResult.success ? 'Gateway Verified' : 'Connection Failed'}
                                                                             </h6>
                                                                             <p className="text-[10px] text-slate-500 font-medium leading-tight mt-1">
-                                                                                {globalNcbaTestResult.message || globalNcbaTestResult.error || (globalNcbaTestResult.success ? 'Token retrieved successfully.' : 'Check credentials for errors.')}
+                                                                                {globalNcbaTestResult.hint || globalNcbaTestResult.message || globalNcbaTestResult.error || (globalNcbaTestResult.success ? 'Token retrieved successfully.' : 'Check credentials for errors.')}
                                                                             </p>
                                                                             {globalNcbaTestResult.diagnostics?.hint && (
                                                                                 <p className="text-[9px] text-amber-600 font-black uppercase mt-2">{globalNcbaTestResult.diagnostics.hint}</p>
@@ -2440,7 +2440,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             ) : (
                                                 <BeakerIcon className="w-4 h-4 group-hover:scale-110 transition-transform" />
                                             )}
-                                            {isTestingInstNcba ? 'Verifying Gateway...' : 'Test NCBA Connection'}
+                                            {isTestingInstNcba ? 'Verifying Handshake...' : 'Verify Auth Handshake (Get Token)'}
                                         </button>
 
                                         {instNcbaTestResult && (
@@ -2455,7 +2455,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                                 {instNcbaTestResult.success ? 'Gateway Verified' : 'Connection Failed'}
                                                             </h6>
                                                             <p className="text-[10px] text-slate-500 font-medium leading-tight mt-1">
-                                                                {instNcbaTestResult.message || instNcbaTestResult.error || (instNcbaTestResult.success ? 'Token retrieved successfully.' : 'Check credentials for errors.')}
+                                                                {instNcbaTestResult.hint || instNcbaTestResult.message || instNcbaTestResult.error || (instNcbaTestResult.success ? 'Platform successfully handshake with NCBA and retrieved a session token.' : 'Gateways rejected the handshake. Check credentials.')}
                                                             </p>
                                                             {instNcbaTestResult.diagnostics?.hint && (
                                                                 <p className="text-[9px] text-amber-600 font-black uppercase mt-2">{instNcbaTestResult.diagnostics.hint}</p>
