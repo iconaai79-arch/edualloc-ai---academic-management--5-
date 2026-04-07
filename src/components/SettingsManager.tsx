@@ -593,7 +593,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         try {
             const res = await apiService.initiatePayment('ncba', 1, phoneNumber, undefined, localInstNcbaConfig);
             if (res.success) {
-                const checkoutRequestId = res.TransactionID;
+                const checkoutRequestId = res.checkoutRequestId || res.TransactionID;
                 setNcbaStkTestStatus("Push Sent. Waiting for payment...");
                 
                 // Start Polling for Status
@@ -601,61 +601,19 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 const pollInterval = setInterval(async () => {
                     attempts++;
                     const statusRes = await apiService.checkPaymentStatus('ncba', checkoutRequestId, localInstNcbaConfig);
-                    console.log(`[NCBA Test Polling] Attempt ${attempts}:`, statusRes);
+                    console.log(`[NCBA Inst Test Polling] Attempt ${attempts}:`, statusRes);
                     
                     if (statusRes.status === 'completed') {
                         clearInterval(pollInterval);
-                        setNcbaStkTestStatus("Success! Payment verified successfully.");
+                        setNcbaStkTestStatus("Success! Verified.");
                         setIsTestingStk(false);
-                        alert("NCBA STK Push Success! Payment has been verified.");
+                        alert("NCBA STK Push Success! Payment verified.");
                     } else if (statusRes.status === 'failed' || attempts > 30) {
                         clearInterval(pollInterval);
-                        setNcbaStkTestStatus(statusRes.status === 'failed' ? "Failed. Transaction was rejected or failed." : "Timeout. No response within 2 minutes.");
+                        setNcbaStkTestStatus(statusRes.status === 'failed' ? "Failed" : "Timeout");
                         setIsTestingStk(false);
                     } else {
-                        setNcbaStkTestStatus(`Confirming Payment... (Attempt ${attempts}/30)`);
-                    }
-                }, 4000);
-            } else {
-                const detail = res.error || (res.details ? JSON.stringify(res.details) : '');
-                setNcbaStkTestStatus("Initiation Failed.");
-                setIsTestingStk(false);
-                alert(`NCBA Initiation Failure: ${res.message || 'Unknown error.'}${detail ? '\n\nDetail: ' + detail : ''}`);
-            }
-        } catch (e: any) {
-            setNcbaStkTestStatus("Handshake Error.");
-            setIsTestingStk(false);
-            alert(`NCBA Handshake Error: ${e.message || 'Connection failed'}`);
-        }
-    };
-
-    const handleTestGlobalNcbaStk = async () => {
-        const phoneNumber = prompt('Enter phone number for NCBA STK Push test:');
-        if (!phoneNumber) return;
-        setIsTestingStk(true);
-        setNcbaStkTestStatus("Initiating Global Push...");
-        try {
-            const res = await apiService.initiatePayment('ncba', 1, phoneNumber, undefined, localCompanyInfo.ncbaConfig);
-            if (res.success) {
-                const checkoutRequestId = res.TransactionID;
-                setNcbaStkTestStatus("Push Sent. Waiting for response...");
-                
-                let attempts = 0;
-                const pollInterval = setInterval(async () => {
-                    attempts++;
-                    const statusRes = await apiService.checkPaymentStatus('ncba', checkoutRequestId, localCompanyInfo.ncbaConfig);
-                    
-                    if (statusRes.status === 'completed') {
-                        clearInterval(pollInterval);
-                        setNcbaStkTestStatus("Success! Global Payment Verified.");
-                        setIsTestingStk(false);
-                        alert("NCBA Global STK Push Success! Payment verified.");
-                    } else if (statusRes.status === 'failed' || attempts > 30) {
-                        clearInterval(pollInterval);
-                        setNcbaStkTestStatus(statusRes.status === 'failed' ? "Global Failure." : "Global Timeout.");
-                        setIsTestingStk(false);
-                    } else {
-                        setNcbaStkTestStatus(`Verifying... (${attempts}/30)`);
+                        setNcbaStkTestStatus(`Confirming (${attempts}/30)`);
                     }
                 }, 4000);
             } else {
@@ -670,6 +628,50 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             alert(`NCBA Handshake Error: ${e.message || 'Connection failed'}`);
         }
     };
+
+    const handleTestGlobalNcbaStk = async () => {
+        const phoneNumber = prompt('Enter phone number for NCBA STK Push test:');
+        if (!phoneNumber) return;
+        setIsTestingStk(true);
+        setNcbaStkTestStatus("Initiating Global...");
+        try {
+            const res = await apiService.initiatePayment('ncba', 1, phoneNumber, undefined, localCompanyInfo.ncbaConfig);
+            if (res.success) {
+                const checkoutRequestId = res.checkoutRequestId || res.TransactionID;
+                setNcbaStkTestStatus("Push Sent. Waiting...");
+                
+                let attempts = 0;
+                const pollInterval = setInterval(async () => {
+                    attempts++;
+                    const statusRes = await apiService.checkPaymentStatus('ncba', checkoutRequestId, localCompanyInfo.ncbaConfig);
+                    console.log(`[NCBA Global Test Polling] Attempt ${attempts}:`, statusRes);
+                    
+                    if (statusRes.status === 'completed') {
+                        clearInterval(pollInterval);
+                        setNcbaStkTestStatus("Verified!");
+                        setIsTestingStk(false);
+                        alert("Global NCBA Payment Verified!");
+                    } else if (statusRes.status === 'failed' || attempts > 30) {
+                        clearInterval(pollInterval);
+                        setNcbaStkTestStatus(statusRes.status === 'failed' ? "Failed" : "Timeout");
+                        setIsTestingStk(false);
+                    } else {
+                        setNcbaStkTestStatus(`Polling (${attempts}/30)`);
+                    }
+                }, 4000);
+            } else {
+                const detail = res.error || (res.details ? JSON.stringify(res.details) : '');
+                setNcbaStkTestStatus("Failed.");
+                setIsTestingStk(false);
+                alert(`NCBA Global Initiation Failure: ${res.message || 'Unknown error.'}${detail ? '\n\nDetail: ' + detail : ''}`);
+            }
+        } catch (e: any) {
+            setNcbaStkTestStatus("Error.");
+            setIsTestingStk(false);
+            alert(`NCBA Handshake Error: ${e.message || 'Connection failed'}`);
+        }
+    };
+
 
     const handleSaveGlobalConfigs = async () => {
         if (!props.onUpdateCompanyDetails || !props.companyDetails) return;
