@@ -1081,16 +1081,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             
             const rawData = await safeParseJson(res) as any;
-            const isSuccess = rawData.status === 'SUCCESS' || rawData.ResultCode === '0' || rawData.ResponseCode === '0' || rawData.success === true;
-            const isFailure = rawData.status === 'FAILED' || rawData.ResultCode === '1';
+            const statusStr = (rawData.status || '').toUpperCase();
+            const isSuccess = statusStr === 'SUCCESS' || statusStr === 'COMPLETED' || rawData.ResultCode === '0' || rawData.ResponseCode === '0' || rawData.success === true;
+            const isFailure = statusStr === 'FAILED' || statusStr === 'REJECTED' || rawData.ResultCode === '1';
 
-            // Map the bank's 'status: SUCCESS' to our platform's expected unified structure
+            // Map the bank's status to our platform's expected unified structure
             return {
                 ...rawData,
                 success: isSuccess,
                 // Legacy compatibility fields
-                ResultCode: isSuccess ? '0' : (isFailure ? '1' : null), // null keeps it in 'pending' state
-                ResultDesc: rawData.description
+                ResultCode: isSuccess ? '0' : (isFailure ? '1' : null),
+                ResultDesc: rawData.description || rawData.StatusDescription
             };
         };
 
