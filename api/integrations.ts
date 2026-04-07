@@ -963,7 +963,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const effectiveBase = normalizeNcbaUrl(ncbaConfig.stkPushBaseUrl || ncbaConfig.stk_push_base_url || ncbaConfig.baseUrl || ncbaConfig.base_url);
             if (!effectiveBase) throw new Error('NCBA Base URL or STK Push Base URL is missing in the configuration.');
             
-            // Priority: pushStkUrl (new) -> 2024 spec default
+            // Priority: pushStkUrl (new) -> Default spec path
             const effectivePath = ncbaConfig.pushStkUrl || '/payments/api/v1/stk-push/initiate';
             // If the path field contains a full URL, use it directly; otherwise join with base
             const fullUrl = effectivePath.startsWith('http')
@@ -972,7 +972,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     ? effectiveBase + effectivePath.substring(1) 
                     : (!effectiveBase.endsWith('/') && !effectivePath.startsWith('/') ? effectiveBase + '/' + effectivePath : effectiveBase + effectivePath));
 
-            console.log(`[NCBA STK] Initiation request to: ${fullUrl}`);
+            console.log(`[NCBA STK] Initiation request to: ${fullUrl} (POST)`);
             let res: Response;
             try {
                 res = await fetchWithTimeout(fullUrl, {
@@ -981,16 +981,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'Authorization': authHeader,
                         'Content-Type': 'application/json',
                         'Accept': 'application/json',
-                        'X-Callback-Username': cId,
-                        'X-Correlation-ID': `edualloc-${Date.now()}`,
-                        'User-Agent': 'EduAlloc-AI/1.0.1 (Bank-Integration-Client)'
+                        'X-Correlation-ID': `edualloc-${Date.now()}`
                     }, ncbaConfig.headers),
                     body: JSON.stringify(mergeParams({
                         TelephoneNo: normalizePhoneNCBA(phone),
                         Amount: String(amount),
                         PayBillNo: ncbaConfig.paybill || '880100',
                         AccountNo: ncbaConfig.accountNumber || ncbaConfig.account_number,
-                        CallbackUserName: cId || ncbaConfig.accountNumber || ncbaConfig.account_number,
                         Network: 'Safaricom',
                         TransactionType: 'CustomerPayBillOnline'
                     }, ncbaConfig.params)),
@@ -1631,6 +1628,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     info: 'Type: Header, Param: Authorization, Value: Basic <string>'
                 };
             }
+
+            // Provide sample payload structure for visual confirmation
+            const paybillVal = ncba.paybill || '880100';
+            const accVal = ncba.accountNumber || ncba.account_number || 'UNKNOWN';
+            diagnostics.fields['Initiation Body (RAW JSON)'] = {
+                fingerprint: `{"TelephoneNo": "254...", "Amount": "1", "PayBillNo": "${paybillVal}", "AccountNo": "${accVal}", "Network": "Safaricom", "TransactionType": "CustomerPayBillOnline"}`,
+                length: -1,
+                validChars: true,
+                info: 'Structure: TelephoneNo, Amount, PayBillNo, AccountNo, Network, TransactionType'
+            };
 
             const authMethod = (ncba.authMethod || 'bearer').toLowerCase();
             diagnostics.connection = {
