@@ -893,14 +893,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (!tokenRes.ok) {
-                const finalErrBody = await tokenRes.text().catch(() => 'No body');
-                console.error(`[NCBA Auth] Permanent Failure: ${tokenRes.status} - ${finalErrBody}`);
+                const finalErrData = await safeParseJson(tokenRes).catch(() => null) as any;
+                const finalMsg = finalErrData?.message || finalErrData?.error_description || 'Unknown Bank Error';
+                console.error(`[NCBA Auth] Permanent Failure: ${tokenRes.status} - ${finalMsg}`);
                 
-                let hint = `Check your credentials. Actually using ${fingerprint}.`;
+                let hint = `Actually using ${fingerprint}.`;
                 if (tokenRes.status === 401) {
-                    hint = `Gateway persists 401. If ${fingerprint} is correct, your server IP might not be whitelisted at NCBA. Ref: ${finalErrBody}`;
+                    hint = `Bank says: "${finalMsg}". Check credentials or whitelist.`;
                 } else if (tokenRes.status === 404) {
                     hint = `NCBA Endpoint not found. Verify your Base URL and Path. Check if they match the 2024 spec.`;
+                } else {
+                    hint = `Status ${tokenRes.status}: "${finalMsg}"`;
                 }
                 throw new Error(`NCBA Authentication failed (${tokenRes.status}): ${hint}`);
             }
@@ -1052,10 +1055,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             let effectiveBase = (ncbaConfig.stkPushBaseUrl || ncbaConfig.stk_push_base_url || ncbaConfig.baseUrl || ncbaConfig.base_url || '').trim();
             if (!effectiveBase) throw new Error('NCBA Base URL is missing.');
-            if (!effectiveBase.startsWith('http')) effectiveBase = 'https://' + effectiveBase;
-
-            const effectivePath = ncbaConfig.queryStkUrl || ncbaConfig.query_stk_url || '/payments/api/v1/stk-push/query';
-            // If the path field contains a full URL, use it directly; otherwise join with base
+            if (!effectiveBase.startsWith('http')) effectiveBase = 'https://' + effectiveBase;            // Priority: queryStkUrl (new) -> Default spec path
+            const effectivePath = ncbaConfig.queryStkUrl || '/payments/api/v1/stk-push/query';
+            // Join base and path
             const fullUrl = effectivePath.startsWith('http')
                 ? effectivePath
                 : (effectiveBase.endsWith('/') && effectivePath.startsWith('/') 
@@ -1075,9 +1077,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
 
             if (!res.ok) {
-                return await safeParseJson(res, 'NCBA Query rejected').catch(e => ({ success: false, StatusCode: 'ERROR', StatusDescription: e.message }));
+                return await safeParseJson(res, 'NCBA Query rejected').catch(e => ({ success: false, status: 'ERROR', description: e.message }));
             }
-            return await safeParseJson(res);
+            
+            const rawData = await safeParseJson(res) as any;
+            // Map the bank's 'status: SUCCESS' to our platform's expected unified structure
+            return {
+                ...rawData,
+                success: rawData.status === 'SUCCESS',
+                // Legacy compatibility fields
+                ResultCode: rawData.status === 'SUCCESS' ? '0' : '1',
+                ResultDesc: rawData.description
+            };
         };
 
         const generateNcbaQr = async (ncbaConfig: any, amount: number) => {
