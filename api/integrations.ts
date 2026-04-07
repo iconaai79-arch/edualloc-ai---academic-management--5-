@@ -1649,6 +1649,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     diagnostics.tokenStatus = 'Success';
                     diagnostics.gatewayReachable = true;
                     const maskedToken = token.length > 20 ? `${token.substring(0, 10)}...${token.substring(token.length - 10)}` : '***';
+                    
+                    // Add retrieved token to diagnostics for visible confirmation
+                    diagnostics.fields['Authorization (Bearer)'] = {
+                        fingerprint: 'Bearer ' + token.substring(0, 8),
+                        length: token.length + 7,
+                        validChars: true,
+                        info: 'Type: Header, Param: Authorization, Value: Bearer <String>'
+                    };
+
                     return res.status(200).json({ success: true, diagnostics, hint: `Authentication successful! Token retrieved: ${maskedToken}` });
                 } else if (authMethod === 'basic') {
                     // Specific handling for Basic Auth which bypasses token generation
