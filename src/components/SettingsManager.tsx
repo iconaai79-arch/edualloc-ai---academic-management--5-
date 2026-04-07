@@ -300,6 +300,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [instNcbaTestResult, setInstNcbaTestResult] = useState<{ success: boolean; message?: string; diagnostics?: any; error?: string } | null>(null);
     const [isTestingGlobalNcba, setIsTestingGlobalNcba] = useState(false);
     const [globalNcbaTestResult, setGlobalNcbaTestResult] = useState<{ success: boolean; message?: string; diagnostics?: any; error?: string } | null>(null);
+    const [ncbaStkTestStatus, setNcbaStkTestStatus] = useState<string | null>(null);
+    const [isTestingStk, setIsTestingStk] = useState(false);
 
     useEffect(() => {
         setLocalInstSmsConfig(props.currentInstitution?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -586,14 +588,43 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const handleTestInstNcbaStk = async () => {
         const phoneNumber = prompt('Enter phone number for NCBA STK Push test:');
         if (!phoneNumber) return;
+        setIsTestingStk(true);
+        setNcbaStkTestStatus("Initiating Push...");
         try {
             const res = await apiService.initiatePayment('ncba', 1, phoneNumber, undefined, localInstNcbaConfig);
-            if (res.success) alert("NCBA STK Push request sent to phone.");
-            else {
+            if (res.success) {
+                const checkoutRequestId = res.TransactionID;
+                setNcbaStkTestStatus("Push Sent. Waiting for payment...");
+                
+                // Start Polling for Status
+                let attempts = 0;
+                const pollInterval = setInterval(async () => {
+                    attempts++;
+                    const statusRes = await apiService.checkPaymentStatus('ncba', checkoutRequestId, localInstNcbaConfig);
+                    console.log(`[NCBA Test Polling] Attempt ${attempts}:`, statusRes);
+                    
+                    if (statusRes.status === 'completed') {
+                        clearInterval(pollInterval);
+                        setNcbaStkTestStatus("Success! Payment verified successfully.");
+                        setIsTestingStk(false);
+                        alert("NCBA STK Push Success! Payment has been verified.");
+                    } else if (statusRes.status === 'failed' || attempts > 30) {
+                        clearInterval(pollInterval);
+                        setNcbaStkTestStatus(statusRes.status === 'failed' ? "Failed. Transaction was rejected or failed." : "Timeout. No response within 2 minutes.");
+                        setIsTestingStk(false);
+                    } else {
+                        setNcbaStkTestStatus(`Confirming Payment... (Attempt ${attempts}/30)`);
+                    }
+                }, 4000);
+            } else {
                 const detail = res.error || (res.details ? JSON.stringify(res.details) : '');
+                setNcbaStkTestStatus("Initiation Failed.");
+                setIsTestingStk(false);
                 alert(`NCBA Initiation Failure: ${res.message || 'Unknown error.'}${detail ? '\n\nDetail: ' + detail : ''}`);
             }
         } catch (e: any) {
+            setNcbaStkTestStatus("Handshake Error.");
+            setIsTestingStk(false);
             alert(`NCBA Handshake Error: ${e.message || 'Connection failed'}`);
         }
     };
@@ -601,21 +632,41 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const handleTestGlobalNcbaStk = async () => {
         const phoneNumber = prompt('Enter phone number for NCBA STK Push test:');
         if (!phoneNumber) return;
+        setIsTestingStk(true);
+        setNcbaStkTestStatus("Initiating Global Push...");
         try {
-            console.log('[NCBA Test] Initiating Institution STK Push test...', {
-                recipient: phoneNumber,
-                baseUrl: localCompanyInfo.ncbaConfig?.baseUrl,
-                stkPushBaseUrl: localCompanyInfo.ncbaConfig?.stkPushBaseUrl,
-                isMock: localCompanyInfo.ncbaConfig?.isMock
-            });
             const res = await apiService.initiatePayment('ncba', 1, phoneNumber, undefined, localCompanyInfo.ncbaConfig);
-            console.log('[NCBA Test] Response:', res);
-            if (res.success) alert("NCBA STK Push request sent to phone.");
-            else {
+            if (res.success) {
+                const checkoutRequestId = res.TransactionID;
+                setNcbaStkTestStatus("Push Sent. Waiting for response...");
+                
+                let attempts = 0;
+                const pollInterval = setInterval(async () => {
+                    attempts++;
+                    const statusRes = await apiService.checkPaymentStatus('ncba', checkoutRequestId, localCompanyInfo.ncbaConfig);
+                    
+                    if (statusRes.status === 'completed') {
+                        clearInterval(pollInterval);
+                        setNcbaStkTestStatus("Success! Global Payment Verified.");
+                        setIsTestingStk(false);
+                        alert("NCBA Global STK Push Success! Payment verified.");
+                    } else if (statusRes.status === 'failed' || attempts > 30) {
+                        clearInterval(pollInterval);
+                        setNcbaStkTestStatus(statusRes.status === 'failed' ? "Global Failure." : "Global Timeout.");
+                        setIsTestingStk(false);
+                    } else {
+                        setNcbaStkTestStatus(`Verifying... (${attempts}/30)`);
+                    }
+                }, 4000);
+            } else {
                 const detail = res.error || (res.details ? JSON.stringify(res.details) : '');
+                setNcbaStkTestStatus("Initiation Failed.");
+                setIsTestingStk(false);
                 alert(`NCBA Initiation Failure: ${res.message || 'Unknown error.'}${detail ? '\n\nDetail: ' + detail : ''}`);
             }
         } catch (e: any) {
+            setNcbaStkTestStatus("Error.");
+            setIsTestingStk(false);
             alert(`NCBA Handshake Error: ${e.message || 'Connection failed'}`);
         }
     };
@@ -1705,9 +1756,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     <button 
                                                         type="button"
                                                         onClick={handleTestGlobalNcbaStk}
-                                                        className="btn-secondary h-14 px-8 border-teal-200 text-teal-600 uppercase tracking-widest text-[10px]"
+                                                        disabled={isTestingStk}
+                                                        className="btn-secondary h-14 px-8 border-teal-200 text-teal-600 uppercase tracking-widest text-[10px] flex flex-col items-center justify-center gap-1"
                                                     >
-                                                        Test STK Push
+                                                        <span>{isTestingStk ? 'Processing...' : 'Test STK Push'}</span>
+                                                        {ncbaStkTestStatus && <span className="text-[8px] opacity-70 lowercase font-medium">{ncbaStkTestStatus}</span>}
                                                     </button>
                                                     <button onClick={handleSaveGlobalConfigs} className="btn-primary h-14 px-12 shadow-xl shadow-teal-100 dark:shadow-none bg-teal-600 border-none uppercase tracking-widest text-[10px]">Save NCBA Config</button>
                                                 </div>
@@ -3335,9 +3388,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <button 
                                                 type="button"
                                                 onClick={handleTestInstNcbaStk}
-                                                className="btn-secondary h-14 px-8 border-teal-200 text-teal-600 uppercase tracking-widest text-[10px]"
+                                                disabled={isTestingStk}
+                                                className="btn-secondary h-14 px-8 border-teal-200 text-teal-600 uppercase tracking-widest text-[10px] flex flex-col items-center justify-center gap-1"
                                             >
-                                                Test STK Push
+                                                <span>{isTestingStk ? 'Processing...' : 'Test STK Push'}</span>
+                                                {ncbaStkTestStatus && <span className="text-[8px] opacity-70 lowercase font-medium">{ncbaStkTestStatus}</span>}
                                             </button>
                                             <button 
                                                 onClick={async () => {
