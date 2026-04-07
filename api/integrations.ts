@@ -1593,24 +1593,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 tips: []
             };
 
-            const fields = [
-                'clientId', 'client_id', 'consumerKey', 'consumer_key', 
-                'callbackUsername', 'callback_username',
-                'clientSecret', 'client_secret', 'secretKey', 'secret_key',
-                'consumerSecret', 'consumer_secret'
-            ];
+            const fieldMapping: Record<string, string> = {
+                'clientId': 'Username',
+                'client_id': 'Username',
+                'consumerKey': 'Username',
+                'consumer_key': 'Username',
+                'clientSecret': 'Secret Key',
+                'client_secret': 'Secret Key',
+                'secretKey': 'Secret Key',
+                'secret_key': 'Secret Key',
+                'consumerSecret': 'Secret Key',
+                'consumer_secret': 'Secret Key',
+                'callbackUsername': 'Notification User',
+                'callback_username': 'Notification User'
+            };
 
-            fields.forEach(f => {
+            Object.keys(fieldMapping).forEach(f => {
                 const val = ncba[f];
                 if (val !== undefined && val !== null && String(val).trim() !== '') {
                     const strVal = String(val);
                     const sanitized = strVal.replace(/[^\x20-\x7E]/g, '').trim();
-                    diagnostics.fields[f] = {
-                        present: true,
-                        fingerprint: sanitized.substring(0, 4),
-                        length: strVal.length,
-                        validChars: strVal === sanitized
-                    };
+                    const label = fieldMapping[f];
+                    
+                    // Group similar fields under the same UI label
+                    if (!diagnostics.fields[label]) {
+                        diagnostics.fields[label] = {
+                            fingerprint: sanitized.substring(0, 4),
+                            length: strVal.length,
+                            validChars: strVal === sanitized
+                        };
+                    }
                 }
             });
 
