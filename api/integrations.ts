@@ -1620,6 +1620,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             });
 
+            // Add calculated Authorization header for verification
+            const { id: cId, sec: cSec } = getNcbaCredentials(ncba);
+            if (cId && cSec) {
+                const basicAuth = Buffer.from(`${cId}:${cSec}`).toString('base64');
+                diagnostics.fields['Authorization Header'] = {
+                    fingerprint: 'Basic ' + basicAuth.substring(0, 8),
+                    length: basicAuth.length + 6,
+                    validChars: true,
+                    info: 'Type: Header, Param: Authorization, Value: Basic <string>'
+                };
+            }
+
             const authMethod = (ncba.authMethod || 'bearer').toLowerCase();
             diagnostics.connection = {
                 authMethod,
@@ -1651,8 +1663,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 diagnostics.tokenStatus = `Failed: ${err.message}`;
                 // Fallback: check if the gateway is at least reachable
                 const testUrl = normalizeNcbaUrl(ncba.baseUrl || ncba.base_url);
-                const headRes = await fetchWithTimeout(testUrl, { method: 'HEAD' }).catch(() => null);
-                diagnostics.gatewayReachable = !!headRes;
+                const getRes = await fetchWithTimeout(testUrl, { method: 'GET' }).catch(() => null);
+                diagnostics.gatewayReachable = !!getRes;
 
                 return res.status(200).json({ 
                     success: false, 
