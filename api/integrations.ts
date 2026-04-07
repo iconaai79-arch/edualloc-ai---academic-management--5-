@@ -1777,7 +1777,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         status: 'pending',
                         metadata: paramsMap.metadata || {}
                     });
-                    return res.status(200).json({ success: true, message: 'NCBA Direct Debit request initiated.', data: resData });
+                    return res.status(200).json({ 
+                        success: true, 
+                        message: 'NCBA Direct Debit request initiated.', 
+                        checkoutRequestId: resData.TransactionID || resData.ReferenceID,
+                        data: resData 
+                    });
                 }
                 return res.status(400).json({ success: false, message: resData.StatusDescription || 'NCBA gateway error.', details: resData });
             } catch (err: any) {
