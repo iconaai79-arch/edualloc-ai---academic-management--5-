@@ -678,8 +678,10 @@ export const App: React.FC = () => {
                     const desc = (txn.description || '').toLowerCase();
                     const type = txn.metadata?.type;
                     return type === 'subscription' || 
+                           type === 'sms' ||
                            desc.includes('license') || 
                            desc.includes('renewal') || 
+                           desc.includes('sms top-up') ||
                            desc.includes('portal subscription');
                 });
             }

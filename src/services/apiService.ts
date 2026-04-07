@@ -1426,7 +1426,22 @@ export const apiService = {
     async fetchVoteHeads(instId?: string): Promise<VoteHead[]> { return apiService.fetchModuleRecords('vote_heads', instId); },
     async fetchFeeStructures(instId?: string): Promise<FeeStructure[]> { return apiService.fetchModuleRecords('fee_structures', instId); },
     async fetchFinancialPeriods(instId?: string): Promise<FinancialPeriod[]> { return apiService.fetchModuleRecords('financial_periods', instId); },
-    async fetchTransactions(instId?: string): Promise<MpesaTransaction[]> { return apiService.fetchModuleRecords('mpesa_transactions', instId); },
+    async fetchTransactions(instId?: string): Promise<MpesaTransaction[]> { 
+        const [mpesa, ncba, airtel, intasend] = await Promise.all([
+            apiService.fetchModuleRecords('mpesa_transactions', instId).catch(() => []),
+            apiService.fetchModuleRecords('ncba_transactions', instId).catch(() => []),
+            apiService.fetchModuleRecords('airtel_transactions', instId).catch(() => []),
+            apiService.fetchModuleRecords('intasend_transactions', instId).catch(() => [])
+        ]);
+        
+        // Merge and sort by timestamp (newest first)
+        const allTxns = [...mpesa, ...ncba, ...airtel, ...intasend];
+        return allTxns.sort((a, b) => {
+            const dateA = new Date(a.timestamp || a.createdAt || a.created_at || 0).getTime();
+            const dateB = new Date(b.timestamp || b.createdAt || b.created_at || 0).getTime();
+            return dateB - dateA;
+        });
+    },
     async fetchReceipts(instId?: string): Promise<Receipt[]> { return apiService.fetchModuleRecords('receipts', instId); },
     async fetchInvoices(instId?: string): Promise<Invoice[]> { return apiService.fetchModuleRecords('invoices', instId); },
     async fetchSmsLogs(instId?: string): Promise<SmsLog[]> { return apiService.fetchModuleRecords('sms_logs', instId); },
