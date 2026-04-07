@@ -834,8 +834,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             
             const tokenBase = normalizeNcbaUrl(ncbaConfig.baseUrl || ncbaConfig.base_url);
-            const isNewEndpoint = tokenBase.includes('c2bapis.ncbagroup.com');
-            const tokenPath = isNewEndpoint ? '/payments/oauth/v1/generate' : '/oauth/v1/generate';
+            // Updated Path (2024 spec requirement): /payments/api/v1/auth/token
+            const tokenPath = '/payments/api/v1/auth/token';
 
             // --- NCBA Smart Auth Strategy (2024 Hardening) ---
             // Tier 1: Standard RFC 6749 Header-based Basic Auth
