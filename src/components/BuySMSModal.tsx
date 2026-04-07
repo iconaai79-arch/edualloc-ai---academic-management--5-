@@ -107,7 +107,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                         setStatusMessage(`Payment Confirmed! ${units.toLocaleString()} SMS units have been added to your balance.`);
                         setIsLoading(false);
                         onPurchaseComplete(units);
-                    } else if (status === 'failed' || attempts >= maxAttempts) {
+                    } else if (status === 'failed' || attempts >= 25) {
                         clearInterval(pollInterval);
                         setFinalStatus('failed');
                         setStatusMessage(status === 'failed' ? 'Transaction failed. Please try again.' : 'Timeout waiting for payment confirmation. If you have paid, it will reflect shortly.');

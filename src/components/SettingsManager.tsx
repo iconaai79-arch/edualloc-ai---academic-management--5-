@@ -608,12 +608,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                         setNcbaStkTestStatus("Success! Verified.");
                         setIsTestingStk(false);
                         alert("NCBA STK Push Success! Payment verified.");
-                    } else if (statusRes.status === 'failed' || attempts > 30) {
+                    } else if (statusRes.status === 'failed' || attempts > 25) {
                         clearInterval(pollInterval);
                         setNcbaStkTestStatus(statusRes.status === 'failed' ? "Failed" : "Timeout");
                         setIsTestingStk(false);
                     } else {
-                        setNcbaStkTestStatus(`Confirming (${attempts}/30)`);
+                        setNcbaStkTestStatus(`Polling (${attempts}/25)`);
                     }
                 }, 4000);
             } else {
@@ -651,12 +651,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                         setNcbaStkTestStatus("Verified!");
                         setIsTestingStk(false);
                         alert("Global NCBA Payment Verified!");
-                    } else if (statusRes.status === 'failed' || attempts > 30) {
+                    } else if (statusRes.status === 'failed' || attempts > 25) {
                         clearInterval(pollInterval);
                         setNcbaStkTestStatus(statusRes.status === 'failed' ? "Failed" : "Timeout");
                         setIsTestingStk(false);
                     } else {
-                        setNcbaStkTestStatus(`Polling (${attempts}/30)`);
+                        setNcbaStkTestStatus(`Polling (${attempts}/25)`);
                     }
                 }, 4000);
             } else {
