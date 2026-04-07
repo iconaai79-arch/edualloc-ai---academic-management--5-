@@ -4,11 +4,11 @@ import type {
     User, Role, SmsConfig, Department, Unavailability, Course,
     CourseLevel, UserMappingField, StaffImportPreviewUser, Institution,
     AllocationRequest, Priority, Subject, UserUpdateData, LetterheadConfig,
-    CompanyDetails, MpesaTransaction, TransactionStatus, InvoiceItem
+    CompanyDetails, MpesaTransaction, TransactionStatus, InvoiceItem, TimeOffRequest
 } from '../types';
 import { PayNowModal } from './PayNowModal';
 import { RETAIL_SUBTYPES, VALID_STAFF_ROLES } from '../constants';
-import { getRolesForInstitution, formatRoleDisplayName } from '../utils/roleUtils';
+import { getRolesForInstitution, formatRoleDisplayName, isSchoolInstitution, isHigherEdInstitution, isEduInstitution } from '../utils/roleUtils';
 import { PlusIcon } from './icons/PlusIcon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
 import { AcademicCapIcon } from './icons/AcademicCapIcon';
@@ -193,6 +193,8 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
         const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
         return type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || subType.includes('coop') || subType.includes('sacco');
     }, [currentInstitution]);
+
+    const isEdu = isEduInstitution(currentInstitution);
 
     const isChurch = useMemo(() => {
         return currentInstitution?.institutionType === 'Church';
@@ -816,8 +818,8 @@ interface UserManagerProps {
     onDirectAssign?: (lecturerId: string, subjectIds: string[], priority: Priority, justification: string, courseLevelSelections: Record<string, string[]>) => void;
     onUpdateRequest?: (requestId: string, data: Partial<Omit<AllocationRequest, 'id'>>) => void;
     onWithdrawRequest?: (requestId: string) => Promise<void>;
-    onDeleteUser: (userId: string) => Promise<void>;
-    onEditUser: (userId: string, data: UserUpdateData) => Promise<void>;
+    onDeleteUser?: (userId: string) => Promise<void>;
+    onEditUser?: (userId: string, data: UserUpdateData) => Promise<void>;
     onAddUnavailability?: (userId: string, unavailability: Omit<Unavailability, 'id' | 'status'>) => void;
     onUpdateUnavailability?: (userId: string, unavailabilityId: string, data: Partial<Omit<Unavailability, 'id'>>) => void;
     onDeleteUnavailability?: (userId: string, unavailabilityId: string) => void;
@@ -831,7 +833,7 @@ interface UserManagerProps {
     onAddParent?: (studentId: string, parentData: { name: string, email: string, phone: string }) => Promise<{ success: boolean, message: string, credentials?: { email: string, password: string } }>;
     onDeleteParent?: (studentId: string, parentId: string) => void;
     onLogAction?: (action: string) => Promise<void>;
-    onAddTimeOffRequest?: (userId: string, data: any) => Promise<void>;
+    onAddTimeOffRequest?: (data: Partial<TimeOffRequest>) => Promise<void>;
     onSendBulkCredentials?: (users: User[], method: 'email' | 'sms') => Promise<{ success_count: number; fail_count: number }>;
     onAddTransaction?: (data: Omit<MpesaTransaction, 'id' | 'transactionId' | 'timestamp' | 'status'>, items: InvoiceItem[]) => Promise<TransactionStatus>;
     onSendSms?: (recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
@@ -877,7 +879,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
     const institutionDomain = useMemo(() => currentInstitution?.email?.split('@')[1] || 'institution.edu', [currentInstitution]);
 
-    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isSchool = isSchoolInstitution(currentInstitution);
+    const isHigherEd = isHigherEdInstitution(currentInstitution);
+    const isEdu = isEduInstitution(currentInstitution);
     const isCoop = useMemo(() => {
         if (typeof isCoopProp === 'boolean') return isCoopProp;
         const type = currentInstitution?.institutionType;
@@ -894,10 +898,6 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         return type === 'Property Management' || subType.includes('property management');
     }, [currentInstitution, isPmProp]);
 
-    const isEdu = useMemo(() => {
-        const type = currentInstitution?.institutionType;
-        return ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(type || '');
-    }, [currentInstitution]);
 
     // Form State
     const [name, setName] = useState('');
@@ -912,6 +912,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const [courseLevelId, setCourseLevelId] = useState('');
     const [sendWelcomeSms, setSendWelcomeSms] = useState(false);
     const [sendWelcomeEmail, setSendWelcomeEmail] = useState(false);
+    const [driverType, setDriverType] = useState<'staff' | 'private'>('staff');
 
     const resetForm = () => {
         setName(''); setEmail(''); setPhone(''); setStaffId('');
@@ -1548,7 +1549,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                                     <button
                                                         onClick={async () => {
                                                             if (window.confirm(`Archive ${u.name}?`)) {
-                                                                await onDeleteUser(u.id);
+                                                                await onDeleteUser?.(u.id);
                                                                 props.onLogAction?.(`Archived user record: ${u.name} (${u.role})`);
                                                             }
                                                         }}
@@ -1589,7 +1590,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                     onClose={() => setRequestingTimeOffFor(null)}
                     onSubmit={async (data) => {
                         if (props.onAddTimeOffRequest && requestingTimeOffFor) {
-                            await props.onAddTimeOffRequest(requestingTimeOffFor.id, data);
+                            await props.onAddTimeOffRequest({ ...data, lecturerId: requestingTimeOffFor.id });
                             setRequestingTimeOffFor(null);
                         }
                     }}
@@ -1601,7 +1602,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                     user={editingUser}
                     departments={departments}
                     onClose={() => setEditingUser(null)}
-                    onSave={async (id, data) => { await onEditUser(id, data); setEditingUser(null); }}
+                    onSave={async (id, data) => { if (onEditUser) { await onEditUser(id, data); } setEditingUser(null); }}
                     currentInstitution={currentInstitution}
                     fixedDepartmentId={currentUser?.role === 'hod' || currentUser?.role === 'tto' ? currentUser.departmentId : undefined}
                 />
@@ -1618,7 +1619,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                         let successCount = 0;
                         for (const id of studentIds) {
                             try {
-                                await onEditUser(id, { courseId: targetCourseId, courseLevelId: targetCourseLevelId } as any);
+                                await onEditUser?.(id, { courseId: targetCourseId, courseLevelId: targetCourseLevelId } as any);
                                 successCount++;
                             } catch (e) {
                                 console.error(`Failed to promote student ${id}`, e);

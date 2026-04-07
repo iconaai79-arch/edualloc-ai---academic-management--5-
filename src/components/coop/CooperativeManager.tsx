@@ -212,7 +212,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [isAddingRider, setIsAddingRider] = useState(false);
     const [isOpeningAccount, setIsOpeningAccount] = useState(false);
     const [newSaccoAccount, setNewSaccoAccount] = useState<Partial<SaccoAccount>>({
-        accountType: 'savings',
+        accountType: 'Savings',
         status: 'active'
     });
     const [newInventory, setNewInventory] = useState<any>({});
@@ -623,7 +623,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                 createdAt: new Date().toISOString()
             });
             setIsOpeningAccount(false);
-            setNewSaccoAccount({ accountType: 'savings', status: 'active' });
+            setNewSaccoAccount({ accountType: 'Savings', status: 'active' });
             if (onLogAction) await onLogAction(`Opened SACCO account for farmer ${newSaccoAccount.farmerId}`);
         } catch (err) {
             console.error(err);
@@ -3971,20 +3971,20 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Account Type</label>
                                 <div className="grid grid-cols-2 gap-4">
-                                    {(['savings', 'shares'] as const).map(type => (
-                                        <button
-                                            key={type}
-                                            type="button"
-                                            onClick={() => setNewSaccoAccount({...newSaccoAccount, accountType: type})}
-                                            className={`p-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                                newSaccoAccount.accountType === type 
-                                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-none' 
-                                                : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:bg-slate-100'
-                                            }`}
-                                        >
-                                            {type}
-                                        </button>
-                                    ))}
+                                {(['Savings', 'Shares'] as const).map(type => (
+                                    <button
+                                        key={type}
+                                        type="button"
+                                        onClick={() => setNewSaccoAccount({...newSaccoAccount, accountType: type})}
+                                        className={`p-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                            newSaccoAccount.accountType === type 
+                                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-none' 
+                                            : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        {type}
+                                    </button>
+                                ))}
                                 </div>
                             </div>
 

@@ -18,7 +18,7 @@ import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
 import { analyzeUserSpreadsheet } from '../services/geminiService';
 import { EditUserModal } from './EditUserModal';
 import { ManageLessonsModal } from './ManageLessonsModal';
-import { getRolesForInstitution, formatRoleDisplayName } from '../utils/roleUtils';
+import { getRolesForInstitution, formatRoleDisplayName, isSchoolInstitution } from '../utils/roleUtils';
 
 import * as XLSX from 'xlsx';
 
@@ -499,7 +499,7 @@ export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
         setDriverType('staff');
     };
 
-    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isSchool = isSchoolInstitution(currentInstitution);
     const canAddUser = ['admin', 'head_teacher', 'hod', 'dos'].includes(currentUser.role);
 
     const filteredUsers = useMemo(() => {

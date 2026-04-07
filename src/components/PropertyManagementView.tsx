@@ -78,7 +78,7 @@ interface PropertyManagementViewProps {
     letterheadConfig: LetterheadConfig;
     logoUrl: string | null;
     footerImageUrl: string | null;
-    onSendBulkCredentials?: (type: 'sms' | 'email', entries: User[]) => Promise<void>;
+    onSendBulkCredentials?: (users: User[], method: 'email' | 'sms') => Promise<{ success_count: number; fail_count: number }>;
 }
 
 export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 

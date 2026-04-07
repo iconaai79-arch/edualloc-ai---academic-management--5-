@@ -3,10 +3,16 @@ import {
     ArchiveBoxIcon, PlusIcon, SparklesIcon, SearchIcon, CheckCircleIcon, 
     ClipboardListIcon, CurrencyIcon, ExclamationTriangleIcon, BeakerIcon, 
     PencilIcon, DocumentTextIcon, ClockIcon, UserIcon, TrashIcon,
-    ArrowPathIcon, ChartBarIcon, DocumentTextIcon, CreditCardIcon, EnvelopeIcon, PhoneIcon,
+    ArrowPathIcon, ChartBarIcon, CreditCardIcon, EnvelopeIcon, PhoneIcon,
     ShieldCheckIcon, CheckBadgeIcon, UsersIcon, BanknotesIcon, BellIcon, SettingsIcon
 } from '../icons';
 import { apiService } from '../../services/apiService';
+import { 
+    generatePharmacyInventoryReportPdf,
+    generatePharmacyExpiryReportPdf,
+    generatePharmacyStaffPayslipPdf,
+    generatePharmacyReceiptPdf
+} from '../../services/pdfService';
 import { 
     HISPharmacyInventory, 
     HISPharmacyBatch, 
@@ -16,15 +22,16 @@ import {
     PharmacySale,
     PharmacyLedger,
     PharmacyStaff,
-    PharmacySettings
+    PharmacySettings,
+    Institution
 } from '../../types';
 import { AddPharmacyInventoryModal } from './AddPharmacyInventoryModal';
 import { SmartPharmacyInventoryImporterModal } from './SmartPharmacyInventoryImporterModal';
 import { DispenseMedicationModal } from './DispenseMedicationModal';
 
 
-export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ institutionId }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'inventory' | 'prescriptions' | 'hr' | 'accounting' | 'automation' | 'config'>('dashboard');
+export const ModernPharmacyManager: React.FC<{ institutionId: string; currentInstitution?: Institution | null }> = ({ institutionId, currentInstitution }) => {
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'inventory' | 'prescriptions' | 'hr' | 'accounting' | 'automation' | 'reports' | 'config'>('dashboard');
     const [isLoading, setIsLoading] = useState(true);
     
     // Core Data
@@ -43,10 +50,17 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
     const [selectedPatient, setSelectedPatient] = useState<HISPatient | null>(null);
     const [isProcessingSale, setIsProcessingSale] = useState(false);
     const [isAddStaffOpen, setIsAddStaffOpen] = useState(false);
+    const [editingStaff, setEditingStaff] = useState<PharmacyStaff | null>(null);
     const [isAddLedgerOpen, setIsAddLedgerOpen] = useState(false);
+    const [editingLedger, setEditingLedger] = useState<PharmacyLedger | null>(null);
     const [isAddInventoryOpen, setIsAddInventoryOpen] = useState(false);
+    const [editingInventory, setEditingInventory] = useState<HISPharmacyInventory | null>(null);
     const [isImportInventoryOpen, setIsImportInventoryOpen] = useState(false);
+    const [selectedInventoryForBatch, setSelectedInventoryForBatch] = useState<HISPharmacyInventory | null>(null);
     const [selectedPrescriptionForDispense, setSelectedPrescriptionForDispense] = useState<HISPrescription | null>(null);
+    const [selectedPrescriptionForAudit, setSelectedPrescriptionForAudit] = useState<HISPrescription | null>(null);
+    const [isAddPrescriptionOpen, setIsAddPrescriptionOpen] = useState(false);
+    const [isRegisterPatientOpen, setIsRegisterPatientOpen] = useState(false);
     const [settings, setSettings] = useState<PharmacySettings | null>(null);
 
     const loadData = async () => {
@@ -95,6 +109,46 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
     useEffect(() => { loadData(); }, [institutionId]);
 
     // Derived Metrics
+    const [selectedReportUrl, setSelectedReportUrl] = useState<string | null>(null);
+    const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+
+    const handleGenerateInventoryReport = async () => {
+        setIsGeneratingReport(true);
+        try {
+            const dataUri = await generatePharmacyInventoryReportPdf(inventory, currentInstitution!, undefined, null);
+            setSelectedReportUrl(dataUri);
+        } catch (e) {
+            alert("Inventory report generation failed");
+        } finally {
+            setIsGeneratingReport(false);
+        }
+    };
+
+    const handleGenerateExpiryReport = async () => {
+        setIsGeneratingReport(true);
+        try {
+            const dataUri = await generatePharmacyExpiryReportPdf(batches, inventory, currentInstitution!, undefined, null);
+            setSelectedReportUrl(dataUri);
+        } catch (e) {
+            alert("Expiry report generation failed");
+        } finally {
+            setIsGeneratingReport(false);
+        }
+    };
+
+    const handleGenerateStaffPayslip = async (s: PharmacyStaff) => {
+        const month = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+        setIsGeneratingReport(true);
+        try {
+            const dataUri = await generatePharmacyStaffPayslipPdf(s, month, currentInstitution!, undefined, null);
+            setSelectedReportUrl(dataUri);
+        } catch (e) {
+            alert("Payslip generation failed");
+        } finally {
+            setIsGeneratingReport(false);
+        }
+    };
+
     const metrics = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
         const todaySales = sales.filter(s => s.createdAt.startsWith(today));
@@ -180,6 +234,19 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
             }
 
             alert("Checkout Successful! Stock updated and Ledger entry created.");
+            
+            // 5. Generate and Show Receipt Preview
+            const receiptData = await generatePharmacyReceiptPdf(
+                { id: saleId, createdAt: new Date().toISOString(), totalAmount: total, paymentMethod: 'Cash', paymentStatus: 'Paid' } as any,
+                posCart.map(item => ({ medicationId: item.id, quantity: item.quantity, totalPrice: item.unitPrice * item.quantity }) as any),
+                inventory,
+                settings,
+                currentInstitution as any,
+                undefined,
+                null
+            );
+            setSelectedReportUrl(receiptData);
+
             setPosCart([]);
             loadData();
         } catch (e) {
@@ -191,51 +258,96 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
 
     const handleAddStaff = async (staffData: any) => {
         try {
-            await apiService.saveModuleRecord('his_pharmacy_staff', {
-                ...staffData,
-                id: `stf_${Date.now()}`,
-                institutionId,
-                status: 'active',
-                hireDate: new Date().toISOString()
-            });
-            alert("Staff recruited successfully!");
+            if (editingStaff) {
+                await apiService.saveModuleRecord('his_pharmacy_staff', {
+                    ...staffData,
+                    id: editingStaff.id,
+                    updatedAt: new Date().toISOString()
+                });
+                alert("Staff profile updated!");
+            } else {
+                await apiService.saveModuleRecord('his_pharmacy_staff', {
+                    ...staffData,
+                    id: `stf_${Date.now()}`,
+                    institutionId,
+                    status: 'active',
+                    hireDate: new Date().toISOString()
+                });
+                alert("Staff recruited successfully!");
+            }
             setIsAddStaffOpen(false);
+            setEditingStaff(null);
             loadData();
         } catch (e) {
-            alert("Staff recruitment failed.");
+            alert("Staff operation failed.");
         }
     };
 
     const handleAddLedger = async (ledgerData: any) => {
         try {
-            await apiService.saveModuleRecord('his_pharmacy_ledger', {
-                ...ledgerData,
-                id: `ldg_${Date.now()}`,
-                institutionId,
-                createdAt: new Date().toISOString()
-            });
-            alert("Entry recorded in ledger.");
+            if (editingLedger) {
+                await apiService.saveModuleRecord('his_pharmacy_ledger', {
+                    ...ledgerData,
+                    id: editingLedger.id
+                });
+                alert("Ledger entry updated.");
+            } else {
+                await apiService.saveModuleRecord('his_pharmacy_ledger', {
+                    ...ledgerData,
+                    id: `ldg_${Date.now()}`,
+                    institutionId,
+                    createdAt: new Date().toISOString()
+                });
+                alert("Entry recorded in ledger.");
+            }
             setIsAddLedgerOpen(false);
+            setEditingLedger(null);
             loadData();
         } catch (e) {
-            alert("Ledger recording failed.");
+            alert("Ledger operation failed.");
         }
     };
 
     const handleAddInventory = async (itemData: any) => {
         try {
-            await apiService.saveModuleRecord('his_pharmacy_inventory', {
-                ...itemData,
-                id: `inv_${Date.now()}`,
-                institutionId,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            });
-            alert("Inventory item added!");
+            if (editingInventory) {
+                await apiService.saveModuleRecord('his_pharmacy_inventory', {
+                    ...itemData,
+                    id: editingInventory.id,
+                    updatedAt: new Date().toISOString()
+                });
+                alert("Inventory item updated!");
+            } else {
+                await apiService.saveModuleRecord('his_pharmacy_inventory', {
+                    ...itemData,
+                    id: `inv_${Date.now()}`,
+                    institutionId,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                });
+                alert("Inventory item added!");
+            }
             setIsAddInventoryOpen(false);
+            setEditingInventory(null);
             loadData();
         } catch (e) {
-            alert("Failed to add inventory item.");
+            alert("Inventory operation failed.");
+        }
+    };
+
+    const handleAddBatch = async (batchData: any) => {
+        try {
+            await apiService.saveModuleRecord('his_pharmacy_batches', {
+                ...batchData,
+                id: `bth_${Date.now()}`,
+                institutionId,
+                createdAt: new Date().toISOString()
+            });
+            alert("Batch committed to storage!");
+            setSelectedInventoryForBatch(null);
+            loadData();
+        } catch (e) {
+            alert("Batch commit failed.");
         }
     };
 
@@ -382,12 +494,14 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                     </h1>
                     <div className="flex items-center gap-3 mt-4">
                         <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 italic">Advanced Bio-Logistic Terminal v4.0</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 italic">
+                            {settings?.pharmacyName || 'Advanced Bio-Logistic Terminal'} v4.0
+                        </p>
                     </div>
                 </div>
 
                 <div className="flex bg-white/5 backdrop-blur-3xl p-1.5 rounded-[2.5rem] border border-white/10 shadow-2xl">
-                    {(['dashboard', 'pos', 'inventory', 'prescriptions', 'hr', 'accounting', 'automation', 'config'] as const).map(tab => (
+                    {(['dashboard', 'pos', 'inventory', 'prescriptions', 'hr', 'accounting', 'automation', 'reports', 'config'] as const).map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
@@ -402,6 +516,7 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                             {tab === 'hr' && <UsersIcon className="w-4 h-4" />}
                             {tab === 'accounting' && <BanknotesIcon className="w-4 h-4" />}
                             {tab === 'automation' && <SparklesIcon className="w-4 h-4" />}
+                            {tab === 'reports' && <ClipboardListIcon className="w-4 h-4" />}
                             {tab === 'config' && <SettingsIcon className="w-4 h-4" />}
                             {tab}
                         </button>
@@ -559,8 +674,17 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                                             }}
                                          >
                                              <option value="">Walk-in Intelligence</option>
-                                             {patients.map(p => <option key={p.id} value={p.id} className="bg-slate-900">{p.fullName}</option>)}
+                                             {patients.map(p => (
+                                                 <option key={p.id} value={p.id}>{p.fullName}</option>
+                                             ))}
                                          </select>
+                                         <button 
+                                            onClick={() => setIsRegisterPatientOpen(true)}
+                                            className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all shadow-lg shadow-indigo-500/20"
+                                            title="Register New Patient Node"
+                                          >
+                                              <PlusIcon className="w-4 h-4" />
+                                          </button>
                                      </div>
                                  </div>
                              </div>
@@ -702,13 +826,28 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                                         </td>
                                         <td className="px-8 py-10 font-black italic text-indigo-400">KES {item.unitPrice.toLocaleString()}</td>
                                         <td className="px-12 py-10 text-right">
-                                            <div className={`inline-flex items-center gap-3 px-6 py-2 rounded-full text-[9px] font-black uppercase tracking-[0.2em] border ${
-                                                item.stockQuantity <= item.reorderLevel 
-                                                ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
-                                                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                            }`}>
-                                                <div className={`w-1.5 h-1.5 rounded-full ${item.stockQuantity <= item.reorderLevel ? 'bg-rose-400' : 'bg-emerald-400'} animate-pulse`}></div>
-                                                {item.stockQuantity <= item.reorderLevel ? 'Critical Level' : 'Stable Ops'}
+                                            <div className="flex items-center justify-end gap-4">
+                                                <button 
+                                                    onClick={() => setSelectedInventoryForBatch(item)}
+                                                    className="p-2 rounded-xl border border-emerald-500/10 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all group/btn"
+                                                    title="Add Batch"
+                                                >
+                                                    <PlusIcon className="w-4 h-4" />
+                                                </button>
+                                                <button 
+                                                    onClick={() => { setEditingInventory(item); setIsAddInventoryOpen(true); }}
+                                                    className="p-2 rounded-xl border border-white/5 bg-white/5 text-slate-500 hover:text-indigo-400 hover:border-indigo-400/30 transition-all"
+                                                >
+                                                    <PencilIcon className="w-4 h-4" />
+                                                </button>
+                                                <div className={`inline-flex items-center gap-3 px-6 py-2 rounded-full text-[9px] font-black uppercase tracking-[0.2em] border ${
+                                                    item.stockQuantity <= item.reorderLevel 
+                                                    ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
+                                                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                                }`}>
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${item.stockQuantity <= item.reorderLevel ? 'bg-rose-400' : 'bg-emerald-400'} animate-pulse`}></div>
+                                                    {item.stockQuantity <= item.reorderLevel ? 'Critical Level' : 'Stable Ops'}
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
@@ -766,7 +905,15 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                                          </div>
                                          <div className="text-right flex flex-col items-end gap-3">
                                              <p className="text-sm font-black italic tracking-tighter text-white">KES {s.salary.toLocaleString()}</p>
-                                             <button className="px-4 py-1.5 rounded-full border border-white/10 text-[8px] font-black uppercase tracking-widest text-slate-500 hover:text-indigo-400 hover:border-indigo-400/30 transition-all">Config Access</button>
+                                             <div className="flex gap-2">
+                                                 <button 
+                                                    onClick={() => { setEditingStaff(s); setIsAddStaffOpen(true); }}
+                                                    className="p-2 rounded-full border border-white/5 bg-white/5 text-slate-500 hover:text-indigo-400 hover:border-indigo-400/30 transition-all"
+                                                 >
+                                                     <PencilIcon className="w-4 h-4" />
+                                                 </button>
+                                                 <button className="px-4 py-1.5 rounded-full border border-white/10 text-[8px] font-black uppercase tracking-widest text-slate-500 hover:text-indigo-400 hover:border-indigo-400/30 transition-all">Config Access</button>
+                                             </div>
                                          </div>
                                      </div>
                                  ))}
@@ -817,8 +964,16 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                                      </thead>
                                      <tbody className="divide-y divide-white/5">
                                          {ledger.map(l => (
-                                             <tr key={l.id} className="hover:bg-white/[0.02] transition-colors">
-                                                 <td className="px-10 py-6 text-[10px] font-bold text-slate-500">#{l.id.slice(0, 8)}</td>
+                                             <tr key={l.id} className="hover:bg-white/[0.02] transition-colors group">
+                                                 <td className="px-10 py-6 text-[10px] font-bold text-slate-500 flex items-center gap-4">
+                                                     <button 
+                                                       onClick={() => { setEditingLedger(l); setIsAddLedgerOpen(true); }}
+                                                       className="p-1.5 opacity-0 group-hover:opacity-100 rounded bg-white/5 text-slate-500 hover:text-indigo-400 transition-all"
+                                                     >
+                                                         <PencilIcon className="w-3 h-3" />
+                                                     </button>
+                                                     #{l.id.slice(0, 8)}
+                                                 </td>
                                                  <td className="px-6 py-6 font-black text-white uppercase text-[10px] tracking-widest">{l.category}</td>
                                                  <td className="px-6 py-6">
                                                      <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${
@@ -855,6 +1010,12 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                                 <SearchIcon className="w-4 h-4 text-slate-600" />
                                 <input type="text" placeholder="QUERY VAULT..." className="bg-transparent border-none outline-none text-[9px] font-black uppercase tracking-widest w-full text-white" />
                             </div>
+                            <button 
+                                onClick={() => setIsAddPrescriptionOpen(true)}
+                                className="px-8 py-4 rounded-2xl bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20"
+                            >
+                                Register Paper RX
+                            </button>
                         </div>
                     </div>
 
@@ -901,7 +1062,12 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                                 </div>
 
                                 <div className="flex gap-4">
-                                    <button className="flex-1 py-4 rounded-2xl bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">Full Audit</button>
+                                    <button 
+                                        onClick={() => setSelectedPrescriptionForAudit(p)}
+                                        className="flex-1 py-4 rounded-2xl bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+                                    >
+                                        Full Audit
+                                    </button>
                                     <button 
                                         onClick={() => setSelectedPrescriptionForDispense(p)}
                                         className="flex-1 py-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[9px] font-black uppercase tracking-widest hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-30"
@@ -959,6 +1125,90 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                 </div>
             )}
 
+            {activeTab === 'reports' && (
+                <div className="p-12 animate-fade-in space-y-12">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+                        {/* Clinical Inventory Valuation */}
+                        <div className="glass-morphism-dark p-12 rounded-[4rem] border border-white/5 group hover:border-indigo-500/30 transition-all text-center space-y-8">
+                             <div className="w-24 h-24 rounded-[2.5rem] bg-indigo-500/10 flex items-center justify-center text-indigo-400 mx-auto">
+                                 <ArchiveBoxIcon className="w-12 h-12" />
+                             </div>
+                             <div>
+                                 <h3 className="text-2xl font-black uppercase tracking-tighter italic">Clinical <span className="text-indigo-400">Valuation</span></h3>
+                                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">Generate PDF of total stock assets</p>
+                             </div>
+                             <button 
+                                onClick={handleGenerateInventoryReport}
+                                className="w-full py-5 rounded-[2rem] bg-indigo-500 text-white text-[10px] font-black uppercase tracking-[0.4em] shadow-xl hover:scale-105 transition-all"
+                             >
+                                Generate Preview
+                             </button>
+                        </div>
+
+                        {/* Expiry Risk Audit */}
+                        <div className="glass-morphism-dark p-12 rounded-[4rem] border border-white/5 group hover:border-rose-500/30 transition-all text-center space-y-8">
+                             <div className="w-24 h-24 rounded-[2.5rem] bg-rose-500/10 flex items-center justify-center text-rose-400 mx-auto">
+                                 <ExclamationTriangleIcon className="w-12 h-12" />
+                             </div>
+                             <div>
+                                 <h3 className="text-2xl font-black uppercase tracking-tighter italic">Expiry <span className="text-rose-400">Audit</span></h3>
+                                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">Identify and list high-risk batches</p>
+                             </div>
+                             <button 
+                                onClick={handleGenerateExpiryReport}
+                                className="w-full py-5 rounded-[2rem] bg-rose-500 text-white text-[10px] font-black uppercase tracking-[0.4em] shadow-xl hover:scale-105 transition-all"
+                             >
+                                Start Audit PDF
+                             </button>
+                        </div>
+
+                        {/* Payroll Nexus */}
+                        <div className="glass-morphism-dark p-12 rounded-[4rem] border border-white/5 group hover:border-emerald-500/30 transition-all text-center space-y-8 overflow-hidden relative">
+                             <div className="w-24 h-24 rounded-[2.5rem] bg-emerald-500/10 flex items-center justify-center text-emerald-400 mx-auto">
+                                 <UsersIcon className="w-12 h-12" />
+                             </div>
+                             <div className="max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                                 <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-4">Staff <span className="text-emerald-400">Payslips</span></h3>
+                                 <div className="space-y-4">
+                                     {staff.map(s => (
+                                         <button 
+                                            key={s.id}
+                                            onClick={() => handleGenerateStaffPayslip(s)}
+                                            className="w-full flex items-center justify-between p-4 bg-black/40 rounded-2xl border border-white/5 hover:border-emerald-500/50 transition-all group/item"
+                                         >
+                                             <div className="text-left">
+                                                 <p className="text-[10px] font-black uppercase italic text-white">{s.fullName || 'Operator'}</p>
+                                                 <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">{s.role}</p>
+                                             </div>
+                                             <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                                                 <DocumentTextIcon className="w-3 h-3" />
+                                             </div>
+                                         </button>
+                                     ))}
+                                 </div>
+                             </div>
+                        </div>
+                    </div>
+
+                    {/* PDF Preview Frame */}
+                    {selectedReportUrl && (
+                        <div className="w-full h-[800px] rounded-[3rem] border border-white/10 overflow-hidden shadow-2xl animate-fade-in relative">
+                            <button 
+                                onClick={() => setSelectedReportUrl(null)}
+                                className="absolute top-6 right-6 p-4 rounded-full bg-rose-500/80 text-white backdrop-blur-xl hover:bg-rose-500 transition-all z-10"
+                            >
+                                <TrashIcon className="w-6 h-6" />
+                            </button>
+                            <iframe 
+                                src={selectedReportUrl} 
+                                className="w-full h-full"
+                                title="Pharmacy Report Preview"
+                            />
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* CONFIGURATION CENTER */}
             {activeTab === 'config' && settings && (
                 <div className="p-12 animate-fade-in space-y-12 no-scrollbar overflow-y-auto max-h-[75vh]">
@@ -995,11 +1245,20 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                                         />
                                     </div>
                                     <div className="space-y-4 md:col-span-2">
+                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-4">Receipt Header Text</label>
+                                        <textarea 
+                                            value={settings.receiptHeader || ''} 
+                                            onChange={e => setSettings({...settings, receiptHeader: e.target.value})}
+                                            className="w-full bg-black/40 border border-white/5 rounded-[2rem] p-6 text-white text-xs outline-none focus:border-indigo-500/50 transition-all h-20" 
+                                            placeholder="Molecular Nexus Medical Center | P.O. BOX 123..."
+                                        ></textarea>
+                                    </div>
+                                    <div className="space-y-4 md:col-span-2">
                                         <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-4">Receipt Nexus Footer</label>
                                         <textarea 
                                             value={settings.receiptFooter || ''} 
                                             onChange={e => setSettings({...settings, receiptFooter: e.target.value})}
-                                            className="w-full bg-black/40 border border-white/5 rounded-[2rem] p-6 text-white text-xs outline-none focus:border-indigo-500/50 transition-all h-24" 
+                                            className="w-full bg-black/40 border border-white/5 rounded-[2rem] p-6 text-white text-xs outline-none focus:border-indigo-500/50 transition-all h-20" 
                                             placeholder="Thank you for trusting our Molecular Nexus..."
                                         ></textarea>
                                     </div>
@@ -1080,15 +1339,24 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
             {isAddStaffOpen && (
                 <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/80 backdrop-blur-3xl animate-fade-in">
                     <div className="bg-[#101016] border border-white/10 rounded-[3rem] p-12 max-w-xl w-full space-y-8 shadow-2xl">
-                        <h3 className="text-2xl font-black uppercase italic tracking-tighter text-white">Operator Recruitment <span className="text-indigo-400">Hub</span></h3>
+                        <h3 className="text-2xl font-black uppercase italic tracking-tighter text-white">{editingStaff ? 'Update Operator' : 'Operator Recruitment'} <span className="text-indigo-400">Hub</span></h3>
                         <div className="grid grid-cols-2 gap-6">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Full Identity Name</label>
-                                <input id="staff_name" className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50" placeholder="NAME CODE" />
+                                <input 
+                                    id="staff_name" 
+                                    defaultValue={editingStaff?.fullName || ''}
+                                    className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50" 
+                                    placeholder="NAME CODE" 
+                                />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Operational Role</label>
-                                <select id="staff_role" className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50">
+                                <select 
+                                    id="staff_role" 
+                                    defaultValue={editingStaff?.role || 'Pharmacist'}
+                                    className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50"
+                                >
                                     <option value="Pharmacist">Pharmacist</option>
                                     <option value="Technician">Technician</option>
                                     <option value="Cashier">Cashier</option>
@@ -1097,26 +1365,56 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Monthly Yield (KES)</label>
-                                <input id="staff_salary" type="number" className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50" placeholder="SALARY" />
+                                <input 
+                                    id="staff_salary" 
+                                    type="number" 
+                                    defaultValue={editingStaff?.salary || 0}
+                                    className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50" 
+                                    placeholder="SALARY" 
+                                />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Shift Matrix</label>
-                                <select id="staff_shift" className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50">
+                                <select 
+                                    id="staff_shift" 
+                                    defaultValue={editingStaff?.shiftPreference || 'Day Shift'}
+                                    className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50"
+                                >
                                     <option value="Day Shift">Day Shift</option>
                                     <option value="Night Shift">Night Shift</option>
                                     <option value="Hybrid">Hybrid</option>
                                 </select>
                             </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Specialization</label>
+                                <input 
+                                    id="staff_specialization" 
+                                    defaultValue={editingStaff?.specialization || ''}
+                                    className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50" 
+                                    placeholder="e.g. Oncology" 
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">License # / Registration</label>
+                                <input 
+                                    id="staff_license" 
+                                    defaultValue={editingStaff?.licenseNumber || ''}
+                                    className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50" 
+                                    placeholder="PSB-XXXXX" 
+                                />
+                            </div>
                         </div>
                         <div className="flex gap-4">
-                            <button onClick={() => setIsAddStaffOpen(false)} className="flex-1 py-5 rounded-2xl bg-white/5 text-[10px] font-black uppercase tracking-widest text-slate-500">Abort</button>
+                            <button onClick={() => { setIsAddStaffOpen(false); setEditingStaff(null); }} className="flex-1 py-5 rounded-2xl bg-white/5 text-[10px] font-black uppercase tracking-widest text-slate-500">Abort</button>
                             <button onClick={() => {
                                 const name = (document.getElementById('staff_name') as HTMLInputElement).value;
                                 const role = (document.getElementById('staff_role') as HTMLSelectElement).value;
                                 const salary = Number((document.getElementById('staff_salary') as HTMLInputElement).value);
                                 const shift = (document.getElementById('staff_shift') as HTMLSelectElement).value;
-                                handleAddStaff({ fullName: name, role, salary, shiftPreference: shift });
-                            }} className="flex-1 py-5 rounded-2xl bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest">Commit Deployment</button>
+                                const spec = (document.getElementById('staff_specialization') as HTMLInputElement).value;
+                                const license = (document.getElementById('staff_license') as HTMLInputElement).value;
+                                handleAddStaff({ fullName: name, role, salary, shiftPreference: shift, specialization: spec, licenseNumber: license });
+                            }} className="flex-1 py-5 rounded-2xl bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest">{editingStaff ? 'Update Deployment' : 'Commit Deployment'}</button>
                         </div>
                     </div>
                 </div>
@@ -1125,37 +1423,37 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
             {isAddLedgerOpen && (
                 <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/80 backdrop-blur-3xl animate-fade-in">
                     <div className="bg-[#101016] border border-white/10 rounded-[3rem] p-12 max-w-xl w-full space-y-8 shadow-2xl">
-                        <h3 className="text-2xl font-black uppercase italic tracking-tighter text-white">Record Ledger <span className="text-emerald-400">Node</span></h3>
+                        <h3 className="text-2xl font-black uppercase italic tracking-tighter text-white">{editingLedger ? 'Update Ledger' : 'Record Ledger'} <span className="text-emerald-400">Node</span></h3>
                         <div className="grid grid-cols-2 gap-6">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Transaction Flow</label>
-                                <select id="ldg_type" className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50">
+                                <select id="ldg_type" defaultValue={editingLedger?.type || 'Income'} className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50">
                                     <option value="Income">Income Flow</option>
                                     <option value="Expense">Expense Flow</option>
                                 </select>
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Operational Category</label>
-                                <input id="ldg_cat" className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50" placeholder="SALARY, UTILITIES, DRUG PURCHASE" />
+                                <input id="ldg_cat" defaultValue={editingLedger?.category || ''} className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50" placeholder="SALARY, UTILITIES, DRUG PURCHASE" />
                             </div>
                             <div className="space-y-2 col-span-2">
                                 <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Monetary Impact (KES)</label>
-                                <input id="ldg_amount" type="number" className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50" placeholder="AMOUNT" />
+                                <input id="ldg_amount" type="number" defaultValue={editingLedger?.amount || 0} className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50" placeholder="AMOUNT" />
                             </div>
                             <div className="space-y-2 col-span-2">
                                 <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Memo / Description</label>
-                                <textarea id="ldg_desc" className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50 h-24" placeholder="TRANSACTION MEMO"></textarea>
+                                <textarea id="ldg_desc" defaultValue={editingLedger?.description || ''} className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50 h-24" placeholder="TRANSACTION MEMO"></textarea>
                             </div>
                         </div>
                         <div className="flex gap-4">
-                            <button onClick={() => setIsAddLedgerOpen(false)} className="flex-1 py-5 rounded-2xl bg-white/5 text-[10px] font-black uppercase tracking-widest text-slate-500">Abort</button>
+                            <button onClick={() => { setIsAddLedgerOpen(false); setEditingLedger(null); }} className="flex-1 py-5 rounded-2xl bg-white/5 text-[10px] font-black uppercase tracking-widest text-slate-500">Abort</button>
                             <button onClick={() => {
                                 const type = (document.getElementById('ldg_type') as HTMLSelectElement).value;
                                 const category = (document.getElementById('ldg_cat') as HTMLInputElement).value;
                                 const amount = Number((document.getElementById('ldg_amount') as HTMLInputElement).value);
                                 const description = (document.getElementById('ldg_desc') as HTMLTextAreaElement).value;
                                 handleAddLedger({ type, category, amount, description });
-                            }} className="flex-1 py-5 rounded-2xl bg-emerald-500 text-slate-950 text-[10px] font-black uppercase tracking-widest">Finalize Record</button>
+                            }} className="flex-1 py-5 rounded-2xl bg-emerald-500 text-slate-950 text-[10px] font-black uppercase tracking-widest">{editingLedger ? 'Update Record' : 'Finalize Record'}</button>
                         </div>
                     </div>
                 </div>
@@ -1164,9 +1462,214 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string }> = ({ ins
             {isAddInventoryOpen && (
                 <AddPharmacyInventoryModal 
                     institutionId={institutionId}
-                    onClose={() => setIsAddInventoryOpen(false)}
+                    item={editingInventory || undefined}
+                    onClose={() => { setIsAddInventoryOpen(false); setEditingInventory(null); }}
                     onAdd={handleAddInventory}
                 />
+            )}
+
+            {isRegisterPatientOpen && (
+                <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-black/90 backdrop-blur-3xl animate-fade-in">
+                    <div className="bg-[#0a0a0f] border border-white/10 rounded-[4rem] p-16 max-w-2xl w-full space-y-10 shadow-2xl relative">
+                        <button onClick={() => setIsRegisterPatientOpen(false)} className="absolute top-10 right-10 p-3 rounded-full bg-white/5 text-slate-500 hover:text-white"><TrashIcon className="w-6 h-6" /></button>
+                        <h3 className="text-3xl font-black uppercase italic tracking-tighter text-white">Register <span className="text-emerald-400">Patient Node</span></h3>
+                        <div className="grid grid-cols-2 gap-8">
+                            <div className="space-y-3 col-span-2">
+                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.4em]">Full Legal Identity</label>
+                                <input id="reg_name" className="w-full bg-black/60 border border-white/5 rounded-3xl p-6 text-white text-sm outline-none focus:border-emerald-500/50" placeholder="IDENTITY NAME" />
+                            </div>
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.4em]">Contact Link</label>
+                                <input id="reg_phone" className="w-full bg-black/60 border border-white/5 rounded-3xl p-6 text-white text-sm outline-none focus:border-emerald-500/50" placeholder="+254..." />
+                            </div>
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.4em]">Biological Age</label>
+                                <input id="reg_age" type="number" className="w-full bg-black/60 border border-white/5 rounded-3xl p-6 text-white text-sm outline-none focus:border-emerald-500/50" placeholder="YEARS" />
+                            </div>
+                        </div>
+                        <button onClick={async () => {
+                            const name = (document.getElementById('reg_name') as HTMLInputElement).value;
+                            const phone = (document.getElementById('reg_phone') as HTMLInputElement).value;
+                            const age = (document.getElementById('reg_age') as HTMLInputElement).value;
+                            try {
+                                await apiService.saveModuleRecord('his_patients', {
+                                    id: `pat_${Date.now()}`,
+                                    institutionId,
+                                    fullName: name,
+                                    contact: phone,
+                                    age: Number(age) || 0,
+                                    status: 'active'
+                                });
+                                alert("Patient registered in molecular hub!");
+                                setIsRegisterPatientOpen(false);
+                                loadData();
+                            } catch (e) { alert("Registration failed."); }
+                        }} className="w-full py-8 rounded-[2.5rem] bg-emerald-500 text-slate-950 font-black uppercase tracking-[0.5em] shadow-2xl shadow-emerald-500/20">Commit Entry</button>
+                    </div>
+                </div>
+            )}
+
+            {isAddPrescriptionOpen && (
+                <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-black/90 backdrop-blur-3xl animate-fade-in">
+                    <div className="bg-[#0a0a0f] border border-white/10 rounded-[4rem] p-16 max-w-3xl w-full space-y-10 shadow-2xl relative overflow-y-auto max-h-[90vh]">
+                        <button onClick={() => setIsAddPrescriptionOpen(false)} className="absolute top-10 right-10 p-3 rounded-full bg-white/5 text-slate-500 hover:text-white"><TrashIcon className="w-6 h-6" /></button>
+                        <h3 className="text-3xl font-black uppercase italic tracking-tighter text-white">Manual <span className="text-indigo-400">RX Archival</span></h3>
+                        <div className="space-y-8">
+                             <div className="grid grid-cols-2 gap-8">
+                                 <div className="space-y-3">
+                                     <label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.4em]">Target Patient</label>
+                                     <select id="rx_patient" className="w-full bg-black/60 border border-white/5 rounded-3xl p-6 text-white text-sm outline-none focus:border-indigo-500/50">
+                                         {patients.map(p => <option key={p.id} value={p.id}>{p.fullName}</option>)}
+                                     </select>
+                                 </div>
+                                 <div className="space-y-3">
+                                     <label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.4em]">Authorized Doctor</label>
+                                     <input id="rx_doctor" className="w-full bg-black/60 border border-white/5 rounded-3xl p-6 text-white text-sm outline-none focus:border-indigo-500/50" placeholder="DR. NAME" />
+                                 </div>
+                             </div>
+                             <div className="space-y-3">
+                                 <label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.4em]">Molecular Components (Items)</label>
+                                 <div className="p-8 bg-black border border-white/5 rounded-[2.5rem] space-y-6">
+                                     <div className="grid grid-cols-2 gap-4">
+                                         <select id="rx_drug" className="bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-xs">
+                                             {inventory.map(i => <option key={i.id} value={i.name}>{i.name}</option>)}
+                                         </select>
+                                         <input id="rx_qty" type="number" placeholder="QTY" className="bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-xs" />
+                                     </div>
+                                 </div>
+                             </div>
+                             <div className="space-y-3">
+                                 <label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.4em]">Clinical Memo</label>
+                                 <textarea id="rx_notes" className="w-full bg-black/60 border border-white/5 rounded-3xl p-6 text-white text-xs outline-none focus:border-indigo-500/50 h-24" placeholder="DOSAGE, FREQUENCY, DURATION..."></textarea>
+                             </div>
+                        </div>
+                        <button onClick={async () => {
+                            const patId = (document.getElementById('rx_patient') as HTMLSelectElement).value;
+                            const doctor = (document.getElementById('rx_doctor') as HTMLInputElement).value;
+                            const drug = (document.getElementById('rx_drug') as HTMLSelectElement).value;
+                            const qty = (document.getElementById('rx_qty') as HTMLInputElement).value;
+                            const notes = (document.getElementById('rx_notes') as HTMLTextAreaElement).value;
+                            try {
+                                await apiService.saveModuleRecord('his_prescriptions', {
+                                    id: `rx_${Date.now()}`,
+                                    institutionId,
+                                    patientId: patId,
+                                    doctorName: doctor,
+                                    items: [{ drugName: drug, quantity: Number(qty) || 1, frequency: 'Once Daily' }],
+                                    clinicalNotes: notes,
+                                    status: 'pending'
+                                });
+                                alert("Prescription archived and active!");
+                                setIsAddPrescriptionOpen(false);
+                                loadData();
+                            } catch (e) { alert("RX Archival failed."); }
+                        }} className="w-full py-8 rounded-[2.5rem] bg-indigo-500 text-white font-black uppercase tracking-[0.5em] shadow-2xl shadow-indigo-500/20">Archive Prescription</button>
+                    </div>
+                </div>
+            )}
+
+            {selectedInventoryForBatch && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/80 backdrop-blur-3xl animate-fade-in">
+                    <div className="bg-[#101016] border border-white/10 rounded-[3rem] p-12 max-w-xl w-full space-y-8 shadow-2xl">
+                        <h3 className="text-2xl font-black uppercase italic tracking-tighter text-white">Add Batch: <span className="text-emerald-400">{selectedInventoryForBatch.name}</span></h3>
+                        <div className="grid grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Batch Number</label>
+                                <input id="batch_no" className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50" placeholder="BTH-001" />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Expiry Date</label>
+                                <input id="batch_expiry" type="date" className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50" />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Quantity Recv</label>
+                                <input id="batch_qty" type="number" className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50" placeholder="100" />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Cost Price</label>
+                                <input id="batch_cost" type="number" className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-white text-xs outline-none focus:border-indigo-500/50" placeholder="KES" />
+                            </div>
+                        </div>
+                        <div className="flex gap-4">
+                            <button onClick={() => setSelectedInventoryForBatch(null)} className="flex-1 py-5 rounded-2xl bg-white/5 text-[10px] font-black uppercase tracking-widest text-slate-500">Abort</button>
+                            <button onClick={() => {
+                                const bNo = (document.getElementById('batch_no') as HTMLInputElement).value;
+                                const expiry = (document.getElementById('batch_expiry') as HTMLInputElement).value;
+                                const qty = Number((document.getElementById('batch_qty') as HTMLInputElement).value);
+                                const cost = Number((document.getElementById('batch_cost') as HTMLInputElement).value);
+                                handleAddBatch({ 
+                                    medicationId: selectedInventoryForBatch.id, 
+                                    batchNumber: bNo, 
+                                    expiryDate: expiry, 
+                                    quantity: qty, 
+                                    costPrice: cost 
+                                });
+                            }} className="flex-1 py-5 rounded-2xl bg-emerald-500 text-slate-950 text-[10px] font-black uppercase tracking-widest">Commence Stocking</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {selectedPrescriptionForAudit && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/80 backdrop-blur-3xl animate-fade-in">
+                    <div className="bg-[#101016] border border-white/10 rounded-[3rem] p-12 max-w-4xl w-full space-y-8 shadow-2xl overflow-y-auto max-h-[90vh] custom-scrollbar">
+                         <div className="flex justify-between items-start">
+                             <div>
+                                 <h3 className="text-3xl font-black uppercase italic tracking-tighter text-white">Full Dispensing <span className="text-indigo-400">Audit</span></h3>
+                                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-2 px-1">Prescription Node: #{selectedPrescriptionForAudit.id.slice(0, 12)}</p>
+                             </div>
+                             <button onClick={() => setSelectedPrescriptionForAudit(null)} className="p-4 rounded-full bg-white/5 text-slate-500 hover:text-white transition-all">
+                                 <TrashIcon className="w-6 h-6" />
+                             </button>
+                         </div>
+
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                             <div className="space-y-8">
+                                 <div className="glass-morphism-dark p-8 rounded-[2rem] border border-white/5">
+                                     <label className="text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-4 block">Patient Information</label>
+                                     <p className="text-xl font-black uppercase italic text-white">{patients.find(p => p.id === selectedPrescriptionForAudit.patientId)?.fullName || 'N/A'}</p>
+                                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Medical Record Linked</p>
+                                 </div>
+                                 <div className="glass-morphism-dark p-8 rounded-[2rem] border border-white/5">
+                                     <label className="text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-4 block">Prescribing Authority</label>
+                                     <p className="text-xl font-black uppercase italic text-white">Dr. {selectedPrescriptionForAudit.doctorName || 'Unknown Entity'}</p>
+                                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Digital Signature Verified</p>
+                                 </div>
+                             </div>
+
+                             <div className="glass-morphism-dark p-8 rounded-[2rem] border border-white/10 space-y-6">
+                                 <label className="text-[10px] font-black uppercase text-emerald-400 tracking-widest block">Medication Components</label>
+                                 {(selectedPrescriptionForAudit as any).items?.map((item: any, idx: number) => (
+                                     <div key={idx} className="flex justify-between items-center p-4 bg-black/40 rounded-2xl border border-white/5">
+                                         <div>
+                                             <p className="text-xs font-black uppercase italic text-white">{item.drugName}</p>
+                                             <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{item.frequency || 'N/A'} Node</p>
+                                         </div>
+                                         <p className="text-sm font-black italic text-indigo-400">×{item.quantity}</p>
+                                     </div>
+                                 ))}
+                             </div>
+                         </div>
+
+                         {selectedPrescriptionForAudit.clinicalNotes && (
+                             <div className="glass-morphism-dark p-8 rounded-[2rem] border border-white/5 bg-indigo-500/5">
+                                 <label className="text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-4 block italic underline decoration-indigo-500/30 underline-offset-8">Pharmacist Clinical Memo</label>
+                                 <p className="text-xs text-slate-400 italic leading-relaxed">"{selectedPrescriptionForAudit.clinicalNotes}"</p>
+                             </div>
+                         )}
+
+                         {selectedPrescriptionForAudit.medicationImage && (
+                             <div className="rounded-[2rem] overflow-hidden border border-white/10 bg-black/60 aspect-video relative group">
+                                 <img src={selectedPrescriptionForAudit.medicationImage} alt="Dispensing Proof" className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all" />
+                                 <div className="absolute inset-0 flex items-center justify-center">
+                                     <p className="text-[9px] font-black uppercase tracking-[0.5em] text-white opacity-40 group-hover:opacity-0 transition-all">Visual Proof Node</p>
+                                 </div>
+                             </div>
+                         )}
+
+                         <button onClick={() => setSelectedPrescriptionForAudit(null)} className="w-full py-6 rounded-3xl bg-indigo-500 text-white font-black uppercase tracking-widest shadow-2xl shadow-indigo-500/20">Close Audit Stream</button>
+                    </div>
+                </div>
             )}
 
             {isImportInventoryOpen && (

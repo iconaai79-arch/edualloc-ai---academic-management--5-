@@ -23,6 +23,7 @@ import { ListIcon } from './icons/ListIcon';
 import { TrashIcon } from './icons/TrashIcon';
 import { ChartBarIcon } from './icons/ChartBarIcon';
 import { EyeIcon } from './icons/EyeIcon';
+import { isSchoolInstitution, isPrimaryInstitution, isSecondaryInstitution } from '../utils/roleUtils';
 
 import { analyzeCourseSpreadsheet } from '../services/geminiService';
 import { ManageLessonsModal } from './ManageLessonsModal';
@@ -366,10 +367,10 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
     const [previewPdfFilename, setPreviewPdfFilename] = useState<string | null>(null);
 
-    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isSchool = isSchoolInstitution(currentInstitution);
     const isChurch = currentInstitution?.institutionType === 'Church';
-    const isPrimary = currentInstitution?.institutionType === 'Primary';
-    const isSecondary = currentInstitution?.institutionType === 'Secondary';
+    const isPrimary = isPrimaryInstitution(currentInstitution);
+    const isSecondary = isSecondaryInstitution(currentInstitution);
     const courseLabel = isChurch ? 'Program' : (isSchool ? 'Grade' : 'Course');
     const streamOrLevelLabel = isChurch ? 'Group' : (isSchool ? 'Stream' : 'Level');
     const streamOrLevelLabelPlural = isChurch ? 'Groups' : (isSchool ? 'Streams' : 'Levels');
@@ -739,7 +740,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
         const course = (courses || []).find(c => c.id === newLessonCourseId);
         if (!course) return subjects || [];
         // Relax filtering for schools or if department IDs are missing
-        return (subjects || []).filter(s => isSchool || !course.departmentId || !s.departmentId || s.departmentId === course.departmentId);
+        return (subjects || []).filter(s => isSchoolInstitution(currentInstitution) || !course.departmentId || !s.departmentId || s.departmentId === course.departmentId);
     }, [newLessonCourseId, courses, subjects, isSchool]);
 
     const EditCourseModal: React.FC<{

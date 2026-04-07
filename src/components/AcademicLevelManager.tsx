@@ -3,6 +3,7 @@ import type { AcademicLevel, Institution } from '../types';
 import { CheckIcon } from './icons/CheckIcon';
 import { XIcon } from './icons/XIcon';
 import { PlusIcon } from './icons/PlusIcon';
+import { isSchoolInstitution } from '../utils/roleUtils';
 
 
 interface AcademicLevelManagerProps {
@@ -19,7 +20,7 @@ export const AcademicLevelManager: React.FC<AcademicLevelManagerProps> = ({ acad
     const [isAdding, setIsAdding] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
-    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isSchool = isSchoolInstitution(currentInstitution);
     const streamLabel = isSchool ? 'Stream' : 'Academic Level';
     const streamLabelPlural = isSchool ? 'Streams' : 'Academic Levels';
 

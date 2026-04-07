@@ -1,5 +1,5 @@
 
-import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger, CoopFarmer, CoopRider } from '../types';
+import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger, CoopFarmer, CoopRider, HISPharmacyInventory, HISPharmacyBatch, PharmacyStaff, PharmacySale, PharmacySaleItem, PharmacySettings } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
 import { generatePastelColor, generatePastelColorRgb } from '../utils/colorUtils';
@@ -4777,5 +4777,302 @@ export const generatePaymentSchedulePdf = async (
     doc.text(`TOTAL SETTLEMENT: KES ${total.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
 
     setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
+
+/**
+ * Generates an Inventory Report for Pharmacy Medications.
+ */
+export const generatePharmacyInventoryReportPdf = async (
+    items: HISPharmacyInventory[],
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text("NEO-PHARMACEUTICS: INVENTORY STATUS", 14, yPos);
+    yPos += 10;
+
+    const head = [['SKU', 'Medication/Item', 'Category', 'Stock Qty', 'Unit Price (KES)', 'Value (KES)']];
+    const body = items.map(item => [
+        item.sku || 'N/A',
+        item.name,
+        item.category || 'Medication',
+        item.stockQuantity.toLocaleString(),
+        item.unitPrice.toLocaleString(),
+        (item.stockQuantity * item.unitPrice).toLocaleString()
+    ]);
+
+    doc.autoTable({
+        startY: yPos,
+        head: head,
+        body: body,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] }, // Indigo
+        styles: { fontSize: 8 },
+        columnStyles: {
+            3: { halign: 'right' },
+            4: { halign: 'right' },
+            5: { halign: 'right', fontStyle: 'bold' }
+        }
+    });
+
+    const totalValue = items.reduce((sum, item) => sum + (item.stockQuantity * item.unitPrice), 0);
+    yPos = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`TOTAL INVENTORY VALUATION: KES ${totalValue.toLocaleString()}`, pageWidth - 14, yPos, { align: 'right' });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
+
+/**
+ * Generates an Expiry Report for Pharmacy Stock Batches.
+ */
+export const generatePharmacyExpiryReportPdf = async (
+    batches: HISPharmacyBatch[],
+    inventory: HISPharmacyInventory[],
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text("PHARMACY RISK AUDIT: EXPIRY LEDGER", 14, yPos);
+    yPos += 10;
+
+    const head = [['Batch #', 'Item Name', 'Expiry Date', 'Remaining Qty', 'Risk Level']];
+    const today = new Date();
+    const threeMonthsLater = new Date();
+    threeMonthsLater.setMonth(threeMonthsLater.getMonth() + 3);
+
+    const body = batches.map(batch => {
+        const item = inventory.find(i => i.id === batch.medicationId);
+        const expiry = new Date(batch.expiryDate);
+        let risk = 'Normal';
+        if (expiry <= today) risk = 'EXPIRED';
+        else if (expiry <= threeMonthsLater) risk = 'HIGH RISK';
+
+        return [
+            batch.batchNumber,
+            item?.name || 'Unknown Item',
+            new Date(batch.expiryDate).toLocaleDateString(),
+            batch.currentQuantity.toLocaleString(),
+            risk
+        ];
+    });
+
+    doc.autoTable({
+        startY: yPos,
+        head: head,
+        body: body,
+        theme: 'grid',
+        headStyles: { fillColor: [244, 63, 94] }, // Rose Red for risk
+        styles: { fontSize: 8 },
+        columnStyles: {
+            4: { fontStyle: 'bold' }
+        }
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
+
+/**
+ * Generates a Payslip for Pharmacy Staff.
+ */
+export const generatePharmacyStaffPayslipPdf = async (
+    staff: PharmacyStaff,
+    month: string,
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text("OFFICIAL PAYSLIP", 14, yPos);
+    yPos += 10;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Earnings Month: ${month}`, 14, yPos);
+    yPos += 15;
+
+    // Staff Details Card
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(14, yPos, pageWidth - 28, 40, 3, 3, 'F');
+    
+    let detailsY = yPos + 10;
+    doc.setFont('helvetica', 'bold');
+    doc.text("EMPLOYEE INFORMATION", 20, detailsY);
+    detailsY += 8;
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Name: ${staff.fullName || 'N/A'}`, 20, detailsY);
+    doc.text(`ID: ${staff.id.substring(0, 8)}`, pageWidth / 2, detailsY);
+    detailsY += 6;
+    doc.text(`Role: ${staff.role}`, 20, detailsY);
+    doc.text(`License: ${staff.licenseNumber}`, pageWidth / 2, detailsY);
+    yPos += 50;
+
+    const head = [['Description', 'Earnings', 'Deductions']];
+    const body = [
+        ['Base Salary', staff.salary.toLocaleString(), '0.00'],
+        ['Statutory Contributions', '-', '0.00'],
+        ['NET PAYABLE', { content: staff.salary.toLocaleString(), styles: { fontStyle: 'bold', fillColor: [240, 249, 255] } }, '-']
+    ];
+
+    doc.autoTable({
+        startY: yPos,
+        head: head,
+        body: body,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72] }
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 30;
+    doc.text("---------------------------------", 14, yPos);
+    doc.text("Employee Signature", 14, yPos + 5);
+    
+    doc.text("---------------------------------", pageWidth - 70, yPos);
+    doc.text("Director Signature", pageWidth - 70, yPos + 5);
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
+
+/**
+ * Generates a POS Receipt for Pharmacy Sales.
+ */
+export const generatePharmacyReceiptPdf = async (
+    sale: PharmacySale,
+    items: PharmacySaleItem[],
+    inventory: HISPharmacyInventory[],
+    settings: PharmacySettings | null,
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    
+    // Receipt size is typically smaller/narrower
+    const doc = new lib.jsPDF({
+        unit: 'mm',
+        format: [80, 200] // 80mm roll width
+    });
+
+    const margin = 5;
+    const pageWidth = 80;
+    let yPos = 10;
+
+    // Header Branding from Settings
+    if (settings?.pharmacyName) {
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(settings.pharmacyName.toUpperCase(), pageWidth / 2, yPos, { align: 'center' });
+        yPos += 6;
+    }
+
+    if (settings?.receiptHeader) {
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        const splitHeader = doc.splitTextToSize(settings.receiptHeader, pageWidth - (margin * 2));
+        doc.text(splitHeader, pageWidth / 2, yPos, { align: 'center' });
+        yPos += (splitHeader.length * 4) + 2;
+    }
+
+    doc.setLineWidth(0.1);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    yPos += 5;
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`RECEIPT: ${sale.id.substring(0, 12)}`, margin, yPos);
+    yPos += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Date: ${new Date(sale.createdAt).toLocaleString()}`, margin, yPos);
+    yPos += 5;
+    if (sale.customerName) {
+        doc.text(`Patient: ${sale.customerName}`, margin, yPos);
+        yPos += 8;
+    }
+
+    // Items Table
+    doc.setFont('helvetica', 'bold');
+    doc.text("ITEM", margin, yPos);
+    doc.text("QTY", pageWidth - 35, yPos, { align: 'right' });
+    doc.text("AMT", pageWidth - margin, yPos, { align: 'right' });
+    yPos += 4;
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    yPos += 5;
+
+    doc.setFont('helvetica', 'normal');
+    items.forEach(item => {
+        const invItem = inventory.find(i => i.id === item.medicationId);
+        const name = invItem?.name || 'Medication';
+        const splitName = doc.splitTextToSize(name, 40);
+        
+        doc.text(splitName, margin, yPos);
+        doc.text(item.quantity.toString(), pageWidth - 35, yPos, { align: 'right' });
+        doc.text(item.totalPrice.toLocaleString(), pageWidth - margin, yPos, { align: 'right' });
+        
+        yPos += (splitName.length * 4) + 1;
+    });
+
+    yPos += 4;
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    yPos += 6;
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text("TOTAL DUE:", margin, yPos);
+    doc.text(`KES ${sale.totalAmount.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+    yPos += 8;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Payment: ${sale.paymentMethod} (${sale.paymentStatus})`, margin, yPos);
+    yPos += 10;
+
+    if (settings?.receiptFooter) {
+        doc.setFont('helvetica', 'italic');
+        const splitFooter = doc.splitTextToSize(settings.receiptFooter, pageWidth - (margin * 2));
+        doc.text(splitFooter, pageWidth / 2, yPos, { align: 'center' });
+    }
+
     return doc.output('datauristring');
 };

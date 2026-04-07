@@ -4,6 +4,7 @@ import { PrinterIcon } from './icons/PrinterIcon';
 import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 
 import { generateStudentContactListPdf } from '../services/pdfService';
+import { isSchoolInstitution } from '../utils/roleUtils';
 
 interface StudentContactListProps {
     currentUser: User;
@@ -28,7 +29,7 @@ export const StudentContactList: React.FC<StudentContactListProps> = ({
 }) => {
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isSchool = isSchoolInstitution(currentInstitution);
     const courseLabel = isSchool ? 'Grade' : 'Course';
 
     // Filter courses based on HOD's department if applicable

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { User, Role, Department, UserUpdateData, Institution } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
-import { getRolesForInstitution, formatRoleDisplayName } from '../utils/roleUtils';
+import { getRolesForInstitution, formatRoleDisplayName, isSchoolInstitution, isHigherEdInstitution } from '../utils/roleUtils';
 
 interface EditUserModalProps {
   user: User;
@@ -25,8 +25,9 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const [driverType, setDriverType] = useState<'staff' | 'private'>('staff');
 
   const isRetailAgency = RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
-  const isEdu = ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(currentInstitution?.institutionType || '');
-  const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+  const isSchool = isSchoolInstitution(currentInstitution);
+  const isHigherEd = isHigherEdInstitution(currentInstitution);
+  const isEdu = isSchool || isHigherEd;
   const isCoop = useMemo(() => {
     const type = currentInstitution?.institutionType;
     const subType = currentInstitution?.businessSubType?.toLowerCase() || '';

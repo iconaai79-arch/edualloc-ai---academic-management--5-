@@ -185,11 +185,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const isSuperAdmin = props.currentUser.role === 'super_admin';
     const isRetailAgency = useMemo(() => RETAIL_SUBTYPES.includes(props.currentInstitution?.businessSubType || ''), [props.currentInstitution]);
 
-    const isSchool = props.currentInstitution?.institutionType === 'Primary' || props.currentInstitution?.institutionType === 'Secondary';
+    const isSchool = (props.currentInstitution?.institutionType === 'Education' && (props.currentInstitution?.category === 'Primary' || props.currentInstitution?.category === 'Secondary')) || (props.currentInstitution as any)?.institutionType === 'Primary' || (props.currentInstitution as any)?.institutionType === 'Secondary';
     const isChurch = useMemo(() => props.currentInstitution?.institutionType === 'Church', [props.currentInstitution]);
     const isEdu = useMemo(() => {
         const type = props.currentInstitution?.institutionType;
-        return ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(type || '');
+        return type === 'Education' || ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes((props.currentInstitution as any)?.institutionType || '');
     }, [props.currentInstitution]);
 
     const isCoop = useMemo(() => {
@@ -276,7 +276,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 aiModelTier: props.currentInstitution.aiModelTier || 'premium',
                 isOtpEnabled: props.currentInstitution.isOtpEnabled ?? false,
                 parentAbsenceNotificationsEnabled: props.currentInstitution.parentAbsenceNotificationsEnabled ?? false,
-                farmerSmsBillingEnabled: props.currentInstitution.farmerSmsBillingEnabled ?? false
+                farmerSmsBillingEnabled: props.currentInstitution.farmerSmsBillingEnabled ?? false,
+                slug: props.currentInstitution.slug || ''
             });
         }
     }, [props.currentInstitution]);

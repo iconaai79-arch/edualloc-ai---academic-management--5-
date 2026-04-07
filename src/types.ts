@@ -1,5 +1,5 @@
 
-export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'pharmacy_admin' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor';
+export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'pharmacy_admin' | 'pharmacist' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor';
 
 export type RankingCriteria = 'points' | 'mean_points' | 'total_marks';
 
@@ -140,8 +140,9 @@ export interface Institution {
     name: string;
     email: string;
     phoneNumber: string;
-    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International' | 'Business' | 'Broadcaster' | 'Reseller' | 'TVET' | 'Kindergarten' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy';
-    businessSubType?: string;
+    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary';
+    category?: string;
+    businessSubType?: string; // Legacy field, eventually merge with category
     slug?: string;
     status: 'active' | 'trial' | 'suspended';
     subscriptionEndsAt?: string;
@@ -638,17 +639,6 @@ export interface SmsOutbox {
     message: string;
     units: number;
     status: 'pending' | 'processing' | 'failed';
-    createdAt: string;
-}
-
-export interface AgrovetSaleItem {
-    id: string;
-    saleId: string;
-    productId: string;
-    quantity: number;
-    unitPrice: number;
-    totalPrice: number;
-    institutionId: string;
     createdAt: string;
 }
 
@@ -1188,6 +1178,7 @@ export interface FinancialPeriod {
     endDate: string;
     status: 'active' | 'inactive' | 'closed';
     institutionId: string;
+    createdAt: string;
 }
 
 export interface ProfileUpdateData {
@@ -1292,6 +1283,7 @@ export interface InstitutionRegistrationData {
     adminEmail: string;
     loadDemoData: boolean;
     businessSubType?: string;
+    category?: string;
     resellerId?: string;
     termsAccepted: boolean;
     name?: string;
@@ -2062,17 +2054,6 @@ export interface AgrovetSale {
     createdAt: string;
 }
 
-export interface AgrovetSaleItem {
-    id: string;
-    saleId: string;
-    productId: string;
-    quantity: number;
-    unitPrice: number;
-    totalPrice: number;
-    institutionId: string;
-    createdAt: string;
-}
-
 export interface AgrovetConsultation {
     id: string;
     institutionId: string;
@@ -2689,7 +2670,8 @@ export interface HISPharmacyInteraction {
     medicationBId: string;
     severity: 'mild' | 'moderate' | 'severe' | 'fatal';
     description: string;
-    precaution?: string;
+    clinicalRule?: string;
+    updatedAt: string;
     createdAt: string;
 }
 
@@ -3043,6 +3025,7 @@ export interface SaccoAccount {
     accountType: 'Savings' | 'Shares' | 'Loan';
     balance: number;
     status: 'active' | 'suspended';
+    createdAt: string;
 }
 
 export interface SaccoTransaction {

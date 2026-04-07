@@ -8,22 +8,38 @@ interface AddPharmacyInventoryModalProps {
     onClose: () => void;
     onAdd: (item: Partial<HISPharmacyInventory>) => Promise<void>;
     institutionId: string;
+    item?: Partial<HISPharmacyInventory>;
 }
 
 export const AddPharmacyInventoryModal: React.FC<AddPharmacyInventoryModalProps> = ({
-    onClose, onAdd, institutionId
+    onClose, onAdd, institutionId, item
 }) => {
     const [formData, setFormData] = useState({
-        name: '',
-        category: 'General',
-        sku: '',
-        unit: 'Units',
-        stockQuantity: 0,
-        unitPrice: 0,
-        reorderLevel: 10,
-        isNarcotic: false
+        name: item?.name || '',
+        category: item?.category || 'General',
+        sku: item?.sku || '',
+        unit: item?.unit || 'Units',
+        stockQuantity: item?.stockQuantity || 0,
+        unitPrice: item?.unitPrice || 0,
+        reorderLevel: item?.reorderLevel || 10,
+        isNarcotic: item?.isNarcotic || false
     });
     const [isSaving, setIsSaving] = useState(false);
+
+    React.useEffect(() => {
+        if (item) {
+            setFormData({
+                name: item.name || '',
+                category: item.category || 'General',
+                sku: item.sku || '',
+                unit: item.unit || 'Units',
+                stockQuantity: item.stockQuantity || 0,
+                unitPrice: item.unitPrice || 0,
+                reorderLevel: item.reorderLevel || 10,
+                isNarcotic: item.isNarcotic || false
+            });
+        }
+    }, [item]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -50,7 +66,7 @@ export const AddPharmacyInventoryModal: React.FC<AddPharmacyInventoryModalProps>
         <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4">
             <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden animate-fade-in-up">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                    <h3 className="text-xl font-black uppercase tracking-tight">Add New Medication</h3>
+                    <h3 className="text-xl font-black uppercase tracking-tight">{item ? 'Edit Medication' : 'Add New Medication'}</h3>
                     <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 transition-colors"><XIcon className="w-6 h-6" /></button>
                 </div>
 

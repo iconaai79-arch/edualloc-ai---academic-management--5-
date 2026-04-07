@@ -18,6 +18,7 @@ import { EditSubjectModal } from './EditSubjectModal';
 import { PathwayUpdateModal } from './PathwayUpdateModal';
 import { SubjectConstraintsModal } from './SubjectConstraintsModal';
 import { BulkSubjectStructureModal } from './BulkSubjectStructureModal';
+import { isSchoolInstitution } from '../utils/roleUtils';
 
 import * as XLSX from 'xlsx';
 
@@ -94,7 +95,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     const [isSmartImportOpen, setIsSmartImportOpen] = useState(false);
     const [isBulkStructureOpen, setIsBulkStructureOpen] = useState(false);
 
-    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isSchool = isSchoolInstitution(currentInstitution);
     const isChurch = currentInstitution?.institutionType === 'Church';
 
     const visibleDepartments = useMemo(() => {
@@ -106,7 +107,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
         let list = subjects;
         if (currentUser.role === 'tto' && currentUser.departmentId) list = list.filter(s => s.departmentId === currentUser.departmentId);
         return list.filter(s => {
-            const matchesDept = isSchool ? true : departmentFilter === 'all' || s.departmentId === departmentFilter;
+            const matchesDept = isSchoolInstitution(currentInstitution) ? true : departmentFilter === 'all' || s.departmentId === departmentFilter;
             const matchesComp = completionFilter === 'all' || (completionFilter === 'complete' && s.isComplete) || (completionFilter === 'incomplete' && !s.isComplete);
             const q = searchQuery.toLowerCase();
             const matchesSearch = s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q);

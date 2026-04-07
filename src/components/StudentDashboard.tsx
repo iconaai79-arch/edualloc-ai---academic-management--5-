@@ -85,7 +85,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
     const [smsNotifyEnabled, setSmsNotifyEnabled] = useState(true);
     const [lastNotifiedEntryId, setLastNotifiedEntryId] = useState<string | null>(null);
 
-    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isSchool = currentInstitution?.institutionType === 'Education' && (currentInstitution?.category === 'Primary' || currentInstitution?.category === 'Secondary');
     const courseLabel = isSchool ? 'My Grade' : 'My Course';
     const levelLabel = isSchool ? 'Current Stream' : 'Current Level';
 

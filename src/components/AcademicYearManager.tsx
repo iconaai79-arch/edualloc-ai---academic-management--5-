@@ -7,6 +7,7 @@ import { XIcon } from './icons/XIcon';
 import { Cog8ToothIcon } from './icons/Cog8ToothIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { isSchoolInstitution } from '../utils/roleUtils';
 
 
 interface AcademicYearManagerProps {
@@ -45,7 +46,7 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
     const [isAddingYear, setIsAddingYear] = useState(false);
     const [semesterSaveStatus, setSemesterSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
-    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isSchool = isSchoolInstitution(currentInstitution);
     const semesterLabel = isSchool ? 'Term' : 'Semester';
     const semesterLabelPlural = isSchool ? 'Terms' : 'Semesters';
 

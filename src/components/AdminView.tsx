@@ -78,6 +78,7 @@ const TransportManager = lazy(() => import('./TransportManager').then(m => ({ de
 import { apiService } from '../services/apiService';
 const RetailReportsDashboard = lazy(() => import('./retail/RetailReportsDashboard').then(m => ({ default: m.RetailReportsDashboard })));
 const ExternalModuleView = lazy(() => import('./ExternalModuleView').then(m => ({ default: m.ExternalModuleView })));
+import { isSchoolInstitution, isHigherEdInstitution } from '../utils/roleUtils';
 
 export interface AdminViewProps {
     currentUser: User;
@@ -120,11 +121,11 @@ export interface AdminViewProps {
     currentInstitution?: Institution | null;
     counties: County[];
 
-    onAddUser: (userData: any) => Promise<void>;
-    onEditUser: (id: string, data: any) => Promise<void>;
-    onDeleteUser: (id: string) => Promise<void>;
-    onImportUsers: (imported: any[]) => Promise<void>;
-    onImportStudents: (imported: any[]) => Promise<void>;
+    onAddUser?: (userData: any) => Promise<void>;
+    onEditUser?: (id: string, data: any) => Promise<void>;
+    onDeleteUser?: (id: string) => Promise<void>;
+    onImportUsers?: (imported: any[]) => Promise<void>;
+    onImportStudents?: (imported: any[]) => Promise<void>;
     onAddDepartment?: (name: string) => Promise<void> | void;
     onUpdateDepartment?: (id: string, name: string) => void;
     onDeleteDepartment?: (id: string) => void;
@@ -149,54 +150,55 @@ export interface AdminViewProps {
     onAddSemester?: (data: any) => void;
     onUpdateSemester?: (id: string, data: any) => Promise<void>;
     onDeleteSemester?: (id: string) => void;
-    onUpdateRequestStatus: (id: string, status: RequestStatus) => Promise<void>;
-    onBulkUpdateRequestStatus: (status: RequestStatus, deptId?: string) => Promise<void>;
-    onDirectAssign: (entryId: string, lecturerId: string, roomId: string) => Promise<void>;
-    onTimetableGenerated: (entries: TimetableEntry[], ay: string, sem: string) => Promise<void>;
-    onExamTimetableGenerated: (entries: ExamTimetableEntry[], ay: string, sem: string) => Promise<void>;
-    onSaveTimetableSettings: (config: TimetableSettings) => void;
-    onSaveExamTimetableSettings: (config: ExamTimetableSettings) => void;
-    onUpdateLogo: (logo: string) => void;
-    onUpdateFooterImage: (footer: string) => void;
-    onUpdateThemeColor: (color: string) => void;
-    onUpdateInstitution: (id: string, data: Partial<Institution>) => Promise<void>;
-    onAddTask: (task: Partial<UserTask>) => Promise<void>;
-    onUpdateTask: (id: string, isComplete: boolean) => Promise<void>;
-    onDeleteTask: (id: string) => Promise<void>;
-    onLogAction: (action: string) => Promise<void>;
-    onSendBulkCredentials: (users: User[], method: 'sms' | 'email') => Promise<{ success_count: number, failure_count: number }>;
-    onSendSms: (recipient: string, message: string, config?: SmsConfig, units?: number, instId?: string) => Promise<{ success: boolean, message: string }>;
-    onSaveSmsConfig: (config: SmsConfig) => Promise<void>;
-    onUpdateRequest?: (id: string, data: any) => Promise<void>;
+    onUpdateRequestStatus?: (id: string, status: RequestStatus) => Promise<void>;
+    onBulkUpdateRequestStatus?: (status: RequestStatus, deptId?: string) => Promise<void>;
+    onDirectAssign?: (lecturerId: string, subjectIds: string[], priority: Priority, justification: string, courseLevelSelections: Record<string, string[]>) => void;
+    onTimetableGenerated?: (entries: TimetableEntry[], ay: string, sem: string) => Promise<void>;
+    onExamTimetableGenerated?: (entries: ExamTimetableEntry[], ay: string, sem: string) => Promise<void>;
+    onSaveTimetableSettings?: (config: TimetableSettings) => void;
+    onSaveExamTimetableSettings?: (config: ExamTimetableSettings) => void;
+    onUpdateLogo?: (logo: string | null) => void;
+    onUpdateFooterImage?: (footer: string | null) => void;
+    onUpdateThemeColor?: (color: string) => void;
+    onUpdateInstitution?: (id: string, data: Partial<Institution>) => Promise<void>;
+    onAddTask?: (data: any) => Promise<void> | void;
+    onUpdateTask?: (id: string, isComplete: boolean) => Promise<void>;
+    onDeleteTask?: (id: string) => Promise<void>;
+    onLogAction?: (action: string) => Promise<void>;
+    onSendBulkCredentials?: (users: User[], method: 'sms' | 'email') => Promise<{ success_count: number, fail_count: number }>;
+    onSendSms?: (recipient: string, message: string, config?: SmsConfig, units?: number, instId?: string) => Promise<any>;
+    onSaveSmsConfig?: (config: SmsConfig) => void;
+    onUpdateRequest?: (id: string, data: Partial<Omit<AllocationRequest, 'id'>>) => void;
     onWithdrawRequest?: (id: string) => Promise<void>;
-    onAddExtensionRequest?: (data: any) => Promise<void>;
-    onAddUnavailability?: (u: any) => Promise<void>;
-    onUpdateUnavailability?: (id: string, u: any) => Promise<void>;
-    onDeleteUnavailability?: (id: string) => Promise<void>;
-    onMoveTimetableEntry?: (id: string, start: string, end: string, roomId: string) => Promise<void>;
-    onActivateModuleTrial?: (moduleId: string) => void;
-    onAddFarmer?: (data: Partial<CoopFarmer>) => Promise<void>;
-    onUpdateFarmer?: (id: string, data: Partial<CoopFarmer>) => Promise<void>;
+    onAddExtensionRequest?: (reason: string) => void;
+    onAddUnavailability?: (userId: string, u: Omit<Unavailability, 'id' | 'status'>) => void;
+    onUpdateUnavailability?: (userId: string, id: string, data: any) => void;
+    onDeleteUnavailability?: (userId: string, id: string) => void;
+    onUpdateTimeOffRequestStatus?: (id: string, status: TimeOffRequestStatus) => Promise<void>;
+    onMoveTimetableEntry?: (entryId: string, newDay: string, newStartTime: string) => void;
+    onActivateModuleTrial?: (moduleId: string) => Promise<void>;
+    onAddFarmer?: (data: any) => Promise<void>;
+    onUpdateFarmer?: (id: string, data: any) => Promise<void>;
     onImportFarmers?: (imported: any[]) => Promise<void>;
-    onLogCollection?: (data: Partial<CoopCollection>) => Promise<void>;
+    onLogCollection?: (data: any) => Promise<void>;
     onImportCollections?: (imported: any[]) => Promise<void>;
-    onBulkConfirmCollections?: (ids: string[]) => Promise<void>;
-    onAddRider?: (data: Partial<CoopRider>) => Promise<void>;
-    onConfirmCollection?: (id: string) => Promise<void>;
-    onApproveCollection?: (id: string) => Promise<void>;
+    onBulkConfirmCollections?: (riderId: string, collections: any[]) => Promise<void>;
+    onAddRider?: (data: any) => Promise<void>;
+    onConfirmCollection?: (id: string, qty: number) => Promise<void>;
+    onApproveCollection?: (id: string, status: 'approved' | 'rejected') => Promise<void>;
     onAddCoopExpense?: (data: Partial<CoopExpense>) => Promise<void>;
     onAddCoopIncome?: (data: Partial<CoopIncome>) => Promise<void>;
     onAddCoopAgrovetInventory?: (data: Partial<CoopAgrovetInventory>) => Promise<void>;
     onAddCoopAgrovetSale?: (data: Partial<CoopAgrovetSales>) => Promise<void>;
     onAddCoopAgrovetSales?: (data: Partial<CoopAgrovetSales>[]) => Promise<void>;
-    onInitiatePayouts?: (month: string) => Promise<void>;
-    onApprovePayouts?: (month: string) => Promise<void>;
-    onDisbursePayouts?: (month: string) => Promise<void>;
-    onAddPayouts?: (data: Partial<CoopMonthlyPayout>[]) => Promise<void>;
-    onUpdateCompanyDetails: (data: Partial<CompanyDetails>) => Promise<void>;
+    onInitiatePayouts?: (data: any) => Promise<void>;
+    onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
+    onDisbursePayouts?: (payoutIds: string[]) => Promise<void>;
+    onAddPayouts?: (payouts: any[]) => Promise<void>;
+    onUpdateCompanyDetails?: (data: Partial<CompanyDetails>) => Promise<void>;
     onSwitchPerspective?: (role: Role) => void;
-    onSaveLetterheadConfig: (config: LetterheadConfig) => void;
-    onRefreshData: () => void;
+    onSaveLetterheadConfig?: (config: LetterheadConfig) => void;
+    onRefreshData?: () => void;
     onAddSaccoAccount?: (data: Partial<SaccoAccount>) => Promise<void>;
     
     getLecturerById?: (id: string) => User | undefined;
@@ -213,66 +215,34 @@ export interface AdminViewProps {
     coopPayouts: CoopMonthlyPayout[];
     coopExpenses: CoopExpense[];
     coopIncome: CoopIncome[];
-    notifications: any[];
+    notifications?: any[];
     vehicles?: TransportVehicle[];
-    onAddVehicle?: (data: any) => Promise<void>;
-    onUpdateVehicle?: (id: string, data: any) => Promise<void>;
+    onAddVehicle?: (vehicle: Omit<TransportVehicle, 'id'>) => Promise<void>;
+    onUpdateVehicle?: (id: string, updates: Partial<TransportVehicle>) => Promise<void>;
     onDeleteVehicle?: (id: string) => Promise<void>;
-    courseSizes?: any;
-    timeOffRequests?: TimeOffRequest[];
-    enrollmentRequests?: EnrollmentRequest[];
+    courseSizes?: Map<string, number>;
+    timeOffRequests: TimeOffRequest[];
+    enrollmentRequests: EnrollmentRequest[];
     subjectsAndCourses?: any;
-    onEditSubject?: (subject: Subject) => void;
-    onImportSubjectsAndAssociate?: (data: any) => Promise<void>;
-    requisitions?: Requisition[];
-    onAddRequisition?: (data: any) => Promise<void>;
-    onUpdateRequisition?: (id: string, data: any) => Promise<void>;
-    onAddTimeOffRequest?: (data: any) => Promise<void>;
-    onAddTransaction: (data: any, items?: any[]) => Promise<void>;
-    onDeleteSemester?: (id: string) => void;
-    onUpdateRequestStatus?: (id: string, status: RequestStatus) => Promise<void>;
-    onBulkUpdateRequestStatus?: (status: RequestStatus, deptId?: string) => Promise<void>;
-    onDirectAssign?: (lid: string, sids: string[], p: Priority, j: string, c: any) => void;
-    onTimetableGenerated: (entries: any[], ay: string, sem: string) => Promise<void>;
-    onExamTimetableGenerated: (entries: any[], ay: string, sem: string) => Promise<void>;
-    onSaveTimetableSettings?: (settings: TimetableSettings) => void;
-    onMoveTimetableEntry?: (entryId: string, newDay: string, newStartTime: string) => void;
-    onSaveExamTimetableSettings?: (settings: ExamTimetableSettings) => void;
-    onUpdateLogo?: (logo: string | null) => void;
-    onUpdateThemeColor?: (color: string) => void;
-    onUpdateInstitution?: (id: string, data: any) => Promise<void>;
-    onAddTask?: (data: any) => void;
-    onUpdateTask?: (id: string, complete: boolean) => void;
-    onDeleteTask?: (id: string) => void;
+    onImportSubjectsAndAssociate?: (subjects: (Omit<Subject, 'id' | 'institutionId'> & { targetCourseLevelId?: string })[]) => Promise<void>;
+    requisitions: Requisition[];
+    onAddRequisition?: (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => Promise<void>;
+    onUpdateRequisition?: (reqId: string, data: Partial<Requisition>) => Promise<void>;
+    onAddTimeOffRequest?: (data: Partial<TimeOffRequest>) => Promise<void>;
+    onAddTransaction?: (data: Omit<MpesaTransaction, 'id' | 'transactionId' | 'timestamp' | 'status'>, items: InvoiceItem[]) => Promise<TransactionStatus>;
     onGenerateDemoData?: () => void;
     onClearDemoData?: () => void;
     isGeneratingDemoData?: boolean;
     demoDataGenerationProgress?: number;
     demoDataGenerationMessage?: string;
-    onAddTransaction?: (data: Omit<MpesaTransaction, 'id' | 'transactionId' | 'timestamp' | 'status'>, items: InvoiceItem[]) => Promise<TransactionStatus>;
-    onAddExtensionRequest?: (reason: string) => void;
-    onSendBulkCredentials?: (users: User[], method: 'email' | 'sms') => Promise<{ success_count: number; fail_count: number }>;
-    onSendSms?: (r: string, m: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
-    onSaveSmsConfig?: (config: SmsConfig) => void;
-    onUpdateRequest: (requestId: string, data: Partial<Omit<AllocationRequest, 'id'>>) => void;
-    onWithdrawRequest?: (id: string) => Promise<void>;
-    onAddUnavailability?: (userId: string, u: Omit<Unavailability, 'id' | 'status'>) => void;
-    onUpdateUnavailability?: (userId: string, id: string, data: any) => void;
-    onDeleteUnavailability?: (userId: string, id: string) => void;
     onManageUnavailability?: (user: User) => void;
     onAddParent?: (studentId: string, parentData: { name: string, email: string, phone: string }) => Promise<{ success: boolean, message: string, credentials?: { email: string, password: string } }>;
     onDeleteParent?: (studentId: string, parentId: string) => void;
-    getLecturerById?: (id: string) => User | undefined;
-    getSubjectById?: (id: string) => Subject | undefined;
-    getRoomById?: (id: string) => Room | undefined;
     onPublishTimetable?: (fileUrl: string) => void;
     onRemovePublishedTimetable?: () => void;
     onSendTestEmail?: (recipient: string) => Promise<{ success: boolean; message: string; }>;
     onSaveEmailConfig?: (config: EmailConfig) => void;
-    onSaveLetterheadConfig?: (config: LetterheadConfig) => void;
-    onUpdateFooterImage?: (footerUrl: string | null) => void;
     onImportRooms?: (rooms: Omit<Room, 'id' | 'institutionId'>[]) => void;
-    onImportSubjectsAndAssociate?: (subjects: (Omit<Subject, 'id' | 'institutionId'> & { targetCourseLevelId?: string })[]) => Promise<void>;
     onAssociateSubjectToCourseLevel?: (subjectId: string, courseLevelId: string) => void;
     onDisassociateSubjectFromCourseLevel?: (subjectId: string, courseLevelId: string) => void;
     onUpdateExtensionRequestStatus?: (requestId: string, status: 'approved' | 'rejected', extensionDays?: number) => void;
@@ -284,114 +254,34 @@ export interface AdminViewProps {
     onAddBuildings?: (buildings: Omit<Building, 'id' | 'institutionId'>[]) => Promise<void>;
     onUpdateBuilding?: (id: string, data: any) => void;
     onDeleteBuilding?: (id: string) => void;
-    timeOffRequests: TimeOffRequest[];
-    onAddTimeOffRequest?: (userId: string, data: any) => Promise<void>;
-    onUpdateTimeOffRequestStatus?: (id: string, status: TimeOffRequestStatus) => void;
-
-    // Agricultural / Coop Props
-    coopFarmers: CoopFarmer[];
-    coopCollections: CoopCollection[];
-    coopRiders: CoopRider[];
-    coopAgrovetInventory: CoopAgrovetInventory[];
-    coopAgrovetSales: CoopAgrovetSales[];
-    saccoAccounts: SaccoAccount[];
-    saccoTransactions: SaccoTransaction[];
-    coopPayouts: CoopMonthlyPayout[];
-    coopExpenses: CoopExpense[];
-    coopIncome: CoopIncome[];
-
-    onAddFarmer: (data: any) => Promise<void>;
-    onUpdateFarmer?: (id: string, data: any) => Promise<void>;
-    onImportFarmers?: (data: any[]) => Promise<void>;
-    onLogCollection: (data: any) => Promise<void>;
-    onImportCollections?: (data: any[]) => Promise<void>;
-    onBulkConfirmCollections?: (riderId: string, collections: any[]) => Promise<void>;
-    onAddRider: (data: any) => Promise<void>;
-    onConfirmCollection: (id: string, qty: number) => Promise<void>;
-    onApproveCollection: (id: string, status: 'approved' | 'rejected') => Promise<void>;
-    onAddCoopExpense?: (data: Partial<CoopExpense>) => Promise<void>;
-    onAddCoopIncome?: (data: Partial<CoopIncome>) => Promise<void>;
-    onAddCoopAgrovetInventory?: (data: Partial<CoopAgrovetInventory>) => Promise<void>;
-    onAddCoopAgrovetSale?: (data: Partial<CoopAgrovetSales>) => Promise<void>;
-    onAddCoopAgrovetSales?: (data: Partial<CoopAgrovetSales>[]) => Promise<void>;
-    onInitiatePayouts?: (data: any) => Promise<void>;
-    onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
-    onDisbursePayouts?: (payoutIds: string[]) => Promise<void>;
-    onAddPayouts?: (payouts: any[]) => Promise<void>;
-    enrollmentRequests?: EnrollmentRequest[];
-    absenceRequests: AbsenceRequest[];
-    studentAbsenceRequests: StudentAbsenceRequest[];
-    onUpdateEnrollmentRequest?: (id: string, status: 'approved' | 'rejected') => void;
-    onUpdateAbsenceRequest?: (id: string, status: 'approved' | 'rejected') => void;
-    onUpdateStudentAbsenceRequestStatus?: (id: string, status: StudentAbsenceRequestStatus) => void;
-    isTimetableGenerating: boolean;
-    timetableGenerationProgress: number;
-    timetableGenerationMessage: string;
-    timetableGenerationEta: number | null;
-    onSetIsTimetableGenerating?: (v: boolean) => void;
-    onSetTimetableGenerationProgress?: (v: number) => void;
-    onSetTimetableGenerationMessage?: (v: string) => void;
-    onSetTimetableGenerationEta?: (v: number | null) => void;
-    onAddSecurityAlert?: (data: any) => void;
-    onSetSettingsTab?: (v: string) => void;
-    onSetSettingsSubTab?: (v: string) => void;
-    onResolveSecurityAlert?: (id: string) => void;
-    securityAlerts: SecurityAlert[];
-    visitors: Visitor[];
-    requisitions: Requisition[];
-    onApproveRequisition?: (id: string, status: any) => void;
-    studentAttendances: StudentAttendance[];
-    studentCheckIns: Record<string, string>;
-    lessonRatings: LessonRating[];
-    feedbackSubmissions: FeedbackSubmission[];
-    onUpdateFeedbackStatus?: (id: string, status: string) => void;
-    courseSizes: Map<string, number>;
-    assessments: Assessment[];
-    assessmentMarks: AssessmentMark[];
-    onAddAssessment?: (data: any) => void;
-    onDeleteAssessment?: (id: string) => void;
-    onUpdateAssessmentStatus?: (id: string, status: string) => void;
-    onSaveAssessmentMarks?: (id: string, data: any) => void;
-    contracts: LecturerContract[];
-    examTimetable: ExamTimetableEntry[];
-    onSwitchPerspective?: (role: Role) => void;
-    onWithdrawRequestStatus?: (id: string) => Promise<void>;
-    onManualInvoice?: (institutionId: string, items: InvoiceItem[], totalAmount: number, dueDate: string) => void;
-    onUpdateCompanyDetails?: (details: CompanyDetails) => Promise<void>;
-    onAddInstitution: (data: Omit<Institution, 'id'>) => void;
-    onDeleteInstitution: (institutionId: string) => void;
-    onToggleInstitutionStatus: (institutionId: string) => void;
-    onLoginAsAdmin: (institutionId: string) => void;
-    onGenerateReceipt: (transaction: MpesaTransaction) => void;
-
-    // New Props
+    onAddInstitution?: (data: Omit<Institution, 'id'>) => void;
+    onDeleteInstitution?: (institutionId: string) => void;
+    onToggleInstitutionStatus?: (institutionId: string) => void;
+    onLoginAsAdmin?: (institutionId: string) => void;
+    onGenerateReceipt?: (transaction: MpesaTransaction) => void;
     assignments?: Assignment[];
     submissions?: Submission[];
     onAddAssignment?: (data: Omit<Assignment, 'id' | 'institutionId' | 'createdAt'>) => void;
     onDeleteAssignment?: (id: string) => void;
     onUpdateSubmission?: (id: string, data: Partial<Submission>) => void;
     isImpersonating?: boolean;
-    onRefreshData?: () => void;
-    vehicles?: TransportVehicle[];
     transportOnboarding?: TransportOnboarding[];
     vehicleLogs?: VehicleLog[];
-    onAddVehicle?: (vehicle: Omit<TransportVehicle, 'id'>) => Promise<void>;
-    onUpdateVehicle?: (id: string, updates: Partial<TransportVehicle>) => Promise<void>;
-    onDeleteVehicle?: (id: string) => Promise<void>;
     onLogGateAction?: (vehicleId: string, eventType: 'entry' | 'exit', notes?: string) => Promise<void>;
     onOnboardStudent?: (studentId: string, vehicleId: string, direction: 'to_school' | 'from_school', lat?: number, lng?: number) => Promise<void>;
     onOffboardStudent?: (recordId: string, lat?: number, lng?: number) => Promise<void>;
     onConfirmReceipt?: (recordId: string) => Promise<void>;
     retailExpenses?: RetailExpense[];
     onAddRetailExpense?: (expense: Omit<RetailExpense, 'id' | 'institutionId' | 'date' | 'recordedById'>) => Promise<void>;
-    onAddRequisition?: (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => Promise<void>;
-    onUpdateRequisition?: (reqId: string, data: Partial<Requisition>) => Promise<void>;
-    onLogAction?: (action: string) => Promise<void>;
     retailStores?: RetailStore[];
     inventory?: RetailInventoryItem[];
     suppliers?: Supplier[];
     activeRole?: Role;
-    onActivateModuleTrial?: (moduleId: string) => Promise<void>;
+    absenceRequests?: AbsenceRequest[];
+    contracts?: LecturerContract[];
+    feedbackSubmissions?: FeedbackSubmission[];
+    lessonRatings?: LessonRating[];
+    studentAbsenceRequests?: StudentAbsenceRequest[];
 }
 
 export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
@@ -430,12 +320,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const isBusiness = institutionType === 'Business';
 
     const isEdu = useMemo(() => {
-        const type = props.currentInstitution?.institutionType;
-        return ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(type || '');
+        return isSchoolInstitution(props.currentInstitution) || isHigherEdInstitution(props.currentInstitution);
     }, [props.currentInstitution]);
 
     const isSchool = useMemo(() => {
-        return props.currentInstitution?.institutionType === 'Primary' || props.currentInstitution?.institutionType === 'Secondary';
+        return isSchoolInstitution(props.currentInstitution);
     }, [props.currentInstitution]);
 
     const isRetailAgency = useMemo(() => {
@@ -851,9 +740,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     activeAcademicYear={activeAcademicYear}
                                     activeSemester={activeSemester}
                                     currentInstitution={currentInstitution}
-                                    courseSizes={courseSizes}
+                                    courseSizes={props.courseSizes || new Map<string, number>()}
                                     timeOffRequests={props.timeOffRequests || []}
-                                    onTimetableGenerated={props.onTimetableGenerated}
+                                    onTimetableGenerated={props.onTimetableGenerated as any}
                                     onLogAction={props.onLogAction}
                                     onNavigateToSettings={(tab) => {
                                         if (tab === 'calendar') {
@@ -917,6 +806,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             ) : timetableSubTab === 'registry' ? (
                                 <InteractionsManager
                                     {...props}
+                                    absenceRequests={props.absenceRequests || []}
+                                    contracts={props.contracts || []}
+                                    feedbackSubmissions={props.feedbackSubmissions || []}
+                                    lessonRatings={props.lessonRatings || []}
+                                    studentAbsenceRequests={props.studentAbsenceRequests || []}
                                     enrollmentRequests={props.enrollmentRequests || []}
                                     onOpenDirectAssign={() => setIsDirectAssignOpen(true)}
                                     onUpdateRequestStatus={props.onUpdateRequestStatus}
@@ -932,7 +826,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     lecturers={props.users || []}
                                     setActiveTab={(tab: string) => setActiveTab(tab as any)}
                                     onSaveTimetableSettings={props.onSaveTimetableSettings}
-                                    onTimetableGenerated={props.onTimetableGenerated}
+                                    onTimetableGenerated={props.onTimetableGenerated as any}
                                     getLecturerById={props.getLecturerById || (id => (props.users || []).find(u => u && u.id === id))}
                                     getSubjectById={props.getSubjectById || (id => (props.subjects || []).find(s => s && s.id === id))}
                                     getRoomById={props.getRoomById || (id => (props.rooms || []).find(r => r && r.id === id))}

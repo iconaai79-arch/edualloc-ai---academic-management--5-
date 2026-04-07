@@ -11,7 +11,7 @@ import type {
     CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales,
     SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome,
     RetailStore, RetailInventoryItem, Supplier, RetailExpense, TransportVehicle,
-    TransportOnboarding, VehicleLog
+    TransportOnboarding, VehicleLog, AppNotification
 } from '../types';
 import { TransactionsManager } from './TransactionsManager';
 import { DatabaseSettings } from './DatabaseSettings';
@@ -37,6 +37,7 @@ import { ShieldIcon } from './icons/ShieldIcon';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
+import { isSchoolInstitution } from '../utils/roleUtils';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { CreditCardIcon } from './icons/CreditCardIcon';
@@ -189,9 +190,9 @@ export interface SuperAdminViewProps {
     onUpdateLogo?: (logo: string | null) => void;
     onUpdateThemeColor?: (color: string) => void;
     onUpdateInstitution?: (id: string, data: any) => Promise<void>;
-    onAddTask?: (data: any) => void;
-    onUpdateTask?: (id: string, complete: boolean) => void;
-    onDeleteTask?: (id: string) => void;
+    onAddTask?: (data: any) => Promise<void>;
+    onUpdateTask?: (id: string, complete: boolean) => Promise<void>;
+    onDeleteTask?: (id: string) => Promise<void>;
     onLogAction?: (action: string) => Promise<void>;
     onGenerateDemoData?: () => void;
     onClearDemoData?: () => void;
@@ -239,7 +240,9 @@ export interface SuperAdminViewProps {
     onAddBuilding?: (name: string) => Promise<boolean>;
     onUpdateBuilding?: (id: string, data: any) => void;
     onDeleteBuilding?: (id: string) => void;
+    notifications: AppNotification[];
     timeOffRequests: TimeOffRequest[];
+    onAddTimeOffRequest?: (data: Partial<TimeOffRequest>) => Promise<void>;
     onUpdateTimeOffRequestStatus?: (id: string, status: TimeOffRequestStatus) => void;
     enrollmentRequests?: EnrollmentRequest[];
     absenceRequests: AbsenceRequest[];
@@ -280,7 +283,7 @@ export interface SuperAdminViewProps {
     onSwitchPerspective?: (role: Role) => void;
     onWithdrawRequestStatus?: (id: string) => Promise<void>;
     onManualInvoice?: (institutionId: string, items: InvoiceItem[], totalAmount: number, dueDate: string) => void;
-    onUpdateCompanyDetails?: (details: CompanyDetails) => Promise<void>;
+    onUpdateCompanyDetails?: (data: Partial<CompanyDetails>) => Promise<void>;
     onAddInstitution: (data: Omit<Institution, 'id'>) => Promise<void>;
     onDeleteInstitution: (institutionId: string) => void;
     onToggleInstitutionStatus: (institutionId: string) => void;
@@ -482,8 +485,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         name: '',
         email: '',
         phoneNumber: '',
-        institutionType: 'University' as Institution['institutionType'],
-        businessSubType: '' as Institution['businessSubType'],
+        institutionType: 'Education' as Institution['institutionType'],
+        category: 'University',
         countyId: ''
     });
 
@@ -972,7 +975,8 @@ Please change it after login.`;
                     email: newInstData.email,
                     phoneNumber: newInstData.phoneNumber,
                     institutionType: newInstData.institutionType,
-                    businessSubType: newInstData.businessSubType,
+                    category: newInstData.category,
+                    businessSubType: newInstData.category, // Mirror for legacy support
                     countyId: newInstData.countyId || undefined,
                     status: isReseller ? 'active' : 'trial',
                     trialEndsAt: isReseller ? undefined : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
@@ -983,7 +987,7 @@ Please change it after login.`;
                     smsConfig: props.smsConfig
                 });
                 setIsAddingInstitution(false);
-                setNewInstData({ name: '', email: '', phoneNumber: '', institutionType: 'University', businessSubType: '', countyId: '' });
+                setNewInstData({ name: '', email: '', phoneNumber: '', institutionType: 'Education', category: 'University', countyId: '' });
                 alert("New institution tenant created successfully.");
             } catch (err: any) {
                 console.error("Failed to add institution:", err);
@@ -1049,9 +1053,7 @@ Please change it after login.`;
         return { pendingCount, changesCount, deallocCount, totalActionable: pendingCount + changesCount + deallocCount };
     }, [requests]);
 
-    const isSchool = useMemo(() => {
-        return currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
-    }, [currentInstitution]);
+    const isSchool = useMemo(() => isSchoolInstitution(currentInstitution), [currentInstitution]);
 
     const perspectiveOptions = [
         { role: 'admin', label: 'Timetable', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
@@ -1079,7 +1081,7 @@ Please change it after login.`;
     ].filter(opt => {
         const instType = selectedTenantForPerspective?.institutionType;
         const subType = selectedTenantForPerspective?.businessSubType;
-        const isEdu = ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(instType || '');
+        const isEdu = instType === 'Education' || ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(instType || '');
         const isChurch = instType === 'Church' || subType === 'Church';
         
         // Only show Health System perspective for HIS institutions
@@ -1191,13 +1193,15 @@ Please change it after login.`;
                     onAddFarmer={props.onAddFarmer || (async () => { })}
                     onLogCollection={props.onLogCollection || (async () => { })}
                     onAddRider={props.onAddRider || (async () => { })}
-                    onConfirmCollection={props.onConfirmCollection || (async () => { })}
-                    onApproveCollection={props.onApproveCollection || (async () => { })}
+                    onConfirmCollection={props.onConfirmCollection || (async (_id: string, _qty: number) => { })}
+                    onApproveCollection={props.onApproveCollection || (async (_id: string, _status: 'approved' | 'rejected') => { })}
                     onAddInstitution={props.onAddInstitution || (() => { })}
                     onDeleteInstitution={props.onDeleteInstitution || (() => { })}
                     onToggleInstitutionStatus={props.onToggleInstitutionStatus || (() => { })}
                     onLoginAsAdmin={props.onLoginAsAdmin || (() => { })}
                     onGenerateReceipt={props.onGenerateReceipt || (() => { })}
+                    notifications={props.notifications || []}
+                    onAddTimeOffRequest={props.onAddTimeOffRequest || (async () => { })}
                 />
             </React.Suspense>
         );
@@ -1504,25 +1508,27 @@ Please change it after login.`;
                                                 <input type="tel" value={newInstData.phoneNumber} onChange={e => setNewInstData({ ...newInstData, phoneNumber: e.target.value })} className="form-input" required />
                                             </div>
                                             <div>
-                                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Institution Type</label>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Institution Group / Type</label>
                                                 <select
                                                     value={newInstData.institutionType}
-                                                    onChange={e => setNewInstData({ ...newInstData, institutionType: e.target.value as any, businessSubType: e.target.value === 'Business' ? 'Agrovet' : '' })}
+                                                    onChange={e => {
+                                                        const type = e.target.value as any;
+                                                        let category = '';
+                                                        if (type === 'Education') category = 'Primary';
+                                                        if (type === 'Business') category = 'Agrovet';
+                                                        if (type === 'HIS') category = 'Medical Center';
+                                                        setNewInstData({ ...newInstData, institutionType: type, category: category });
+                                                    }}
                                                     className="form-select font-black text-indigo-600 border-indigo-100"
                                                 >
-                                                    <option value="Primary">Primary School</option>
-                                                    <option value="Secondary">Secondary School</option>
-                                                    <option value="University">University</option>
-                                                    <option value="College">College</option>
-                                                    <option value="Institute">Institute</option>
-                                                    <option value="Polytechnic">Polytechnic</option>
-                                                    <option value="ECD">ECD Center</option>
-                                                    <option value="International">International School</option>
-                                                    <option value="Business">Business</option>
-                                                    <option value="Broadcaster">Broadcaster</option>
+                                                    <option value="Education">Education Sector</option>
+                                                    <option value="HIS">Health Sector (HIS)</option>
+                                                    <option value="Business">Business Ecosystem</option>
+                                                    <option value="Cooperative">Agriculture / Cooperative</option>
+                                                    <option value="SACCO">Financial / SACCO</option>
+                                                    <option value="Church">Religious / Church</option>
+                                                    <option value="Broadcaster">Media / Broadcaster</option>
                                                     <option value="Reseller">Reseller Agency</option>
-                                                    <option value="HIS">Health Information System (HIS)</option>
-                                                    <option value="Church">Church / Religious Institution</option>
                                                 </select>
                                             </div>
                                             <div>
@@ -1538,12 +1544,34 @@ Please change it after login.`;
                                                     ))}
                                                 </select>
                                             </div>
+                                            {newInstData.institutionType === 'Education' && (
+                                                <div className="animate-fade-in-up">
+                                                    <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Education Level / Category</label>
+                                                    <select
+                                                        value={newInstData.category}
+                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value })}
+                                                        className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
+                                                        required
+                                                    >
+                                                        <option value="Kindergarten">Kindergarten / Playgroup</option>
+                                                        <option value="ECD">ECD Center</option>
+                                                        <option value="Primary">Primary School</option>
+                                                        <option value="Secondary">Secondary School</option>
+                                                        <option value="International">International School</option>
+                                                        <option value="College">College</option>
+                                                        <option value="TVET">TVET / Vocational</option>
+                                                        <option value="Institute">Institute</option>
+                                                        <option value="Polytechnic">Polytechnic</option>
+                                                        <option value="University">University</option>
+                                                    </select>
+                                                </div>
+                                            )}
                                             {newInstData.institutionType === 'Business' && (
                                                 <div className="animate-fade-in-up">
                                                     <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Select Business Niche / Category</label>
                                                     <select
-                                                        value={newInstData.businessSubType || 'General'}
-                                                        onChange={e => setNewInstData({ ...newInstData, businessSubType: e.target.value as any })}
+                                                        value={newInstData.category}
+                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value })}
                                                         className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
                                                         required
                                                     >
@@ -1561,8 +1589,8 @@ Please change it after login.`;
                                                 <div className="animate-fade-in-up">
                                                     <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Church Tradition (Denomination)</label>
                                                     <select
-                                                        value={newInstData.businessSubType || ''}
-                                                        onChange={e => setNewInstData({ ...newInstData, businessSubType: e.target.value as any })}
+                                                        value={newInstData.category}
+                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value })}
                                                         className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
                                                         required
                                                     >
@@ -1605,7 +1633,12 @@ Please change it after login.`;
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-medium">{inst.institutionType}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex flex-col">
+                                                            <div className="text-[10px] font-black uppercase text-indigo-500 tracking-tight">{inst.institutionType}</div>
+                                                            <div className="text-sm font-bold text-slate-600 dark:text-slate-400 capitalize">{inst.category || inst.institutionType}</div>
+                                                        </div>
+                                                    </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tight">
                                                         {counties.find(c => c.id === inst.countyId)?.name || '—'}
                                                     </td>

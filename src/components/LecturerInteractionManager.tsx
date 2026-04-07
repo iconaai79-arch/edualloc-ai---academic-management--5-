@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import type { AllocationRequest, User, Subject, AbsenceRequest, TimetableEntry, TimeOffRequest, TimeOffRequestStatus, LecturerContract, Semester, Institution, LetterheadConfig, RequestStatus, Priority } from '../types';
+import { isSchoolInstitution } from '../utils/roleUtils';
 
 import { RequestManager } from './RequestManager';
 import { AbsenceRequestManager } from './AbsenceRequestManager';
@@ -104,7 +105,7 @@ const ContractStatusManager: React.FC<{
     const [previewingContract, setPreviewingContract] = useState<LecturerContract | null>(null);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isSchool = isSchoolInstitution(currentInstitution);
     const semesterLabel = isSchool ? 'Term' : 'Semester';
 
     const semesterContracts = useMemo(() => {
@@ -222,7 +223,7 @@ export const LecturerInteractionManager: React.FC<LecturerInteractionManagerProp
         currentInstitution, letterheadConfig, footerImageUrl, allocations
     } = props;
 
-    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isSchool = isSchoolInstitution(currentInstitution);
 
     const subTabs = [
         { key: 'allocations', label: 'Allocation Requests' },

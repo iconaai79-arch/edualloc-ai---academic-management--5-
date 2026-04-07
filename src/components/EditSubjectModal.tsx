@@ -6,6 +6,7 @@ import { PlusIcon } from './icons/PlusIcon';
 import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
 import { CheckIcon } from './icons/CheckIcon';
 import { InformationCircleIcon } from './icons/InformationCircleIcon';
+import { isSchoolInstitution } from '../utils/roleUtils';
 
 interface EditSubjectModalProps {
     subject: Subject;
@@ -51,7 +52,7 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
     // For new subjects, we store associations locally until the subject is created
     const [pendingLevelIds, setPendingLevelIds] = useState<string[]>([]);
 
-    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isSchool = isSchoolInstitution(currentInstitution);
     const isRestrictedToDept = currentUser.role === 'tto' && !!currentUser.departmentId;
 
     useEffect(() => {

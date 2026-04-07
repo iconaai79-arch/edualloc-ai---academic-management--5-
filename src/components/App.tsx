@@ -1914,16 +1914,18 @@ export const App: React.FC = () => {
         }
     }, [currentUser, activeInstitution, loadData]);
 
-    const handleAddTimeOffRequest = useCallback(async (userId: string, data: any) => {
+    const handleAddTimeOffRequest = useCallback(async (data: Partial<TimeOffRequest>) => {
         try {
+            const instId = activeInstitution?.id || currentUser?.institutionId;
+            if (!instId || !currentUser) return;
             const req: TimeOffRequest = {
                 ...data,
                 id: `to_${Date.now()}`,
-                lecturerId: userId,
+                lecturerId: data.lecturerId || currentUser.id,
                 status: 'pending',
-                institutionId: currentUser?.institutionId || '',
+                institutionId: instId,
                 timestamp: new Date().toISOString()
-            };
+            } as TimeOffRequest;
             await apiService.saveModuleRecord('time_off_requests', req);
             await loadData();
             alert("Time off request submitted successfully.");
@@ -1931,7 +1933,7 @@ export const App: React.FC = () => {
             console.error("Failed to submit time off request:", error);
             alert("Failed to submit time off request.");
         }
-    }, [currentUser, loadData]);
+    }, [currentUser, activeInstitution, loadData]);
 
     const handleMarkNotificationAsRead = useCallback(async (id: string) => {
         try {
@@ -2222,7 +2224,8 @@ export const App: React.FC = () => {
                     trialEndsAt: isResellerSelfReg ? undefined : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
                     institutionCode: generateAlphanumericCode(8),
                     useAllocationRequests: true,
-                    resellerId: data.resellerId
+                    resellerId: data.resellerId,
+                    category: data.category
                 };
                 const adminRole: Role = getAdminRoleForInstitution(newInstitution);
                 const newAdmin: User = { id: adminId, name: data.adminName, email: data.adminEmail, phoneNumber: data.institutionPhone, role: adminRole, institutionId: instId, password: generatedPassword, expertise: ['Administration'], staffId: 'ADMIN-01' };
@@ -2481,6 +2484,7 @@ export const App: React.FC = () => {
                                 ) : ((activeRole === 'admin' || activeRole === 'head_teacher') && !['Property Management', 'Agrovet', 'Cooperative', 'SACCO', 'Church', 'HIS', 'Car Wash', 'Pharmacy'].includes(activeInstitution?.institutionType || '') && !activeInstitution?.businessSubType?.toLowerCase().includes('property management') && !activeInstitution?.businessSubType?.toLowerCase().includes('agrovet') && !activeInstitution?.businessSubType?.toLowerCase().includes('pharmacy')) ? (
                                 <AdminView
                                     currentUser={currentUser}
+                                    notifications={notifications}
                                     activeRole={activeRole || undefined}
                                     users={users}
                                     requests={requests}
@@ -2654,10 +2658,10 @@ export const App: React.FC = () => {
                                     courseSizes={courseSizes}
                                     assessments={assessments}
                                     assessmentMarks={assessmentMarks}
-                                    onAddAssessment={async (d) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()} `, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
-                                    onDeleteAssessment={async (id) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
+                                    onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()} `, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
+                                    onDeleteAssessment={async (id: string) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
                                     onUpdateAssessmentStatus={() => { }}
-                                    onSaveAssessmentMarks={async (id, marks) => {
+                                    onSaveAssessmentMarks={async (id: string, marks: any[]) => {
                                         const promises = marks.map((m: any) => {
                                             const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
                                             const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()} `;
@@ -2865,6 +2869,7 @@ export const App: React.FC = () => {
                             ) : activeRole === 'super_admin' ? (
                                 <SuperAdminView
                                     currentUser={currentUser}
+                                    notifications={notifications}
                                     institutions={institutions}
                                     counties={counties}
                                     users={users}
@@ -2971,6 +2976,7 @@ export const App: React.FC = () => {
                                     onAddTransaction={apiService.onAddTransaction.bind(apiService)}
                                     onAddExtensionRequest={handleAddExtensionRequest}
                                     timeOffRequests={timeOffRequests}
+                                    onAddTimeOffRequest={handleAddTimeOffRequest}
                                     onUpdateTimeOffRequestStatus={() => { }}
                                     enrollmentRequests={enrollmentRequests}
                                     absenceRequests={absenceRequests}
@@ -3029,8 +3035,8 @@ export const App: React.FC = () => {
                                             loadData();
                                         }
                                     }}
-                                    onAddAssessment={async (d) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
-                                    onDeleteAssessment={async (id) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
+                                    onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
+                                    onDeleteAssessment={async (id: string) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
                                     onSaveAssessmentMarks={async (id: string, marks: any[]) => {
                                         const promises = marks.map(m => {
                                             const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
@@ -3830,10 +3836,10 @@ export const App: React.FC = () => {
                                     courseSizes={courseSizes}
                                     assessments={assessments}
                                     assessmentMarks={assessmentMarks}
-                                    onAddAssessment={async (d) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()} `, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
-                                    onDeleteAssessment={async (id) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
+                                    onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()} `, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
+                                    onDeleteAssessment={async (id: string) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
                                     onUpdateAssessmentStatus={() => { }}
-                                    onSaveAssessmentMarks={async (id, marks) => {
+                                    onSaveAssessmentMarks={async (id: string, marks: any[]) => {
                                         const promises = marks.map((m: any) => {
                                             const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
                                             const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()} `;

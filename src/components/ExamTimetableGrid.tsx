@@ -30,7 +30,11 @@ export const ExamTimetableGrid: React.FC<ExamTimetableGridProps> = ({ entries, g
     }, [entries]);
 
     // Support dynamic labeling for Schools vs Universities based on the provided institution type
-    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const institutionType = currentInstitution?.institutionType;
+    const currentCategory = currentInstitution?.category;
+    const isSecondary = (institutionType as string) === 'Secondary' || (institutionType === 'Education' && currentCategory === 'Secondary');
+    const isPrimary = (institutionType as string) === 'Primary' || (institutionType === 'Education' && currentCategory === 'Primary');
+    const isSchool = isPrimary || isSecondary;
     const courseLabel = isSchool ? 'Grade' : 'Course';
     const levelLabel = isSchool ? 'Stream' : 'Level';
 

@@ -58,7 +58,8 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
     const [newTenantName, setNewTenantName] = useState('');
     const [newTenantEmail, setNewTenantEmail] = useState('');
     const [newTenantPhone, setNewTenantPhone] = useState('');
-    const [newTenantType, setNewTenantType] = useState<Institution['institutionType']>('Primary');
+    const [newTenantType, setNewTenantType] = useState<Institution['institutionType']>('Education');
+    const [newTenantCategory, setNewTenantCategory] = useState('Primary');
     const [newTenantSubType, setNewTenantSubType] = useState<Institution['businessSubType']>('');
     const [newTenantMonthlyPrice, setNewTenantMonthlyPrice] = useState(companyDetails.subscriptionConfig.defaultMonthlyPrice);
     const [newTenantYearlyPrice, setNewTenantYearlyPrice] = useState(companyDetails.subscriptionConfig.defaultYearlyPrice);
@@ -110,6 +111,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 email: newTenantEmail,
                 phoneNumber: newTenantPhone,
                 institutionType: newTenantType,
+                category: newTenantCategory,
                 businessSubType: newTenantSubType,
                 status: 'trial',
                 trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
@@ -162,7 +164,8 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
             setNewTenantName('');
             setNewTenantEmail('');
             setNewTenantPhone('');
-            setNewTenantType('Primary');
+            setNewTenantType('Education');
+            setNewTenantCategory('Primary');
             setNewTenantSubType('');
             setNewTenantMonthlyPrice(companyDetails.subscriptionConfig.defaultMonthlyPrice);
             setNewTenantYearlyPrice(companyDetails.subscriptionConfig.defaultYearlyPrice);
@@ -694,20 +697,41 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                                 setNewTenantSubType('Agrovet');
                                             } else {
                                                 setNewTenantSubType('');
+                                                setNewTenantCategory('');
                                             }
                                         }}
                                         className="w-full border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
                                     >
-                                        <option value="Primary">Primary School</option>
-                                        <option value="Secondary">Secondary School</option>
-                                        <option value="University">University</option>
-                                        <option value="College">College</option>
-                                        <option value="Institute">Institute</option>
-                                        <option value="Polytechnic">Polytechnic</option>
+                                        <option value="Education">School / College / University</option>
                                         <option value="HIS">Health Information System (HIS)</option>
-                                        <option value="Business">Business</option>
+                                        <option value="Business">General Business</option>
+                                        <option value="Cooperative">Cooperative / SACCO</option>
+                                        <option value="Agrovet">Agrovet</option>
+                                        <option value="Church">Church / Ministry</option>
+                                        <option value="Property Management">Property Management</option>
+                                        <option value="Pharmacy">Pharmacy</option>
                                     </select>
                                 </div>
+
+                                {newTenantType === 'Education' && (
+                                    <div className="animate-fade-in">
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">Education Category</label>
+                                        <select
+                                            value={newTenantCategory}
+                                            onChange={(e) => setNewTenantCategory(e.target.value)}
+                                            className="w-full border border-indigo-200 bg-indigo-50/30 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-medium"
+                                            required
+                                        >
+                                            <option value="Primary">Primary School</option>
+                                            <option value="Secondary">Secondary School</option>
+                                            <option value="University">University</option>
+                                            <option value="College">College</option>
+                                            <option value="Institute">Vocational Institute</option>
+                                            <option value="Polytechnic">Polytechnic</option>
+                                            <option value="ECD">ECD / Kindergarten</option>
+                                        </select>
+                                    </div>
+                                )}
 
                                 {newTenantType === 'Business' && (
                                     <div className="animate-fade-in">

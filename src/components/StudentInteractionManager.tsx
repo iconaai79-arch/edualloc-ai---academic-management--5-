@@ -20,6 +20,7 @@ interface StudentInteractionManagerProps {
     onUpdateEnrollmentRequest: (requestId: string, newStatus: 'approved' | 'rejected') => void;
     studentAbsenceRequests: StudentAbsenceRequest[];
     onUpdateStudentAbsenceRequestStatus: (requestId: string, newStatus: StudentAbsenceRequestStatus) => void;
+    absenceRequests: any[];
     users: User[];
     subjects: Subject[];
     departments: Department[];
@@ -34,6 +35,7 @@ export const StudentInteractionManager: React.FC<StudentInteractionManagerProps>
         lessonRatings, 
         enrollmentRequests, onUpdateEnrollmentRequest,
         studentAbsenceRequests, onUpdateStudentAbsenceRequestStatus,
+        absenceRequests,
         users, subjects, departments, courses, currentUser 
     } = props;
 

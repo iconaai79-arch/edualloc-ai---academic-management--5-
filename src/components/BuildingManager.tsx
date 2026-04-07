@@ -18,6 +18,7 @@ import { SparklesIcon } from './icons/SparklesIcon';
 import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 import { MapPinIcon } from './icons/MapPinIcon';
 import { UsersIcon } from './icons/UsersIcon';
+import { isSchoolInstitution } from '../utils/roleUtils';
 
 import { findLocationCoordinates } from '../services/geminiService';
 import { SmartRoomImporterModal } from './SmartRoomImporterModal';
@@ -385,7 +386,7 @@ const AddRoomForm: React.FC<{
         }
     }, [safeBuildings, buildingId]);
 
-    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isSchool = isSchoolInstitution(currentInstitution);
     const buildingLabel = isSchool ? 'Block' : 'Building';
 
     useEffect(() => {
@@ -579,7 +580,7 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
     const [isSmartImporting, setIsSmartImporting] = useState(false);
     const [isBulkQrPrinting, setIsBulkQrPrinting] = useState(false);
 
-    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isSchool = isSchoolInstitution(currentInstitution);
     const buildingLabel = isSchool ? 'Block' : 'Building';
     const buildingLabelPlural = isSchool ? 'Blocks' : 'Buildings';
 

@@ -25,6 +25,7 @@ import { ExamTimetableGrid } from './ExamTimetableGrid';
 import { TAAssignmentsView } from './TAAssignmentsView';
 import { NearbyClassesView } from './NearbyClassesView';
 import type { StudentAttendance } from '../types';
+import { isSchoolInstitution } from '../utils/roleUtils';
 
 // --- Enrollment Request Modal ---
 interface EnrollmentRequestModalProps {
@@ -234,6 +235,8 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
         return () => clearInterval(timer);
     }, []);
 
+    const isSchool = isSchoolInstitution(currentInstitution);
+
     const { course, level, availableSubjects } = useMemo(() => {
         const studentCourse = courses.find(c => c.id === user.courseId);
         if (!studentCourse) return { course: null, level: null, availableSubjects: [] };
@@ -373,9 +376,9 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
                     {/* Sub-Tabs */}
                     <div className="flex flex-wrap gap-2 p-1 bg-slate-100 dark:bg-slate-900/50 rounded-2xl w-fit no-print">
                         {[
-                            { id: 'weekly', label: 'Weekly Schedule' },
-                            { id: 'exams', label: 'Exam Timetable' },
-                            { id: 'enrollment', label: 'Enrollment' },
+                            { id: 'weekly', label: isSchool ? 'School Weekly Schedule' : 'Weekly Schedule' },
+                            { id: 'exams', label: isSchool ? 'Examination Timetable' : 'Exam Timetable' },
+                            { id: 'enrollment', label: isSchool ? 'Subject Selection' : 'Enrollment' },
                             { id: 'requests', label: 'My Requests' }
                         ].map(st => (
                             <button

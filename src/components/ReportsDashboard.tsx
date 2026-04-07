@@ -259,7 +259,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     const isRetailAgency = RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
     const isEdu = useMemo(() => {
         const type = currentInstitution?.institutionType;
-        return ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(type || '');
+        return type === 'Education' || ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes((currentInstitution as any)?.institutionType || '');
     }, [currentInstitution]);
 
     const [subTab, setSubTab] = useState('visuals');

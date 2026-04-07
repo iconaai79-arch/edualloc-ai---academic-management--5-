@@ -252,7 +252,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
         };
     }, [timetableConflicts]);
 
-    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isSchool = (currentInstitution?.institutionType === 'Education' && (currentInstitution?.category === 'Primary' || currentInstitution?.category === 'Secondary')) || (currentInstitution as any)?.institutionType === 'Primary' || (currentInstitution as any)?.institutionType === 'Secondary';
 
     return (
         <div className="space-y-8">

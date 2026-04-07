@@ -9,24 +9,24 @@ import { AcademicCapIcon } from './icons/AcademicCapIcon';
 
 interface InteractionsManagerProps {
     // Lecturer Props
-    requests: AllocationRequest[];
+    requests?: AllocationRequest[];
     allocations?: AllocationRequest[]; // Added allocations prop
     onUpdateRequestStatus?: (requestId: string, newStatus: RequestStatus) => Promise<void>;
     onBulkUpdateRequestStatus?: (newStatus: 'hod_approved' | 'approved', departmentId?: string) => Promise<void>;
-    onOpenDirectAssign: () => void;
-    absenceRequests: AbsenceRequest[];
+    onOpenDirectAssign?: () => void;
+    absenceRequests?: AbsenceRequest[];
     onUpdateAbsenceRequest?: (requestId: string, newStatus: 'approved' | 'rejected') => void;
-    timeOffRequests: TimeOffRequest[];
+    timeOffRequests?: TimeOffRequest[];
     onUpdateTimeOffRequestStatus?: (requestId: string, newStatus: TimeOffRequestStatus) => void;
-    contracts: LecturerContract[];
+    contracts?: LecturerContract[];
 
     // Student Props
-    feedbackSubmissions: FeedbackSubmission[];
+    feedbackSubmissions?: FeedbackSubmission[];
     onUpdateFeedbackStatus?: (submissionId: string, status: FeedbackSubmission['status']) => void;
-    lessonRatings: LessonRating[];
-    enrollmentRequests: EnrollmentRequest[];
+    lessonRatings?: LessonRating[];
+    enrollmentRequests?: EnrollmentRequest[];
     onUpdateEnrollmentRequest?: (requestId: string, newStatus: 'approved' | 'rejected') => void;
-    studentAbsenceRequests: StudentAbsenceRequest[];
+    studentAbsenceRequests?: StudentAbsenceRequest[];
     onUpdateStudentAbsenceRequestStatus?: (requestId: string, newStatus: StudentAbsenceRequestStatus) => void;
 
     // Common Props
@@ -48,7 +48,7 @@ interface InteractionsManagerProps {
 export const InteractionsManager: React.FC<InteractionsManagerProps> = (props) => {
     const [activeInteractionTab, setActiveTab] = useState('lecturer');
 
-    const isSchool = props.currentInstitution?.institutionType === 'Primary' || props.currentInstitution?.institutionType === 'Secondary';
+    const isSchool = (props.currentInstitution?.institutionType === 'Education' && (props.currentInstitution?.category === 'Primary' || props.currentInstitution?.category === 'Secondary')) || (props.currentInstitution?.institutionType as any) === 'Primary' || (props.currentInstitution?.institutionType as any) === 'Secondary';
 
     const interactionTabs = useMemo(() => {
         const tabs = [
@@ -79,18 +79,24 @@ export const InteractionsManager: React.FC<InteractionsManagerProps> = (props) =
             <main className="flex-1 min-w-0">
                 {activeInteractionTab === 'lecturer' && <LecturerInteractionManager
                     {...props}
-                    allocations={props.allocations || []} // Pass allocations
                     onUpdateRequestStatus={props.onUpdateRequestStatus || (async () => { })}
                     onBulkUpdateRequestStatus={props.onBulkUpdateRequestStatus || (async () => { })}
                     onOpenDirectAssign={props.onOpenDirectAssign || (() => { })}
                     onUpdateRequest={props.onUpdateRequest || (() => { })}
                     onUpdateTimeOffRequestStatus={props.onUpdateTimeOffRequestStatus || (() => { })}
+                    requests={props.requests || []}
+                    allocations={props.allocations || []}
                 />}
                 {activeInteractionTab === 'student' && !isSchool && <StudentInteractionManager
                     {...props}
                     onUpdateFeedbackStatus={props.onUpdateFeedbackStatus || (() => { })}
                     onUpdateEnrollmentRequest={props.onUpdateEnrollmentRequest || (() => { })}
                     onUpdateStudentAbsenceRequestStatus={props.onUpdateStudentAbsenceRequestStatus || (() => { })}
+                    feedbackSubmissions={props.feedbackSubmissions || []}
+                    lessonRatings={props.lessonRatings || []}
+                    enrollmentRequests={props.enrollmentRequests || []}
+                    studentAbsenceRequests={props.studentAbsenceRequests || []}
+                    absenceRequests={props.absenceRequests || []}
                 />}
             </main>
         </div>

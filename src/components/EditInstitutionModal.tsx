@@ -23,6 +23,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     },
     isOtpEnabled: false,
     customSmsPrice: '',
+    category: '',
     businessSubType: '',
     ncbaConfig: {
       clientId: '',
@@ -58,6 +59,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         },
         isOtpEnabled: institution.isOtpEnabled ?? false,
         customSmsPrice: institution.customSmsPrice?.toString() || '',
+        category: institution.category || institution.businessSubType || '',
         businessSubType: institution.businessSubType || '',
         ncbaConfig: {
           clientId: institution.ncbaConfig?.clientId || '',
@@ -111,7 +113,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       },
       isOtpEnabled: formData.isOtpEnabled,
       customSmsPrice: formData.customSmsPrice ? parseFloat(formData.customSmsPrice) : undefined,
-      businessSubType: formData.businessSubType || undefined,
+      category: formData.category || undefined,
+      businessSubType: formData.category || formData.businessSubType || undefined,
       ncbaConfig: formData.ncbaConfig
     };
     onSave(institution.id, saveData);
@@ -205,30 +208,58 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                     <input type="tel" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} className="form-input" placeholder="+254..." required />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Educational Tier</label>
-                    <select name="institutionType" value={formData.institutionType} onChange={handleChange} className="form-select">
-                      <option>Primary</option>
-                      <option>Secondary</option>
-                      <option>University</option>
-                      <option>College</option>
-                      <option>Institute</option>
-                      <option>Polytechnic</option>
-                      <option>ECD</option>
-                      <option>International</option>
-                      <option>Business</option>
-                      <option>Broadcaster</option>
-                      <option>HIS</option>
-                      <option>Church</option>
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Operational Cluster</label>
+                    <select 
+                      name="institutionType" 
+                      value={formData.institutionType} 
+                      onChange={(e) => {
+                        const type = e.target.value as any;
+                        let cat = '';
+                        if (type === 'Education') cat = 'Primary';
+                        if (type === 'Business') cat = 'Agrovet';
+                        setFormData({ ...formData, institutionType: type, category: cat });
+                      }} 
+                      className="form-select font-black text-indigo-600 border-indigo-100"
+                    >
+                      <option value="Education">Education Sector</option>
+                      <option value="HIS">Health Sector (HIS)</option>
+                      <option value="Business">Business Ecosystem</option>
+                      <option value="Cooperative">Agriculture / Cooperative</option>
+                      <option value="SACCO">Financial / SACCO</option>
+                      <option value="Church">Religious / Church</option>
+                      <option value="Broadcaster">Media / Broadcaster</option>
+                      <option value="Reseller">Reseller Agency</option>
+                      <option value="Pharmacy">Pharmacy / Chemist</option>
                     </select>
                   </div>
-                  {formData.institutionType === 'Business' && (
+                  {formData.institutionType === 'Education' && (
+                    <div className="animate-fade-in-up">
+                      <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1">Educational Level / Category</label>
+                      <select
+                        value={formData.category}
+                        onChange={e => setFormData({ ...formData, category: e.target.value })}
+                        className="form-select border-2 border-indigo-200 font-bold"
+                        required
+                      >
+                        <option value="Kindergarten">Kindergarten / Playgroup</option>
+                        <option value="ECD">ECD Center</option>
+                        <option value="Primary">Primary School</option>
+                        <option value="Secondary">Secondary School</option>
+                        <option value="International">International School</option>
+                        <option value="College">College</option>
+                        <option value="TVET">TVET / Vocational</option>
+                        <option value="Institute">Institute</option>
+                        <option value="Polytechnic">Polytechnic</option>
+                        <option value="University">University</option>
+                      </select>
+                    </div>
+                  )}
                     <div className="animate-fade-in-up">
                       <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1">Business Niche / Category</label>
                       <select
-                        name="businessSubType"
-                        value={formData.businessSubType}
-                        onChange={handleChange}
-                        className="form-select border-2 border-indigo-200"
+                        value={formData.category}
+                        onChange={e => setFormData({ ...formData, category: e.target.value })}
+                        className="form-select border-2 border-indigo-200 font-bold"
                         required
                       >
                         <option value="">-- Select Category --</option>
@@ -241,15 +272,13 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                         <option value="General">General Retail / Business</option>
                       </select>
                     </div>
-                  )}
                   {formData.institutionType === 'Church' && (
                     <div className="animate-fade-in-up">
                       <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1">Church Tradition (Denomination)</label>
                       <select
-                        name="businessSubType"
-                        value={formData.businessSubType}
-                        onChange={handleChange}
-                        className="form-select border-2 border-indigo-200"
+                        value={formData.category}
+                        onChange={e => setFormData({ ...formData, category: e.target.value })}
+                        className="form-select border-2 border-indigo-200 font-bold"
                         required
                       >
                         <option value="">-- Select Tradition --</option>

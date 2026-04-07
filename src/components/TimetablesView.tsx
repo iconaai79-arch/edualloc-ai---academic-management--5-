@@ -77,7 +77,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
     const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('vertical'); // List Layout by default to match PDF default
 
     const activeAcademicYear = useMemo(() => (academicYears || []).find(y => y && y.status === 'active'), [academicYears]);
-    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isSchool = (currentInstitution?.institutionType === 'Education' && (currentInstitution?.category === 'Primary' || currentInstitution?.category === 'Secondary')) || (currentInstitution as any)?.institutionType === 'Primary' || (currentInstitution as any)?.institutionType === 'Secondary';
 
     const staffLabel = isSchool ? 'Teacher' : 'Lecturer';
     const facultyLabel = isSchool ? 'Staff' : 'Faculty';
