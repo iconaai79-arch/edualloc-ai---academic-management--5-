@@ -1258,9 +1258,13 @@ export const apiService = {
     },
     async checkPaymentStatus(provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba', checkoutRequestId: string, config?: any) {
         try {
+            const token = await apiService.getAuthToken();
             const response = await fetch('/api/integrations', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json' 
+                },
                 body: JSON.stringify({
                     action: 'queryPaymentStatus',
                     provider,
@@ -1324,9 +1328,13 @@ export const apiService = {
     },
     async checkMpesaStatus(checkoutRequestId: string, config?: MpesaConfig) {
         try {
+            const token = await apiService.getAuthToken();
             const response = await fetch('/api/integrations', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json' 
+                },
                 body: JSON.stringify({
                     action: 'queryStkStatus',
                     checkoutRequestId,
