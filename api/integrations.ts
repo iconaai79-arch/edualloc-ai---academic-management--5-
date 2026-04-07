@@ -930,7 +930,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
             const fingerprint = `ID: ${cId.substring(0, 4)}... (Len: ${cId.length}), Secret: *** (Len: ${cSec.length})`;
             
-            if (!cSec || (!cId && !callbackUser)) {
+            if (!cSec || !cId) {
                 throw new Error(`NCBA Configuration incomplete: Your ${!cSec ? 'Secret Key' : 'ID'} is missing from your global/institution settings.`);
             }
             
@@ -1048,7 +1048,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             const token = await getNcbaToken(ncbaConfig);
             const authMethod = (ncbaConfig.authMethod || 'bearer').toLowerCase();
-            const { id: cId, sec: cSec, callbackUser } = getNcbaCredentials(ncbaConfig);
+            const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
             const authHeader = authMethod === 'basic' 
                 ? `Basic ${Buffer.from(`${cId}:${cSec}`).toString('base64')}`
                 : `Bearer ${token}`;
@@ -1086,7 +1086,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const generateNcbaQr = async (ncbaConfig: any, amount: number) => {
             const token = await getNcbaToken(ncbaConfig);
             const authMethod = (ncbaConfig.authMethod || 'bearer').toLowerCase();
-            const { id: cId, sec: cSec, callbackUser } = getNcbaCredentials(ncbaConfig);
+            const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
             const authHeader = authMethod === 'basic' 
                 ? `Basic ${Buffer.from(`${cId}:${cSec}`).toString('base64')}`
                 : `Bearer ${token}`;
