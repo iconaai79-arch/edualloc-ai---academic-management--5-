@@ -1081,12 +1081,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             
             const rawData = await safeParseJson(res) as any;
+            const isSuccess = rawData.status === 'SUCCESS' || rawData.ResultCode === '0' || rawData.ResponseCode === '0' || rawData.success === true;
+            const isFailure = rawData.status === 'FAILED' || rawData.ResultCode === '1';
+
             // Map the bank's 'status: SUCCESS' to our platform's expected unified structure
             return {
                 ...rawData,
-                success: rawData.status === 'SUCCESS',
+                success: isSuccess,
                 // Legacy compatibility fields
-                ResultCode: rawData.status === 'SUCCESS' ? '0' : '1',
+                ResultCode: isSuccess ? '0' : (isFailure ? '1' : null), // null keeps it in 'pending' state
                 ResultDesc: rawData.description
             };
         };
@@ -1396,20 +1399,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const ncba = bodyConfig || settings?.ncba_config || settings?.ncbaConfig || {};
                 if (ncba && (ncba.clientId || ncba.client_id)) {
                     try {
-                        const token = await getNcbaToken(ncba);
-                        const authHeader = token ? `Bearer ${token}` : `Basic ${Buffer.from(`${ncba.clientId || ncba.client_id}:${ncba.clientSecret || ncba.client_secret}`).toString('base64')}`;
-                        
-                        const resStatus = await fetchWithTimeout(`${ncba.baseUrl}/payments/v1/status/${checkoutRequestId}`, {
-                            headers: { 'Authorization': authHeader }
-                        });
-                        if (resStatus.ok) {
-                            const statusData = await resStatus.json() as any;
-                            externalData = statusData;
-                            if (statusData.status === 'COMPLETED' || String(statusData.ResultCode) === '0') finalStatus = 'completed';
-                            else if (statusData.status === 'FAILED' || String(statusData.ResultCode) === '1') finalStatus = 'failed';
+                        const statusData = await queryNcbaStkStatus(ncba, checkoutRequestId);
+                        externalData = statusData;
+                        // Map 2024 spec 'status: SUCCESS' to our platform's completed state
+                        if (statusData.status === 'SUCCESS' || statusData.ResultCode === '0' || statusData.ResponseCode === '0' || statusData.success === true) {
+                            finalStatus = 'completed';
+                        } else if (statusData.status === 'FAILED' || statusData.ResultCode === '1') {
+                            finalStatus = 'failed';
                         }
                     } catch (e) {
-                        console.error('[NCBA Status] Error polling NCBA:', e);
+                        console.error('[NCBA Status] Error polling NCBA via helper:', e);
                     }
                 }
             } else if (provider === 'airtel') {
