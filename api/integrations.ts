@@ -1081,11 +1081,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             
             const rawData = await safeParseJson(res) as any;
+            console.log(`[NCBA Status Response] CRID: ${checkoutRequestId} -> Raw:`, JSON.stringify(rawData));
+            
             const statusStr = (rawData.status || rawData.TransactionStatus || rawData.Status || '').toUpperCase();
             const isSuccess = statusStr === 'SUCCESS' || statusStr === 'COMPLETED' || 
                              rawData.ResultCode === '0' || rawData.ResponseCode === '0' || 
                              rawData.StatusCode === '0' || rawData.success === true ||
-                             String(rawData.ResponseCode) === '00';
+                             String(rawData.ResponseCode) === '00' ||
+                             (rawData.description || '').toUpperCase() === 'SUCCESS';
             const isFailure = statusStr === 'FAILED' || statusStr === 'REJECTED' || rawData.ResultCode === '1' || rawData.StatusCode === '1';
 
             // Map the bank's status to our platform's expected unified structure
