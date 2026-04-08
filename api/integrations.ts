@@ -1006,8 +1006,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         AccountNo: ncbaConfig.accountNumber || ncbaConfig.account_number,
                         Network: 'Safaricom',
                         TransactionType: 'CustomerPayBillOnline',
-                        Narrative: (ncbaConfig.narrative || `Payment to ${ncbaConfig.institutionName || 'Educ AI'}`).substring(0, 25),
-                        MerchantReference: (ncbaConfig.institutionName || 'Educ AI').substring(0, 12).trim()
+                        // Inject name into all likely display fields
+                        Narrative: (paramsMap.metadata?.institutionName || ncbaConfig.institutionName || 'Educ AI').substring(0, 25),
+                        MerchantReference: (paramsMap.metadata?.institutionName || ncbaConfig.institutionName || 'Educ AI').substring(0, 12).trim(),
+                        AccountReference: (paramsMap.metadata?.institutionName || ncbaConfig.institutionName || 'Educ AI').substring(0, 12).trim(),
+                        Description: (paramsMap.metadata?.institutionName || 'Educ AI').substring(0, 20)
                     }, ncbaConfig.params)),
                     redirect: 'manual'
                 }, 25000);
