@@ -1211,19 +1211,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             } 
             // 3. Handle SMS
-            else if (meta.type === 'sms') {
-                const units = parseInt(meta.units || "0");
+            else if (meta.type === 'sms' || meta.type === 'sms_topup') {
+                const units = parseInt(String(meta.units || "0"));
                 if (units > 0) {
-                    if (instId === 'SYSTEM') {
-                        // Global system SMS balance update (if we have a place for it)
-                        const { data: globalSettings } = await supabase.from('system_settings').select('data').eq('id', 1).single();
-                        if (globalSettings) {
-                            const newData = { ...globalSettings.data, sms_balance: (globalSettings.data?.sms_balance || 0) + units };
-                            await supabase.from('system_settings').update({ data: newData }).eq('id', 1);
-                        }
-                    } else if (instId) {
-                        await supabase.rpc('increment_sms_balance', { inst_id: instId, amount: units });
-                    }
+                    console.log(`[Reconcile] Incrementing SMS balance for ${instId || 'SYSTEM'} by ${units} units`);
+                    await supabase.rpc('increment_sms_balance', { 
+                        inst_id: instId || 'SYSTEM', 
+                        amount: units 
+                    });
                 }
 
                 if (!invId) {
@@ -1231,9 +1226,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     await supabase.from('invoices').insert({
                         id: invId,
                         invoice_number: `INV-SMS-${Date.now().toString().slice(-6)}`,
-                        institution_id: instId,
-                        issue_date: new Date().toISOString().split('T')[0],
-                        due_date: new Date().toISOString().split('T')[0],
+                        institution_id: instId || 'SYSTEM',
+                        issue_date: new Date().toISOString(),
+                        due_date: new Date().toISOString(),
                         total_amount: amt,
                         status: 'paid',
                         items: JSON.stringify([{
@@ -1465,7 +1460,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (finalStatus !== 'pending' && transaction) {
                 const updateCol = provider === 'ncba' ? 'transaction_id' : 'checkout_request_id';
-                await supabase.from(table).update({ status: finalStatus }).eq(updateCol, checkoutRequestId);
+                const now = new Date().toISOString();
+                await supabase.from(table).update({ 
+                    status: finalStatus,
+                    completed_at: finalStatus === 'completed' ? now : null,
+                    updated_at: now
+                }).eq(updateCol, checkoutRequestId);
                 
                 if (finalStatus === 'completed') {
                     await reconcilePayment({ ...transaction, status: finalStatus, provider: provider as any });
