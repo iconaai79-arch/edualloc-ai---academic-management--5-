@@ -1461,10 +1461,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (finalStatus !== 'pending' && transaction) {
                 const updateCol = provider === 'ncba' ? 'transaction_id' : 'checkout_request_id';
                 const now = new Date().toISOString();
+                
+                // Extract M-Pesa Reference / Receipt Number if available
+                const receiptNum = externalData.MpesaReceiptNumber || externalData.ReceiptNumber || 
+                                 externalData.BankReference || externalData.ProviderReference || 
+                                 externalData.TransactionReference;
+                
+                // Extract Payer Info if available
+                const payerName = externalData.PayerName || externalData.CustomerName || externalData.Payer;
+                const payerPhone = externalData.PhoneNumber || externalData.Phone || externalData.MSISDN;
+
                 await supabase.from(table).update({ 
                     status: finalStatus,
                     completed_at: finalStatus === 'completed' ? now : null,
-                    updated_at: now
+                    updated_at: now,
+                    receipt_number: receiptNum || null,
+                    payer_name: payerName || transaction.payer_name,
+                    phone_number: payerPhone || transaction.phone_number,
+                    external_data: externalData
                 }).eq(updateCol, checkoutRequestId);
                 
                 if (finalStatus === 'completed') {
