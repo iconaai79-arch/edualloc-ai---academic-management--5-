@@ -28,6 +28,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     ncbaConfig: {
       clientId: '',
       clientSecret: '',
+      callbackUsername: '',
+      callbackSecret: '',
       baseUrl: '',
       accountNumber: '',
       shortCode: '',
@@ -61,6 +63,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         ncbaConfig: {
           clientId: institution.ncbaConfig?.clientId || '',
           clientSecret: institution.ncbaConfig?.clientSecret || '',
+          callbackUsername: institution.ncbaConfig?.callbackUsername || '',
+          callbackSecret: institution.ncbaConfig?.callbackSecret || '',
           baseUrl: institution.ncbaConfig?.baseUrl || '',
           accountNumber: institution.ncbaConfig?.accountNumber || '',
           shortCode: institution.ncbaConfig?.shortCode || '',
@@ -435,8 +439,21 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                           placeholder="/v1/stk/query"
                         />
                       </div>
-                       <div>
-                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Username</label>
+                      <div>
+                        <div className="flex justify-between items-center mb-1 px-1">
+                          <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Username</label>
+                          <button 
+                            type="button" 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const gen = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+                              setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, clientId: gen } });
+                            }}
+                            className="text-[8px] font-black uppercase text-indigo-500 hover:underline"
+                          >
+                            Generate
+                          </button>
+                        </div>
                         <input
                           type="text"
                           value={formData.ncbaConfig.clientId}
@@ -446,11 +463,70 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                         />
                       </div>
                        <div>
-                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Secret Key</label>
+                        <div className="flex justify-between items-center mb-1 px-1">
+                          <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Secret Key</label>
+                          <button 
+                            type="button" 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const gen = Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+                              setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, clientSecret: gen } });
+                            }}
+                            className="text-[8px] font-black uppercase text-indigo-500 hover:underline"
+                          >
+                            Generate
+                          </button>
+                        </div>
                         <input
                           type="password"
                           value={formData.ncbaConfig.clientSecret}
                           onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, clientSecret: e.target.value } })}
+                          className="form-input text-[10px] h-10"
+                          placeholder="••••••••••••••••"
+                        />
+                      </div>
+                      <div>
+                        <div className="flex justify-between items-center mb-1 px-1">
+                          <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Notification User</label>
+                          <button 
+                            type="button" 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const gen = Array.from(crypto.getRandomValues(new Uint8Array(5))).map(b => b.toString(16).padStart(2, '0')).join('');
+                              setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, callbackUsername: gen } });
+                            }}
+                            className="text-[8px] font-black uppercase text-indigo-500 hover:underline"
+                          >
+                            Generate
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          value={formData.ncbaConfig.callbackUsername || ''}
+                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, callbackUsername: e.target.value } })}
+                          className="form-input text-[10px] h-10"
+                          placeholder="NCBA_NOTIFY_USER"
+                        />
+                      </div>
+                      <div>
+                        <div className="flex justify-between items-center mb-1 px-1">
+                          <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Notification Secret</label>
+                          <button 
+                            type="button" 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const gen = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+                              setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, callbackSecret: gen } });
+                            }}
+                            className="text-[8px] font-black uppercase text-indigo-500 hover:underline"
+                          >
+                            Generate
+                          </button>
+                        </div>
+                        <input
+                          type="password"
+                          value={formData.ncbaConfig.callbackSecret || ''}
+                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, callbackSecret: e.target.value } })}
                           className="form-input text-[10px] h-10"
                           placeholder="••••••••••••••••"
                         />
