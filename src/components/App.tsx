@@ -2484,7 +2484,10 @@ export const App: React.FC = () => {
                             <Suspense fallback={<SystemPulseLoader message="Initializing Portal..." status="Loading perspective environment" />}>
                                 {isPharmacySystemOpen ? (
                                     <div className="p-8 bg-slate-950 min-h-[80vh] rounded-[3rem] overflow-hidden shadow-2xl">
-                                        <ModernPharmacyManager institutionId={activeInstitution?.id || currentUser?.institutionId || ''} />
+                                        <ModernPharmacyManager 
+                                             institutionId={activeInstitution?.id || currentUser?.institutionId || ''} 
+                                             currentUser={currentUser!}
+                                         />
                                     </div>
                                 ) : ((activeRole === 'admin' || activeRole === 'head_teacher') && !['Property Management', 'Agrovet', 'Cooperative', 'SACCO', 'Church', 'HIS', 'Car Wash', 'Pharmacy'].includes(activeInstitution?.institutionType || '') && !activeInstitution?.businessSubType?.toLowerCase().includes('property management') && !activeInstitution?.businessSubType?.toLowerCase().includes('agrovet') && !activeInstitution?.businessSubType?.toLowerCase().includes('pharmacy')) ? (
                                 <AdminView
@@ -2853,11 +2856,17 @@ export const App: React.FC = () => {
                                 />
                              ) : (activeRole === 'pharmacist' || activeRole === 'pharmacy_admin' || (activeRole === 'admin' && activeInstitution?.institutionType === 'Pharmacy')) ? (
                                 <div className="p-8 bg-slate-950 min-h-screen">
-                                    <ModernPharmacyManager institutionId={activeInstitution?.id || currentUser?.institutionId || ''} />
+                                    <ModernPharmacyManager 
+                                         institutionId={activeInstitution?.id || currentUser?.institutionId || ''} 
+                                         currentUser={currentUser!}
+                                     />
                                 </div>
                              ) : (isPharmacySystemOpen) ? (
                                 <div className="p-8 bg-slate-950 min-h-screen">
-                                    <ModernPharmacyManager institutionId={activeInstitution?.id || currentUser?.institutionId || ''} />
+                                    <ModernPharmacyManager 
+                                         institutionId={activeInstitution?.id || currentUser?.institutionId || ''} 
+                                         currentUser={currentUser!}
+                                     />
                                 </div>
                             ) : ((isHealthSystemOpen && !['property_admin', 'landlord', 'tenant'].includes(activeRole || '') && activeInstitution?.institutionType !== 'Property Management') || activeRole === 'his_admin') ? (
                                 <HealthCoreView 

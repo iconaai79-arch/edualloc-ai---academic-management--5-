@@ -30,7 +30,11 @@ import { SmartPharmacyInventoryImporterModal } from './SmartPharmacyInventoryImp
 import { DispenseMedicationModal } from './DispenseMedicationModal';
 
 
-export const ModernPharmacyManager: React.FC<{ institutionId: string; currentInstitution?: Institution | null }> = ({ institutionId, currentInstitution }) => {
+export const ModernPharmacyManager: React.FC<{ 
+    institutionId: string; 
+    currentInstitution?: Institution | null;
+    currentUser: User;
+}> = ({ institutionId, currentInstitution, currentUser }) => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'inventory' | 'prescriptions' | 'hr' | 'accounting' | 'automation' | 'reports' | 'config'>('dashboard');
     const [isLoading, setIsLoading] = useState(true);
     
@@ -191,7 +195,8 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string; currentIns
                 customerName: selectedPatient?.fullName || 'Walk-in Customer',
                 totalAmount: total,
                 paymentMethod: 'Cash',
-                paymentStatus: 'Paid'
+                paymentStatus: 'Paid',
+                recordedBy: currentUser.id
             });
 
             // 2. Create Sale Items and Update Stock
@@ -202,7 +207,8 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string; currentIns
                     medication_id: item.id,
                     quantity: item.quantity,
                     unit_price: item.unitPrice,
-                    total_price: item.unitPrice * item.quantity
+                    total_price: item.unitPrice * item.quantity,
+                    recordedBy: currentUser.id
                 });
 
                 await apiService.saveModuleRecord('his_pharmacy_inventory', {
@@ -219,7 +225,8 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string; currentIns
                 category: 'Sales',
                 amount: total,
                 referenceId: saleId,
-                description: `POS Sale: ${saleId}`
+                description: `POS Sale: ${saleId}`,
+                recordedBy: currentUser.id
             });
 
             // 4. Send SMS Reminder (Mock)
@@ -271,7 +278,8 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string; currentIns
                     id: `stf_${Date.now()}`,
                     institutionId,
                     status: 'active',
-                    hireDate: new Date().toISOString()
+                    hireDate: new Date().toISOString(),
+                    recordedBy: currentUser.id
                 });
                 alert("Staff recruited successfully!");
             }
@@ -296,7 +304,8 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string; currentIns
                     ...ledgerData,
                     id: `ldg_${Date.now()}`,
                     institutionId,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
+                    recordedBy: currentUser.id
                 });
                 alert("Entry recorded in ledger.");
             }
@@ -323,7 +332,8 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string; currentIns
                     id: `inv_${Date.now()}`,
                     institutionId,
                     createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
+                    updatedAt: new Date().toISOString(),
+                    recordedBy: currentUser.id
                 });
                 alert("Inventory item added!");
             }
@@ -341,7 +351,8 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string; currentIns
                 ...batchData,
                 id: `bth_${Date.now()}`,
                 institutionId,
-                createdAt: new Date().toISOString()
+                createdAt: new Date().toISOString(),
+                recordedBy: currentUser.id
             });
             alert("Batch committed to storage!");
             setSelectedInventoryForBatch(null);
@@ -353,7 +364,15 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string; currentIns
 
     const handleImportInventory = async (items: any[]) => {
         try {
-            await apiService.saveModuleRecords('his_pharmacy_inventory', items);
+            const itemsWithMeta = items.map(item => ({
+                ...item,
+                id: `inv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                institutionId,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                recordedBy: currentUser.id
+            }));
+            await apiService.saveModuleRecords('his_pharmacy_inventory', itemsWithMeta);
             alert(`Bulk import of ${items.length} items completed!`);
             setIsImportInventoryOpen(false);
             loadData();
@@ -374,7 +393,8 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string; currentIns
                 patientId: dispenseData.patientId,
                 totalAmount: total,
                 paymentMethod: 'Cash',
-                paymentStatus: 'Paid'
+                paymentStatus: 'Paid',
+                recordedBy: currentUser.id
             });
 
             // 2. Dispense items, update stock and create sale items
@@ -385,7 +405,8 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string; currentIns
                     medicationId: item.medicationId,
                     quantity: item.quantity,
                     unitPrice: item.unitPrice,
-                    totalPrice: item.unitPrice * item.quantity
+                    totalPrice: item.unitPrice * item.quantity,
+                    recordedBy: currentUser.id
                 });
 
                 // Get current stock
@@ -394,7 +415,8 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string; currentIns
                     await apiService.saveModuleRecord('his_pharmacy_inventory', {
                         id: item.medicationId,
                         stockQuantity: invItem.stockQuantity - item.quantity,
-                        updatedAt: new Date().toISOString()
+                        updatedAt: new Date().toISOString(),
+                        recordedBy: currentUser.id
                     });
                 }
             }
@@ -405,7 +427,8 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string; currentIns
                 status: 'dispensed',
                 clinicalNotes: dispenseData.clinicalNotes,
                 medicationImage: dispenseData.medicationImage,
-                attachedFiles: dispenseData.attachedFiles
+                attachedFiles: dispenseData.attachedFiles,
+                recordedBy: currentUser.id
             });
 
             // 4. Record in Ledger
@@ -416,7 +439,8 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string; currentIns
                 category: 'Clinical Sales',
                 amount: total,
                 referenceId: saleId,
-                description: `Prescription Dispensed: ${prescriptionId}`
+                description: `Prescription Dispensed: ${prescriptionId}`,
+                recordedBy: currentUser.id
             });
 
             alert("Medication dispensed successfully!");
@@ -433,23 +457,16 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string; currentIns
         try {
             // Find all pending prescriptions
             const pending = prescriptions.filter(p => p.status === 'pending');
-            const newAlerts: any[] = [];
-            
-            for (const p of pending) {
-                // For each item in prescription, schedule a reminder 
-                // In a real scenario, we'd parse dosage/frequency
-                const items = (p as any).items || [];
-                for (const item of items) {
-                    newAlerts.push({
-                        id: `alt_${p.id}_${item.id}_${Date.now()}`,
-                        institutionId,
-                        patientId: p.patientId,
-                        reminderTime: '08:00:00', // Default morning node
-                        frequency: item.frequency || 'Daily',
-                        status: 'active'
-                    });
-                }
-            }
+            const newAlerts: any[] = pending.map(p => ({
+                id: `alt_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                institutionId,
+                patientId: p.patientId,
+                reminderTime: '08:00:00',
+                frequency: 'Daily',
+                status: 'active',
+                createdAt: new Date().toISOString(),
+                recordedBy: currentUser.id
+            }));
 
             if (newAlerts.length > 0) {
                 await apiService.saveModuleRecords('his_pharmacy_adherence_alerts', newAlerts);
@@ -472,7 +489,8 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string; currentIns
         try {
             await apiService.saveModuleRecord('his_pharmacy_settings', {
                 ...settings,
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
+                recordedBy: currentUser.id
             });
             alert("Pharmacy configuration updated successfully!");
             loadData();
@@ -1498,7 +1516,8 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string; currentIns
                                     fullName: name,
                                     contact: phone,
                                     age: Number(age) || 0,
-                                    status: 'active'
+                                    status: 'active',
+                                    recordedBy: currentUser.id
                                 });
                                 alert("Patient registered in molecular hub!");
                                 setIsRegisterPatientOpen(false);
@@ -1557,7 +1576,8 @@ export const ModernPharmacyManager: React.FC<{ institutionId: string; currentIns
                                     doctorName: doctor,
                                     items: [{ drugName: drug, quantity: Number(qty) || 1, frequency: 'Once Daily' }],
                                     clinicalNotes: notes,
-                                    status: 'pending'
+                                    status: 'pending',
+                                    recordedBy: currentUser.id
                                 });
                                 alert("Prescription archived and active!");
                                 setIsAddPrescriptionOpen(false);

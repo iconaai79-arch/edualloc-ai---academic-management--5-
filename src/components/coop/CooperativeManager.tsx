@@ -210,12 +210,23 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [isAddingInventory, setIsAddingInventory] = useState(false);
     const [isRecordingSale, setIsRecordingSale] = useState(false);
     const [isAddingRider, setIsAddingRider] = useState(false);
+    const [isAddingExpense, setIsAddingExpense] = useState(false);
+    const [isAddingIncome, setIsAddingIncome] = useState(false);
     const [isOpeningAccount, setIsOpeningAccount] = useState(false);
     const [newSaccoAccount, setNewSaccoAccount] = useState<Partial<SaccoAccount>>({
         accountType: 'Savings',
         status: 'active'
     });
     const [newInventory, setNewInventory] = useState<any>({});
+    const [newExpense, setNewExpense] = useState<Partial<CoopExpense>>({
+        date: formatDateString(new Date()),
+        category: 'General Operations'
+    });
+    const [newIncome, setNewIncome] = useState<Partial<CoopIncome>>({
+        date: formatDateString(new Date()),
+        quantity: 0,
+        unit: 'kgs'
+    });
     const [newSale, setNewSale] = useState<Partial<CoopAgrovetSales>>({
         saleDate: formatDateString(new Date()),
         paymentStatus: 'paid'
@@ -653,6 +664,56 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         } catch (err) {
             console.error(err);
             alert("Failed to save inventory record");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleSubmitExpense = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newExpense.amount || !newExpense.description || !newExpense.category) {
+            alert("Please fill in Amount, Description and Category");
+            return;
+        }
+        setIsProcessing(true);
+        try {
+            await onAddExpense?.({
+                ...newExpense,
+                id: `exp_${Date.now()}`,
+                institutionId: currentInstitution?.id || '',
+                recordedBy: currentUser.id
+            } as any);
+            setIsAddingExpense(false);
+            setNewExpense({ date: formatDateString(new Date()), category: 'General Operations' });
+            if (onLogAction) await onLogAction(`Recorded expense: ${newExpense.description}`);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to record expense");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleSubmitIncome = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newIncome.amount || !newIncome.companyName || !newIncome.productType) {
+            alert("Please fill in Amount, Company Name and Product Type");
+            return;
+        }
+        setIsProcessing(true);
+        try {
+            await onAddIncome?.({
+                ...newIncome,
+                id: `inc_${Date.now()}`,
+                institutionId: currentInstitution?.id || '',
+                recordedBy: currentUser.id
+            } as any);
+            setIsAddingIncome(false);
+            setNewIncome({ date: formatDateString(new Date()), quantity: 0, unit: 'kgs' });
+            if (onLogAction) await onLogAction(`Recorded income from: ${newIncome.companyName}`);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to record income");
         } finally {
             setIsProcessing(false);
         }
@@ -2350,14 +2411,14 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     </div>
                                     <div className="flex gap-4">
                                         <button 
-                                            onClick={() => onAddExpense?.({})}
+                                            onClick={() => setIsAddingExpense(true)}
                                             className="px-6 py-3 rounded-2xl border-2 border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95 text-slate-900 dark:text-white flex items-center gap-2"
                                         >
                                             <PlusIcon className="w-4 h-4" />
                                             Record Expense
                                         </button>
                                         <button 
-                                            onClick={() => onAddIncome?.({})}
+                                            onClick={() => setIsAddingIncome(true)}
                                             className="bg-slate-900 dark:bg-indigo-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95 flex items-center gap-2"
                                         >
                                             <PlusIcon className="w-4 h-4" />
@@ -4004,6 +4065,189 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 className="w-full bg-slate-900 dark:bg-white dark:text-slate-900 text-white py-5 rounded-[2rem] text-xs font-black uppercase tracking-widest shadow-xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
                             >
                                 {isProcessing ? 'Opening Account...' : 'Confirm & Open Account'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {isAddingExpense && (
+                <div className="fixed inset-0 bg-slate-900/40 dark:bg-slate-900/80 z-[300] flex items-center justify-center p-4 backdrop-blur-md animate-fade-in" onClick={() => setIsAddingExpense(false)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 dark:border-slate-800 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-rose-50/50 dark:bg-rose-900/10">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tight text-rose-600">Record Expenditure</h3>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Cooperative Operational Outflow</p>
+                            </div>
+                            <button onClick={() => setIsAddingExpense(false)} className="p-3 rounded-full hover:bg-rose-100 dark:hover:bg-rose-900 Transition-colors">
+                                <XIcon className="w-6 h-6 text-rose-600" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmitExpense} className="p-10 space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Expense Date</label>
+                                    <input 
+                                        type="date" 
+                                        value={newExpense.date || ''} 
+                                        onChange={e => setNewExpense({...newExpense, date: e.target.value})}
+                                        required
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-rose-500/20 transition-all dark:text-white"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Amount (KES)</label>
+                                    <input 
+                                        type="number" 
+                                        value={newExpense.amount || ''} 
+                                        onChange={e => setNewExpense({...newExpense, amount: Number(e.target.value)})}
+                                        required
+                                        placeholder="0.00"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-rose-500/20 transition-all dark:text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Description</label>
+                                <input 
+                                    type="text" 
+                                    value={newExpense.description || ''} 
+                                    onChange={e => setNewExpense({...newExpense, description: e.target.value})}
+                                    required
+                                    placeholder="e.g., Factory Maintenance, Fuel for Logistics"
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-rose-500/20 transition-all dark:text-white"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Category</label>
+                                <select 
+                                    value={newExpense.category || ''} 
+                                    onChange={e => setNewExpense({...newExpense, category: e.target.value})}
+                                    required
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-rose-500/20 transition-all dark:text-white"
+                                >
+                                    <option value="General Operations">General Operations</option>
+                                    <option value="Logistics & Fuel">Logistics & Fuel</option>
+                                    <option value="Maintenance">Maintenance</option>
+                                    <option value="Farmer Advance">Farmer Advance (Credit)</option>
+                                    <option value="Staff Wages">Staff Wages</option>
+                                    <option value="Utilities">Utilities (Water/Power)</option>
+                                </select>
+                            </div>
+
+                            {newExpense.category === 'Farmer Advance' && (
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Farmer (For Advances)</label>
+                                    <select 
+                                        value={newExpense.farmerId || ''} 
+                                        onChange={e => setNewExpense({...newExpense, farmerId: e.target.value})}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-rose-500/20 transition-all dark:text-white"
+                                    >
+                                        <option value="">-- Apply to specific farmer --</option>
+                                        {farmers.map(f => (
+                                            <option key={f.id} value={f.id}>{f.name} ({f.memberId})</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={isProcessing}
+                                className="w-full bg-rose-600 text-white py-5 rounded-[2rem] text-xs font-black uppercase tracking-widest shadow-xl hover:bg-rose-700 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                            >
+                                {isProcessing ? 'Recording...' : 'Save Expense Record'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {isAddingIncome && (
+                <div className="fixed inset-0 bg-slate-900/40 dark:bg-slate-900/80 z-[300] flex items-center justify-center p-4 backdrop-blur-md animate-fade-in" onClick={() => setIsAddingIncome(false)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 dark:border-slate-800 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-emerald-50/50 dark:bg-emerald-900/10">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tight text-emerald-600">Record Revenue</h3>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Product Sale Inflow</p>
+                            </div>
+                            <button onClick={() => setIsAddingIncome(false)} className="p-3 rounded-full hover:bg-emerald-100 dark:hover:bg-emerald-900 transition-colors">
+                                <XIcon className="w-6 h-6 text-emerald-600" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmitIncome} className="p-10 space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Sale Date</label>
+                                    <input 
+                                        type="date" 
+                                        value={newIncome.date || ''} 
+                                        onChange={e => setNewIncome({...newIncome, date: e.target.value})}
+                                        required
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Total Amount (KES)</label>
+                                    <input 
+                                        type="number" 
+                                        value={newIncome.amount || ''} 
+                                        onChange={e => setNewIncome({...newIncome, amount: Number(e.target.value)})}
+                                        required
+                                        placeholder="0.00"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Purchasing Company / Client</label>
+                                <input 
+                                    type="text" 
+                                    value={newIncome.companyName || ''} 
+                                    onChange={e => setNewIncome({...newIncome, companyName: e.target.value})}
+                                    required
+                                    placeholder="e.g., Brookside Dairy, KCC, Private Processor"
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Product Type</label>
+                                    <select 
+                                        value={newIncome.productType || ''} 
+                                        onChange={e => setNewIncome({...newIncome, productType: e.target.value})}
+                                        required
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
+                                    >
+                                        <option value="Milk Intake">Milk Intake (Processed)</option>
+                                        <option value="Bulk Raw Milk">Bulk Raw Milk</option>
+                                        <option value="Animal Feed">Animal Feed Sales</option>
+                                        <option value="Consultancy">Consultancy Services</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Quantity ({newIncome.unit})</label>
+                                    <input 
+                                        type="number" 
+                                        value={newIncome.quantity || ''} 
+                                        onChange={e => setNewIncome({...newIncome, quantity: Number(e.target.value)})}
+                                        required
+                                        placeholder="0"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={isProcessing}
+                                className="w-full bg-emerald-600 text-white py-5 rounded-[2rem] text-xs font-black uppercase tracking-widest shadow-xl hover:bg-emerald-700 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                            >
+                                {isProcessing ? 'Recording...' : 'Confirm Receipt'}
                             </button>
                         </form>
                     </div>
