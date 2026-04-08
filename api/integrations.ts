@@ -124,18 +124,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 clearTimeout(id);
                 throw e;
             }
-            
-            // 5. Mark as reconciled in the database
-            const isNcba = txn.provider === 'ncba' || txn.provider === 'NCBA' || meta.provider === 'ncba';
-            const table = isNcba ? 'ncba_transactions' : 'mpesa_transactions';
-            const updateCol = isNcba ? 'transaction_id' : 'checkout_request_id';
-            const finalizedMeta = { ...meta, reconciled: true, reconciledAt: new Date().toISOString() };
-            
-            await supabase.from(table).update({ 
-                metadata: finalizedMeta 
-            }).eq(updateCol, txn.transaction_id || txn.checkout_request_id || txn.id);
-            
-            console.log(`[Reconcile] Completed successfully for ${txn.id}`);
         };
 
         if (!supabase) {
@@ -799,7 +787,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({ success: true, resetToken });
         }
         // --- NCBA Bank Helpers (2024 Spec) ---
-        const normalizeNcbaUrl = (url?: string): string => {
+        function normalizeNcbaUrl(url?: string): string {
             if (!url) return 'https://c2bapis.ncbagroup.com';
             let normalized = url.trim().replace(/\/+$/, '');
             if (!normalized.startsWith('http')) normalized = 'https://' + normalized;
@@ -810,22 +798,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 normalized = normalized.replace('api.ncbagroup.com', 'c2bapis.ncbagroup.com');
             }
             return normalized;
-        };
+        }
         
         // --- NCBA Credential Hardening & Sanitization ---
         // Strips non-printable characters (Control chars, \r, zero-width spaces) 
         // that frequently cause '401 Unauthorized' failures in bank gateways.
         const sanitizeNcbaVal = (s: string) => (s || '').replace(/[^\x20-\x7E]/g, '').trim();
         
-        const getNcbaCredentials = (config: any) => {
+        function getNcbaCredentials(config: any) {
             // NCBA 2024 Simplified Model: Uses 10-char Username (clientId) and 32-char Secret Key (clientSecret)
             const id = sanitizeNcbaVal(config.clientId || config.client_id || config.consumerKey || config.consumer_key || '');
             const sec = sanitizeNcbaVal(config.clientSecret || config.client_secret || config.secretKey || config.secret_key || config.consumerSecret || config.consumer_secret || '');
             
             return { id, sec };
-        };
+        }
 
-        const getNcbaToken = async (ncbaConfig: any) => {
+        async function getNcbaToken(ncbaConfig: any) {
             const isMock = ncbaConfig.isMock === true || ncbaConfig.isMock === 'true';
             if (isMock) {
                 console.log('[NCBA Auth] Mock Mode active. Returning dummy token.');
@@ -931,7 +919,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return data.access_token;
         };
 
-        const initiateNcbaPayment = async (ncbaConfig: any, amount: number, phone: string) => {
+        async function initiateNcbaPayment(ncbaConfig: any, amount: number, phone: string) {
             const isMock = ncbaConfig.isMock === true || ncbaConfig.isMock === 'true';
             if (isMock) {
                 console.log('[NCBA STK] Mock Mode active. Returning successful initiation.');
@@ -1041,7 +1029,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return await safeParseJson(res);
         };
 
-        const queryNcbaStkStatus = async (ncbaConfig: any, checkoutRequestId: string) => {
+        async function queryNcbaStkStatus(ncbaConfig: any, checkoutRequestId: string) {
             const isMock = ncbaConfig.isMock === true || ncbaConfig.isMock === 'true';
             if (isMock || (checkoutRequestId && checkoutRequestId.startsWith('mock-'))) {
                 console.log(`[NCBA Query] Mock Mode active for CRID: ${checkoutRequestId}. Returning COMPLETED.`);
@@ -1114,7 +1102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             };
         };
 
-        const generateNcbaQr = async (ncbaConfig: any, amount: number) => {
+        async function generateNcbaQr(ncbaConfig: any, amount: number) {
             const token = await getNcbaToken(ncbaConfig);
             const authMethod = (ncbaConfig.authMethod || 'bearer').toLowerCase();
             const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
@@ -1141,12 +1129,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return await safeParseJson(res);
         };
 
-        const normalizePhoneNCBA = (phone: string) => {
+        function normalizePhoneNCBA(phone: string) {
             let p = phone.replace(/[^\d]/g, '');
             if (p.startsWith('0')) p = '254' + p.substring(1);
             if (p.length === 9) p = '254' + p;
             return p; // Expected format: 254XXXXXXXXX
-        };
+        }
 
         const mergeHeaders = (base: any, customHeaders?: { name: string; value: string }[]) => {
             if (!customHeaders || customHeaders.length === 0) return base;
@@ -1165,7 +1153,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         };
 
         // Internal Helper for Reconciliation
-        const reconcilePayment = async (txn: any) => {
+        async function reconcilePayment(txn: any) {
             if (!txn || txn.metadata?.reconciled) return;
 
             const meta = txn.metadata || {};
