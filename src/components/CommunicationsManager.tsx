@@ -48,7 +48,7 @@ const calculateSmsParts = (msg: string) => {
 };
 
 
-export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ users, departments, courses, institutions, onSendSms, currentUser, smsBalance, currentInstitution, mpesaConfig, smsConfig, onRefreshData, moduleContext = 'school' }) => {
+export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ users, departments, courses, institutions, onSendSms, currentUser, smsBalance, currentInstitution, mpesaConfig, smsConfig, onRefreshData, moduleContext = 'school', companyDetails }) => {
     const isRetailAgency = useMemo(() => {
         if (currentInstitution?.institutionType === 'Church') return false;
         return RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
