@@ -1434,11 +1434,15 @@ export const apiService = {
             apiService.fetchModuleRecords('intasend_transactions', instId).catch(() => [])
         ]);
         
-        // Merge and sort by timestamp (newest first)
-        const allTxns = [...mpesa, ...ncba, ...airtel, ...intasend];
+        // Merge and ensure all have a valid timestamp property for the UI
+        const allTxns = [...mpesa, ...ncba, ...airtel, ...intasend].map(t => ({
+            ...t,
+            timestamp: t.timestamp || t.createdAt || t.created_at || new Date().toISOString()
+        }));
+
         return allTxns.sort((a, b) => {
-            const dateA = new Date(a.timestamp || a.createdAt || a.created_at || 0).getTime();
-            const dateB = new Date(b.timestamp || b.createdAt || b.created_at || 0).getTime();
+            const dateA = new Date(a.timestamp).getTime();
+            const dateB = new Date(b.timestamp).getTime();
             return dateB - dateA;
         });
     },
