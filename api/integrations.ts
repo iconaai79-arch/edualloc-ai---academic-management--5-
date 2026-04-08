@@ -20,7 +20,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === 'OPTIONS') return res.status(200).end();
-
+    return res.status(200).json({ status: 'Online - Debug Mode', params: req.body });
+    
     try {
         // Support parameters from both body (POST) and query (GET)
         const paramsMap = req.method === 'GET' ? req.query : req.body;
