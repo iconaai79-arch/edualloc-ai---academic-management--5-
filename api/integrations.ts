@@ -124,6 +124,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 clearTimeout(id);
                 throw e;
             }
+            
+            // 5. Mark as reconciled in the database
+            const isNcba = txn.provider === 'ncba' || txn.provider === 'NCBA' || meta.provider === 'ncba';
+            const table = isNcba ? 'ncba_transactions' : 'mpesa_transactions';
+            const updateCol = isNcba ? 'transaction_id' : 'checkout_request_id';
+            const finalizedMeta = { ...meta, reconciled: true, reconciledAt: new Date().toISOString() };
+            
+            await supabase.from(table).update({ 
+                metadata: finalizedMeta 
+            }).eq(updateCol, txn.transaction_id || txn.checkout_request_id || txn.id);
+            
+            console.log(`[Reconcile] Completed successfully for ${txn.id}`);
         };
 
         if (!supabase) {
@@ -1354,6 +1366,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 .maybeSingle();
 
             if (transaction && transaction.status !== 'pending') {
+                if (transaction.status === 'completed' && !transaction.metadata?.reconciled) {
+                    console.log(`[QueryStatus] Found unreconciled completed transaction ${checkoutRequestId}. Triggering reconciliation.`);
+                    await reconcilePayment({ ...transaction, provider: provider as any });
+                    
+                    // Fetch updated transaction to get the 'reconciled' flag in metadata for the response
+                    const { data: updatedTxn } = await supabase
+                        .from(table)
+                        .select('*')
+                        .eq(queryCol, checkoutRequestId)
+                        .maybeSingle();
+                    if (updatedTxn) {
+                        return res.status(200).json({ success: true, status: updatedTxn.status, source: 'database', metadata: updatedTxn.metadata });
+                    }
+                }
                 return res.status(200).json({ success: true, status: transaction.status, source: 'database', metadata: transaction.metadata });
             }
 
