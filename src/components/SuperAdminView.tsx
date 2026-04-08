@@ -2134,7 +2134,7 @@ Please change it after login.`;
                             {...props}
                             onSendSms={onSendSms || (async () => ({ success: false, message: 'SMS service disabled' }))}
                             currentUser={currentUser}
-                            smsBalance={((institutions || []).reduce((sum, inst) => sum + (inst.smsBalance ?? 0), 0)) + (companyDetails?.sms_balance || 0)}
+                            smsBalance={props.companyDetails?.smsBalance || 0}
                             currentInstitution={props.currentInstitution}
                             mpesaConfig={companyDetails?.mpesaConfig || companyDetails?.mpesa_config}
                             ncbaConfig={companyDetails?.ncbaConfig || companyDetails?.ncba_config}

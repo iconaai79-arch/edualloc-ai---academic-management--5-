@@ -1168,22 +1168,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 .reduce((acc, p) => ({ ...acc, [p.name.trim()]: p.value }), {});
             return { ...base, ...extra };
         };
-
         // Internal Helper for Reconciliation
         const reconcilePayment = async (txn: any) => {
             if (!txn || txn.metadata?.reconciled) return;
 
             const meta = txn.metadata || {};
-            const instId = txn.institution_id;
+            const instId = meta.institutionId || meta.institution_id || 'SYSTEM';
             const amt = txn.amount;
+            const invId = meta.invoiceId || meta.invoice_id;
 
-            console.log(`[Reconcile] Processing transaction ${txn.id} for ${instId}`);
+            console.log(`[Reconcile] Starting for txn: ${txn.id}, provider: ${txn.provider}, type: ${meta.type}, instId: ${instId}`);
 
-            // 1. Fetch Institution
-            let inst = null;
+            // 1. Get Institution Info
+            let inst: any = {};
             if (instId && instId !== 'SYSTEM') {
                 const { data } = await supabase.from('institutions').select('*').eq('id', instId).maybeSingle();
-                inst = data;
+                inst = data || {};
             }
 
             if (!inst && instId !== 'SYSTEM') {
@@ -1228,14 +1228,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             } 
             // 3. Handle SMS
-            else if (meta.type === 'sms' || meta.type === 'sms_topup') {
-                const units = parseInt(String(meta.units || "0"));
+            else if (meta.type === 'sms' || meta.type === 'sms_topup' || String(txn.description).toLowerCase().includes('sms')) {
+                const units = parseInt(String(meta.units || "0")) || Math.floor(amt / 2); // Default to 2 KES per unit if units not in meta
                 if (units > 0) {
-                    console.log(`[Reconcile] Incrementing SMS balance for ${instId || 'SYSTEM'} by ${units} units`);
-                    await supabase.rpc('increment_sms_balance', { 
-                        inst_id: instId || 'SYSTEM', 
+                    const targetId = instId && instId !== 'undefined' ? instId : 'SYSTEM';
+                    console.log(`[Reconcile] Incrementing SMS balance for ${targetId} by ${units} units (Amount: ${amt})`);
+                    const { error: rpcError } = await supabase.rpc('increment_sms_balance', { 
+                        inst_id: targetId, 
                         amount: units 
                     });
+                    
+                    if (rpcError) {
+                        console.error(`[Reconcile] RPC Error incrementing SMS for ${targetId}:`, rpcError);
+                        // Don't throw yet, try manual fallback if RPC failed
+                        if (targetId === 'SYSTEM') {
+                            await supabase.from('company_details').update({ 
+                                sms_balance: supabase.rpc('increment', { row_id: 1, column_name: 'sms_balance', value: units }) 
+                            }).eq('id', 1);
+                        } else {
+                            await supabase.rpc('increment_sms_balance_fallback', { iid: targetId, qty: units }).catch(() => {});
+                        }
+                    }
                 }
 
                 if (!invId) {
