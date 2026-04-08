@@ -80,6 +80,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
 
             const config = provider === 'mpesa' ? mpesaConfig : (provider === 'airtel' ? airtelMoneyConfig : (provider === 'intasend' ? intasendConfig : ncbaConfig));
             const result: any = await apiService.initiatePayment(provider, calculatedTotal, phoneNumber, metadata, config);
+            console.log("[Initiation Result]", result);
 
             if (result.success && (result.data?.CheckoutRequestID || result.checkoutRequestId || result.url)) {
                 if (result.url) {

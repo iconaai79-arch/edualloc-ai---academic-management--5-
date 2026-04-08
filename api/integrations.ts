@@ -1782,8 +1782,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             try {
                 const result = await initiateNcbaPayment(ncbaConfig, amount, phone || recipient);
                 const resData = result as any;
-                // Greedy ID extraction
-                const txnId = resData.TransactionID || resData.transactionId || resData.ReferenceID || resData.requestId || resData.referenceId;
+                // Extreme ID extraction - search every possible key variant
+                const txnId = resData.TransactionID || resData.transactionId || 
+                             resData.ReferenceID || resData.referenceId || 
+                             resData.requestId || resData.request_id || 
+                             resData.CheckoutRequestID || resData.checkoutRequestId ||
+                             resData.MerchantRequestID || resData.merchantRequestId ||
+                             resData.Id || resData.id;
                 
                 if (resData.StatusCode === '0' || resData.status === 'SUCCESS' || txnId) {
                     await supabase.from('ncba_transactions').insert({
