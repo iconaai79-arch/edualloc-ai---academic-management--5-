@@ -3119,6 +3119,50 @@ Please change it after login.`;
                                                             placeholder="Enter Short Code"
                                                         />
                                                     </div>
+                                                    <div>
+                                                        <div className="flex justify-between items-center mb-2 px-1">
+                                                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Notification Username</label>
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const gen = Array.from(crypto.getRandomValues(new Uint8Array(5))).map(b => b.toString(16).padStart(2, '0')).join('');
+                                                                    setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, callbackUsername: gen } as any });
+                                                                }}
+                                                                className="text-[9px] font-black uppercase text-indigo-500 hover:text-indigo-600 flex items-center gap-1"
+                                                            >
+                                                                <SparklesIcon className="w-2.5 h-2.5" /> Auto-Generate
+                                                            </button>
+                                                        </div>
+                                                        <input 
+                                                            type="text" 
+                                                            value={localCompanyInfo.ncbaConfig?.callbackUsername || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, callbackUsername: e.target.value } as any })}
+                                                            className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
+                                                            placeholder="e.g. NCBA_NOTIFY_USER"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex justify-between items-center mb-2 px-1">
+                                                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Notification Password / Secret Key</label>
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const gen = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+                                                                    setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, callbackSecret: gen } as any });
+                                                                }}
+                                                                className="text-[9px] font-black uppercase text-indigo-500 hover:text-indigo-600 flex items-center gap-1"
+                                                            >
+                                                                <SparklesIcon className="w-2.5 h-2.5" /> Auto-Generate
+                                                            </button>
+                                                        </div>
+                                                        <input 
+                                                            type="password" 
+                                                            value={localCompanyInfo.ncbaConfig?.callbackSecret || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, callbackSecret: e.target.value } as any })}
+                                                            className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
+                                                            placeholder="••••••••••••••••"
+                                                        />
+                                                    </div>
                                                     <div className="space-y-2">
                                                         <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">API Environment</label>
                                                         <select 
