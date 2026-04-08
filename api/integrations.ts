@@ -133,6 +133,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const ncba = bodyConfig || settings.ncba_config || settings.ncbaConfig;
             try {
                 const token = await getNcbaToken(ncba);
+                if (!token) throw new Error('Bank gateway responded successfully but did not issue an access token.');
                 return res.status(200).json({ success: true, message: 'Authentication Successful', token: token.substring(0, 8) + '...' });
             } catch (e: any) {
                 return res.status(200).json({ success: false, message: e.message });
