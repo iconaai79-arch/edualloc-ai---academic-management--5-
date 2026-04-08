@@ -910,7 +910,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                     institutionId={currentInstitution?.id || 'SYSTEM'}
                     institutionCode={currentInstitution?.institutionCode || 'SYSTEM'}
                     institutionName={currentInstitution?.name || 'Education AI Portal'}
-                    smsUnitPrice={currentInstitution?.customSmsPrice || (smsConfig as any)?.smsUnitPrice || 2}
+                    smsUnitPrice={currentInstitution?.customSmsPrice || (smsConfig as any)?.smsUnitPrice || companyDetails?.sms_unit_price || companyDetails?.smsUnitPrice || 2}
                     minSmsUnits={(smsConfig as any)?.minSmsUnits || 0}
                     requesterId={currentUser?.id}
                 />

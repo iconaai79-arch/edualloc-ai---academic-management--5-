@@ -1172,7 +1172,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const instId = txn.institution_id;
             const amt = txn.amount;
 
-            console.log(`[Reconcile] Processing transaction ${txn.id} for ${instId}`);
+            console.log(`[Reconcile] Processing transaction ${txn.id || txn.transaction_id} for ${instId}. Amount: ${amt}, Source Metadata:`, JSON.stringify(meta));
+
+            // 1. Fetch System Settings for fallback price
+            let settings: any = {};
+            try {
+                const { data: sData } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
+                if (sData?.data) settings = sData.data;
+            } catch (e) {
+                console.error('[Reconcile] Failed to fetch system settings:', e);
+            }
+            const defaultUnitPrice = parseFloat(String(settings.sms_unit_price || settings.smsUnitPrice || 2));
 
             // 1. Fetch Institution
             let inst = null;
@@ -1224,13 +1234,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             } 
             // 3. Handle SMS
             else if (meta.type === 'sms' || meta.type === 'sms_topup') {
-                const units = parseInt(String(meta.units || "0"));
+                let units = parseInt(String(meta.units || "0"));
+                
+                // Fallback: If units was zero but amount is > 0, calculate based on unit price
+                if (units <= 0 && amt > 0) {
+                    console.log(`[Reconcile] Units missing in metadata. Calculating from amount ${amt} using price ${defaultUnitPrice}`);
+                    units = Math.floor(amt / (defaultUnitPrice || 1));
+                }
+
                 if (units > 0) {
-                    console.log(`[Reconcile] Incrementing SMS balance for ${instId || 'SYSTEM'} by ${units} units`);
+                    console.log(`[Reconcile] Incrementing SMS balance for ${instId || 'SYSTEM'} by ${units} units (Total Paid: ${amt})`);
                     await supabase.rpc('increment_sms_balance', { 
                         inst_id: instId || 'SYSTEM', 
                         amount: units 
                     });
+                } else {
+                    console.warn(`[Reconcile] SMS reconciliation skipped for ${txn.id}: Zero units calculated.`);
                 }
 
                 if (!invId) {
@@ -1859,7 +1878,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                              resData.Id || resData.id;
                 
                 if (resData.StatusCode === '0' || resData.status === 'SUCCESS' || txnId) {
-                    await supabase.from('ncba_transactions').insert({
+                    const insertData: any = {
                         id: `ncba_${Date.now()}`,
                         transaction_id: txnId,
                         checkout_request_id: txnId,
@@ -1870,7 +1889,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         status: 'pending',
                         metadata: paramsMap.metadata || {},
                         provider: 'ncba'
-                    });
+                    };
+                    
+                    console.log('[NCBA] Saving transaction:', JSON.stringify(insertData));
+                    await supabase.from('ncba_transactions').insert(insertData);
 
                     return res.status(200).json({ 
                         success: true, 
