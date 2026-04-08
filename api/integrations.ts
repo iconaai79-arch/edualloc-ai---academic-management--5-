@@ -1841,7 +1841,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'ncbaInitiateStk') {
-            const { institutionId, phone } = paramsMap;
+            const institutionId = paramsMap.institutionId || paramsMap.metadata?.institutionId;
+            const phone = paramsMap.phone || paramsMap.recipient || paramsMap.metadata?.payerPhoneNumber;
             const isPlatformService = ['sms', 'subscription', 'one-off'].includes(paramsMap.metadata?.type);
             
             // Prioritize config from request body (for testing unsaved changes)
@@ -2000,7 +2001,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'ncbaQueryStk') {
-            const { institutionId, checkoutRequestId } = paramsMap;
+            const institutionId = paramsMap.institutionId || paramsMap.metadata?.institutionId;
+            const checkoutRequestId = paramsMap.checkoutRequestId || paramsMap.checkout_request_id || paramsMap.TransactionID;
             const isPlatformService = true; // Status check is always allowed if we have config
 
             let ncbaConfig = bodyConfig ? toCamelCase(bodyConfig) : null;
