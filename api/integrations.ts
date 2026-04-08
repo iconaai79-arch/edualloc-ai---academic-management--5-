@@ -92,7 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return newObj;
     }
 
-    const safeParseJson = async (res: Response, defaultErrorPrefix = 'NCBA Gateway error') => {
+    const safeParseJson = async (res: any, defaultErrorPrefix = 'NCBA Gateway error') => {
         const text = await res.text();
         try {
             return JSON.parse(text);
@@ -881,7 +881,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 const finalUrl = `${tokenUrl}?${bodyObj.toString()}`;
-                process.stdout.write(`[NCBA Auth] Attempting ${authType}-based token retrieval from: ${finalUrl} (GET)...\n`);
+                console.log(`[NCBA Auth] Attempting ${authType}-based token retrieval from: ${finalUrl} (GET)...`);
                 
                 const res = await fetchWithTimeout(finalUrl, {
                     method: 'GET',
@@ -989,7 +989,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     : (!effectiveBase.endsWith('/') && !effectivePath.startsWith('/') ? effectiveBase + '/' + effectivePath : effectiveBase + effectivePath));
 
             console.log(`[NCBA STK] Initiation request to: ${fullUrl} (POST)`);
-            let res: Response;
+            let res: any;
             try {
                 res = await fetchWithTimeout(fullUrl, {
                     method: 'POST',
@@ -1760,7 +1760,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 baseUrl: !!(ncba.baseUrl || ncba.base_url),
                 stkPushUrl: !!(ncba.stkPushBaseUrl || ncba.stk_push_base_url || ncba.baseUrl || ncba.base_url),
                 isMock: ncba.isMock === true || ncba.isMock === 'true',
-                serverIp: await fetch('https://api.ipify.org?format=json').then(r => r.json()).then(d => (d as any).ip).catch(() => 'Unknown')
+                serverIp: 'Vercel Deployment'
             };
 
             try {
