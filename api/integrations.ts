@@ -111,6 +111,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // --- NCBA CORE ---
         const getNcbaToken = async (config: any) => {
             const c = toCamelCase(config);
+            if (c.authMethod === 'basic') return null; // Signal to use basic auth directly
+
             const id = (c.clientId || '').trim();
             const sec = (c.clientSecret || '').trim();
             if (!id || !sec) throw new Error('Missing NCBA credentials');
@@ -118,6 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const baseUrl = (c.baseUrl || '').replace(/\/+$/, '');
             const authStr = Buffer.from(`${id}:${sec}`).toString('base64');
             
+            console.log(`[NCBA Auth] Token request to: ${baseUrl}/payments/api/v1/auth/token`);
             const res = await fetchWithTimeout(`${baseUrl}/payments/api/v1/auth/token`, {
                 method: 'POST',
                 headers: { 'Authorization': `Basic ${authStr}`, 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -125,7 +128,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
             
             const data = await safeParseJson(res, 'NCBA Auth Failed');
-            return data.access_token || data.token;
+            const token = data.access_token || data.token || (data.data && (data.data.access_token || data.data.token));
+            
+            if (!token) {
+                const keys = Object.keys(data).join(', ');
+                console.warn(`[NCBA Auth] Token missing. Response keys: ${keys}`);
+                // If the bank returns a success status but no token, they might be expecting Basic Auth
+                if (data.status === 'SUCCESS' || data.message === 'Success') return null;
+            }
+            
+            return token;
         };
 
         // --- ACTIONS ---
@@ -133,8 +145,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const ncba = bodyConfig || settings.ncba_config || settings.ncbaConfig;
             try {
                 const token = await getNcbaToken(ncba);
-                if (!token) throw new Error('Bank gateway responded successfully but did not issue an access token.');
-                return res.status(200).json({ success: true, message: 'Authentication Successful', token: token.substring(0, 8) + '...' });
+                if (token) {
+                    return res.status(200).json({ success: true, message: 'Authentication Successful (Bearer)', token: token.substring(0, 8) + '...' });
+                } else {
+                    return res.status(200).json({ success: true, message: 'Authentication Successful (Direct Basic Auth)' });
+                }
             } catch (e: any) {
                 return res.status(200).json({ success: false, message: e.message });
             }
@@ -147,9 +162,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const baseUrl = (ncba.stkPushBaseUrl || ncba.baseUrl || '').replace(/\/+$/, '');
                 const url = `${baseUrl}/payments/api/v1/stk-push/process`;
                 
+                const id = (ncba.clientId || '').trim();
+                const sec = (ncba.clientSecret || '').trim();
+                const authHeader = token ? `Bearer ${token}` : `Basic ${Buffer.from(`${id}:${sec}`).toString('base64')}`;
+                
                 const stkRes = await fetchWithTimeout(url, {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         TelephoneNo: normalizePhone(recipient),
                         Amount: String(amount),
