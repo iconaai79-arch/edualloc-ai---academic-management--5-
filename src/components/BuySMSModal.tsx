@@ -103,7 +103,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                         (provider === 'intasend' ? intasendConfig : ncbaConfig)));
 
                     const status = result?.status;
-                    console.log(`[Polling] Attempt ${attempts}/25 - Status: ${status}`, result);
+                    console.log(`[Polling] Attempt ${attempts}/45 - Status: ${status}`, result);
 
                     if (status === 'completed') {
                         clearInterval(pollInterval);
@@ -111,7 +111,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                         setStatusMessage(`Payment Confirmed! ${units.toLocaleString()} SMS units have been added to your balance.`);
                         setIsLoading(false);
                         onPurchaseComplete(units);
-                    } else if (status === 'failed' || attempts >= 25) {
+                    } else if (status === 'failed' || attempts >= 45) {
                         clearInterval(pollInterval);
                         setFinalStatus('failed');
                         setStatusMessage(status === 'failed' ? 'Transaction failed. Please try again.' : 'Timeout waiting for payment confirmation. If you have paid, it will reflect shortly.');
