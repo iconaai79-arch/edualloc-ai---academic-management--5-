@@ -1325,9 +1325,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (action === 'queryPaymentStatus') {
             const provider = getParam('provider') || 'mpesa';
-            const checkoutRequestId = getParam('checkoutRequestId');
+            const checkoutRequestId = getParam('checkoutRequestId') || getParam('transactionId') || getParam('TransactionID');
             
-            if (!checkoutRequestId) return res.status(400).json({ success: false, message: 'Missing checkoutRequestId' });
+            if (!checkoutRequestId) {
+                console.warn('[QueryStatus] Missing checkoutRequestId. Provider:', provider);
+                return res.status(200).json({ success: true, status: 'pending', message: 'Missing transaction identifier' });
+            }
 
             const table = provider === 'ncba' ? 'ncba_transactions' : 'mpesa_transactions';
             const { data: transaction } = await supabase
@@ -1771,22 +1774,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             try {
                 const result = await initiateNcbaPayment(ncbaConfig, amount, phone || recipient);
                 const resData = result as any;
+                // Greedy ID extraction
+                const txnId = resData.TransactionID || resData.transactionId || resData.ReferenceID || resData.requestId || resData.referenceId;
                 
-                if (resData.StatusCode === '0' || resData.TransactionID) {
+                if (resData.StatusCode === '0' || resData.status === 'SUCCESS' || txnId) {
                     await supabase.from('ncba_transactions').insert({
                         id: `ncba_${Date.now()}`,
-                        transaction_id: resData.TransactionID || resData.ReferenceID,
-                        checkout_request_id: resData.TransactionID,
+                        transaction_id: txnId,
+                        checkout_request_id: txnId,
                         institution_id: targetInstId || 'SYSTEM',
                         amount: amount,
                         phone_number: phone || recipient,
                         status: 'pending',
                         metadata: paramsMap.metadata || {}
                     });
+
                     return res.status(200).json({ 
                         success: true, 
                         message: 'NCBA Direct Debit request initiated.', 
-                        checkoutRequestId: resData.TransactionID || resData.ReferenceID,
+                        checkoutRequestId: txnId,
                         data: resData 
                     });
                 }
