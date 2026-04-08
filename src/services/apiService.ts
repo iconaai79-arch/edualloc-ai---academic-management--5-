@@ -1222,8 +1222,10 @@ export const apiService = {
             try {
                 result = JSON.parse(text);
             } catch (e) {
-                console.error(`[Integrations] Non-JSON response from ${action}:`, text.substring(0, 200));
-                throw new Error(`${provider.toUpperCase()} Gateway failed: The server returned an invalid response format (HTML/Text instead of JSON). This usually means the integration bridge encountered a fatal error.`);
+                const snippet = text.substring(0, 150);
+                console.error(`[Integrations] Non-JSON response from ${action}:`, snippet);
+                alert(`Server Error: ${snippet}`);
+                throw new Error(`${provider.toUpperCase()} Gateway failed: The server returned an invalid response format. (See alert for details)`);
             }
 
             if (response.ok && result.success && metadata?.invoiceId) {
