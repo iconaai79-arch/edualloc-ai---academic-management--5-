@@ -1088,7 +1088,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const isSuccess = statusStr === 'SUCCESS' || statusStr === 'COMPLETED' || 
                              rawData.ResultCode === '0' || rawData.ResponseCode === '0' || 
                              rawData.StatusCode === '0' || rawData.success === true ||
-                             String(rawData.ResponseCode) === '00' ||
+                             String(rawData.ResponseCode) === '00' || String(rawData.ResultCode) === '00' ||
                              (rawData.description || '').toUpperCase() === 'SUCCESS';
             const isFailure = statusStr === 'FAILED' || statusStr === 'REJECTED' || rawData.ResultCode === '1' || rawData.StatusCode === '1';
 
@@ -1336,10 +1336,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             const table = provider === 'ncba' ? 'ncba_transactions' : 'mpesa_transactions';
+            const queryCol = provider === 'ncba' ? 'transaction_id' : 'checkout_request_id';
             const { data: transaction } = await supabase
                 .from(table)
                 .select('*')
-                .eq('checkout_request_id', checkoutRequestId)
+                .eq(queryCol, checkoutRequestId)
                 .maybeSingle();
 
             if (transaction && transaction.status !== 'pending') {
@@ -1441,7 +1442,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (finalStatus !== 'pending' && transaction) {
-                await supabase.from(table).update({ status: finalStatus }).eq('checkout_request_id', checkoutRequestId);
+                const updateCol = provider === 'ncba' ? 'transaction_id' : 'checkout_request_id';
+                await supabase.from(table).update({ status: finalStatus }).eq(updateCol, checkoutRequestId);
                 
                 if (finalStatus === 'completed') {
                     await reconcilePayment({ ...transaction, status: finalStatus, provider: provider as any });
@@ -1977,6 +1979,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
             return res.status(200).json({ success: true, message: 'Callback received' });
+        }
+
+        if (action === 'reconcileInternal') {
+            const { transaction: txnData } = paramsMap;
+            if (!txnData) return res.status(400).json({ success: false, message: 'Missing transaction data' });
+            await reconcilePayment(txnData);
+            return res.status(200).json({ success: true, message: 'Internal reconciliation triggered' });
         }
 
         return res.status(400).json({ success: false, message: 'Action not supported.' });

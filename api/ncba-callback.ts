@@ -138,7 +138,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // 2. Determine Success
-        const isSuccess = resultCode === '0' || status.toUpperCase() === 'SUCCESS' || status.toUpperCase() === 'COMPLETED';
+        const isSuccess = resultCode === '0' || resultCode === '00' || status.toUpperCase() === 'SUCCESS' || status.toUpperCase() === 'COMPLETED';
 
         if (isSuccess) {
             console.log(`[NCBA] ✅ Payment Verified for Transaction ${transactionId}`);
