@@ -1229,7 +1229,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             } 
             // 3. Handle SMS
             else if (meta.type === 'sms' || meta.type === 'sms_topup' || String(txn.description).toLowerCase().includes('sms')) {
-                const units = parseInt(String(meta.units || "0")) || Math.floor(amt / 2); // Default to 2 KES per unit if units not in meta
+                const unitPrice = parseFloat(String(settings?.sms_unit_price || settings?.smsUnitPrice || "2.0"));
+                const units = parseInt(String(meta.units || "0")) || Math.floor(amt / (unitPrice || 2)); // Default to configured price or 2 KES
                 if (units > 0) {
                     const targetId = instId && instId !== 'undefined' ? instId : 'SYSTEM';
                     console.log(`[Reconcile] Incrementing SMS balance for ${targetId} by ${units} units (Amount: ${amt})`);
