@@ -176,7 +176,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     });
                     return res.status(200).json({ success: true, checkoutRequestId: checkoutId, data });
                 }
-                return res.status(400).json({ success: false, message: 'No Transaction ID received', details: data });
+                
+                const statusDesc = data.ResultDesc || data.ResponseDescription || data.StatusDescription || data.message || 'The bank gateway rejected the request.';
+                return res.status(400).json({ 
+                    success: false, 
+                    message: `NCBA Gateway rejected the STK Push: ${statusDesc}`, 
+                    details: data 
+                });
             } catch (e: any) {
                 return res.status(500).json({ success: false, message: e.message });
             }
