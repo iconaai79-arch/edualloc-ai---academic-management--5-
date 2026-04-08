@@ -1025,11 +1025,10 @@ export const apiService = {
             }
 
             if (!response.ok) {
-                const errorMsg = resData.message || `Request failed with status ${response.status}`;
-                const details = resData.details ? JSON.stringify(resData.details) : '';
+                const baseMessage = resData.message || `Failed to send SMS (${response.status})`;
                 return {
                     success: false,
-                    message: `${errorMsg} ${details}`.trim(),
+                    message: typeof baseMessage === 'string' ? baseMessage : 'Unknown Gateway Error',
                     errorDetail: resData.error || resData.raw || null
                 };
             }
@@ -1218,17 +1217,7 @@ export const apiService = {
                 body: JSON.stringify({ action, recipient: formattedPhone, amount, config, metadata, provider })
             });
 
-            const text = await response.text();
-            let result: any;
-            try {
-                result = JSON.parse(text);
-            } catch (e) {
-                const snippet = text.substring(0, 150);
-                console.error(`[Integrations] Non-JSON response from ${action}:`, snippet);
-                alert(`Server Error: ${snippet}`);
-                throw new Error(`${provider.toUpperCase()} Gateway failed: The server returned an invalid response format. (See alert for details)`);
-            }
-
+            const result = await response.json();
             if (response.ok && result.success && metadata?.invoiceId) {
                 // Auto-record a pending transaction
                 await apiService.recordPayment({
@@ -1283,15 +1272,7 @@ export const apiService = {
                     config
                 })
             });
-            const text = await response.text();
-            let result: any;
-            try {
-                result = JSON.parse(text);
-            } catch (e) {
-                console.error("[Integrations] Non-JSON response from status check:", text.substring(0, 200));
-                return { status: 'pending', error: 'Invalid response format' };
-            }
-
+            const result = await response.json();
             if (result.status === 'completed' && result.metadata?.invoiceId) {
                 await apiService.reconcilePayment(result);
             }
@@ -1967,12 +1948,10 @@ export const apiService = {
             },
             body: JSON.stringify(body)
         });
-        const text = await response.text();
-        try {
-            return JSON.parse(text);
-        } catch (e) {
-            console.error(`[API POST] JSON Parse Error for ${url}. Body snippet:`, text.substring(0, 150));
-            throw new Error(`Server at ${url} returned an invalid response format instead of JSON.`);
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.message || err.error || `HTTP error! status: ${response.status}`);
         }
+        return response.json();
     }
 };
