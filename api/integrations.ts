@@ -32,6 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     const action = getParam('action');
+    console.log(`[Integrations] Handling Action: ${action || 'StatusCheck'} Method: ${req.method}`);
     const recipient = getParam('recipient');
     const message = getParam('message');
     const subject = getParam('subject');
@@ -171,7 +172,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Priority 3: Special bypass for Unauthenticated Actions (Callbacks & Recovery)
-        if (!user && (action === 'forgotPassword' || action === 'verifyResetOtp' || action === 'resetPasswordWithToken' || action === 'sendEmail' || action === 'sendSms' || action === 'mpesa-callback' || action === 'ncbaWebhook')) {
+        if (!user && (action === 'forgotPassword' || action === 'verifyResetOtp' || action === 'resetPasswordWithToken' || action === 'sendEmail' || action === 'sendSms' || action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'queryPaymentStatus')) {
             console.log(`[Auth Bridge] Checking unauthenticated bypass for ${action}`);
 
             // For callbacks, we allow the bypass directly
@@ -1325,7 +1326,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (action === 'queryPaymentStatus') {
             const provider = getParam('provider') || 'mpesa';
-            const checkoutRequestId = getParam('checkoutRequestId') || getParam('transactionId') || getParam('TransactionID');
+            const checkoutRequestId = getParam('checkoutRequestId') || getParam('transactionId') || getParam('TransactionID') || getParam('ReferenceID') || getParam('MerchantRequestID') || getParam('CheckoutRequestID');
+            
+            console.log(`[QueryStatus] Provider: ${provider} CRID: ${checkoutRequestId}`);
             
             if (!checkoutRequestId) {
                 console.warn('[QueryStatus] Missing checkoutRequestId. Provider:', provider);
