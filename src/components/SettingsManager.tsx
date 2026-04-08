@@ -301,6 +301,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [isTestingGlobalNcba, setIsTestingGlobalNcba] = useState(false);
     const [globalNcbaTestResult, setGlobalNcbaTestResult] = useState<{ success: boolean; message?: string; diagnostics?: any; error?: string; hint?: string } | null>(null);
     const [ncbaStkTestStatus, setNcbaStkTestStatus] = useState<string | null>(null);
+    const [ncbaStkTestResultData, setNcbaStkTestResultData] = useState<any>(null);
     const [isTestingStk, setIsTestingStk] = useState(false);
 
     useEffect(() => {
@@ -606,8 +607,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                     if (statusRes.status === 'completed') {
                         clearInterval(pollInterval);
                         setNcbaStkTestStatus("Success! Verified.");
+                        setNcbaStkTestResultData(statusRes.data || statusRes);
                         setIsTestingStk(false);
-                        alert("NCBA STK Push Success! Payment verified.");
+                        alert(`NCBA STK Push Success! Payment verified.\nConfirmation: ${statusRes.data?.MpesaReceiptNumber || statusRes.data?.TransactionID || statusRes.TransactionID || 'N/A'}`);
                     } else if (statusRes.status === 'failed' || attempts >= 45) {
                         clearInterval(pollInterval);
                         setNcbaStkTestStatus(statusRes.status === 'failed' ? "Failed" : "Timeout");
@@ -649,8 +651,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                     if (statusRes.status === 'completed') {
                         clearInterval(pollInterval);
                         setNcbaStkTestStatus("Verified!");
+                        setNcbaStkTestResultData(statusRes.data || statusRes);
                         setIsTestingStk(false);
-                        alert("Global NCBA Payment Verified!");
+                        alert(`Global NCBA Payment Verified!\nConfirmation: ${statusRes.data?.MpesaReceiptNumber || statusRes.data?.TransactionID || statusRes.TransactionID || 'N/A'}`);
                     } else if (statusRes.status === 'failed' || attempts > 45) {
                         clearInterval(pollInterval);
                         setNcbaStkTestStatus(statusRes.status === 'failed' ? "Failed" : "Timeout");
@@ -1776,6 +1779,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         <span>{isTestingStk ? 'Processing...' : 'Test STK Push'}</span>
                                                         {ncbaStkTestStatus && <span className="text-[8px] opacity-70 lowercase font-medium">{ncbaStkTestStatus}</span>}
                                                     </button>
+                                                    {ncbaStkTestResultData && (
+                                                        <div className="flex flex-col justify-center px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-2xl animate-fade-in">
+                                                            <p className="text-[8px] font-black uppercase text-emerald-600 tracking-tighter">Confirmation Code</p>
+                                                            <p className="text-xs font-black text-slate-900 dark:text-white font-mono">{ncbaStkTestResultData.MpesaReceiptNumber || ncbaStkTestResultData.TransactionID || ncbaStkTestResultData.transactionId || 'N/A'}</p>
+                                                        </div>
+                                                    )}
                                                     <button onClick={handleSaveGlobalConfigs} className="btn-primary h-14 px-12 shadow-xl shadow-teal-100 dark:shadow-none bg-teal-600 border-none uppercase tracking-widest text-[10px]">Save NCBA Config</button>
                                                 </div>
                                             </div>
