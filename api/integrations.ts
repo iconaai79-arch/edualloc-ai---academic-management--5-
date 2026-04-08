@@ -1084,13 +1084,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const rawData = await safeParseJson(res) as any;
             console.log(`[NCBA Status Response] CRID: ${checkoutRequestId} -> Raw:`, JSON.stringify(rawData));
             
-            const statusStr = (rawData.status || rawData.TransactionStatus || rawData.Status || '').toUpperCase();
-            const isSuccess = statusStr === 'SUCCESS' || statusStr === 'COMPLETED' || 
+            const statusStr = (String(rawData.status || rawData.TransactionStatus || rawData.Status || rawData.ResultStatus || '')).trim().toUpperCase();
+            const isSuccess = statusStr === 'SUCCESS' || statusStr === 'COMPLETED' || statusStr === 'SUCCESSFUL' ||
                              rawData.ResultCode === '0' || rawData.ResponseCode === '0' || 
                              rawData.StatusCode === '0' || rawData.success === true ||
                              String(rawData.ResponseCode) === '00' || String(rawData.ResultCode) === '00' ||
-                             (rawData.description || '').toUpperCase() === 'SUCCESS';
-            const isFailure = statusStr === 'FAILED' || statusStr === 'REJECTED' || rawData.ResultCode === '1' || rawData.StatusCode === '1';
+                             (String(rawData.description || rawData.ResultDesc || '')).toUpperCase().includes('SUCCESS');
+            const isFailure = statusStr === 'FAILED' || statusStr === 'REJECTED' || rawData.ResultCode === '99' || rawData.StatusCode === '99';
 
             // Map the bank's status to our platform's expected unified structure
             return {
@@ -1431,18 +1431,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const statusData = await queryNcbaStkStatus(ncba, checkoutRequestId);
                         externalData = statusData;
                         
-                        const desc = (statusData.description || statusData.ResultDesc || statusData.ResponseDescription || '').toLowerCase();
+                        const desc = (statusData.description || statusData.ResultDesc || statusData.ResponseDescription || statusData.StatusDescription || '').toLowerCase();
                         // Terminal errors that should actually stop polling
-                        const isTerminalUserError = desc.includes('cancel') || desc.includes('balance') || desc.includes('wrong pin') || desc.includes('insufficient');
+                        const isTerminalUserError = desc.includes('cancel') || desc.includes('balance') || desc.includes('wrong pin') || desc.includes('insufficient') || desc.includes('expired');
+                        
                         // Temporary errors that we should treat as pending
+                        // ResultCode '1' often means 'Not Found Yet' in some bank gateways
                         const isTempError = desc.includes('internal error') || desc.includes('not found') || desc.includes('rejected') || 
                                           desc.includes('not exist') || desc.includes('system error') || desc.includes('being processed') ||
-                                          desc.includes('querying') || desc.includes('not yet');
+                                          desc.includes('querying') || desc.includes('not yet') || desc.includes('request in progress') ||
+                                          statusData.ResultCode === '1' || statusData.StatusCode === '1' || statusData.ResponseCode === '1';
 
-                        if (statusData.success === true || statusData.status === 'SUCCESS' || statusData.ResultCode === '0' || statusData.ResponseCode === '0' || statusData.StatusCode === '0') {
+                        if (statusData.success === true || statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED' || 
+                            statusData.ResultCode === '0' || statusData.ResponseCode === '0' || statusData.StatusCode === '0' || 
+                            statusData.ResponseCode === '00' || statusData.ResultCode === '00') {
                             finalStatus = 'completed';
-                        } else if (isTerminalUserError || (!isTempError && (statusData.status === 'FAILED' || statusData.status === 'REJECTED' || statusData.ResultCode === '1' || statusData.StatusCode === '1'))) {
-                            // Only fail if it's a terminal user error OR a non-temporary definitive failure
+                        } else if (isTerminalUserError) {
+                            finalStatus = 'failed';
+                        } else if (!isTempError && (statusData.status === 'FAILED' || statusData.status === 'REJECTED' || statusData.ResultCode === '99' || statusData.StatusCode === '99')) {
+                            // Only fail if it's a non-temporary definitive failure code (e.g., 99)
                             finalStatus = 'failed';
                         }
                     } catch (e) {
