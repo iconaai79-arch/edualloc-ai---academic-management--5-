@@ -1005,7 +1005,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         PayBillNo: ncbaConfig.paybill || '880100',
                         AccountNo: ncbaConfig.accountNumber || ncbaConfig.account_number,
                         Network: 'Safaricom',
-                        TransactionType: 'CustomerPayBillOnline'
+                        TransactionType: 'CustomerPayBillOnline',
+                        Narrative: (ncbaConfig.narrative || `Payment to ${ncbaConfig.institutionName || 'Educ AI'}`).substring(0, 25),
+                        MerchantReference: (ncbaConfig.institutionName || 'Educ AI').substring(0, 12).trim()
                     }, ncbaConfig.params)),
                     redirect: 'manual'
                 }, 25000);
@@ -1647,8 +1649,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         PartyB: paybill,
                         PhoneNumber: recipient.replace(/[^\d]/g, ''),
                         CallBackURL: `https://${req.headers['x-forwarded-host'] || req.headers.host}/api/mpesa-callback`,
-                        AccountReference: (paramsMap.metadata?.institutionCode || "Sub/SMS").substring(0, 12),
-                        TransactionDesc: `${paramsMap.metadata?.type === 'sms' ? 'SMS Units' : 'License'}: ${paramsMap.metadata?.institutionName || "Acct"}`.substring(0, 20)
+                        AccountReference: (paramsMap.metadata?.institutionName || paramsMap.metadata?.institutionCode || "Educ AI").substring(0, 12).trim(),
+                        TransactionDesc: `${paramsMap.metadata?.type === 'sms' ? 'SMS: ' : 'Fee: '}${paramsMap.metadata?.institutionName || "AI Portal"}`.substring(0, 20)
                     })
                 }, 15000); // 15s timeout for the actual prompt
             } catch (e: any) {
