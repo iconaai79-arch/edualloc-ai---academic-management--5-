@@ -21,89 +21,93 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
-    // Support parameters from both body (POST) and query (GET)
-    const paramsMap = req.method === 'GET' ? req.query : req.body;
-
-    // Safely extract and normalize parameters (handling possible arrays from req.query)
-    const getParam = (key: string): string => {
-        const val = paramsMap[key];
-        if (Array.isArray(val)) return val[0] || '';
-        return (val as string) || '';
-    };
-
-    const action = getParam('action');
-    console.log(`[Integrations] Handling Action: ${action || 'StatusCheck'} Method: ${req.method}`);
-    const recipient = getParam('recipient');
-    const message = getParam('message');
-    const subject = getParam('subject');
-    const amountStr = getParam('amount');
-    const amount = amountStr ? parseFloat(amountStr) : 0;
-    const institutionIdOverride = getParam('institutionId');
-    const unitsParam = getParam('units');
-    const unitsToDeduct = unitsParam ? parseInt(unitsParam) : 1;
-    const bodyConfig = paramsMap.config;
-
-    // Detect system messages (OTPs, recovery links) early for auth bypass
-    const msgLower = (message || '').toLowerCase();
-    const isSystemMessage = msgLower.includes('verification code') ||
-        msgLower.includes('otp') ||
-        msgLower.includes('eduai code') ||
-        msgLower.includes('your verification code') ||
-        msgLower.includes('verificaiton code') || // Typo tolerance
-        msgLower.includes('password reset') ||
-        msgLower.includes('recovery link') ||
-        msgLower.includes('resettoken=');
-
-    // Robust phone normalization function
-    const normalizePhone = (p: string): string => {
-        if (!p) return '';
-        let digits = p.replace(/[^\d]/g, '');
-        // Handle 2540... case: strip the leading 0 after 254
-        if (digits.startsWith('2540')) digits = '254' + digits.substring(4);
-        if (digits.startsWith('0')) digits = '254' + digits.substring(1);
-        if (digits.length === 9) digits = '254' + digits;
-        return digits;
-    };
-
-    const getPhoneVariants = (p: string): string[] => {
-        if (!p) return [];
-        const normalized = normalizePhone(p);
-        const rawDigits = p.replace(/[^\d]/g, '');
-        const variants = new Set([p, rawDigits, normalized]);
-
-        if (normalized.startsWith('254') && normalized.length === 12) {
-            const base = normalized.substring(3);
-            variants.add('0' + base);
-            variants.add(base);
-            variants.add('+' + normalized);
-        }
-
-        return Array.from(variants).filter(v => v.length > 0);
-    };
-
-    function toCamelCase(obj: any): any {
-        if (obj === null || obj === undefined || typeof obj !== 'object' || obj instanceof Date) return obj;
-        if (Array.isArray(obj)) return obj.map((item: any) => toCamelCase(item));
-        const newObj: any = {};
-        Object.keys(obj).forEach(key => {
-            const camelKey = key.replace(/_([a-z0-9])/g, (_, letter) => letter.toUpperCase());
-            newObj[camelKey] = toCamelCase(obj[key]);
-        });
-        return newObj;
-    }
-
-    const safeParseJson = async (res: any, defaultErrorPrefix = 'NCBA Gateway error') => {
-        const text = await res.text();
-        try {
-            return JSON.parse(text);
-        } catch (e) {
-            // If not JSON, extract a snippet of the response (e.g., "A server error...")
-            const snippet = text.substring(0, 150).trim().replace(/<[^>]*>?/gm, ''); // Strip HTML tags if any
-            throw new Error(`${defaultErrorPrefix}: ${snippet || 'Invalid response format'}`);
-        }
-    };
-
     try {
+        // Support parameters from both body (POST) and query (GET)
+        const paramsMap = req.method === 'GET' ? req.query : req.body;
+
+        if (!paramsMap) {
+            console.error('[Integrations] Missing request body or query parameters.');
+            return res.status(400).json({ success: false, message: 'Invalid request: No parameters provided.' });
+        }
+
+        // Safely extract and normalize parameters (handling possible arrays from req.query)
+        const getParam = (key: string): string => {
+            const val = paramsMap[key];
+            if (Array.isArray(val)) return val[0] || '';
+            return (val as string) || '';
+        };
+
+        const action = getParam('action');
+        console.log(`[Integrations] Handling Action: ${action || 'StatusCheck'} Method: ${req.method}`);
+        const recipient = getParam('recipient');
+        const message = getParam('message');
+        const subject = getParam('subject');
+        const amountStr = getParam('amount');
+        const amount = amountStr ? parseFloat(amountStr) : 0;
+        const institutionIdOverride = getParam('institutionId');
+        const unitsParam = getParam('units');
+        const unitsToDeduct = unitsParam ? parseInt(unitsParam) : 1;
+        const bodyConfig = paramsMap.config;
+
+        // Detect system messages (OTPs, recovery links) early for auth bypass
+        const msgLower = (message || '').toLowerCase();
+        const isSystemMessage = msgLower.includes('verification code') ||
+            msgLower.includes('otp') ||
+            msgLower.includes('eduai code') ||
+            msgLower.includes('your verification code') ||
+            msgLower.includes('verificaiton code') || // Typo tolerance
+            msgLower.includes('password reset') ||
+            msgLower.includes('recovery link') ||
+            msgLower.includes('resettoken=');
+
+        // Robust phone normalization function
+        const normalizePhone = (p: string): string => {
+            if (!p) return '';
+            let digits = p.replace(/[^\d]/g, '');
+            // Handle 2540... case: strip the leading 0 after 254
+            if (digits.startsWith('2540')) digits = '254' + digits.substring(4);
+            if (digits.startsWith('0')) digits = '254' + digits.substring(1);
+            if (digits.length === 9) digits = '254' + digits;
+            return digits;
+        };
+
+        const getPhoneVariants = (p: string): string[] => {
+            if (!p) return [];
+            const normalized = normalizePhone(p);
+            const rawDigits = p.replace(/[^\d]/g, '');
+            const variants = new Set([p, rawDigits, normalized]);
+
+            if (normalized.startsWith('254') && normalized.length === 12) {
+                const base = normalized.substring(3);
+                variants.add('0' + base);
+                variants.add(base);
+                variants.add('+' + normalized);
+            }
+
+            return Array.from(variants).filter(v => v.length > 0);
+        };
+
+        function toCamelCase(obj: any): any {
+            if (obj === null || obj === undefined || typeof obj !== 'object' || obj instanceof Date) return obj;
+            if (Array.isArray(obj)) return obj.map((item: any) => toCamelCase(item));
+            const newObj: any = {};
+            Object.keys(obj).forEach(key => {
+                const camelKey = key.replace(/_([a-z0-9])/g, (_, letter) => letter.toUpperCase());
+                newObj[camelKey] = toCamelCase(obj[key]);
+            });
+            return newObj;
+        }
+
+        const safeParseJson = async (res: any, defaultErrorPrefix = 'NCBA Gateway error') => {
+            const text = await res.text();
+            try {
+                return JSON.parse(text);
+            } catch (e) {
+                // If not JSON, extract a snippet of the response (e.g., "A server error...")
+                const snippet = text.substring(0, 150).trim().replace(/<[^>]*>?/gm, ''); // Strip HTML tags if any
+                throw new Error(`${defaultErrorPrefix}: ${snippet || 'Invalid response format'}`);
+            }
+        };
         if (!action) {
             if (req.method === 'GET') return res.status(200).json({ status: 'Online', timestamp: new Date().toISOString(), mode: 'Integration Bridge' });
             return res.status(400).json({ success: false, message: 'Missing action' });
@@ -124,18 +128,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 clearTimeout(id);
                 throw e;
             }
-            
-            // 5. Mark as reconciled in the database
-            const isNcba = txn.provider === 'ncba' || txn.provider === 'NCBA' || meta.provider === 'ncba';
-            const table = isNcba ? 'ncba_transactions' : 'mpesa_transactions';
-            const updateCol = isNcba ? 'transaction_id' : 'checkout_request_id';
-            const finalizedMeta = { ...meta, reconciled: true, reconciledAt: new Date().toISOString() };
-            
-            await supabase.from(table).update({ 
-                metadata: finalizedMeta 
-            }).eq(updateCol, txn.transaction_id || txn.checkout_request_id || txn.id);
-            
-            console.log(`[Reconcile] Completed successfully for ${txn.id}`);
         };
 
         if (!supabase) {
