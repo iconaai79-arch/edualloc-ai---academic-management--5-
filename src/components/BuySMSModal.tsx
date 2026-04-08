@@ -96,10 +96,13 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
 
                 const pollInterval = setInterval(async () => {
                     attempts++;
-                    const { status } = await apiService.checkPaymentStatus(provider, checkoutRequestId, 
+                    const result = await apiService.checkPaymentStatus(provider, checkoutRequestId, 
                         provider === 'mpesa' ? mpesaConfig : 
                         (provider === 'airtel' ? airtelMoneyConfig : 
                         (provider === 'intasend' ? intasendConfig : ncbaConfig)));
+
+                    const status = result?.status;
+                    console.log(`[Polling] Attempt ${attempts}/25 - Status: ${status}`, result);
 
                     if (status === 'completed') {
                         clearInterval(pollInterval);

@@ -1414,10 +1414,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     try {
                         const statusData = await queryNcbaStkStatus(ncba, checkoutRequestId);
                         externalData = statusData;
+                        
+                        const desc = (statusData.description || statusData.ResultDesc || '').toLowerCase();
+                        const isTempError = desc.includes('internal error') || desc.includes('not found') || desc.includes('rejected') || desc.includes('not exist');
+
                         // Map 2024 spec 'status: SUCCESS' to our platform's completed state
                         if (statusData.success === true || statusData.status === 'SUCCESS' || statusData.ResultCode === '0' || statusData.ResponseCode === '0' || statusData.StatusCode === '0') {
                             finalStatus = 'completed';
-                        } else if (statusData.status === 'FAILED' || statusData.ResultCode === '1' || statusData.StatusCode === '1') {
+                        } else if (!isTempError && (statusData.status === 'FAILED' || statusData.status === 'REJECTED' || statusData.ResultCode === '1' || statusData.StatusCode === '1')) {
+                            // Only fail if it's NOT a temporary bank error
                             finalStatus = 'failed';
                         }
                     } catch (e) {
