@@ -488,49 +488,13 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                         />
                       </div>
                       <div>
-                        <div className="flex justify-between items-center mb-1 px-1">
-                          <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Notification User</label>
-                          <button 
-                            type="button" 
-                            onClick={(e) => {
-                              e.preventDefault();
-                              const gen = Array.from(crypto.getRandomValues(new Uint8Array(5))).map(b => b.toString(16).padStart(2, '0')).join('');
-                              setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, callbackUsername: gen } });
-                            }}
-                            className="text-[8px] font-black uppercase text-indigo-500 hover:underline"
-                          >
-                            Generate
-                          </button>
-                        </div>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Account Number</label>
                         <input
                           type="text"
-                          value={formData.ncbaConfig.callbackUsername || ''}
-                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, callbackUsername: e.target.value } })}
-                          className="form-input text-[10px] h-10"
-                          placeholder="NCBA_NOTIFY_USER"
-                        />
-                      </div>
-                      <div>
-                        <div className="flex justify-between items-center mb-1 px-1">
-                          <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Notification Secret</label>
-                          <button 
-                            type="button" 
-                            onClick={(e) => {
-                              e.preventDefault();
-                              const gen = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
-                              setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, callbackSecret: gen } });
-                            }}
-                            className="text-[8px] font-black uppercase text-indigo-500 hover:underline"
-                          >
-                            Generate
-                          </button>
-                        </div>
-                        <input
-                          type="password"
-                          value={formData.ncbaConfig.callbackSecret || ''}
-                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, callbackSecret: e.target.value } })}
-                          className="form-input text-[10px] h-10"
-                          placeholder="••••••••••••••••"
+                          value={formData.ncbaConfig.accountNumber || ''}
+                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, accountNumber: e.target.value } })}
+                          className="form-input text-[10px] h-10 font-mono"
+                          placeholder="Bank Account Number"
                         />
                       </div>
                       <div>

@@ -2477,6 +2477,17 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             </div>
 
                                             <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">NCBA Account Number</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={localInstNcbaConfig.accountNumber || ''} 
+                                                    onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, accountNumber: e.target.value })}
+                                                    className="form-input font-mono" 
+                                                    placeholder="Enter Account Number"
+                                                />
+                                            </div>
+
+                                            <div>
                                                 <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Paybill / Short Code</label>
                                                 <input 
                                                     type="text" 
@@ -2494,52 +2505,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, callbackUrl: e.target.value })}
                                                     className="form-input font-mono text-indigo-600" 
                                                     placeholder="https://your-domain.com/api/ncba-callback"
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <div className="flex justify-between items-center mb-2 px-1">
-                                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Notification Username</label>
-                                                    <button 
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const gen = Array.from(crypto.getRandomValues(new Uint8Array(5))).map(b => b.toString(16).padStart(2, '0')).join('');
-                                                            setLocalInstNcbaConfig({ ...localInstNcbaConfig, callbackUsername: gen });
-                                                        }}
-                                                        className="text-[9px] font-black uppercase text-indigo-500 hover:text-indigo-600 flex items-center gap-1"
-                                                    >
-                                                        <SparklesIcon className="w-2.5 h-2.5" /> Auto-Generate
-                                                    </button>
-                                                </div>
-                                                <input 
-                                                    type="text" 
-                                                    value={localInstNcbaConfig.callbackUsername || ''} 
-                                                    onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, callbackUsername: e.target.value })}
-                                                    className="form-input" 
-                                                    placeholder="e.g. NCBA_NOTIFY_USER"
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <div className="flex justify-between items-center mb-2 px-1">
-                                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Notification Secret</label>
-                                                    <button 
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const gen = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
-                                                            setLocalInstNcbaConfig({ ...localInstNcbaConfig, callbackSecret: gen });
-                                                        }}
-                                                        className="text-[9px] font-black uppercase text-indigo-500 hover:text-indigo-600 flex items-center gap-1"
-                                                    >
-                                                        <SparklesIcon className="w-2.5 h-2.5" /> Auto-Generate
-                                                    </button>
-                                                </div>
-                                                <input 
-                                                    type="password" 
-                                                    value={localInstNcbaConfig.callbackSecret || ''} 
-                                                    onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, callbackSecret: e.target.value })}
-                                                    className="form-input" 
-                                                    placeholder="••••••••••••••••"
                                                 />
                                             </div>
 
