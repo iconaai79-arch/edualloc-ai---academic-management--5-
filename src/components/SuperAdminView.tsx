@@ -2132,13 +2132,14 @@ Please change it after login.`;
                     <div className="animate-fade-in-up">
                         <CommunicationsManager
                             {...props}
-                            onSendSms={props.onSendSms || (async () => ({ success: false, message: 'SMS service disabled' }))}
-                            currentUser={props.currentUser}
-                            smsBalance={((institutions || []).reduce((sum, inst) => sum + (inst.smsBalance ?? 0), 0)) + (props.companyDetails?.sms_balance || 0)}
+                            onSendSms={onSendSms || (async () => ({ success: false, message: 'SMS service disabled' }))}
+                            currentUser={currentUser}
+                            smsBalance={((institutions || []).reduce((sum, inst) => sum + (inst.smsBalance ?? 0), 0)) + (companyDetails?.sms_balance || 0)}
                             currentInstitution={props.currentInstitution}
-                            mpesaConfig={props.companyDetails.mpesaConfig}
+                            mpesaConfig={companyDetails?.mpesaConfig || companyDetails?.mpesa_config}
+                            ncbaConfig={companyDetails?.ncbaConfig || companyDetails?.ncba_config}
                             smsConfig={props.smsConfig}
-                            onRefreshData={props.onRefreshData}
+                            onRefreshData={onRefreshData}
                         />
                     </div>
                 )}
