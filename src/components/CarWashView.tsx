@@ -2494,7 +2494,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             currentUser={currentUser}
                             mpesaConfig={mpesaConfig || companyDetails.mpesaConfig}
                             onRefreshData={onDataChange}
-                            moduleContext="carwash"
+                            moduleContext="carwash" transactions={transactions}
                         />
                     </div>
                 )}

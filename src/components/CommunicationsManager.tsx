@@ -20,6 +20,7 @@ interface CommunicationsManagerProps {
     onRefreshData?: () => void;
     moduleContext?: 'school' | 'carwash' | 'property' | 'agrovet' | 'cooperative' | 'church';
     companyDetails?: any;
+    transactions?: MpesaTransaction[];
 }
 
 const calculateSmsParts = (msg: string) => {
@@ -48,7 +49,7 @@ const calculateSmsParts = (msg: string) => {
 };
 
 
-export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ users, departments, courses, institutions, onSendSms, currentUser, smsBalance, currentInstitution, mpesaConfig, smsConfig, onRefreshData, moduleContext = 'school', companyDetails }) => {
+export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ users, departments, courses, institutions, onSendSms, currentUser, smsBalance, currentInstitution, mpesaConfig, smsConfig, onRefreshData, moduleContext = 'school', companyDetails, transactions }) => {
     const isRetailAgency = useMemo(() => {
         if (currentInstitution?.institutionType === 'Church') return false;
         return RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
@@ -61,7 +62,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
     const [message, setMessage] = useState('');
     const [status, setStatus] = useState<{ type: 'idle' | 'sending' | 'success' | 'error', message: string }>({ type: 'idle', message: '' });
     const [searchTerm, setSearchTerm] = useState('');
-    const [activeTab, setActiveTab] = useState<'compose' | 'history' | 'outbox'>('compose');
+    const [activeTab, setActiveTab] = useState<'compose' | 'history' | 'outbox' | 'transactions'>('compose');
     const [smsLogs, setSmsLogs] = useState<SmsLog[]>([]);
     const [smsOutbox, setSmsOutbox] = useState<SmsOutbox[]>([]);
     const [isLoadingLogs, setIsLoadingLogs] = useState(false);
@@ -125,6 +126,16 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
             u.staffId?.toLowerCase().includes(searchTerm.toLowerCase())
         ).slice(0, 100); // Limit to 100 results for performance
     }, [users, searchTerm, currentUser, courses]);
+
+    const smsTransactions = useMemo(() => {
+        if (!transactions) return [];
+        return transactions.filter(t => {
+            const desc = (t.description || '').toLowerCase();
+            const type = t.metadata?.type || (t as any).type;
+            const provider = t.provider;
+            return type === 'sms' || type === 'sms_topup' || desc.includes('sms') || provider === 'ncba';
+        }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    }, [transactions]);
 
     const departmentOptions = useMemo(() => {
         if (isSuperAdminView && institutionMap) {
@@ -642,6 +653,57 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
         );
     };
 
+    const renderTransactionsTab = () => {
+        return (
+            <div className="animate-fade-in-up space-y-4">
+                <div className="overflow-x-auto bg-white dark:bg-slate-900/40 rounded-3xl border border-slate-100 dark:border-slate-800 p-2">
+                    <table className="w-full text-left text-sm">
+                        <thead>
+                            <tr className="border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                                <th className="py-4 px-6">Date</th>
+                                <th className="py-4 px-6">Reference</th>
+                                <th className="py-4 px-6">Amount</th>
+                                <th className="py-4 px-6">Provider</th>
+                                <th className="py-4 px-6">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                            {smsTransactions.length > 0 ? smsTransactions.map(txn => (
+                                <tr key={txn.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                                    <td className="py-4 px-6 whitespace-nowrap text-[10px] font-medium text-slate-500">
+                                        {new Date(txn.timestamp).toLocaleDateString()}
+                                        <span className="block opacity-50">{new Date(txn.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    </td>
+                                    <td className="py-4 px-6 font-mono text-xs text-slate-700 dark:text-slate-300">
+                                        {txn.transactionId || txn.id}
+                                        {txn.metadata?.units && <span className="ml-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded text-[8px] font-bold">{txn.metadata.units} Units</span>}
+                                    </td>
+                                    <td className="py-4 px-6 font-bold text-slate-900 dark:text-white">
+                                        KES {txn.amount.toLocaleString()}
+                                    </td>
+                                    <td className="py-4 px-6 text-[10px] uppercase font-black text-slate-400">
+                                        {txn.provider}
+                                    </td>
+                                    <td className="py-4 px-6">
+                                        <span className={`px-2 py-1 rounded-full text-[8px] font-black uppercase ${txn.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'}`}>
+                                            {txn.status}
+                                        </span>
+                                    </td>
+                                </tr>
+                            )) : (
+                                <tr>
+                                    <td colSpan={5} className="py-12 text-center text-slate-400 text-xs italic">
+                                        No purchase history found.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
             <div className="flex items-center justify-between mb-6">
@@ -665,6 +727,12 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                             className={`text-xs font-black uppercase tracking-widest pb-1 border-b-2 transition-all ${activeTab === 'outbox' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                         >
                             Outbox {smsOutbox.length > 0 && <span className="ml-1 bg-red-500 text-white text-[8px] px-1.5 py-0.5 rounded-full">{smsOutbox.length}</span>}
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('transactions')}
+                            className={`text-xs font-black uppercase tracking-widest pb-1 border-b-2 transition-all ${activeTab === 'transactions' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                        >
+                            Purchases
                         </button>
                     </div>
                 </div>
@@ -816,9 +884,13 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                 <div className="mt-4">
                     {renderHistoryTab()}
                 </div>
-            ) : (
+            ) : activeTab === 'outbox' ? (
                 <div className="mt-4">
                     {renderOutboxTab()}
+                </div>
+            ) : (
+                <div className="mt-4">
+                    {renderTransactionsTab()}
                 </div>
             )}
             {isBuySMSModalOpen && (currentInstitution || currentUser?.role === 'super_admin') && (

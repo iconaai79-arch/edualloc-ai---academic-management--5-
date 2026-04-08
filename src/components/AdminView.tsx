@@ -913,6 +913,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         smsConfig={props.smsConfig}
                         onRefreshData={props.onRefreshData}
                         moduleContext={isCoop ? 'cooperative' : (isRetailAgency ? 'agrovet' : isChurch ? 'church' : 'school')}
+                        transactions={props.transactions}
                     />
                 )}
 

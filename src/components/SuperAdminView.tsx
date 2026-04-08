@@ -2140,6 +2140,7 @@ Please change it after login.`;
                             ncbaConfig={companyDetails?.ncbaConfig || companyDetails?.ncba_config}
                             smsConfig={props.smsConfig}
                             onRefreshData={onRefreshData}
+                            transactions={transactions}
                         />
                     </div>
                 )}

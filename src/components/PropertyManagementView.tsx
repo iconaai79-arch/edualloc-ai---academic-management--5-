@@ -2404,6 +2404,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({
                     smsConfig={currentInstitution.smsConfig || companyDetails.smsConfig}
                     onRefreshData={loadData}
                     moduleContext="property"
+                    transactions={transactions}
                 />
             )}
             {activeTab === 'reports' && <ReportsTab />}
