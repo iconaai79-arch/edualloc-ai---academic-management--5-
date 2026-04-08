@@ -160,7 +160,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
                 
                 const data = await safeParseJson(stkRes, 'NCBA STK Push Failed');
-                const checkoutId = data.TransactionID || data.CheckoutRequestID;
+                console.log('[NCBA STK Response Body]:', JSON.stringify(data));
+                
+                // Unified ID extraction
+                const checkoutId = data.TransactionID || data.CheckoutRequestID || data.MerchantRequestID || data.requestId || data.id;
                 
                 if (checkoutId) {
                     await supabase.from('ncba_transactions').insert({

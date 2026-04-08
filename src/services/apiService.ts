@@ -1025,10 +1025,11 @@ export const apiService = {
             }
 
             if (!response.ok) {
-                const baseMessage = resData.message || `Failed to send SMS (${response.status})`;
+                const errorMsg = resData.message || `Request failed with status ${response.status}`;
+                const details = resData.details ? JSON.stringify(resData.details) : '';
                 return {
                     success: false,
-                    message: typeof baseMessage === 'string' ? baseMessage : 'Unknown Gateway Error',
+                    message: `${errorMsg} ${details}`.trim(),
                     errorDetail: resData.error || resData.raw || null
                 };
             }
