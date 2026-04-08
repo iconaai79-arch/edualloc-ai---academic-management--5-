@@ -897,11 +897,11 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                 <BuySMSModal
                     isOpen={isBuySMSModalOpen}
                     onClose={() => setIsBuySMSModalOpen(false)}
-                    onPurchaseComplete={(purchasedUnits) => {
+                    onPurchaseComplete={async (purchasedUnits) => {
                         if (onRefreshData) {
-                            onRefreshData();
-                            alert(`SMS purchase successful! ${purchasedUnits.toLocaleString()} units have been added. Your new balance will reflect in a moment.`);
+                            await onRefreshData();
                         }
+                        alert(`SMS purchase successful! ${purchasedUnits.toLocaleString()} units have been added. Your new balance has been updated.`);
                     }}
                     mpesaConfig={mpesaConfig}
                     airtelMoneyConfig={currentInstitution?.airtelMoneyConfig || companyDetails?.airtelMoneyConfig}

@@ -1172,7 +1172,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const instId = txn.institution_id;
             const amt = txn.amount;
 
-            console.log(`[Reconcile] Processing transaction ${txn.id || txn.transaction_id} for ${instId}. Amount: ${amt}, Source Metadata:`, JSON.stringify(meta));
+            console.log(`[Reconcile - START] TXN: ${txn.id || txn.transaction_id} | Inst: ${instId} | Amt: ${amt} | Type: ${meta.type}`);
 
             // 1. Fetch System Settings for fallback price
             let settings: any = {};
@@ -1243,13 +1243,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 if (units > 0) {
-                    console.log(`[Reconcile] Incrementing SMS balance for ${instId || 'SYSTEM'} by ${units} units (Total Paid: ${amt})`);
-                    await supabase.rpc('increment_sms_balance', { 
+                    console.log(`[Reconcile - SMS] Balance Increment: ${units} units for ${instId || 'SYSTEM'}. Triggering RPC...`);
+                    const { error: rpcError } = await supabase.rpc('increment_sms_balance', { 
                         inst_id: instId || 'SYSTEM', 
                         amount: units 
                     });
+                    
+                    if (rpcError) {
+                        console.error(`[Reconcile - SMS] RPC ERROR:`, rpcError);
+                    } else {
+                        console.log(`[Reconcile - SMS] SUCCESS: Balance updated for ${instId || 'SYSTEM'}`);
+                    }
                 } else {
-                    console.warn(`[Reconcile] SMS reconciliation skipped for ${txn.id}: Zero units calculated.`);
+                    console.warn(`[Reconcile - SMS] SKIPPED: Calculated units is 0 for amt ${amt}.`);
                 }
 
                 if (!invId) {
@@ -2011,6 +2017,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             try {
                 const result = await queryNcbaStkStatus(ncbaConfig, checkoutRequestId);
+                
+                // Self-Healing Reconciliation: 
+                // If bank status is success, ensure local transaction is marked as completed 
+                // and trigger balance update if not already reconciled.
+                if (result.success) {
+                    const { data: txn } = await supabase.from('ncba_transactions')
+                        .update({ 
+                            status: 'completed',
+                            external_data: result,
+                            completed_at: new Date().toISOString()
+                        })
+                        .eq('transaction_id', checkoutRequestId)
+                        .select()
+                        .single();
+
+                    if (txn && !txn.metadata?.reconciled) {
+                        console.log(`[NCBA Query Self-Heal] Triggering reconciliation for ${checkoutRequestId}`);
+                        await reconcilePayment({ ...txn, provider: 'ncba' });
+                    }
+                }
+
                 return res.status(200).json({ success: true, status: result });
             } catch (err: any) {
                 console.error(`[NCBA Query Fatal]:`, err);
@@ -2025,8 +2052,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // 1. Fetch Config for Authentication
             let ncbaConfig = null;
-            if (institutionId) {
-                const { data: inst } = await supabase.from('institutions').select('ncba_config').eq('id', institutionId).maybeSingle();
+            let effectiveInstitutionId = institutionId;
+
+            // If institutionId is missing in webhook URL, try to find it from the transaction
+            const checkoutRequestId = body.TransactionID || body.CheckoutRequestID;
+            if (!effectiveInstitutionId && checkoutRequestId) {
+                const { data: preTxn } = await supabase.from('ncba_transactions').select('institution_id').eq('transaction_id', checkoutRequestId).maybeSingle();
+                if (preTxn) effectiveInstitutionId = preTxn.institution_id;
+            }
+
+            if (effectiveInstitutionId && effectiveInstitutionId !== 'SYSTEM') {
+                const { data: inst } = await supabase.from('institutions').select('ncba_config').eq('id', effectiveInstitutionId).maybeSingle();
                 if (inst?.ncba_config) ncbaConfig = toCamelCase(inst.ncba_config);
             }
             

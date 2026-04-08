@@ -557,13 +557,13 @@ export const App: React.FC = () => {
     const activeLetterheadConfig = useMemo(() => activeInstitution?.letterheadConfig || companyDetails.letterheadConfig, [activeInstitution, companyDetails]);
     const activeFooterImageUrl = useMemo(() => activeInstitution?.footerImageUrl || companyDetails.footerImageUrl || null, [activeInstitution, companyDetails]);
 
-    const loadData = useCallback(async (isFirstLoad = false) => {
+    const loadData = useCallback(async (isFirstLoad = false, force = false) => {
         // Prevent concurrent refreshes
         if (isRefreshingRef.current) return;
         
-        // Prevent too frequent refreshes (debounce to 2 seconds)
+        // Prevent too frequent refreshes (debounce to 2 seconds) unless forced
         const now = Date.now();
-        if (!isFirstLoad && (now - lastRefreshTimeRef.current < 2000)) return;
+        if (!isFirstLoad && !force && (now - lastRefreshTimeRef.current < 2000)) return;
 
         isRefreshingRef.current = true;
         lastRefreshTimeRef.current = now;
@@ -2522,7 +2522,7 @@ export const App: React.FC = () => {
                                     activityLog={activityLog}
                                     transactions={transactions}
                                     onAddTransaction={apiService.onAddTransaction.bind(apiService)}
-                                    onRefreshData={() => loadData()}
+                                    onRefreshData={async () => await loadData(false, true)}
                                     receipts={receipts}
                                     invoices={invoices}
                                     extensionRequests={extensionRequests}
@@ -2932,7 +2932,7 @@ export const App: React.FC = () => {
                                         return res; 
                                     }}
                                     
-                                    onRefreshData={() => loadData()}
+                                    onRefreshData={async () => await loadData(false, true)}
                                     onAddCounty={handleAddCounty}
                                     onUpdateCounty={handleUpdateCounty}
                                     onDeleteCounty={handleDeleteCounty}
@@ -3480,7 +3480,7 @@ export const App: React.FC = () => {
                                         companyDetails={companyDetails}
                                         onAddTransaction={apiService.onAddTransaction.bind(apiService)}
                                         onLogAction={handleLogAction}
-                                        onRefreshData={() => loadData()}
+                                        onRefreshData={async () => await loadData(false, true)}
                                     />
                                 </ModuleAccessGuard>
                             ) : activeRole === 'librarian' ? (
@@ -3698,7 +3698,7 @@ export const App: React.FC = () => {
                                     activityLog={activityLog}
                                     transactions={transactions}
                                     onAddTransaction={apiService.onAddTransaction.bind(apiService)}
-                                    onRefreshData={() => loadData()}
+                                    onRefreshData={async () => await loadData(false, true)}
                                     receipts={receipts}
                                     invoices={invoices}
                                     extensionRequests={extensionRequests}
