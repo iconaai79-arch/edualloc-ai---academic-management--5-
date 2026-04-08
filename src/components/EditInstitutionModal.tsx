@@ -542,6 +542,16 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                         />
                       </div>
                       <div>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Callback URL</label>
+                        <input
+                          type="url"
+                          value={formData.ncbaConfig.callbackUrl || ''}
+                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, callbackUrl: e.target.value } })}
+                          className="form-input text-[10px] h-10 font-mono text-indigo-600"
+                          placeholder="https://..."
+                        />
+                      </div>
+                      <div>
                         <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">API Environment</label>
                         <select
                           value={formData.ncbaConfig.environment}

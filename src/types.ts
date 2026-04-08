@@ -197,6 +197,7 @@ export interface NcbaConfig {
     authMethod?: 'bearer' | 'basic';
     headers?: { name: string; value: string }[];
     params?: { name: string; value: string }[];
+    callbackUrl?: string;
     callbackUsername?: string;
     callbackSecret?: string;
     notificationApiKey?: string;

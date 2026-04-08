@@ -558,7 +558,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             cpanelSecret: '',
             items: []
         },
-        ncbaConfig: companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', accountNumber: '', environment: 'sandbox', isMock: false, headers: [], params: [], stkPushBaseUrl: '', requestUrl: '', pushStkUrl: '', queryStkUrl: '' }
+        ncbaConfig: companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', accountNumber: '', environment: 'sandbox', isMock: false, headers: [], params: [], stkPushBaseUrl: '', requestUrl: '', pushStkUrl: '', queryStkUrl: '', callbackUrl: '', callbackUsername: '', callbackSecret: '' }
     });
 
     const [localSmsConfig, setLocalSmsConfig] = useState<SmsConfig>(companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -594,7 +594,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     cpanelSecret: '',
                     items: []
                 },
-                ncbaConfig: companyDetails.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', accountNumber: '', environment: 'sandbox', isMock: false, headers: [], params: [], stkPushBaseUrl: '', requestUrl: '', pushStkUrl: '', queryStkUrl: '' }
+                ncbaConfig: companyDetails.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', accountNumber: '', environment: 'sandbox', isMock: false, headers: [], params: [], stkPushBaseUrl: '', requestUrl: '', pushStkUrl: '', queryStkUrl: '', callbackUrl: '', callbackUsername: '', callbackSecret: '' }
             });
             setLocalSmsConfig(companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '', smsUnitPrice: 1, minSmsUnits: 100 });
             setLocalEmailConfig(companyDetails.emailConfig || { host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
@@ -3119,6 +3119,18 @@ Please change it after login.`;
                                                             placeholder="Enter Short Code"
                                                         />
                                                     </div>
+
+                                                    <div className="space-y-2">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Notification Callback URL</label>
+                                                        <input 
+                                                            type="url" 
+                                                            value={localCompanyInfo.ncbaConfig?.callbackUrl || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, callbackUrl: e.target.value } as any })}
+                                                            className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-indigo-600" 
+                                                            placeholder="https://..."
+                                                        />
+                                                    </div>
+
                                                     <div>
                                                         <div className="flex justify-between items-center mb-2 px-1">
                                                             <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Notification Username</label>

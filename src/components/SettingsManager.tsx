@@ -2487,6 +2487,17 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             </div>
 
                                             <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Notification Callback URL</label>
+                                                <input 
+                                                    type="url" 
+                                                    value={localInstNcbaConfig.callbackUrl || ''} 
+                                                    onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, callbackUrl: e.target.value })}
+                                                    className="form-input font-mono text-indigo-600" 
+                                                    placeholder="https://your-domain.com/api/ncba-callback"
+                                                />
+                                            </div>
+
+                                            <div>
                                                 <div className="flex justify-between items-center mb-2 px-1">
                                                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Notification Username</label>
                                                     <button 
