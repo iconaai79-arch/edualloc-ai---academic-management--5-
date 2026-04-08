@@ -1415,14 +1415,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const statusData = await queryNcbaStkStatus(ncba, checkoutRequestId);
                         externalData = statusData;
                         
-                        const desc = (statusData.description || statusData.ResultDesc || '').toLowerCase();
-                        const isTempError = desc.includes('internal error') || desc.includes('not found') || desc.includes('rejected') || desc.includes('not exist');
+                        const desc = (statusData.description || statusData.ResultDesc || statusData.ResponseDescription || '').toLowerCase();
+                        // Terminal errors that should actually stop polling
+                        const isTerminalUserError = desc.includes('cancel') || desc.includes('balance') || desc.includes('wrong pin') || desc.includes('insufficient');
+                        // Temporary errors that we should treat as pending
+                        const isTempError = desc.includes('internal error') || desc.includes('not found') || desc.includes('rejected') || 
+                                          desc.includes('not exist') || desc.includes('system error') || desc.includes('being processed') ||
+                                          desc.includes('querying') || desc.includes('not yet');
 
-                        // Map 2024 spec 'status: SUCCESS' to our platform's completed state
                         if (statusData.success === true || statusData.status === 'SUCCESS' || statusData.ResultCode === '0' || statusData.ResponseCode === '0' || statusData.StatusCode === '0') {
                             finalStatus = 'completed';
-                        } else if (!isTempError && (statusData.status === 'FAILED' || statusData.status === 'REJECTED' || statusData.ResultCode === '1' || statusData.StatusCode === '1')) {
-                            // Only fail if it's NOT a temporary bank error
+                        } else if (isTerminalUserError || (!isTempError && (statusData.status === 'FAILED' || statusData.status === 'REJECTED' || statusData.ResultCode === '1' || statusData.StatusCode === '1'))) {
+                            // Only fail if it's a terminal user error OR a non-temporary definitive failure
                             finalStatus = 'failed';
                         }
                     } catch (e) {
