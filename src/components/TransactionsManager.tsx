@@ -30,7 +30,7 @@ const TransactionStatusBadge: React.FC<{ status: TransactionStatus }> = ({ statu
 
 export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transactions, institutions, receipts, companyDetails, onGenerateReceipt, onVerifyTransaction, logoUrl, title = "M-Pesa Transaction Log" }) => {
     const [searchQuery, setSearchQuery] = useState('');
-    const [providerFilter, setProviderFilter] = useState<'all' | 'mpesa' | 'airtel' | 'intasend'>('all');
+    const [providerFilter, setProviderFilter] = useState<'all' | 'mpesa' | 'airtel' | 'intasend' | 'ncba'>('all');
     const institutionMap = useMemo(() => new Map(institutions.map(inst => [inst.id, inst])), [institutions]);
 
     const sortedTransactions = useMemo(() => {
@@ -80,6 +80,7 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
                             <option value="mpesa">M-Pesa</option>
                             <option value="airtel">Airtel Money</option>
                             <option value="intasend">IntaSend</option>
+                            <option value="ncba">NCBA</option>
                         </select>
                     </div>
                     <div className="w-full sm:w-72">

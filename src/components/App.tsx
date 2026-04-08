@@ -677,8 +677,10 @@ export const App: React.FC = () => {
                 finalTxns = finalTxns.filter(txn => {
                     const desc = (txn.description || '').toLowerCase();
                     const type = txn.metadata?.type;
+                    const provider = txn.provider;
                     return type === 'subscription' || 
                            type === 'sms' ||
+                           provider === 'ncba' ||
                            desc.includes('license') || 
                            desc.includes('renewal') || 
                            desc.includes('sms top-up') ||

@@ -2468,6 +2468,9 @@ export interface HISPatient {
     insuranceProvider?: string;
     insurancePolicyNumber?: string;
     contact?: string;
+    age?: number;
+    status?: string;
+    recordedBy?: string;
     createdAt: string;
     updatedAt: string;
 }
@@ -2649,6 +2652,7 @@ export interface HISPharmacyInventory {
     sku?: string;
     createdAt: string;
     updatedAt: string;
+    recordedBy?: string;
 }
 
 export interface HISPharmacyBatch {
@@ -2662,6 +2666,7 @@ export interface HISPharmacyBatch {
     unitCost: number;
     supplierInfo?: string;
     createdAt: string;
+    recordedBy?: string;
 }
 
 export interface HISPharmacyInteraction {
@@ -2717,6 +2722,7 @@ export interface HISPrescription {
     medicationImage?: string;
     patientName?: string;
     items?: HISPrescriptionItem[];
+    recordedBy?: string;
 }
 
 export interface HISPrescriptionItem {

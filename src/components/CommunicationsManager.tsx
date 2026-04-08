@@ -19,6 +19,7 @@ interface CommunicationsManagerProps {
     smsConfig?: SmsConfig;
     onRefreshData?: () => void;
     moduleContext?: 'school' | 'carwash' | 'property' | 'agrovet' | 'cooperative' | 'church';
+    companyDetails?: any;
 }
 
 const calculateSmsParts = (msg: string) => {
@@ -820,7 +821,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                     {renderOutboxTab()}
                 </div>
             )}
-            {isBuySMSModalOpen && currentInstitution && (
+            {isBuySMSModalOpen && (currentInstitution || currentUser?.role === 'super_admin') && (
                 <BuySMSModal
                     isOpen={isBuySMSModalOpen}
                     onClose={() => setIsBuySMSModalOpen(false)}
@@ -831,13 +832,13 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                         }
                     }}
                     mpesaConfig={mpesaConfig}
-                    airtelMoneyConfig={currentInstitution.airtelMoneyConfig}
-                    intasendConfig={currentInstitution.intasendConfig}
-                    ncbaConfig={currentInstitution.ncbaConfig}
-                    institutionId={currentInstitution.id}
-                    institutionCode={currentInstitution.institutionCode || 'SYSTEM'}
-                    institutionName={currentInstitution.name}
-                    smsUnitPrice={currentInstitution.customSmsPrice || (smsConfig as any)?.smsUnitPrice || 2}
+                    airtelMoneyConfig={currentInstitution?.airtelMoneyConfig || companyDetails?.airtelMoneyConfig}
+                    intasendConfig={currentInstitution?.intasendConfig || companyDetails?.intasendConfig}
+                    ncbaConfig={currentInstitution?.ncbaConfig || companyDetails?.ncbaConfig}
+                    institutionId={currentInstitution?.id || 'SYSTEM'}
+                    institutionCode={currentInstitution?.institutionCode || 'SYSTEM'}
+                    institutionName={currentInstitution?.name || 'Education AI Portal'}
+                    smsUnitPrice={currentInstitution?.customSmsPrice || (smsConfig as any)?.smsUnitPrice || 2}
                     minSmsUnits={(smsConfig as any)?.minSmsUnits || 0}
                     requesterId={currentUser?.id}
                 />

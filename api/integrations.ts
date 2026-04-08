@@ -1163,8 +1163,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.log(`[Reconcile] Processing transaction ${txn.id} for ${instId}`);
 
             // 1. Fetch Institution
-            const { data: inst } = await supabase.from('institutions').select('*').eq('id', instId).maybeSingle();
-            if (!inst) {
+            let inst = null;
+            if (instId && instId !== 'SYSTEM') {
+                const { data } = await supabase.from('institutions').select('*').eq('id', instId).maybeSingle();
+                inst = data;
+            }
+
+            if (!inst && instId !== 'SYSTEM') {
                 console.error(`[Reconcile] Institution ${instId} not found.`);
                 return;
             }
@@ -1173,6 +1178,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // 2. Handle Subscription
             if (meta.type === 'subscription' || meta.type === 'license') {
+                if (!inst) return; // Cannot update subscription for non-existent institution
                 const days = meta.plan === 'yearly' ? 365 : 30;
                 const currentEnd = inst.subscription_ends_at ? new Date(inst.subscription_ends_at) : new Date();
                 const baseDate = Math.max(currentEnd.getTime(), Date.now());
@@ -1208,7 +1214,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             else if (meta.type === 'sms') {
                 const units = parseInt(meta.units || "0");
                 if (units > 0) {
-                    await supabase.rpc('increment_sms_balance', { inst_id: instId, amount: units });
+                    if (instId === 'SYSTEM') {
+                        // Global system SMS balance update (if we have a place for it)
+                        const { data: globalSettings } = await supabase.from('system_settings').select('data').eq('id', 1).single();
+                        if (globalSettings) {
+                            const newData = { ...globalSettings.data, sms_balance: (globalSettings.data?.sms_balance || 0) + units };
+                            await supabase.from('system_settings').update({ data: newData }).eq('id', 1);
+                        }
+                    } else if (instId) {
+                        await supabase.rpc('increment_sms_balance', { inst_id: instId, amount: units });
+                    }
                 }
 
                 if (!invId) {
@@ -1804,8 +1819,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         institution_id: targetInstId || 'SYSTEM',
                         amount: amount,
                         phone_number: phone || recipient,
+                        payer_name: paramsMap.payerName || phone || recipient,
                         status: 'pending',
-                        metadata: paramsMap.metadata || {}
+                        metadata: paramsMap.metadata || {},
+                        provider: 'ncba'
                     });
 
                     return res.status(200).json({ 
