@@ -1217,7 +1217,15 @@ export const apiService = {
                 body: JSON.stringify({ action, recipient: formattedPhone, amount, config, metadata, provider })
             });
 
-            const result = await response.json();
+            const text = await response.text();
+            let result: any;
+            try {
+                result = JSON.parse(text);
+            } catch (e) {
+                console.error(`[Integrations] Non-JSON response from ${action}:`, text.substring(0, 200));
+                throw new Error(`${provider.toUpperCase()} Gateway failed: The server returned an invalid response format (HTML/Text instead of JSON). This usually means the integration bridge encountered a fatal error.`);
+            }
+
             if (response.ok && result.success && metadata?.invoiceId) {
                 // Auto-record a pending transaction
                 await apiService.recordPayment({
@@ -1272,7 +1280,15 @@ export const apiService = {
                     config
                 })
             });
-            const result = await response.json();
+            const text = await response.text();
+            let result: any;
+            try {
+                result = JSON.parse(text);
+            } catch (e) {
+                console.error("[Integrations] Non-JSON response from status check:", text.substring(0, 200));
+                return { status: 'pending', error: 'Invalid response format' };
+            }
+
             if (result.status === 'completed' && result.metadata?.invoiceId) {
                 await apiService.reconcilePayment(result);
             }
@@ -1948,10 +1964,12 @@ export const apiService = {
             },
             body: JSON.stringify(body)
         });
-        if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            throw new Error(err.message || err.error || `HTTP error! status: ${response.status}`);
+        const text = await response.text();
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            console.error(`[API POST] JSON Parse Error for ${url}. Body snippet:`, text.substring(0, 150));
+            throw new Error(`Server at ${url} returned an invalid response format instead of JSON.`);
         }
-        return response.json();
     }
 };
