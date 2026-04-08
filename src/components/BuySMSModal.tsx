@@ -261,6 +261,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                                         <input
                                             type="number"
                                             id="customUnits"
+                                            name="customUnits"
                                             min={minSmsUnits || 1}
                                             value={units}
                                             onChange={(e) => setUnits(parseInt(e.target.value) || 0)}
@@ -278,6 +279,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                                     <input
                                         type="tel"
                                         id="phoneNumber"
+                                        name="phoneNumber"
                                         value={phoneNumber}
                                         onChange={(e) => setPhoneNumber(e.target.value)}
                                         className="w-full bg-white dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500 rounded-xl py-2.5 px-4 font-black text-slate-900 dark:text-white shadow-sm transition-all text-base outline-none"

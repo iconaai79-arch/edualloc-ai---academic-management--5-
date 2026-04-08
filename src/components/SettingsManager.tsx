@@ -297,9 +297,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [isSavingInstGateways, setIsSavingInstGateways] = useState(false);
     const [saveInstGatewaysStatus, setSaveInstGatewaysStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const [isTestingInstNcba, setIsTestingInstNcba] = useState(false);
-    const [instNcbaTestResult, setInstNcbaTestResult] = useState<{ success: boolean; message?: string; diagnostics?: any; error?: string } | null>(null);
+    const [instNcbaTestResult, setInstNcbaTestResult] = useState<{ success: boolean; message?: string; diagnostics?: any; error?: string; hint?: string } | null>(null);
     const [isTestingGlobalNcba, setIsTestingGlobalNcba] = useState(false);
-    const [globalNcbaTestResult, setGlobalNcbaTestResult] = useState<{ success: boolean; message?: string; diagnostics?: any; error?: string } | null>(null);
+    const [globalNcbaTestResult, setGlobalNcbaTestResult] = useState<{ success: boolean; message?: string; diagnostics?: any; error?: string; hint?: string } | null>(null);
     const [ncbaStkTestStatus, setNcbaStkTestStatus] = useState<string | null>(null);
     const [isTestingStk, setIsTestingStk] = useState(false);
 
@@ -1542,6 +1542,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                             <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Request URL (GET)</label>
                                                             <input 
                                                                 type="text" 
+                                                                id="ncba-request-url"
+                                                                name="ncba-request-url"
                                                                 value={localCompanyInfo.ncbaConfig?.requestUrl || ''} 
                                                                 onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, requestUrl: e.target.value } as any })}
                                                                 className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
@@ -1552,6 +1554,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                             <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Push STK (POST)</label>
                                                             <input 
                                                                 type="text" 
+                                                                id="ncba-push-url"
+                                                                name="ncba-push-url"
                                                                 value={localCompanyInfo.ncbaConfig?.pushStkUrl || ''} 
                                                                 onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, pushStkUrl: e.target.value } as any })}
                                                                 className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
@@ -1562,6 +1566,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                             <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">STK Push Query (POST)</label>
                                                             <input 
                                                                 type="text" 
+                                                                id="ncba-query-url"
+                                                                name="ncba-query-url"
                                                                 value={localCompanyInfo.ncbaConfig?.queryStkUrl || ''} 
                                                                 onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, queryStkUrl: e.target.value } as any })}
                                                                 className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
@@ -1574,6 +1580,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Gateway Base URL</label>
                                                         <input 
                                                             type="text" 
+                                                            id="ncba-base-url"
+                                                            name="ncba-base-url"
                                                             value={localCompanyInfo.ncbaConfig?.baseUrl || ''} 
                                                             onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, baseUrl: e.target.value } as any })}
                                                             className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm text-teal-600" 
@@ -1584,6 +1592,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Disbursement Account Number</label>
                                                         <input 
                                                             type="text" 
+                                                            id="ncba-account-number"
+                                                            name="ncba-account-number"
                                                             value={localCompanyInfo.ncbaConfig?.accountNumber || ''} 
                                                             onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, accountNumber: e.target.value } as any })}
                                                             className="form-input h-14 bg-white dark:bg-slate-900 font-bold" 
@@ -1593,6 +1603,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     <div>
                                                         <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">API Environment</label>
                                                         <select 
+                                                            id="ncba-environment"
+                                                            name="ncba-environment"
                                                             value={localCompanyInfo.ncbaConfig?.environment || 'sandbox'} 
                                                             onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, environment: e.target.value as any } as any })}
                                                             className="form-select h-14 bg-white dark:bg-slate-900 font-black uppercase tracking-widest text-[10px]"
