@@ -251,7 +251,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     
     // Disbursement States
     const [isDisbursementModalOpen, setIsDisbursementModalOpen] = useState(false);
-    const [disbursementMethod, setDisbursementMethod] = useState<'mpesa' | 'bank' | 'cash' | 'cheque'>('mpesa');
+    const [disbursementMethod, setDisbursementMethod] = useState<'mpesa' | 'bank' | 'cash' | 'cheque' | 'default'>('default');
     const [disbursementReference, setDisbursementReference] = useState('');
     const [disbursementAccount, setDisbursementAccount] = useState('');
     const [disbursementDate, setDisbursementDate] = useState(formatDateString(new Date()));
@@ -694,20 +694,44 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         
         try {
             if (processViaIntegratedApi) {
-                setProcessingProgress(30);
-                // Placeholder for real API integration (e.g., M-PESA B2C or NCBA H2H)
-                console.log(`Sending bulk payment instructions via ${disbursementMethod} for ${disbursementBatchIds.length} payouts...`);
-                await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API delay
-                setProcessingProgress(70);
-            }
+                setProcessingProgress(20);
+                // Group by method if using defaults
+                const methodGroups: Record<string, string[]> = {};
+                
+                disbursementBatchIds.forEach(id => {
+                    const payout = payouts.find(p => p.id === id);
+                    const farmer = farmers.find(f => f.id === payout?.farmerId);
+                    const method = disbursementMethod === 'default' ? (farmer?.paymentMethod || 'cash') : disbursementMethod;
+                    if (!methodGroups[method]) methodGroups[method] = [];
+                    methodGroups[method].push(id);
+                });
 
-            // Update records in DB
-            await apiService.updatePayoutStatus(disbursementBatchIds, 'paid', currentUser.id, {
-                disbursementMethod,
-                disbursementReference: disbursementReference || `REFC-${Date.now()}`,
-                disbursementAccount,
-                disbursementDate
-            });
+                // Process each group
+                const methods = Object.keys(methodGroups);
+                for (let i = 0; i < methods.length; i++) {
+                    const method = methods[i];
+                    const ids = methodGroups[method];
+                    setProcessingProgress(20 + ((i + 1) / methods.length * 50));
+                    
+                    console.log(`Sending bulk payment instructions via ${method} for ${ids.length} payouts...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate per-gateway logic
+
+                    await apiService.updatePayoutStatus(ids, 'paid', currentUser.id, {
+                        disbursementMethod: method as any,
+                        disbursementReference: disbursementReference || `REFC-${Date.now()}-${method}`,
+                        disbursementAccount,
+                        disbursementDate
+                    });
+                }
+            } else {
+                // Manual processing update
+                await apiService.updatePayoutStatus(disbursementBatchIds, 'paid', currentUser.id, {
+                    disbursementMethod: disbursementMethod === 'default' ? 'cash' : disbursementMethod,
+                    disbursementReference: disbursementReference || `REFC-${Date.now()}`,
+                    disbursementAccount,
+                    disbursementDate
+                });
+            }
 
             setProcessingProgress(100);
             setTimeout(() => {
@@ -4527,16 +4551,17 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             <div className="space-y-8">
                                 <div className="grid grid-cols-2 gap-6">
                                     <div className="space-y-3">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Payment Method</label>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Payment Strategy</label>
                                         <select 
                                             value={disbursementMethod}
                                             onChange={e => setDisbursementMethod(e.target.value as any)}
                                             className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl py-4 px-6 text-sm font-black outline-none focus:border-indigo-500 dark:text-white"
                                         >
-                                            <option value="mpesa">M-PESA B2C</option>
-                                            <option value="bank">Bank Transfer (H2H)</option>
-                                            <option value="cash">Cash Payment</option>
-                                            <option value="cheque">Cheque</option>
+                                            <option value="default">Farmer Choice (Remembered)</option>
+                                            <option value="mpesa">Bulk M-PESA B2C</option>
+                                            <option value="bank">Bulk Bank Transfer</option>
+                                            <option value="cash">Manual Cash</option>
+                                            <option value="cheque">Manual Cheque</option>
                                         </select>
                                     </div>
                                     <div className="space-y-3">

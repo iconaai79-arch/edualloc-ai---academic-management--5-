@@ -2963,6 +2963,8 @@ export interface CoopFarmer {
     riderId?: string;
     joinedAt: string;
     paymentMethod?: 'mpesa' | 'bank' | 'cash';
+    bankName?: string;
+    bankAccountNumber?: string;
 }
 
 export interface CoopRider {
