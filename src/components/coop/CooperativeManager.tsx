@@ -235,6 +235,13 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [editingFarmer, setEditingFarmer] = useState<CoopFarmer | null>(null);
     const [riderVolumes, setRiderVolumes] = useState<Record<string, string>>({});
 
+    // Verification Logic
+    const [isVerifying, setIsVerifying] = useState(false);
+    const [verificationCode, setVerificationCode] = useState('');
+    const [userEnteredCode, setUserEnteredCode] = useState('');
+    const [pendingApprovalIds, setPendingApprovalIds] = useState<string[]>([]);
+    const [isUndoVerification, setIsUndoVerification] = useState(false);
+
     // POS System States
     const [posBasket, setPosBasket] = useState<any[]>([]);
     const [posHeldSales, setPosHeldSales] = useState<any[]>([]);
@@ -629,8 +636,45 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         });
     }, [collections, searchTerm, farmers, approvalSubTab]);
 
-    async function handleSubmitRider(e: React.FormEvent) {
-        e.preventDefault();
+    const handleTriggerVerification = async (ids: string[]) => {
+        const chairman = users.find(u => u.role === 'coop_chairman' && u.institutionId === currentInstitution?.id);
+        if (!chairman) {
+            alert("Approval Required: No Cooperative Chairman found in the system to verify this request. Please onboard a Chairman first.");
+            return;
+        }
+
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        setVerificationCode(code);
+        setPendingApprovalIds(ids);
+        
+        try {
+            await onSendSms?.(chairman.phoneNumber, `EduAI Cooperative: Approval Code for ${ids.length} payout(s) is ${code}. Requested by ${currentUser?.name}.`);
+            setIsVerifying(true);
+        } catch (err) {
+            alert("Failed to send verification code to Chairman. Check SMS configuration.");
+        }
+    };
+
+    const handleConfirmVerification = async () => {
+        if (userEnteredCode !== verificationCode) {
+            alert("Invalid verification code. Access denied.");
+            return;
+        }
+
+        setIsVerifying(false);
+        setUserEnteredCode('');
+        
+        try {
+            setIsProcessing(true);
+            setProcessingProgress(30);
+            await onApprovePayouts?.(pendingApprovalIds);
+            setProcessingProgress(100);
+            setTimeout(() => { setIsProcessing(false); setProcessingProgress(0); }, 500);
+        } catch (err: any) {
+            alert(`Verified approval failed: ${err.message}`);
+            setIsProcessing(false);
+        }
+    };
         console.log("handleSubmitRider triggered", { newRider });
         if (!newRider.name || !newRider.phone) {
             alert("Please fill in Name and Phone");
@@ -2258,39 +2302,34 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Review and authorize sensitive operations</p>
                             </div>
                              {approvalSubTab === 'pending' && filteredApprovalPayouts.length > 0 && (
-                                <button 
+                                 <button 
                                     onClick={async () => {
-                                        try {
-                                            const pendingIds = filteredApprovalPayouts.map(p => p.id);
-                                            if (window.confirm(`Approve all ${pendingIds.length} matching payout drafts?`)) {
+                                        const pendingIds = filteredApprovalPayouts.map(p => p.id);
+                                        if (window.confirm(`Approve all ${pendingIds.length} matching payout drafts?`)) {
+                                            const isChairmanOrSuper = currentUser?.role === 'coop_chairman' || currentUser?.role === 'super_admin';
+                                            if (!isChairmanOrSuper) {
+                                                handleTriggerVerification(pendingIds);
+                                                return;
+                                            }
+                                            
+                                            try {
                                                 setIsProcessing(true);
                                                 setProcessingProgress(10);
                                                 
-                                                // Simulate progress
                                                 const interval = setInterval(() => {
-                                                    setProcessingProgress(prev => {
-                                                        if (prev >= 90) {
-                                                            clearInterval(interval);
-                                                            return 90;
-                                                        }
-                                                        return prev + 10;
-                                                    });
+                                                    setProcessingProgress(prev => prev >= 90 ? 90 : prev + 10);
                                                 }, 200);
 
                                                 await onApprovePayouts?.(pendingIds);
                                                 
                                                 clearInterval(interval);
                                                 setProcessingProgress(100);
-                                                
-                                                setTimeout(() => {
-                                                    setIsProcessing(false);
-                                                    setProcessingProgress(0);
-                                                }, 600);
+                                                setTimeout(() => { setIsProcessing(false); setProcessingProgress(0); }, 600);
+                                            } catch (err: any) {
+                                                alert(`Global approval failed: ${err.message}`);
+                                                setIsProcessing(false);
+                                                setProcessingProgress(0);
                                             }
-                                        } catch (err: any) {
-                                            alert(`Global approval failed: ${err.message}`);
-                                            setIsProcessing(false);
-                                            setProcessingProgress(0);
                                         }
                                     }}
                                     className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-emerald-500/20 active:scale-95"
@@ -2356,10 +2395,16 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Amount Due</p>
                                                     <p className="text-xl font-black text-emerald-600 tracking-tighter">KES {p.netPayout.toLocaleString()}</p>
                                                 </div>
-                                                <div className="flex items-center gap-2">
+                                                 <div className="flex items-center gap-2">
                                                     <button 
                                                         disabled={isProcessing || processingItems.includes(p.id)}
                                                         onClick={async () => {
+                                                            const isChairmanOrSuper = currentUser?.role === 'coop_chairman' || currentUser?.role === 'super_admin';
+                                                            if (!isChairmanOrSuper) {
+                                                                handleTriggerVerification([p.id]);
+                                                                return;
+                                                            }
+
                                                             try {
                                                                 setProcessingItems(prev => [...prev, p.id]);
                                                                 await onApprovePayouts?.([p.id]);
@@ -2498,11 +2543,25 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-8">
-                                                <div className="text-right">
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Amount Authorized</p>
-                                                    <p className="text-xl font-black text-slate-900 dark:text-white tracking-tighter">KES {p.netPayout.toLocaleString()}</p>
-                                                </div>
+                                            <div className="flex items-center gap-4">
+                                                {(currentUser?.role === 'coop_chairman' || currentUser?.role === 'super_admin') && (
+                                                    <button 
+                                                        disabled={isProcessing || processingItems.includes(`${p.id}_undo`)}
+                                                        onClick={async () => {
+                                                            if (window.confirm(`Revert ${getFarmerName(p.farmerId)}'s payout to draft status?`)) {
+                                                                try {
+                                                                    setProcessingItems(prev => [...prev, `${p.id}_undo`]);
+                                                                    await onApprovePayouts?.([p.id], 'pending');
+                                                                } finally {
+                                                                    setProcessingItems(prev => prev.filter(id => id !== `${p.id}_undo`));
+                                                                }
+                                                            }
+                                                        }}
+                                                        className="px-6 py-3 rounded-2xl border-2 border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-orange-600 hover:bg-orange-50 transition-all active:scale-95 disabled:opacity-30"
+                                                    >
+                                                        {processingItems.includes(`${p.id}_undo`) ? '...' : 'Undo Approval'}
+                                                    </button>
+                                                )}
                                                 <button 
                                                     disabled={isProcessing || processingItems.includes(`${p.id}_disburse`)}
                                                     onClick={async () => {
@@ -4389,6 +4448,52 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                     </div>
                 </div>
             )}
+                {/* Verification Modal */}
+                {isVerifying && (
+                    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md animate-fade-in">
+                        <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[3rem] p-10 border border-white/20 shadow-2xl animate-scale-in">
+                            <div className="text-center space-y-6">
+                                <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/20 rounded-[2rem] flex items-center justify-center text-indigo-600 mx-auto">
+                                    <LockClosedIcon className="w-10 h-10" />
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-black tracking-tighter uppercase text-slate-900 dark:text-white">Authorization Required</h3>
+                                    <p className="text-xs font-medium text-slate-500 mt-2">A unique approval code has been sent to the Chairman's registered phone number. Please enter it below to complete authorization.</p>
+                                </div>
+                                <div className="relative">
+                                    <input 
+                                        type="text"
+                                        maxLength={6}
+                                        value={userEnteredCode}
+                                        onChange={e => setUserEnteredCode(e.target.value)}
+                                        placeholder="Enter 6-digit code"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl py-5 text-center text-2xl font-black tracking-[0.5em] focus:border-indigo-500 outline-none transition-all dark:text-white"
+                                    />
+                                    {userEnteredCode.length === 6 && (
+                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500 animate-bounce">
+                                            <SuccessIcon className="w-6 h-6" />
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex gap-4">
+                                    <button 
+                                        onClick={() => { setIsVerifying(false); setUserEnteredCode(''); }}
+                                        className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-200 transition-all"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button 
+                                        disabled={userEnteredCode.length !== 6}
+                                        onClick={handleConfirmVerification}
+                                        className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 active:scale-95 disabled:opacity-50"
+                                    >
+                                        Authorize Payout
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
