@@ -675,6 +675,9 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             setIsProcessing(false);
         }
     };
+
+    async function handleSubmitRider(e: React.FormEvent) {
+        e.preventDefault();
         console.log("handleSubmitRider triggered", { newRider });
         if (!newRider.name || !newRider.phone) {
             alert("Please fill in Name and Phone");
