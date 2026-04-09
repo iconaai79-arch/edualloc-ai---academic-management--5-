@@ -1802,7 +1802,7 @@ export const apiService = {
         await apiService.saveModuleRecord('coop_collections', update);
     },
 
-    async updatePayoutStatus(idOrIds: string | string[], status: 'initiated' | 'approved' | 'paid' | 'rejected' | string, userId?: string): Promise<void> {
+    async updatePayoutStatus(idOrIds: string | string[], status: 'initiated' | 'approved' | 'paid' | 'rejected' | string, userId?: string, extraData?: Partial<CoopMonthlyPayout>): Promise<void> {
         const ids = (Array.isArray(idOrIds) ? idOrIds : [idOrIds])
             .map(id => String(id).trim())
             .filter(id => id.length > 0);
@@ -1814,7 +1814,7 @@ export const apiService = {
         // Strip prefix from userId if present to avoid DB constraint failures (Postgres UUID vs Application u_ prefix)
         const cleanUserId = userId?.startsWith('u_') ? userId.substring(2) : userId;
 
-        const updateData: any = { status };
+        const updateData: any = { status, ...extraData };
         if (cleanUserId) {
             if (status === 'initiated') {
                 updateData.initiatedBy = cleanUserId;

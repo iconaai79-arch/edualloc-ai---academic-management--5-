@@ -248,6 +248,16 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [agrovetFarmerSearchQuery, setAgrovetFarmerSearchQuery] = useState('');
     const [agrovetItemSearchQuery, setAgrovetItemSearchQuery] = useState('');
     const [posSaleDate, setPosSaleDate] = useState(formatDateString(new Date()));
+    
+    // Disbursement States
+    const [isDisbursementModalOpen, setIsDisbursementModalOpen] = useState(false);
+    const [disbursementMethod, setDisbursementMethod] = useState<'mpesa' | 'bank' | 'cash' | 'cheque'>('mpesa');
+    const [disbursementReference, setDisbursementReference] = useState('');
+    const [disbursementAccount, setDisbursementAccount] = useState('');
+    const [disbursementDate, setDisbursementDate] = useState(formatDateString(new Date()));
+    const [disbursementBatchIds, setDisbursementBatchIds] = useState<string[]>([]);
+    const [processViaIntegratedApi, setProcessViaIntegratedApi] = useState(false);
+
     const [posFarmerId, setPosFarmerId] = useState('');
     const [posStatus, setPosStatus] = useState<'paid' | 'credit'>('paid');
     const [isPOSHeldView, setIsPOSHeldView] = useState(false);
@@ -672,6 +682,45 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             setTimeout(() => { setIsProcessing(false); setProcessingProgress(0); }, 500);
         } catch (err: any) {
             alert(`Verified approval failed: ${err.message}`);
+            setIsProcessing(false);
+        }
+    };
+
+    const handleConfirmDisbursement = async () => {
+        if (!disbursementBatchIds.length) return;
+        
+        setIsProcessing(true);
+        setProcessingProgress(10);
+        
+        try {
+            if (processViaIntegratedApi) {
+                setProcessingProgress(30);
+                // Placeholder for real API integration (e.g., M-PESA B2C or NCBA H2H)
+                console.log(`Sending bulk payment instructions via ${disbursementMethod} for ${disbursementBatchIds.length} payouts...`);
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API delay
+                setProcessingProgress(70);
+            }
+
+            // Update records in DB
+            await apiService.updatePayoutStatus(disbursementBatchIds, 'paid', currentUser.id, {
+                disbursementMethod,
+                disbursementReference: disbursementReference || `REFC-${Date.now()}`,
+                disbursementAccount,
+                disbursementDate
+            });
+
+            setProcessingProgress(100);
+            setTimeout(() => {
+                setIsProcessing(false);
+                setIsDisbursementModalOpen(false);
+                setDisbursementBatchIds([]);
+                setDisbursementReference('');
+                setDisbursementAccount('');
+            }, 500);
+            
+            if (onLogAction) await onLogAction(`Disbursed ${disbursementBatchIds.length} payouts via ${disbursementMethod}`);
+        } catch (err: any) {
+            alert(`Disbursement failed: ${err.message}`);
             setIsProcessing(false);
         }
     };
@@ -2518,44 +2567,36 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-4">
-                                                {(currentUser?.role === 'coop_chairman' || currentUser?.role === 'super_admin') && (
-                                                    <button 
-                                                        disabled={isProcessing || processingItems.includes(`${p.id}_undo`)}
-                                                        onClick={async () => {
-                                                            if (window.confirm(`Revert ${getFarmerName(p.farmerId)}'s payout to draft status?`)) {
-                                                                try {
-                                                                    setProcessingItems(prev => [...prev, `${p.id}_undo`]);
-                                                                    await onApprovePayouts?.([p.id], 'pending');
-                                                                } finally {
-                                                                    setProcessingItems(prev => prev.filter(id => id !== `${p.id}_undo`));
+                                                <div className="flex items-center gap-4">
+                                                    {(currentUser?.role === 'coop_chairman' || currentUser?.role === 'super_admin') && (
+                                                        <button 
+                                                            disabled={isProcessing || processingItems.includes(`${p.id}_undo`)}
+                                                            onClick={async () => {
+                                                                if (window.confirm(`Revert ${getFarmerName(p.farmerId)}'s payout to draft status?`)) {
+                                                                    try {
+                                                                        setProcessingItems(prev => [...prev, `${p.id}_undo`]);
+                                                                        await onApprovePayouts?.([p.id], 'pending');
+                                                                    } finally {
+                                                                        setProcessingItems(prev => prev.filter(id => id !== `${p.id}_undo`));
+                                                                    }
                                                                 }
-                                                            }
+                                                            }}
+                                                            className="px-6 py-3 rounded-2xl border-2 border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-orange-600 hover:bg-orange-50 transition-all active:scale-95 disabled:opacity-30"
+                                                        >
+                                                            {processingItems.includes(`${p.id}_undo`) ? '...' : 'Undo Approval'}
+                                                        </button>
+                                                    )}
+                                                    <button 
+                                                        disabled={isProcessing || processingItems.includes(`${p.id}_disburse`)}
+                                                        onClick={() => {
+                                                            setDisbursementBatchIds([p.id]);
+                                                            setIsDisbursementModalOpen(true);
                                                         }}
-                                                        className="px-6 py-3 rounded-2xl border-2 border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-orange-600 hover:bg-orange-50 transition-all active:scale-95 disabled:opacity-30"
+                                                        className="bg-slate-900 dark:bg-emerald-600 text-white px-8 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95 disabled:opacity-50 min-w-[140px]"
                                                     >
-                                                        {processingItems.includes(`${p.id}_undo`) ? '...' : 'Undo Approval'}
+                                                        {processingItems.includes(`${p.id}_disburse`) ? 'Disbursing...' : 'Disburse Funds'}
                                                     </button>
-                                                )}
-                                                <button 
-                                                    disabled={isProcessing || processingItems.includes(`${p.id}_disburse`)}
-                                                    onClick={async () => {
-                                                        if (window.confirm(`Disburse KES ${p.netPayout.toLocaleString()} to ${getFarmerName(p.farmerId)}?`)) {
-                                                            try {
-                                                                setProcessingItems(prev => [...prev, `${p.id}_disburse`]);
-                                                                await onDisbursePayouts?.([p.id]);
-                                                            } catch (err: any) {
-                                                                alert(`Disbursement failed: ${err.message}`);
-                                                            } finally {
-                                                                setProcessingItems(prev => prev.filter(id => id !== `${p.id}_disburse`));
-                                                            }
-                                                        }
-                                                    }}
-                                                    className="bg-emerald-600 text-white px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95 disabled:opacity-50 min-w-[140px]"
-                                                >
-                                                    {processingItems.includes(`${p.id}_disburse`) ? 'Disbursing...' : 'Disburse Funds'}
-                                                </button>
-                                            </div>
+                                                </div>
                                         </div>
                                     ))}
                                     {payouts.filter(p => p.status === 'approved').length === 0 && (
@@ -4463,6 +4504,95 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 active:scale-95 disabled:opacity-50"
                                     >
                                         Authorize Payout
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {/* Disbursement Modal */}
+                {isDisbursementModalOpen && (
+                    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md animate-fade-in">
+                        <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3.5rem] p-12 border border-white/20 shadow-2xl animate-scale-in">
+                            <div className="flex items-center justify-between mb-10">
+                                <div>
+                                    <h3 className="text-3xl font-black tracking-tighter uppercase text-slate-900 dark:text-white">Batch Disbursement</h3>
+                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Authorize funds transfer for {disbursementBatchIds.length} farmers</p>
+                                </div>
+                                <button onClick={() => setIsDisbursementModalOpen(false)} className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition-all">
+                                    <XIcon className="w-6 h-6" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-8">
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Payment Method</label>
+                                        <select 
+                                            value={disbursementMethod}
+                                            onChange={e => setDisbursementMethod(e.target.value as any)}
+                                            className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl py-4 px-6 text-sm font-black outline-none focus:border-indigo-500 dark:text-white"
+                                        >
+                                            <option value="mpesa">M-PESA B2C</option>
+                                            <option value="bank">Bank Transfer (H2H)</option>
+                                            <option value="cash">Cash Payment</option>
+                                            <option value="cheque">Cheque</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Release Date</label>
+                                        <input 
+                                            type="date"
+                                            value={disbursementDate}
+                                            onChange={e => setDisbursementDate(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl py-4 px-6 text-sm font-black outline-none focus:border-indigo-500 dark:text-white"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Reference / Account Number</label>
+                                    <input 
+                                        type="text"
+                                        placeholder={disbursementMethod === 'bank' ? "Enter recipient account number" : "e.g. BATCH-NCBA-001"}
+                                        value={disbursementAccount}
+                                        onChange={e => setDisbursementAccount(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl py-4 px-6 text-sm font-black outline-none focus:border-indigo-500 dark:text-white"
+                                    />
+                                </div>
+
+                                <div className="bg-indigo-50/50 dark:bg-indigo-900/10 p-6 rounded-3xl border border-indigo-100 dark:border-indigo-900/30">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white">
+                                                <AlertIcon className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600">Integration Suite</h4>
+                                                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Proceed with Bulk API Instructions?</p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => setProcessViaIntegratedApi(!processViaIntegratedApi)}
+                                            className={`w-14 h-8 rounded-full p-1 transition-all duration-300 ${processViaIntegratedApi ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                                        >
+                                            <div className={`w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 transform ${processViaIntegratedApi ? 'translate-x-6' : 'translate-x-0'}`} />
+                                        </button>
+                                    </div>
+                                    {processViaIntegratedApi && (
+                                        <p className="mt-4 text-[9px] font-black uppercase tracking-widest text-indigo-500/80 animate-pulse">
+                                            Ready to broadcast to {disbursementMethod === 'mpesa' ? 'Safaricom Daraja' : 'Bank Gateway'}
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="pt-4">
+                                    <button 
+                                        disabled={isProcessing}
+                                        onClick={handleConfirmDisbursement}
+                                        className="w-full bg-slate-900 dark:bg-emerald-600 text-white py-5 rounded-3xl text-[10px] font-black uppercase tracking-[0.3em] hover:scale-[1.02] transition-all shadow-2xl active:scale-95 disabled:opacity-50"
+                                    >
+                                        {isProcessing ? 'Executing Batch Transfer...' : 'Confirm External Disbursement'}
                                     </button>
                                 </div>
                             </div>

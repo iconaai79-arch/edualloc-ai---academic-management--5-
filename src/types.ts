@@ -3066,6 +3066,10 @@ export interface CoopMonthlyPayout {
     batchId?: string;
     rejectionReason?: string;
     paidAt?: string;
+    disbursementMethod?: 'mpesa' | 'bank' | 'cash' | 'cheque';
+    disbursementReference?: string;
+    disbursementAccount?: string;
+    disbursementDate?: string;
 }
 
 export interface CoopExpense {
