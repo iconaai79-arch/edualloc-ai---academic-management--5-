@@ -27,6 +27,8 @@ import { ArrowPathIcon as ResetIcon } from '../icons/ArrowPathIcon';
 import { MinusIcon } from '../icons/MinusIcon';
 import { CheckCircleIcon as SuccessIcon } from '../icons/CheckCircleIcon';
 import { XIcon } from '../icons/XIcon';
+import { ShieldCheckIcon as SecurityIcon } from '../icons/ShieldCheckIcon';
+import { QrCodeIcon } from '../icons/QrCodeIcon';
 
 import { SettingsManager } from '../SettingsManager';
 import { CommunicationsManager } from '../CommunicationsManager';
@@ -4885,7 +4887,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     className={`p-6 rounded-[2.5rem] border-2 transition-all ${approvalMethod === 'qr' ? 'border-indigo-600 bg-indigo-50/30 shadow-xl shadow-indigo-500/10' : 'border-slate-50 dark:border-slate-800 bg-slate-50/50 grayscale opacity-60'}`}
                                 >
                                     <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center mx-auto mb-4 text-white">
-                                        <PayoutIcon className="w-6 h-6" />
+                                        <QrCodeIcon className="w-6 h-6" />
                                     </div>
                                     <span className="text-[10px] font-black uppercase tracking-widest">Approval QR</span>
                                 </button>
@@ -4947,10 +4949,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             {approvalMethod === 'qr' && (
                                 <div className="p-10 bg-slate-50 dark:bg-slate-800/50 rounded-[3rem] border border-slate-100 dark:border-slate-700 flex flex-col items-center gap-8">
                                     <div className="w-48 h-48 bg-white dark:bg-slate-700 p-4 rounded-[2.5rem] border-4 border-indigo-600 shadow-xl flex items-center justify-center relative">
-                                        <div className="grid grid-cols-4 gap-2 opacity-20">
-                                            {[...Array(16)].map((_, i) => <div key={i} className="w-6 h-6 bg-slate-900 dark:bg-white rounded-sm" />)}
-                                        </div>
-                                        <ApprovalIcon className="w-16 h-16 text-indigo-600 absolute" />
+                                        <QrCodeIcon className="w-32 h-32 text-indigo-600" />
                                     </div>
                                     <div>
                                         <p className="text-xs font-black text-slate-900 dark:text-white uppercase mb-1">Encrypted Approval QR</p>
