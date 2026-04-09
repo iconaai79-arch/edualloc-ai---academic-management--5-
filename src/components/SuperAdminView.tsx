@@ -3517,6 +3517,8 @@ Please change it after login.`;
                                                 <button onClick={handleSaveGlobalConfigs} className="btn-primary h-14 px-12 shadow-xl shadow-teal-100 dark:shadow-none bg-teal-600 border-none uppercase tracking-widest text-[10px]">Save NCBA Config</button>
                                             </div>
                                         </div>
+                                    )}
+
                                     {billingSubTab === 'gateways' && (
                                         <div className="animate-fade-in space-y-6">
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
