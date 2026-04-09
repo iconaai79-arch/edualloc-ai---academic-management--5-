@@ -901,7 +901,6 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                         if (onRefreshData) {
                             await onRefreshData();
                         }
-                        alert(`SMS purchase successful! ${purchasedUnits.toLocaleString()} units have been added. Your new balance has been updated.`);
                     }}
                     mpesaConfig={mpesaConfig}
                     airtelMoneyConfig={currentInstitution?.airtelMoneyConfig || companyDetails?.airtelMoneyConfig}

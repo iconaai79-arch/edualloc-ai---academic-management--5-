@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { MpesaIcon } from './icons/MpesaIcon';
 import type { TransactionStatus, InvoiceItem, MpesaConfig } from '../types';
 import { apiService } from '../services/apiService';
@@ -49,6 +49,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
     const [isLoading, setIsLoading] = useState(false);
     const [finalStatus, setFinalStatus] = useState<TransactionStatus | null>(null);
     const [statusMessage, setStatusMessage] = useState('');
+    const isCompletedRef = useRef(false);
 
     const calculatedTotal = units * smsUnitPrice;
 
@@ -119,13 +120,15 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                     const status = result?.status;
                     console.log(`[Polling] Attempt ${attempts}/${maxAttempts} - Status: ${status}`, result);
 
-                    if (status === 'completed') {
+                    if (status === 'completed' && !isCompletedRef.current) {
+                        isCompletedRef.current = true;
                         clearInterval(pollInterval);
                         setFinalStatus('completed');
                         setStatusMessage(`Payment Confirmed! ${units.toLocaleString()} SMS units have been added to your balance.`);
                         setIsLoading(false);
                         onPurchaseComplete(units);
-                    } else if (status === 'failed' || attempts >= maxAttempts) {
+                    } else if ((status === 'failed' || attempts >= maxAttempts) && !isCompletedRef.current) {
+                        isCompletedRef.current = true;
                         clearInterval(pollInterval);
                         setFinalStatus('failed');
                         setStatusMessage(status === 'failed' ? 'Transaction failed. Please try again.' : 'Timeout waiting for payment confirmation. If you have paid, it will reflect shortly.');

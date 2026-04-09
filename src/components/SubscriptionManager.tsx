@@ -547,7 +547,6 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                     onPurchaseComplete={(purchasedUnits) => {
                         if (onRefreshData) {
                             onRefreshData();
-                            alert(`SMS purchase successful! ${purchasedUnits.toLocaleString()} units have been added.`);
                         }
                     }}
                     mpesaConfig={institution.mpesaConfig || companyDetails.mpesaConfig!}
