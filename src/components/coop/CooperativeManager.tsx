@@ -1230,21 +1230,6 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     }
                                 </div>
                                 
-                                {!isAddingFarmer && (
-                                    <div className="mb-6 relative group">
-                                        <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-                                            <SearchIcon className="w-5 h-5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
-                                        </div>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Search farmers by name, ID or phone number..." 
-                                            value={searchTerm}
-                                            onChange={e => setSearchTerm(e.target.value)}
-                                            className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700/50 rounded-[2rem] py-5 pl-14 pr-6 text-sm font-black tracking-tight outline-none focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-sm group-hover:border-slate-200 dark:group-hover:border-slate-600 dark:text-white"
-                                        />
-                                    </div>
-                                )}
-                                
                                 {isAddingFarmer && 
                                     <div className="mb-12 bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 animate-fade-in-up">
                                         <div className="flex items-center justify-between mb-8">
@@ -2337,19 +2322,6 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     Approve All Payouts
                                 </button>
                             )}
-                        </div>
-
-                        <div className="mb-6 relative group">
-                            <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-                                <SearchIcon className="w-5 h-5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
-                            </div>
-                            <input 
-                                type="text" 
-                                placeholder="Search by farmer name or month..." 
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700/50 rounded-3xl py-4 pl-14 pr-6 text-sm font-black tracking-tight outline-none focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-sm group-hover:border-slate-200 dark:group-hover:border-slate-600 dark:text-white"
-                            />
                         </div>
 
                         <div className="flex gap-4 border-b border-slate-100 dark:border-slate-800 pb-2">
