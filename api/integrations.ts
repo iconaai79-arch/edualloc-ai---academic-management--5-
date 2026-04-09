@@ -1228,6 +1228,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (units <= 0 && amt > 0) {
                     console.log(`[Reconcile] Units missing in metadata. Calculating from amount ${amt} using price ${defaultUnitPrice}`);
                     units = Math.floor(amt / (defaultUnitPrice || 1));
+                    (txn as any).calculatedUnits = units; // Store for notification
                 }
 
                 if (units > 0) {
@@ -1241,6 +1242,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         console.error(`[Reconcile - SMS] RPC ERROR:`, rpcError);
                     } else {
                         console.log(`[Reconcile - SMS] SUCCESS: Balance updated for ${instId || 'SYSTEM'}`);
+                        // Fetch updated balance for notifications
+                        if (instId && instId !== 'SYSTEM') {
+                            const { data: updatedInst } = await supabase.from('institutions').select('sms_balance').eq('id', instId).maybeSingle();
+                            if (updatedInst) {
+                                (txn as any).newBalance = updatedInst.sms_balance;
+                            }
+                        }
                     }
                 } else {
                     console.warn(`[Reconcile - SMS] SKIPPED: Calculated units is 0 for amt ${amt}.`);
@@ -1297,11 +1305,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // 7. Send Notifications
             try {
-                const isSms = meta.type === 'sms';
-                const units = parseInt(meta.units || "0");
+                const isSms = meta.type === 'sms' || meta.type === 'sms_topup';
+                const units = parseInt(meta.units || (txn as any).calculatedUnits || "0");
+                const newBalanceStr = (txn as any).newBalance !== undefined ? ` New SMS Balance: ${(txn as any).newBalance.toLocaleString()}.` : "";
+                
                 const notifyMessage = isSms 
-                    ? `Dear Admin, your payment of KES ${amt} for ${units.toLocaleString()} SMS units for ${inst.name} has been verified. New balance reflected in dashboard. Ref: ${txn.id}`
-                    : `Dear Admin, your payment of KES ${amt} for ${inst.name} subscription (${meta.plan || 'License'}) has been verified. Account active until ${new Date(inst.subscription_ends_at).toLocaleDateString()}. Ref: ${txn.id}`;
+                    ? `Success! Your payment of KES ${amt} for ${units.toLocaleString()} SMS units for ${inst?.name || 'your account'} has been verified.${newBalanceStr} Ref: ${txn.id || txn.transaction_id}`
+                    : `Dear Admin, your payment of KES ${amt} for ${inst?.name || 'your account'} subscription (${meta.plan || 'License'}) has been verified. Account active until ${inst?.subscription_ends_at ? new Date(inst.subscription_ends_at).toLocaleDateString() : 'N/A'}. Ref: ${txn.id || txn.transaction_id}`;
 
                 // Email Notification
                 const emailConfig = settings?.email_config || settings?.emailConfig;

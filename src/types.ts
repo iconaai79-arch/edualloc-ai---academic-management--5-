@@ -583,6 +583,7 @@ export interface CompanyDetails {
     };
     enforceGlobalOtp?: boolean;
     ncbaConfig?: NcbaConfig;
+    enabledGateways?: string[];
 }
 
 export interface UserTask {

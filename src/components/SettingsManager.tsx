@@ -205,7 +205,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
     const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_settings' | 'security_policy' | 'location' | 'branding' | 'grading' | 'billing' | 'gateways' | 'sms' | 'email' | 'farmer_billing'>('profile');
     const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'showcase'>('profile');
-    const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'ncba'>('mpesa');
+    const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'ncba' | 'gateways'>('mpesa');
     const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>('departments');
     const [showPaperPreview, setShowPaperPreview] = useState(false);
 
@@ -528,6 +528,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         chatEnabled: props.companyDetails?.chatAssistantConfig?.enabled ?? true,
         enforceGlobalOtp: props.currentInstitution?.institutionType === 'Business' ? props.companyDetails?.enforceGlobalOtp ?? false : props.companyDetails?.enforceGlobalOtp ?? false,
         ncbaConfig: (props.companyDetails as any)?.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', accountNumber: '', environment: 'sandbox', isMock: false, headers: [], params: [] },
+        enabledGateways: props.companyDetails?.enabledGateways || ['mpesa'],
         showcaseConfig: props.companyDetails?.showcaseConfig || { enabled: true, showLoginLink: true }
     });
 
@@ -557,6 +558,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 chatEnabled: props.companyDetails.chatAssistantConfig?.enabled ?? true,
                 enforceGlobalOtp: props.companyDetails.enforceGlobalOtp ?? false,
                 ncbaConfig: (props.companyDetails as any).ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', accountNumber: '', environment: 'sandbox', isMock: false, headers: [], params: [] },
+                enabledGateways: props.companyDetails.enabledGateways || ['mpesa'],
                 showcaseConfig: props.companyDetails.showcaseConfig || { enabled: true, showLoginLink: true }
             });
             setLocalSmsConfig(props.companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -1373,6 +1375,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         >
                                             NCBA Config
                                         </button>
+                                        <button
+                                            onClick={() => setBillingSubTab('gateways')}
+                                            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${billingSubTab === 'gateways' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            Gateways
+                                        </button>
                                     </div>
                                 </div>
 
@@ -1420,6 +1428,62 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <div className="pt-4">
                                                 <button onClick={handleSaveGlobalConfigs} className="btn-primary w-full h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Save Billing Map</button>
                                             </div>
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {billingSubTab === 'gateways' && (
+                                    <div className="animate-fade-in space-y-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {[
+                                                { id: 'mpesa', name: 'Safaricom M-Pesa', icon: MpesaIcon, color: 'text-green-600', bg: 'bg-green-50' },
+                                                { id: 'ncba', name: 'NCBA Bank (Direct)', icon: BuildingOfficeIcon, color: 'text-teal-600', bg: 'bg-teal-50' },
+                                                { id: 'airtel', name: 'Airtel Money', icon: CreditCardIcon, color: 'text-red-500', bg: 'bg-red-50' },
+                                                { id: 'intasend', name: 'Intasend (Card/Airtel)', icon: CreditCardIcon, color: 'text-indigo-600', bg: 'bg-indigo-50' }
+                                            ].map(gw => (
+                                                <div 
+                                                    key={gw.id}
+                                                    onClick={() => {
+                                                        const current = localCompanyInfo.enabledGateways || [];
+                                                        const next = current.includes(gw.id) ? current.filter(id => id !== gw.id) : [...current, gw.id];
+                                                        setLocalCompanyInfo({ ...localCompanyInfo, enabledGateways: next });
+                                                    }}
+                                                    className={`p-6 rounded-[2rem] border-2 cursor-pointer transition-all ${
+                                                        (localCompanyInfo.enabledGateways || []).includes(gw.id) 
+                                                            ? 'border-indigo-500 bg-indigo-50/30' 
+                                                            : 'border-slate-100 bg-white hover:border-slate-200'
+                                                    }`}
+                                                >
+                                                    <div className="flex justify-between items-center">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className={`p-3 rounded-2xl ${gw.bg} ${gw.color}`}>
+                                                                <gw.icon className="w-6 h-6" />
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="text-sm font-black uppercase tracking-tight">{gw.name}</h4>
+                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                                    {(localCompanyInfo.enabledGateways || []).includes(gw.id) ? 'Active' : 'Disabled'}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className={`w-12 h-6 rounded-full p-1 transition-all ${
+                                                            (localCompanyInfo.enabledGateways || []).includes(gw.id) ? 'bg-indigo-500' : 'bg-slate-200'
+                                                        }`}>
+                                                            <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-all ${
+                                                                (localCompanyInfo.enabledGateways || []).includes(gw.id) ? 'localize-toggle-on ml-6' : ''
+                                                            }`} />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100">
+                                            <p className="text-xs text-amber-700 leading-relaxed font-bold">
+                                                Note: Disabled gateways will be hidden from the "Buy SMS" and "Subscription Renewal" screens for all tenants.
+                                            </p>
+                                        </div>
+                                        <div className="pt-4">
+                                            <button onClick={handleSaveGlobalConfigs} className="btn-primary w-full h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Update Gateway Visibility</button>
                                         </div>
                                     </div>
                                 )}

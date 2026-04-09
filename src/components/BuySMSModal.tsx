@@ -45,11 +45,25 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
     const [phoneNumber, setPhoneNumber] = useState('254');
     const [units, setUnits] = useState<number>(SMS_PACKAGES[0].units);
     const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend' | 'ncba'>('mpesa');
+    const [enabledGateways, setEnabledGateways] = useState<string[]>(['mpesa']);
     const [isLoading, setIsLoading] = useState(false);
     const [finalStatus, setFinalStatus] = useState<TransactionStatus | null>(null);
     const [statusMessage, setStatusMessage] = useState('');
 
     const calculatedTotal = units * smsUnitPrice;
+
+    React.useEffect(() => {
+        const fetchGateways = async () => {
+            const { data: sData } = await apiService.getSystemSettings();
+            if (sData?.enabledGateways) {
+                setEnabledGateways(sData.enabledGateways);
+                if (!sData.enabledGateways.includes(provider)) {
+                    setProvider(sData.enabledGateways[0] || 'mpesa');
+                }
+            }
+        };
+        if (isOpen) fetchGateways();
+    }, [isOpen]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -185,38 +199,46 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                         <div className="mb-6">
                             <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-2.5 ml-1">Choose Payment Provider</label>
                             <div className="grid grid-cols-3 gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setProvider('mpesa')}
-                                    className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${provider === 'mpesa' ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}
-                                >
-                                    <MpesaIcon className="w-6 h-6 mb-1" />
-                                    <span className="text-[10px] font-black uppercase">M-Pesa</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setProvider('airtel')}
-                                    className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${provider === 'airtel' ? 'border-red-600 bg-red-50/50 dark:bg-red-900/20' : 'border-slate-100 dark:border-slate-700'}`}
-                                >
-                                    <div className="w-6 h-6 mb-1 bg-red-600 rounded-full flex items-center justify-center text-white text-[8px] font-black">A</div>
-                                    <span className="text-[10px] font-black uppercase">Airtel</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setProvider('intasend')}
-                                    className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${provider === 'intasend' ? 'border-emerald-600 bg-emerald-50/50 dark:bg-emerald-900/20' : 'border-slate-100 dark:border-slate-700'}`}
-                                >
-                                    <div className="w-6 h-6 mb-1 bg-emerald-600 rounded flex items-center justify-center text-white text-[8px] font-black">IS</div>
-                                    <span className="text-[10px] font-black uppercase">IntaSend</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setProvider('ncba')}
-                                    className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${provider === 'ncba' ? 'border-teal-600 bg-teal-50/50 dark:bg-teal-900/20' : 'border-slate-100 dark:border-slate-700'}`}
-                                >
-                                    <div className="w-6 h-6 mb-1 bg-teal-600 rounded flex items-center justify-center text-white text-[8px] font-black">NB</div>
-                                    <span className="text-[10px] font-black uppercase">NCBA</span>
-                                </button>
+                                {enabledGateways.includes('mpesa') && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setProvider('mpesa')}
+                                        className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${provider === 'mpesa' ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}
+                                    >
+                                        <MpesaIcon className="w-6 h-6 mb-1" />
+                                        <span className="text-[10px] font-black uppercase">M-Pesa</span>
+                                    </button>
+                                )}
+                                {enabledGateways.includes('airtel') && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setProvider('airtel')}
+                                        className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${provider === 'airtel' ? 'border-red-600 bg-red-50/50 dark:bg-red-900/20' : 'border-slate-100 dark:border-slate-700'}`}
+                                    >
+                                        <div className="w-6 h-6 mb-1 bg-red-600 rounded-full flex items-center justify-center text-white text-[8px] font-black">A</div>
+                                        <span className="text-[10px] font-black uppercase">Airtel</span>
+                                    </button>
+                                )}
+                                {enabledGateways.includes('intasend') && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setProvider('intasend')}
+                                        className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${provider === 'intasend' ? 'border-emerald-600 bg-emerald-50/50 dark:bg-emerald-900/20' : 'border-slate-100 dark:border-slate-700'}`}
+                                    >
+                                        <div className="w-6 h-6 mb-1 bg-emerald-600 rounded flex items-center justify-center text-white text-[8px] font-black">IS</div>
+                                        <span className="text-[10px] font-black uppercase">IntaSend</span>
+                                    </button>
+                                )}
+                                {enabledGateways.includes('ncba') && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setProvider('ncba')}
+                                        className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${provider === 'ncba' ? 'border-teal-600 bg-teal-50/50 dark:bg-teal-900/20' : 'border-slate-100 dark:border-slate-700'}`}
+                                    >
+                                        <div className="w-6 h-6 mb-1 bg-teal-600 rounded flex items-center justify-center text-white text-[8px] font-black">NB</div>
+                                        <span className="text-[10px] font-black uppercase">NCBA</span>
+                                    </button>
+                                )}
                             </div>
                         </div>
 
