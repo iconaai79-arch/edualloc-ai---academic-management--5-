@@ -178,7 +178,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     onAddSaccoAccount
 }) => {
     const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'communication' | 'settings'>('overview');
-    const [approvalSubTab, setApprovalSubTab] = useState<'pending' | 'archive' | 'disbursed'>('pending');
+    const [approvalSubTab, setApprovalSubTab] = useState<'pending' | 'archive' | 'disbursed' | 'approvers'>('pending');
     const [farmerSubTab, setFarmerSubTab] = useState<'registry' | 'collections' | 'logistics' | 'payouts'>('registry');
     const [payoutRate, setPayoutRate] = useState<number>(currentInstitution?.coopSettings?.payoutRate || 50);
     
@@ -2431,6 +2431,12 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             >
                                 Disbursed History
                             </button>
+                            <button
+                                onClick={() => setApprovalSubTab('approvers')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${approvalSubTab === 'approvers' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                            >
+                                Board Approvers
+                            </button>
                         </div>
                         
                         {approvalSubTab === 'pending' ? (
@@ -2802,6 +2808,71 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No Disbursement History found for this period</p>
                                         </div>
                                     )}
+                                </div>
+                            </div>
+                        )}
+
+                        {approvalSubTab === 'approvers' && (
+                            <div className="space-y-8 animate-fade-in">
+                                <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-10 border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-10">
+                                        <div>
+                                            <h3 className="text-xl font-black tracking-tighter uppercase">Board Approver Management</h3>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Authorized users who can sign off on sensitive payouts</p>
+                                        </div>
+                                        <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center">
+                                            <SecurityIcon className="w-8 h-8 text-indigo-600" />
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {users.filter(u => u.role === 'coop_admin' || u.role === 'coop_chairman' || u.role === 'cooperative_manager').map(u => {
+                                            const isApprover = currentInstitution?.coopSettings?.approverIds?.includes(u.id);
+                                            return (
+                                                <div key={u.id} className={`p-6 rounded-3xl border-2 transition-all ${isApprover ? 'border-indigo-500 bg-indigo-50/10' : 'border-slate-100 dark:border-slate-800 bg-slate-50/30'}`}>
+                                                    <div className="flex items-center gap-4 mb-4">
+                                                        <div className="w-12 h-12 rounded-2xl bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-black text-slate-400 text-xs">
+                                                            {u.name.substring(0, 2).toUpperCase()}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <h4 className="text-sm font-black truncate">{u.name}</h4>
+                                                            <p className="text-[9px] font-bold text-slate-400 uppercase">{u.role.replace('_', ' ')}</p>
+                                                        </div>
+                                                    </div>
+                                                    <button 
+                                                        disabled={isProcessing}
+                                                        onClick={async () => {
+                                                            if (onUpdateInstitution && currentInstitution) {
+                                                                const currentIds = currentInstitution.coopSettings?.approverIds || [];
+                                                                const newIds = isApprover 
+                                                                    ? currentIds.filter(id => id !== u.id)
+                                                                    : [...currentIds, u.id];
+                                                                
+                                                                await onUpdateInstitution(currentInstitution.id, {
+                                                                    coopSettings: {
+                                                                        ...currentInstitution.coopSettings,
+                                                                        approverIds: newIds
+                                                                    }
+                                                                });
+                                                            }
+                                                        }}
+                                                        className={`w-full py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isApprover ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-white dark:bg-slate-700 text-slate-400 border border-slate-100 dark:border-slate-600'}`}
+                                                    >
+                                                        {isApprover ? 'Signatory Active' : 'Authorize Signatory'}
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    
+                                    <div className="mt-12 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center gap-4">
+                                        <div className="w-10 h-10 bg-amber-50 dark:bg-amber-900/30 rounded-xl flex items-center justify-center text-amber-600">
+                                            <AlertIcon className="w-5 h-5" />
+                                        </div>
+                                        <p className="text-[10px] font-black text-slate-500 uppercase leading-relaxed tracking-tight">
+                                            Authorized approvers can sign off on payouts directly. Non-authorized users will trigger a mandatory SMS code verification to the Chairman or available authorized board members.
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         )}
