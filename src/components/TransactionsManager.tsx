@@ -109,6 +109,7 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
                     <thead className="bg-slate-50 dark:bg-slate-700">
                         <tr>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Transaction ID</th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Ref ID</th>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Provider</th>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Institution</th>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Amount</th>
@@ -137,6 +138,9 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
                                 return (
                                     <tr key={txn.id}>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-500 dark:text-slate-400">{txn.transactionId}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-400 dark:text-slate-500">
+                                            {txn.referenceId || '-'}
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white uppercase">
                                             {txn.provider || 'mpesa'}
                                         </td>
@@ -175,7 +179,7 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
                             })
                         ) : (
                             <tr>
-                                <td colSpan={7} className="px-6 py-10 text-center text-sm text-slate-500">
+                                <td colSpan={8} className="px-6 py-10 text-center text-sm text-slate-500">
                                     No transactions found.
                                 </td>
                             </tr>

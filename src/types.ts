@@ -897,6 +897,7 @@ export interface MpesaTransaction {
     checkoutRequestId?: string;
     provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba';
     paymentMethod: 'stk_push' | 'paybill' | 'till' | 'wallet' | 'direct_debit';
+    referenceId?: string;
 }
 
 export interface InvoiceItem {
