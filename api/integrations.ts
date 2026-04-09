@@ -2075,7 +2075,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             // NCBA Spec: Payload contains TransactionID, ResultCode, etc.
-            const checkoutRequestId = body.TransactionID || body.CheckoutRequestID;
             if (!checkoutRequestId) return res.status(400).json({ success: false, message: 'No TransactionID' });
 
             if (String(body.ResultCode) === '0' || body.status === 'SUCCESS' || body.status === 'COMPLETED') {
