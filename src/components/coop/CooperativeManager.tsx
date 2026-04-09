@@ -1976,7 +1976,15 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                     <td className="px-6 py-5 rounded-r-3xl">
                                                         <div className="flex flex-col gap-1">
                                                             {p.initiatedAt && <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Initiated: {new Date(p.initiatedAt).toLocaleDateString()}</p>}
-                                                            {p.approvedAt && <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter text-emerald-600">Approved: {new Date(p.approvedAt).toLocaleDateString()}</p>}
+                                                            {p.approvedAt && <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter text-indigo-600">Approved: {new Date(p.approvedAt).toLocaleDateString()}</p>}
+                                                            {p.status === 'paid' && (
+                                                                <div className="mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                                                                    <p className="text-[8px] font-black text-emerald-600 uppercase tracking-tighter">
+                                                                        {p.disbursementMethod?.toUpperCase()} | {p.disbursementReference || 'NO-REF'}
+                                                                    </p>
+                                                                    <p className="text-[7px] font-bold text-slate-400 uppercase">{p.disbursementDate ? new Date(p.disbursementDate).toLocaleString() : 'Date missing'}</p>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>
