@@ -599,9 +599,14 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
     const filteredApprovalPayouts = useMemo(() => {
         return payouts.filter(p => {
-            const farmerName = getFarmerName(p.farmerId).toLowerCase();
-            const matchesSearch = farmerName.includes(searchTerm.toLowerCase()) || 
-                                 (p.payoutMonth || '').toLowerCase().includes(searchTerm.toLowerCase());
+            const farmer = farmers.find(f => f.id === p.farmerId);
+            const matchesSearch = !searchTerm || (
+                (farmer?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (farmer?.memberId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (farmer?.phone || '').includes(searchTerm) ||
+                (farmer?.nationalId || '').includes(searchTerm) ||
+                (p.payoutMonth || '').toLowerCase().includes(searchTerm.toLowerCase())
+            );
             const matchesTab = approvalSubTab === 'pending' ? p.status === 'pending' : p.status === 'approved';
             return matchesSearch && matchesTab;
         });
@@ -609,9 +614,14 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
     const filteredApprovalCollections = useMemo(() => {
         return collections.filter(c => {
-            const farmerName = getFarmerName(c.farmerId).toLowerCase();
-            const matchesSearch = farmerName.includes(searchTerm.toLowerCase()) || 
-                                 (c.productType || '').toLowerCase().includes(searchTerm.toLowerCase());
+            const farmer = farmers.find(f => f.id === c.farmerId);
+            const matchesSearch = !searchTerm || (
+                (farmer?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (farmer?.memberId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (farmer?.phone || '').includes(searchTerm) ||
+                (farmer?.nationalId || '').includes(searchTerm) ||
+                (c.productType || '').toLowerCase().includes(searchTerm.toLowerCase())
+            );
             const matchesTab = approvalSubTab === 'pending' 
                 ? (c.requiresApproval && c.approvalStatus === 'pending')
                 : (c.requiresApproval && c.approvalStatus === 'approved');
@@ -2247,12 +2257,12 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 <h2 className="text-2xl font-black tracking-tighter uppercase">Board Approvals Queue</h2>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Review and authorize sensitive operations</p>
                             </div>
-                             {approvalSubTab === 'pending' && payouts.filter(p => p.status === 'pending').length > 0 && (
+                             {approvalSubTab === 'pending' && filteredApprovalPayouts.length > 0 && (
                                 <button 
                                     onClick={async () => {
                                         try {
-                                            const pendingIds = payouts.filter(p => p.status === 'pending').map(p => p.id);
-                                            if (window.confirm(`Approve all ${pendingIds.length} pending payout drafts?`)) {
+                                            const pendingIds = filteredApprovalPayouts.map(p => p.id);
+                                            if (window.confirm(`Approve all ${pendingIds.length} matching payout drafts?`)) {
                                                 setIsProcessing(true);
                                                 setProcessingProgress(10);
                                                 
@@ -2327,7 +2337,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600">
                                         <PayoutIcon className="w-4 h-4" />
                                     </div>
-                                    <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Financial Payout Drafts</h3>
+                                    <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Financial Payout Drafts ({filteredApprovalPayouts.length})</h3>
                                 </div>
                                 <div className="grid grid-cols-1 gap-4">
                                     {filteredApprovalPayouts.map(p => (
@@ -2378,7 +2388,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center text-amber-600">
                                         <AlertIcon className="w-4 h-4" />
                                     </div>
-                                    <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Collection Quantity Variances</h3>
+                                    <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Collection Quantity Variances ({filteredApprovalCollections.length})</h3>
                                 </div>
                                 
                                 <div className="grid grid-cols-1 gap-6">
