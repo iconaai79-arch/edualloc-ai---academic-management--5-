@@ -192,6 +192,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json(data?.[0] || { success: true, id: (recordData as any)?.id || getStrParam(id), module: moduleName });
         }
 
+        if (req.method === 'PATCH') {
+            const rawId = req.query.id;
+            const ids = Array.isArray(rawId) ? rawId : (typeof rawId === 'string' ? rawId.split(',') : []);
+            
+            if (ids.length === 0) return res.status(400).json({ success: false, error: 'ID(s) required' });
+
+            const { data: updateData } = req.body || {};
+            if (!updateData) return res.status(400).json({ success: false, error: 'No data to update' });
+
+            let q = supabase.from(moduleName).update(updateData);
+            if (ids.length === 1) q = q.eq('id', ids[0]);
+            else q = q.in('id', ids);
+
+            // Security check
+            if (user?.role !== 'super_admin' && !PUBLIC_MODULES.includes(moduleName)) {
+                q = q.eq('institution_id', user?.institutionId);
+            }
+
+            const { data, error } = await q.select();
+            if (error) return res.status(500).json({ success: false, error: error.message });
+            return res.status(200).json(Array.isArray(data) ? data : [data] || { success: true, count: ids.length });
+        }
+
         if (req.method === 'DELETE') {
             const idVal = getStrParam(id);
             if (!idVal) return res.status(400).json({ success: false, error: 'ID required' });

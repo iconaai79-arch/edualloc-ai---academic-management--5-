@@ -1513,7 +1513,7 @@ export const App: React.FC = () => {
         };
         await apiService.saveModuleRecord('coop_collections', payload);
         await handleLogAction(`Logged collection for farmer ${data.farmerId}`);
-        loadData();
+        await loadData(false, true);
     }, [activeInstitution, currentUser, loadData, handleLogAction]);
 
     const handleImportCollections = useCallback(async (collections: any[]) => {
@@ -1529,7 +1529,7 @@ export const App: React.FC = () => {
         }));
         await apiService.saveModuleRecords('coop_collections', payloads);
         await handleLogAction(`Imported ${collections.length} collections`);
-        loadData();
+        await loadData(false, true);
     }, [activeInstitution, currentUser, loadData, handleLogAction]);
 
     const handleBulkConfirmCollections = useCallback(async (riderId: string, pendingCollections: any[]) => {
@@ -1545,7 +1545,7 @@ export const App: React.FC = () => {
         }));
         await apiService.saveModuleRecords('coop_collections', payloads);
         await handleLogAction(`Bulk confirmed ${pendingCollections.length} collections for rider ${riderId}`);
-        loadData();
+        await loadData(false, true);
     }, [currentUser, loadData, handleLogAction]);
 
     const handleAddRider = useCallback(async (data: any) => {
@@ -1564,7 +1564,7 @@ export const App: React.FC = () => {
         }, activeInstitution?.name);
         
         await handleLogAction(`Registered rider: ${data.name}`);
-        loadData();
+        await loadData(false, true);
     }, [activeInstitution, currentUser, loadData, handleLogAction]);
 
     const handleConfirmCollection = useCallback(async (id: string, qty: number) => {
@@ -1576,7 +1576,7 @@ export const App: React.FC = () => {
             await apiService.sendSms(farmer.phone, `Your ${col.productType} delivery on ${col.collectionDate} has been confirmed at Factory. Final Qty: ${qty} ${col.unit}. Thank you!`, activeInstitution?.smsConfig, 1, activeInstitution?.id);
         }
         await handleLogAction(`Confirmed collection ${id} with weight ${qty}`);
-        loadData();
+        await loadData(false, true);
     }, [currentUser, coopCollections, coopFarmers, activeInstitution, loadData, handleLogAction]);
 
     const handleApproveCollection = useCallback(async (id: string, status: string) => {
@@ -1590,7 +1590,7 @@ export const App: React.FC = () => {
             }
         }
         await handleLogAction(`Updated status for collection ${id} to ${status}`);
-        loadData();
+        await loadData(false, true);
     }, [currentUser, coopCollections, coopFarmers, activeInstitution, loadData, handleLogAction]);
 
     const handleAddCoopIncome = useCallback(async (data: any) => {
@@ -1598,7 +1598,7 @@ export const App: React.FC = () => {
         if (!instId || !currentUser) return;
         await apiService.saveCoopIncome({ ...data, id: `inc_${Date.now()}`, institutionId: instId, recordedBy: currentUser.id });
         await handleLogAction(`Recorded cooperative income: ${data.description}`);
-        loadData();
+        await loadData(false, true);
     }, [activeInstitution, currentUser, loadData, handleLogAction]);
 
     const handleAddCoopExpense = useCallback(async (data: any) => {
@@ -1606,7 +1606,7 @@ export const App: React.FC = () => {
         if (!instId || !currentUser) return;
         await apiService.saveCoopExpense({ ...data, id: `exp_${Date.now()}`, institutionId: instId, recordedBy: currentUser.id });
         await handleLogAction(`Recorded cooperative expense: ${data.description}`);
-        loadData();
+        await loadData(false, true);
     }, [activeInstitution, currentUser, loadData, handleLogAction]);
 
     const handleInitiatePayouts = useCallback(async (data: any) => {
@@ -1623,7 +1623,7 @@ export const App: React.FC = () => {
                 await apiService.notifyCoopAdmins(instId, `${payoutIds.length} payout drafts have been approved and are ready for disbursement.`);
             }
             await handleLogAction(`Approved ${payoutIds.length} payouts`);
-            loadData();
+            await loadData(false, true);
         } catch (err: any) {
             alert(`Approval failed: ${err.message}`);
             throw err;
@@ -1638,7 +1638,7 @@ export const App: React.FC = () => {
                 await apiService.notifyCoopAdmins(instId, `New payout drafts (${payouts.length}) have been generated for your review.`);
             }
             await handleLogAction(`Generated ${payouts.length} payout drafts`);
-            loadData();
+            await loadData(false, true);
         } catch (err: any) {
             alert(`Draft generation failed: ${err.message}`);
             throw err;
@@ -1650,7 +1650,7 @@ export const App: React.FC = () => {
             // Here you would integrate with M-Pesa or bank APIs
             await apiService.updatePayoutStatus(payoutIds, 'paid', currentUser?.id);
             await handleLogAction(`Disbursed ${payoutIds.length} payouts`);
-            loadData();
+            await loadData(false, true);
         } catch (err: any) {
             alert(`Disbursement failed: ${err.message}`);
             throw err;

@@ -1793,53 +1793,57 @@ export const apiService = {
     },
 
     async updatePayoutStatus(idOrIds: string | string[], status: 'initiated' | 'approved' | 'paid' | 'rejected' | string, userId?: string): Promise<void> {
-        const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
+        const ids = (Array.isArray(idOrIds) ? idOrIds : [idOrIds]).map(id => id.trim());
+        if (ids.length === 0) return;
         const now = new Date().toISOString();
-        
-        const updatePromises = ids.map(async id => {
-            const update: any = {
-                id: id.trim(),
-                status
-            };
-            
-            if (userId) {
-                if (status === 'initiated') {
-                    update.initiatedBy = userId;
-                    update.initiatedAt = now;
-                } else if (status === 'approved') {
-                    update.approvedBy = userId;
-                    update.approvedAt = now;
-                } else if (status === 'paid') {
-                    update.paidAt = now;
-                }
-            }
+        const table = 'coop_monthly_payouts';
 
-            if (!_supabase) {
-                const table = 'coop_monthly_payouts';
-                let records = ls.get(table);
-                if (records) {
-                    const idx = records.findIndex((r: any) => r.id === update.id);
+        const updateData: any = { status };
+        if (userId) {
+            if (status === 'initiated') {
+                updateData.initiatedBy = userId;
+                updateData.initiatedAt = now;
+            } else if (status === 'approved') {
+                updateData.approvedBy = userId;
+                updateData.approvedAt = now;
+            } else if (status === 'paid') {
+                updateData.paidAt = now;
+            }
+        }
+
+        if (!_supabase) {
+            let records = ls.get(table);
+            if (records) {
+                ids.forEach(id => {
+                    const idx = records.findIndex((r: any) => r.id === id);
                     if (idx >= 0) {
-                        records[idx] = { ...records[idx], ...update };
-                        ls.set(table, records);
+                        records[idx] = { ...records[idx], ...updateData };
                     }
-                }
-                return;
+                });
+                ls.set(table, records);
             }
+            return;
+        }
 
-            // Target the specific row by ID with .update() to avoid NOT NULL constraint errors on other columns
-            const { error } = await _supabase
-                .from('coop_monthly_payouts')
-                .update(toSnakeCase(update))
-                .eq('id', update.id);
+        try {
+            const token = await apiService.getAuthToken();
+            const response = await fetch(`/api/records?module=${table}&id=${ids.join(',')}`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ data: toSnakeCase(updateData) })
+            });
 
-            if (error) {
-                console.error(`Status update failed for payout ${id}:`, error);
-                throw error;
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error || `Failed to update payout status: ${response.status}`);
             }
-        });
-
-        await Promise.all(updatePromises);
+        } catch (e) {
+            console.error("Payout Status Update Exception:", e);
+            throw e;
+        }
     },
     async disburseBulkMpesa(ids: string[], userId: string): Promise<any> {
         // Simulate M-Pesa B2C API Call
