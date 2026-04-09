@@ -193,30 +193,69 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (req.method === 'PATCH') {
-            const { data: updateData, ids: bodyIds } = req.body || {};
-            const rawId = req.query.id;
-            const ids = bodyIds || (Array.isArray(rawId) ? rawId : (typeof rawId === 'string' ? rawId.split(',') : []));
-            
-            if (!ids || (Array.isArray(ids) && ids.length === 0)) {
-                return res.status(400).json({ success: false, error: 'ID(s) required either in query or body' });
+            try {
+                const { data: updateData, ids: bodyIds } = req.body || {};
+                const rawId = req.query.id;
+                const ids = bodyIds || (Array.isArray(rawId) ? rawId : (typeof rawId === 'string' ? rawId.split(',') : []));
+                
+                console.log(`[API PATCH DEBUG] Body:`, JSON.stringify(req.body));
+                console.log(`[API PATCH DEBUG] Module: ${moduleName}`);
+                console.log(`[API PATCH DEBUG] IDs:`, ids);
+                console.log(`[API PATCH DEBUG] Update Data:`, updateData);
+                console.log(`[API PATCH DEBUG] User:`, { id: user?.id, role: user?.role, institutionId: user?.institutionId });
+
+                if (!ids || (Array.isArray(ids) && ids.length === 0)) {
+                    console.warn(`[API PATCH DEBUG] Missing IDs`);
+                    return res.status(400).json({ success: false, error: 'ID(s) required either in query or body' });
+                }
+
+                if (!updateData) {
+                    console.warn(`[API PATCH DEBUG] Missing Update Data`);
+                    return res.status(400).json({ success: false, error: 'No data to update' });
+                }
+
+                const idsArray = Array.isArray(ids) ? ids : [ids];
+                let q = supabase.from(moduleName).update(updateData);
+                
+                if (idsArray.length === 1) q = q.eq('id', idsArray[0]);
+                else q = q.in('id', idsArray);
+
+                // Security check
+                if (user?.role !== 'super_admin' && !PUBLIC_MODULES.includes(moduleName)) {
+                    const instCol = (moduleName === 'institutions' ? 'id' : 'institution_id');
+                    const instId = user?.institutionId;
+                    
+                    if (instId) {
+                        console.log(`[API PATCH DEBUG] Applying tenancy check: ${instCol} = ${instId}`);
+                        q = q.eq(instCol, instId);
+                    } else {
+                        console.warn(`[API PATCH DEBUG] Authorization warning: User has no institutionId. Skipping tenancy filter.`);
+                        // If we skip the filter, the service role bypass will allow the update on ANY ID.
+                        // This is a security risk if the user is malicious, but here we are debugging.
+                        // For safety, let's deny if not public and no instId.
+                        if (user?.role !== 'super_admin') {
+                             return res.status(401).json({ success: false, error: 'Unauthorized: Academic institution identity required.' });
+                        }
+                    }
+                }
+
+                const { data, error } = await q.select();
+                if (error) {
+                    console.error(`[API PATCH Error] ${moduleName}:`, error);
+                    return res.status(500).json({ 
+                        success: false, 
+                        error: error.message, 
+                        details: error,
+                        code: error.code,
+                        hint: error.hint
+                    });
+                }
+                console.log(`[API PATCH DEBUG] Success. Count: ${data?.length || 0}`);
+                return res.status(200).json(data || []);
+            } catch (patchErr: any) {
+                console.error(`[API PATCH Crash] ${moduleName}:`, patchErr);
+                return res.status(500).json({ success: false, error: patchErr.message || 'Internal PATCH Failure' });
             }
-
-            if (!updateData) return res.status(400).json({ success: false, error: 'No data to update' });
-
-            const idsArray = Array.isArray(ids) ? ids : [ids];
-            let q = supabase.from(moduleName).update(updateData);
-            
-            if (idsArray.length === 1) q = q.eq('id', idsArray[0]);
-            else q = q.in('id', idsArray);
-
-            // Security check
-            if (user?.role !== 'super_admin' && !PUBLIC_MODULES.includes(moduleName)) {
-                q = q.eq('institution_id', user?.institutionId);
-            }
-
-            const { data, error } = await q.select();
-            if (error) return res.status(500).json({ success: false, error: error.message });
-            return res.status(200).json(Array.isArray(data) ? data : [data]);
         }
 
         if (req.method === 'DELETE') {

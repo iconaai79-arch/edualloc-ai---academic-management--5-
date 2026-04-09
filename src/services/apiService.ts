@@ -1841,10 +1841,13 @@ export const apiService = {
 
             if (!response.ok) {
                 const err = await response.json().catch(() => ({}));
-                throw new Error(err.error || `Failed to update payout status: ${response.status}`);
+                const msg = err.error || err.message || `Status ${response.status}`;
+                const details = err.details ? `: ${JSON.stringify(err.details)}` : '';
+                throw new Error(`${msg}${details}`);
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error("Payout Status Update Exception:", e);
+            alert(`Approval failed: ${e.message}`);
             throw e;
         }
     },
