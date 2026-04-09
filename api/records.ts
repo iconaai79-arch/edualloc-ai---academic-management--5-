@@ -193,17 +193,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (req.method === 'PATCH') {
+            const { data: updateData, ids: bodyIds } = req.body || {};
             const rawId = req.query.id;
-            const ids = Array.isArray(rawId) ? rawId : (typeof rawId === 'string' ? rawId.split(',') : []);
+            const ids = bodyIds || (Array.isArray(rawId) ? rawId : (typeof rawId === 'string' ? rawId.split(',') : []));
             
-            if (ids.length === 0) return res.status(400).json({ success: false, error: 'ID(s) required' });
+            if (!ids || (Array.isArray(ids) && ids.length === 0)) {
+                return res.status(400).json({ success: false, error: 'ID(s) required either in query or body' });
+            }
 
-            const { data: updateData } = req.body || {};
             if (!updateData) return res.status(400).json({ success: false, error: 'No data to update' });
 
+            const idsArray = Array.isArray(ids) ? ids : [ids];
             let q = supabase.from(moduleName).update(updateData);
-            if (ids.length === 1) q = q.eq('id', ids[0]);
-            else q = q.in('id', ids);
+            
+            if (idsArray.length === 1) q = q.eq('id', idsArray[0]);
+            else q = q.in('id', idsArray);
 
             // Security check
             if (user?.role !== 'super_admin' && !PUBLIC_MODULES.includes(moduleName)) {
@@ -212,7 +216,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const { data, error } = await q.select();
             if (error) return res.status(500).json({ success: false, error: error.message });
-            return res.status(200).json(Array.isArray(data) ? data : [data] || { success: true, count: ids.length });
+            return res.status(200).json(Array.isArray(data) ? data : [data]);
         }
 
         if (req.method === 'DELETE') {

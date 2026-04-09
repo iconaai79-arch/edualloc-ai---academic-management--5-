@@ -1827,13 +1827,16 @@ export const apiService = {
 
         try {
             const token = await apiService.getAuthToken();
-            const response = await fetch(`/api/records?module=${table}&id=${ids.join(',')}`, {
+            const response = await fetch(`/api/records?module=${table}`, {
                 method: 'PATCH',
                 headers: {
                     'Authorization': token ? `Bearer ${token}` : '',
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ data: toSnakeCase(updateData) })
+                body: JSON.stringify({ 
+                    data: toSnakeCase(updateData),
+                    ids: ids
+                })
             });
 
             if (!response.ok) {
