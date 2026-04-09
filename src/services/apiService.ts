@@ -849,9 +849,19 @@ export const apiService = {
             }
 
             const data = await response.json();
+            // Store as cache for handle ERR_NAME_NOT_RESOLVED type failures
+            localStorage.setItem('eduai_system_settings_cache', JSON.stringify(data));
             return toCamelCase(data) || null;
         } catch (e) {
             console.error("[apiService] Error fetching company settings:", e);
+            // Try to recover from cache
+            try {
+                const cachedData = localStorage.getItem('eduai_system_settings_cache');
+                if (cachedData) {
+                    console.warn("[apiService] Recovered system settings from cache after fetch failure");
+                    return toCamelCase(JSON.parse(cachedData));
+                }
+            } catch (cacheErr) {}
             return null;
         }
     },

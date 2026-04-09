@@ -260,7 +260,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         status: 'active'
     });
 
-    
+    const [approvalSubTab, setApprovalSubTab] = useState<'pending' | 'approved'>('pending');
+
     const activeSubTab = externalActiveTab || localActiveSubTab;
     const setActiveSubTab = (tab: any) => {
         if (onTabChange) onTabChange(tab);
@@ -2223,7 +2224,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 <h2 className="text-2xl font-black tracking-tighter uppercase">Board Approvals Queue</h2>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Review and authorize sensitive operations</p>
                             </div>
-                            {payouts.filter(p => p.status === 'pending').length > 0 && (
+                             {approvalSubTab === 'pending' && payouts.filter(p => p.status === 'pending').length > 0 && (
                                 <button 
                                     onClick={async () => {
                                         try {
@@ -2264,10 +2265,27 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     Approve All Payouts
                                 </button>
                             )}
+                         </div>
+
+                        <div className="flex gap-4 border-b border-slate-100 dark:border-slate-800 pb-2">
+                            <button
+                                onClick={() => setApprovalSubTab('pending')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${approvalSubTab === 'pending' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                            >
+                                Drafts & Deviations
+                            </button>
+                            <button
+                                onClick={() => setApprovalSubTab('approved')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${approvalSubTab === 'approved' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                            >
+                                Approved Payouts
+                            </button>
                         </div>
                         
-                        {/* 1. Financial Payouts Section */}
-                        {payouts.filter(p => p.status === 'pending').length > 0 && (
+                        {approvalSubTab === 'pending' ? (
+                            <>
+                                {/* 1. Financial Payouts Section */}
+                                {payouts.filter(p => p.status === 'pending').length > 0 && (
                             <div className="space-y-6">
                                 <div className="flex items-center gap-3">
                                     <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600">
@@ -2397,6 +2415,60 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 </div>
                                 <h3 className="text-lg font-black tracking-tight text-slate-900 dark:text-white uppercase mb-2">Queue Fully Cleared</h3>
                                 <p className="text-xs font-medium text-slate-500 max-w-sm">There are no pending collection or payout approvals at this moment. All discrepancies and drafts have been resolved.</p>
+                            </div>
+                        )}
+                            </>
+                        ) : (
+                            <div className="space-y-6 animate-fade-in">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-600">
+                                        <SuccessIcon className="w-4 h-4" />
+                                    </div>
+                                    <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Approved Payouts Archive</h3>
+                                </div>
+                                <div className="grid grid-cols-1 gap-4">
+                                    {payouts.filter(p => p.status === 'approved').map(p => (
+                                        <div key={p.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-md transition-all">
+                                            <div className="flex items-center gap-6">
+                                                <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-900 flex items-center justify-center font-black text-emerald-400 text-xs">
+                                                    {getFarmerName(p.farmerId).substring(0, 2).toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-base font-black tracking-tight text-slate-900 dark:text-white">{getFarmerName(p.farmerId)}</h4>
+                                                    <div className="flex items-center gap-3">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{p.payoutMonth}</p>
+                                                        <span className="w-1 h-1 rounded-full bg-slate-200" />
+                                                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Approved</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-8">
+                                                <div className="text-right">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Amount Authorized</p>
+                                                    <p className="text-xl font-black text-slate-900 dark:text-white tracking-tighter">KES {p.netPayout.toLocaleString()}</p>
+                                                </div>
+                                                <button 
+                                                    onClick={async () => {
+                                                        if (window.confirm(`Disburse KES ${p.netPayout.toLocaleString()} to ${getFarmerName(p.farmerId)}?`)) {
+                                                            await onDisbursePayouts?.([p.id]);
+                                                        }
+                                                    }}
+                                                    className="bg-emerald-600 text-white px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95"
+                                                >
+                                                    Disburse Funds
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {payouts.filter(p => p.status === 'approved').length === 0 && (
+                                        <div className="bg-slate-50/50 dark:bg-slate-900/30 p-20 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center text-center">
+                                            <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
+                                                <PayoutIcon className="w-8 h-8 text-slate-300" />
+                                            </div>
+                                            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">No Approved Payouts</h3>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
