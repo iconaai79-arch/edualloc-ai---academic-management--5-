@@ -278,7 +278,6 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         status: 'active'
     });
 
-    const [approvalSubTab, setApprovalSubTab] = useState<'pending' | 'approved'>('pending');
     const [processingItems, setProcessingItems] = useState<string[]>([]);
 
     const activeSubTab = externalActiveTab || localActiveSubTab;
