@@ -2576,6 +2576,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         )}
                             </>
                         ) : (
+                            <div className="space-y-6 animate-fade-in">
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-600">
