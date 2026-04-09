@@ -597,6 +597,28 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
     const getRiderName = (id?: string) => riders.find(r => r.id === id)?.name || 'N/A';
 
+    const filteredApprovalPayouts = useMemo(() => {
+        return payouts.filter(p => {
+            const farmerName = getFarmerName(p.farmerId).toLowerCase();
+            const matchesSearch = farmerName.includes(searchTerm.toLowerCase()) || 
+                                 (p.payoutMonth || '').toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesTab = approvalSubTab === 'pending' ? p.status === 'pending' : p.status === 'approved';
+            return matchesSearch && matchesTab;
+        });
+    }, [payouts, searchTerm, farmers, approvalSubTab]);
+
+    const filteredApprovalCollections = useMemo(() => {
+        return collections.filter(c => {
+            const farmerName = getFarmerName(c.farmerId).toLowerCase();
+            const matchesSearch = farmerName.includes(searchTerm.toLowerCase()) || 
+                                 (c.productType || '').toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesTab = approvalSubTab === 'pending' 
+                ? (c.requiresApproval && c.approvalStatus === 'pending')
+                : (c.requiresApproval && c.approvalStatus === 'approved');
+            return matchesSearch && matchesTab;
+        });
+    }, [collections, searchTerm, farmers, approvalSubTab]);
+
     async function handleSubmitRider(e: React.FormEvent) {
         e.preventDefault();
         console.log("handleSubmitRider triggered", { newRider });
@@ -2266,7 +2288,20 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     Approve All Payouts
                                 </button>
                             )}
-                         </div>
+                        </div>
+
+                        <div className="mb-6 relative group">
+                            <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+                                <SearchIcon className="w-5 h-5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
+                            </div>
+                            <input 
+                                type="text" 
+                                placeholder="Search by farmer name or month..." 
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700/50 rounded-3xl py-4 pl-14 pr-6 text-sm font-black tracking-tight outline-none focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-sm group-hover:border-slate-200 dark:group-hover:border-slate-600 dark:text-white"
+                            />
+                        </div>
 
                         <div className="flex gap-4 border-b border-slate-100 dark:border-slate-800 pb-2">
                             <button
@@ -2286,7 +2321,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         {approvalSubTab === 'pending' ? (
                             <>
                                 {/* 1. Financial Payouts Section */}
-                                {payouts.filter(p => p.status === 'pending').length > 0 && (
+                                {filteredApprovalPayouts.length > 0 && (
                             <div className="space-y-6">
                                 <div className="flex items-center gap-3">
                                     <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600">
@@ -2295,7 +2330,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Financial Payout Drafts</h3>
                                 </div>
                                 <div className="grid grid-cols-1 gap-4">
-                                    {payouts.filter(p => p.status === 'pending').map(p => (
+                                    {filteredApprovalPayouts.map(p => (
                                         <div key={p.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-md transition-all">
                                             <div className="flex items-center gap-6">
                                                 <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-slate-900 flex items-center justify-center font-black text-slate-400 text-xs">
@@ -2337,7 +2372,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         )}
 
                         {/* 2. Collection Quantity Section */}
-                        {collections.filter(c => c.requiresApproval && c.approvalStatus === 'pending').length > 0 && (
+                        {filteredApprovalCollections.length > 0 && (
                             <div className="space-y-6">
                                 <div className="flex items-center gap-3">
                                     <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center text-amber-600">
@@ -2347,7 +2382,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 </div>
                                 
                                 <div className="grid grid-cols-1 gap-6">
-                                    {collections.filter(c => c.requiresApproval && c.approvalStatus === 'pending').map(col => (
+                                    {filteredApprovalCollections.map(col => (
                                         <div key={col.id} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-8 animate-fade-in-up hover:shadow-md transition-all">
                                             <div className="flex items-center gap-6">
                                                 <div className="w-16 h-16 rounded-3xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
