@@ -1803,18 +1803,24 @@ export const apiService = {
     },
 
     async updatePayoutStatus(idOrIds: string | string[], status: 'initiated' | 'approved' | 'paid' | 'rejected' | string, userId?: string): Promise<void> {
-        const ids = (Array.isArray(idOrIds) ? idOrIds : [idOrIds]).map(id => id.trim());
+        const ids = (Array.isArray(idOrIds) ? idOrIds : [idOrIds])
+            .map(id => String(id).trim())
+            .filter(id => id.length > 0);
+
         if (ids.length === 0) return;
         const now = new Date().toISOString();
         const table = 'coop_monthly_payouts';
 
+        // Strip prefix from userId if present to avoid DB constraint failures (Postgres UUID vs Application u_ prefix)
+        const cleanUserId = userId?.startsWith('u_') ? userId.substring(2) : userId;
+
         const updateData: any = { status };
-        if (userId) {
+        if (cleanUserId) {
             if (status === 'initiated') {
-                updateData.initiatedBy = userId;
+                updateData.initiatedBy = cleanUserId;
                 updateData.initiatedAt = now;
             } else if (status === 'approved') {
-                updateData.approvedBy = userId;
+                updateData.approvedBy = cleanUserId;
                 updateData.approvedAt = now;
             } else if (status === 'paid') {
                 updateData.paidAt = now;
@@ -1837,23 +1843,33 @@ export const apiService = {
 
         try {
             const token = await apiService.getAuthToken();
-            const response = await fetch(`/api/records?module=${table}`, {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': token ? `Bearer ${token}` : '',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ 
-                    data: toSnakeCase(updateData),
-                    ids: ids
-                })
-            });
+            
+            // Use batching for updates if there are many IDs (e.g., > 50)
+            const batchSize = 50;
+            const batches = [];
+            for (let i = 0; i < ids.length; i += batchSize) {
+                batches.push(ids.slice(i, i + batchSize));
+            }
 
-            if (!response.ok) {
-                const err = await response.json().catch(() => ({}));
-                const msg = err.error || err.message || `Status ${response.status}`;
-                const details = err.details ? `: ${JSON.stringify(err.details)}` : '';
-                throw new Error(`${msg}${details}`);
+            for (const batchIds of batches) {
+                const response = await fetch(`/api/records?module=${table}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': token ? `Bearer ${token}` : '',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        data: toSnakeCase(updateData),
+                        ids: batchIds
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    const msg = err.error || err.message || `Status ${response.status}`;
+                    const details = err.details ? `: ${JSON.stringify(err.details)}` : '';
+                    throw new Error(`${msg}${details}`);
+                }
             }
         } catch (e: any) {
             console.error("Payout Status Update Exception:", e);
