@@ -258,6 +258,11 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [disbursementDate, setDisbursementDate] = useState(formatDateString(new Date()));
     const [disbursementBatchIds, setDisbursementBatchIds] = useState<string[]>([]);
     const [processViaIntegratedApi, setProcessViaIntegratedApi] = useState(false);
+    
+    // Multi-Approver States
+    const [isSecureApprovalModalOpen, setIsSecureApprovalModalOpen] = useState(false);
+    const [secureApprovalData, setSecureApprovalData] = useState<{ids: string[], total: number} | null>(null);
+    const [approvalMethod, setApprovalMethod] = useState<'portal' | 'code' | 'qr'>('portal');
 
     const [posFarmerId, setPosFarmerId] = useState('');
     const [posStatus, setPosStatus] = useState<'paid' | 'credit'>('paid');
@@ -2374,31 +2379,28 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                  <button 
                                     onClick={async () => {
                                         const pendingIds = filteredApprovalPayouts.map(p => p.id);
-                                        if (window.confirm(`Approve all ${pendingIds.length} matching payout drafts?`)) {
-                                            const isChairmanOrSuper = currentUser?.role === 'coop_chairman' || currentUser?.role === 'super_admin';
-                                            if (!isChairmanOrSuper) {
-                                                handleTriggerVerification(pendingIds);
-                                                return;
-                                            }
-                                            
-                                            try {
-                                                setIsProcessing(true);
-                                                setProcessingProgress(10);
-                                                
-                                                const interval = setInterval(() => {
-                                                    setProcessingProgress(prev => prev >= 90 ? 90 : prev + 10);
-                                                }, 200);
+                                        const totalAmt = filteredApprovalPayouts.reduce((sum, p) => sum + p.netPayout, 0);
+                                        
+                                        const isAuthorized = currentUser?.role === 'super_admin' || 
+                                                           currentUser?.role === 'coop_chairman' || 
+                                                           currentInstitution?.coopSettings?.approverIds?.includes(currentUser?.id || '');
 
-                                                await onApprovePayouts?.(pendingIds);
-                                                
-                                                clearInterval(interval);
-                                                setProcessingProgress(100);
-                                                setTimeout(() => { setIsProcessing(false); setProcessingProgress(0); }, 600);
-                                            } catch (err: any) {
-                                                alert(`Global approval failed: ${err.message}`);
-                                                setIsProcessing(false);
-                                                setProcessingProgress(0);
+                                        if (isAuthorized) {
+                                            if (window.confirm(`Approve all ${pendingIds.length} matching payout drafts?`)) {
+                                                try {
+                                                    setIsProcessing(true);
+                                                    setProcessingProgress(10);
+                                                    await onApprovePayouts?.(pendingIds);
+                                                    setProcessingProgress(100);
+                                                    setTimeout(() => { setIsProcessing(false); setProcessingProgress(0); }, 600);
+                                                } catch (err: any) {
+                                                    alert(`Approval failed: ${err.message}`);
+                                                    setIsProcessing(false);
+                                                }
                                             }
+                                        } else {
+                                            setSecureApprovalData({ids: pendingIds, total: totalAmt});
+                                            setIsSecureApprovalModalOpen(true);
                                         }
                                     }}
                                     className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-emerald-500/20 active:scale-95"
@@ -4152,16 +4154,67 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                              </div>
                         </div>
 
-                        <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-10 border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col justify-center">
-                             <div className="w-16 h-16 bg-amber-50 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center text-amber-600 mb-6">
-                                 <AlertIcon className="w-8 h-8" />
+                     <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-10 border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col justify-center">
+                              <div className="w-16 h-16 bg-amber-50 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center text-amber-600 mb-6">
+                                  <AlertIcon className="w-8 h-8" />
+                              </div>
+                              <h4 className="text-lg font-black tracking-tighter uppercase mb-2">Billing Impact</h4>
+                              <p className="text-xs text-slate-500 font-medium leading-relaxed uppercase tracking-tight">
+                                 Changing the payout rate will affect all DRAFT payouts. Approved or Paid records remain locked to their original rates.
+                              </p>
+                         </div>
+                     </div>
+
+                     <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-10 border border-slate-100 dark:border-slate-700 shadow-sm mb-12">
+                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-10">
+                             <div>
+                                 <h3 className="text-xl font-black tracking-tighter uppercase">Board Approver Management</h3>
+                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Designate users authorized to sign off on sensitive payouts</p>
                              </div>
-                             <h4 className="text-lg font-black tracking-tighter uppercase mb-2">Billing Impact</h4>
-                             <p className="text-xs text-slate-500 font-medium leading-relaxed uppercase tracking-tight">
-                                Changing the payout rate will affect all DRAFT payouts. Approved or Paid records remain locked to their original rates.
-                             </p>
-                        </div>
-                    </div>
+                             <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl">
+                                 <ApprovalIcon className="w-8 h-8 text-indigo-600" />
+                             </div>
+                         </div>
+                         
+                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                             {users.filter(u => u.role === 'coop_admin' || u.role === 'coop_chairman' || u.role === 'cooperative_manager').map(u => {
+                                 const isApprover = currentInstitution?.coopSettings?.approverIds?.includes(u.id);
+                                 return (
+                                     <div key={u.id} className={`p-6 rounded-3xl border-2 transition-all ${isApprover ? 'border-indigo-500 bg-indigo-50/10' : 'border-slate-100 dark:border-slate-800 bg-slate-50/30 hocus:border-slate-200'}`}>
+                                         <div className="flex items-center gap-4 mb-4">
+                                            <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-black text-slate-400 text-xs">
+                                                {u.name.substring(0, 2).toUpperCase()}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="text-sm font-black truncate">{u.name}</h4>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase truncate">{u.role.replace('_', ' ')}</p>
+                                            </div>
+                                         </div>
+                                         <button 
+                                            onClick={async () => {
+                                                if (onUpdateInstitution && currentInstitution) {
+                                                    const currentIds = currentInstitution.coopSettings?.approverIds || [];
+                                                    const newIds = isApprover 
+                                                        ? currentIds.filter(id => id !== u.id)
+                                                        : [...currentIds, u.id];
+                                                    
+                                                    await onUpdateInstitution(currentInstitution.id, {
+                                                        coopSettings: {
+                                                            ...currentInstitution.coopSettings,
+                                                            approverIds: newIds
+                                                        }
+                                                    });
+                                                }
+                                            }}
+                                            className={`w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isApprover ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-white dark:bg-slate-700 text-slate-400 border border-slate-100 dark:border-slate-600'}`}
+                                         >
+                                             {isApprover ? 'Authorized' : 'Authorize'}
+                                         </button>
+                                     </div>
+                                 );
+                             })}
+                         </div>
+                     </div>
 
                     <SettingsManager
                         currentUser={currentUser}
@@ -4792,6 +4845,136 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                     </div>
                 )}
             </div>
+            {isSecureApprovalModalOpen && secureApprovalData && (
+                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-2xl flex items-center justify-center z-[500] p-4">
+                    <div className="bg-white dark:bg-slate-900 rounded-[4rem] w-full max-w-2xl shadow-[0_0_100px_rgba(99,102,241,0.2)] border border-white/20 overflow-hidden animate-in zoom-in duration-300">
+                        <div className="relative p-12 text-center overflow-hidden">
+                            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-indigo-500 animate-pulse" />
+                            
+                            <div className="w-24 h-24 bg-indigo-50 dark:bg-indigo-900/30 rounded-3xl flex items-center justify-center mx-auto mb-8 relative">
+                                <ApprovalIcon className="w-12 h-12 text-indigo-600" />
+                                <div className="absolute -top-4 -right-4 w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center border-4 border-white dark:border-slate-900">
+                                    <SuccessIcon className="w-4 h-4 text-white" />
+                                </div>
+                            </div>
+
+                            <h2 className="text-3xl font-black tracking-tighter uppercase mb-3">Multi-Factor Authorization</h2>
+                            <p className="text-xs font-black text-slate-400 tracking-widest uppercase mb-12">Batch Payout Total: KES {secureApprovalData.total.toLocaleString()}</p>
+
+                            <div className="grid grid-cols-3 gap-6 mb-12">
+                                <button 
+                                    onClick={() => setApprovalMethod('portal')}
+                                    className={`p-6 rounded-[2.5rem] border-2 transition-all ${approvalMethod === 'portal' ? 'border-indigo-600 bg-indigo-50/30 shadow-xl shadow-indigo-500/10' : 'border-slate-50 dark:border-slate-800 bg-slate-50/50 grayscale opacity-60'}`}
+                                >
+                                    <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center mx-auto mb-4 text-white">
+                                        <SecurityIcon className="w-6 h-6" />
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest">Board Portal</span>
+                                </button>
+                                <button 
+                                    onClick={() => setApprovalMethod('code')}
+                                    className={`p-6 rounded-[2.5rem] border-2 transition-all ${approvalMethod === 'code' ? 'border-indigo-600 bg-indigo-50/30 shadow-xl shadow-indigo-500/10' : 'border-slate-50 dark:border-slate-800 bg-slate-50/50 grayscale opacity-60'}`}
+                                >
+                                    <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center mx-auto mb-4 text-white font-black text-sm">
+                                        #2FA
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest">Share Code</span>
+                                </button>
+                                <button 
+                                    onClick={() => setApprovalMethod('qr')}
+                                    className={`p-6 rounded-[2.5rem] border-2 transition-all ${approvalMethod === 'qr' ? 'border-indigo-600 bg-indigo-50/30 shadow-xl shadow-indigo-500/10' : 'border-slate-50 dark:border-slate-800 bg-slate-50/50 grayscale opacity-60'}`}
+                                >
+                                    <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center mx-auto mb-4 text-white">
+                                        <PayoutIcon className="w-6 h-6" />
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest">Approval QR</span>
+                                </button>
+                            </div>
+
+                            {approvalMethod === 'portal' && (
+                                <div className="p-8 bg-slate-50 dark:bg-slate-800/50 rounded-[3rem] border border-slate-100 dark:border-slate-700 space-y-4">
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Sign out and log in with an authorized Board Approver account to sign off this batch.</p>
+                                    <div className="flex gap-2 justify-center">
+                                        {currentInstitution?.coopSettings?.approverIds?.map(id => {
+                                            const u = users.find(user => user.id === id);
+                                            return u && (
+                                                <div key={u.id} className="px-4 py-2 bg-white dark:bg-slate-700 rounded-xl text-[9px] font-black text-slate-600 uppercase border border-slate-100 dark:border-slate-600">{u.name}</div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {approvalMethod === 'code' && (
+                                <div className="space-y-8">
+                                    <div className="p-10 bg-slate-50 dark:bg-slate-800/50 rounded-[3rem] border border-slate-100 dark:border-slate-700">
+                                        {!verificationCode ? (
+                                            <button 
+                                                onClick={() => handleTriggerVerification(secureApprovalData.ids)}
+                                                className="bg-indigo-600 text-white px-10 py-5 rounded-3xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20"
+                                            >
+                                                Generate Chairman SMS Code
+                                            </button>
+                                        ) : (
+                                            <div className="space-y-6">
+                                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Code sent to Authorized Chairman. Enter below:</p>
+                                                <div className="flex justify-center gap-3">
+                                                    {[...Array(6)].map((_, i) => (
+                                                        <input 
+                                                            key={i}
+                                                            type="text"
+                                                            maxLength={1}
+                                                            className="w-12 h-16 bg-white dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl text-center text-xl font-black outline-none focus:border-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                            value={userEnteredCode[i] || ''}
+                                                            onChange={e => {
+                                                                const val = e.target.value;
+                                                                if (val && userEnteredCode.length < 6) {
+                                                                    setUserEnteredCode(userEnteredCode + val);
+                                                                    if (userEnteredCode.length === 5) {
+                                                                        handleVerifyCode(userEnteredCode + val);
+                                                                    }
+                                                                }
+                                                            }}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {approvalMethod === 'qr' && (
+                                <div className="p-10 bg-slate-50 dark:bg-slate-800/50 rounded-[3rem] border border-slate-100 dark:border-slate-700 flex flex-col items-center gap-8">
+                                    <div className="w-48 h-48 bg-white dark:bg-slate-700 p-4 rounded-[2.5rem] border-4 border-indigo-600 shadow-xl flex items-center justify-center relative">
+                                        <div className="grid grid-cols-4 gap-2 opacity-20">
+                                            {[...Array(16)].map((_, i) => <div key={i} className="w-6 h-6 bg-slate-900 dark:bg-white rounded-sm" />)}
+                                        </div>
+                                        <ApprovalIcon className="w-16 h-16 text-indigo-600 absolute" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase mb-1">Encrypted Approval QR</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Scan with Approver Mobile App</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="mt-12 flex justify-center gap-4">
+                                <button 
+                                    onClick={() => {
+                                        setIsSecureApprovalModalOpen(false);
+                                        setVerificationCode('');
+                                        setUserEnteredCode('');
+                                    }}
+                                    className="px-10 py-5 rounded-3xl text-xs font-black uppercase tracking-widest text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -133,6 +133,7 @@ export interface CoopSettings {
     advanceLimit?: number;
     farmerSmsBillingEnabled?: boolean;
     requireCurrentMonthDeliveryForCredit?: boolean;
+    approverIds?: string[]; // IDs of users authorized to approve sensitive transactions
 }
 
 export interface Institution {
