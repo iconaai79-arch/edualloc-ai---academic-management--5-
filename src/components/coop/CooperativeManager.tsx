@@ -2576,17 +2576,50 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         )}
                             </>
                         ) : (
-                            <div className="space-y-6 animate-fade-in">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-600">
-                                        <SuccessIcon className="w-4 h-4" />
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-600">
+                                            <SuccessIcon className="w-4 h-4" />
+                                        </div>
+                                        <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Approved Payouts Archive</h3>
                                     </div>
-                                    <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Approved Payouts Archive</h3>
+                                    {selectedPayouts.length > 0 && (
+                                        <div className="flex items-center gap-4 animate-scale-in">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600">{selectedPayouts.length} selected for batch</p>
+                                            <button 
+                                                onClick={() => {
+                                                    setDisbursementBatchIds(selectedPayouts);
+                                                    setIsDisbursementModalOpen(true);
+                                                }}
+                                                className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95"
+                                            >
+                                                Bulk Disburse Selected
+                                            </button>
+                                            <button 
+                                                onClick={() => setSelectedPayouts([])}
+                                                className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-rose-500"
+                                            >
+                                                Clear
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="grid grid-cols-1 gap-4">
                                     {payouts.filter(p => p.status === 'approved').map(p => (
-                                        <div key={p.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-md transition-all">
+                                        <div key={p.id} className={`bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border ${selectedPayouts.includes(p.id) ? 'border-indigo-500 ring-2 ring-indigo-500/10' : 'border-slate-100 dark:border-slate-700'} shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-md transition-all`}>
                                             <div className="flex items-center gap-6">
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={selectedPayouts.includes(p.id)}
+                                                    onChange={() => {
+                                                        if (selectedPayouts.includes(p.id)) {
+                                                            setSelectedPayouts(selectedPayouts.filter(id => id !== p.id));
+                                                        } else {
+                                                            setSelectedPayouts([...selectedPayouts, p.id]);
+                                                        }
+                                                    }}
+                                                    className="w-5 h-5 rounded-lg border-2 border-slate-200 text-indigo-600 focus:ring-indigo-500"
+                                                />
                                                 <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-900 flex items-center justify-center font-black text-emerald-400 text-xs">
                                                     {getFarmerName(p.farmerId).substring(0, 2).toUpperCase()}
                                                 </div>
@@ -2600,7 +2633,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 </div>
                                             </div>
                                                 <div className="flex items-center gap-4">
-                                                    {(currentUser?.role === 'coop_chairman' || currentUser?.role === 'super_admin') && (
+                                                    {(currentUser?.role === 'coop_chairman' || currentUser?.role === 'super_admin' || currentUser?.role === 'coop_admin' || currentUser?.role === 'cooperative_manager') && (
                                                         <button 
                                                             disabled={isProcessing || processingItems.includes(`${p.id}_undo`)}
                                                             onClick={async () => {
