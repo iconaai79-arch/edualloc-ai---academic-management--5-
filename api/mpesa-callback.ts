@@ -314,22 +314,57 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             auth: { user: emailConfig.username, pass: emailConfig.password },
                             tls: { rejectUnauthorized: false }
                         });
+                        
                         const unitsCount = unitsToCredit.toLocaleString();
+                        const purpose = `SMS Top-up (${unitsCount} units)`;
                         const emailMessage = `Dear Admin, payment confirmed! ${unitsCount} SMS units have been added to your balance. Your new balance is ${newBalance.toLocaleString()} units. Ref: ${mpesaReceiptNumber || transaction.id}. Thank you for choosing Eduai Automation.`;
 
+                        const htmlTemplate = `
+                            <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                                <div style="background-color: #4f46e5; padding: 32px 24px; text-align: center;">
+                                    <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em; text-transform: uppercase;">Payment Verified</h1>
+                                </div>
+                                <div style="padding: 32px 24px; color: #1e293b; line-height: 1.6;">
+                                    <p style="margin-top: 0; font-weight: 600; font-size: 18px;">Hello,</p>
+                                    <p style="margin-bottom: 24px;">Your payment of <strong>KES ${transaction.amount.toLocaleString()}</strong> for SMS units has been successfully verified.</p>
+                                    
+                                    <div style="background-color: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+                                        <table style="width: 100%; border-collapse: collapse;">
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; width: 40%;">Amount Paid</td>
+                                                <td style="padding: 8px 0; color: #1e293b; font-weight: 800; font-size: 15px;">KES ${transaction.amount.toLocaleString()}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Purpose</td>
+                                                <td style="padding: 8px 0; color: #1e293b; font-weight: 600; font-size: 15px;">${purpose}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Reference</td>
+                                                <td style="padding: 8px 0; color: #1e293b; font-family: monospace; font-size: 14px;">${mpesaReceiptNumber || transaction.id}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">New SMS Balance</td>
+                                                <td style="padding: 8px 0; color: #059669; font-weight: 800; font-size: 15px;">${newBalance.toLocaleString()} Units</td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                    
+                                    <p style="margin-bottom: 0;">Thank you for your continued partnership with the Eduai Automation Platform.</p>
+                                </div>
+                                <div style="background-color: #f1f5f9; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
+                                    <p style="margin: 0; color: #64748b; font-size: 12px;">This is an automated notification. Please do not reply to this email.</p>
+                                    <p style="margin: 8px 0 0; color: #94a3b8; font-size: 11px;">&copy; 2024 Eduai Automation Hub. All rights reserved.</p>
+                                </div>
+                            </div>
+                        `;
+
                         await transporter.sendMail({
-                            from: `"${emailConfig.fromName || 'Eduai Automation Support'}" <${emailConfig.fromEmail || emailConfig.username}>`,
+                            from: `"${emailConfig.fromName || 'Eduai Automation Hub'}" <${emailConfig.fromEmail || emailConfig.username}>`,
                             to: updatedInst.email,
                             subject: 'SMS Units Topped Up Successfully',
                             text: emailMessage,
-                            html: `<div style="font-family: sans-serif; padding: 20px; color: #1e293b;">
-                                <h2 style="color: #4f46e5;">SMS Top-up Confirmed</h2>
-                                <p>${emailMessage}</p>
-                                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
-                                <p style="font-size: 12px; color: #64748b;">This is an automated notification from the Eduai Automation Platform.</p>
-                            </div>`
+                            html: htmlTemplate
                         });
-                        console.log(`[M-Pesa Callback] Confirmation email sent to ${updatedInst.email}`);
                     } catch (emailErr) {
                         console.error('[M-Pesa Callback] Email notification failed:', emailErr);
                     }
@@ -347,21 +382,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const provider = smsConfig.provider || 'Zettatel';
                         let phone = (payerPhone as string).replace(/[^\d]/g, '');
 
-                        // Normalize phone
-                        if (phone.startsWith('254')) {
-                            const afterPrefix = phone.substring(3);
-                            if (afterPrefix.startsWith('0')) {
-                                phone = '254' + afterPrefix.substring(1);
-                            }
-                        } else if (phone.startsWith('0')) {
-                            phone = '254' + phone.substring(1);
-                        } else if (phone.length === 9) {
-                            phone = '254' + phone;
-                        }
+                        // Normalize phone (254 spec)
+                        if (phone.startsWith('2540')) phone = '254' + phone.substring(4);
+                        else if (phone.startsWith('0')) phone = '254' + phone.substring(1);
+                        else if (phone.length === 9) phone = '254' + phone;
 
-                        const defaultZettatelUrl = 'https://sms.zettatel.com/smsapi/send';
-                        const baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? defaultZettatelUrl : 'https://sms.abmis.co.ke/SMSApi/send');
-                        const finalParams: Record<string, string> = {
+                        const baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? 'https://sms.zettatel.com/smsapi/send' : 'https://sms.abmis.co.ke/SMSApi/send');
+                        
+                        const smsParams = new URLSearchParams({
                             userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
                             password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password,
                             mobile: phone,
@@ -369,13 +397,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             senderid: smsConfig.fromNumber || provider,
                             msgType: 'text',
                             output: 'json'
-                        };
+                        });
 
-                        const urlParams = new URLSearchParams(finalParams);
-                        const dispatchUrl = `${baseUrl}?${urlParams.toString()}`;
-
-                        console.log(`[M-Pesa Callback] Sending SMS to ${phone} via ${provider}`);
-                        await fetchWithTimeout(dispatchUrl, { method: 'GET' }, 15000);
+                        const finalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${smsParams.toString()}`;
+                        await fetchWithTimeout(finalUrl, { method: 'GET' }, 15000);
                     } catch (smsErr) {
                         console.error('[M-Pesa Callback] Failed to send SMS confirmation:', smsErr);
                     }

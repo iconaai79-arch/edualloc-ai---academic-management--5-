@@ -855,6 +855,10 @@ export const apiService = {
             return null;
         }
     },
+    async getSystemSettings(): Promise<{ data: CompanyDetails | null }> {
+        const settings = await apiService.fetchCompanySettings();
+        return { data: settings };
+    },
     async saveCompanySettings(settings: CompanyDetails): Promise<void> {
         const payload = toSnakeCase(settings);
         if (!_supabase) {

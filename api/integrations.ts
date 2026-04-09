@@ -1309,26 +1309,70 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const units = parseInt(meta.units || (txn as any).calculatedUnits || "0");
                 const newBalanceStr = (txn as any).newBalance !== undefined ? ` New SMS Balance: ${(txn as any).newBalance.toLocaleString()}.` : "";
                 
+                const purpose = isSms ? `SMS Top-up (${units.toLocaleString()} units)` : `Subscription (${meta.plan || 'License'})`;
                 const notifyMessage = isSms 
                     ? `Success! Your payment of KES ${amt} for ${units.toLocaleString()} SMS units for ${inst?.name || 'your account'} has been verified.${newBalanceStr} Ref: ${txn.id || txn.transaction_id}`
                     : `Dear Admin, your payment of KES ${amt} for ${inst?.name || 'your account'} subscription (${meta.plan || 'License'}) has been verified. Account active until ${inst?.subscription_ends_at ? new Date(inst.subscription_ends_at).toLocaleDateString() : 'N/A'}. Ref: ${txn.id || txn.transaction_id}`;
 
                 // Email Notification
                 const emailConfig = settings?.email_config || settings?.emailConfig;
-                if (emailConfig && inst.email) {
+                if (emailConfig && inst?.email) {
                     try {
                         const transporter = nodemailer.createTransport({
-                            host: emailConfig.host, port: Number(emailConfig.port || 587),
+                            host: emailConfig.host, 
+                            port: Number(emailConfig.port || 587),
                             auth: { user: emailConfig.username, pass: emailConfig.password },
                             tls: { rejectUnauthorized: false }
                         });
+
+                        const htmlTemplate = `
+                            <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                                <div style="background-color: #4f46e5; padding: 32px 24px; text-align: center;">
+                                    <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em; text-transform: uppercase;">Payment Verified</h1>
+                                </div>
+                                <div style="padding: 32px 24px; color: #1e293b; line-height: 1.6;">
+                                    <p style="margin-top: 0; font-weight: 600; font-size: 18px;">Hello,</p>
+                                    <p style="margin-bottom: 24px;">Your payment for <strong>${inst?.name || 'your account'}</strong> has been successfully verified. Details of the transaction are below:</p>
+                                    
+                                    <div style="background-color: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+                                        <table style="width: 100%; border-collapse: collapse;">
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; width: 40%;">Amount Paid</td>
+                                                <td style="padding: 8px 0; color: #1e293b; font-weight: 800; font-size: 15px;">KES ${amt.toLocaleString()}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Purpose</td>
+                                                <td style="padding: 8px 0; color: #1e293b; font-weight: 600; font-size: 15px;">${purpose}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Reference</td>
+                                                <td style="padding: 8px 0; color: #1e293b; font-family: monospace; font-size: 14px;">${txn.transaction_id || txn.id}</td>
+                                            </tr>
+                                            ${(txn as any).newBalance !== undefined ? `
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">New SMS Balance</td>
+                                                <td style="padding: 8px 0; color: #059669; font-weight: 800; font-size: 15px;">${(txn as any).newBalance.toLocaleString()} Units</td>
+                                            </tr>` : ''}
+                                        </table>
+                                    </div>
+                                    
+                                    <p style="margin-bottom: 0;">Thank you for choosing EduAi platform for your institution management.</p>
+                                </div>
+                                <div style="background-color: #f1f5f9; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
+                                    <p style="margin: 0; color: #64748b; font-size: 12px;">This is an automated notification. Please do not reply to this email.</p>
+                                    <p style="margin: 8px 0 0; color: #94a3b8; font-size: 11px;">&copy; 2024 EduAi Automation Hub. All rights reserved.</p>
+                                </div>
+                            </div>
+                        `;
+
                         await transporter.sendMail({
                             from: `"${emailConfig.fromName || 'EduAi'}" <${emailConfig.fromEmail || emailConfig.username}>`,
                             to: inst.email,
                             subject: isSms ? 'SMS Top-up Verified' : 'Payment Verified Successfully',
-                            text: notifyMessage
+                            text: notifyMessage,
+                            html: htmlTemplate
                         });
-                    } catch (e) {
+                    } catch (e: any) {
                         console.error('[Reconcile] Email failed:', e.message);
                     }
                 }
@@ -1338,16 +1382,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (smsConfig && txn.phone_number) {
                     try {
                         const provider = smsConfig.provider || 'Zettatel';
-                        const baseUrl = smsConfig.baseUrl || smsConfig.api_url || 'https://sms.zettatel.com/smsapi/send';
-                        const params = new URLSearchParams({
+                        const normalizedPhone = normalizePhone(txn.phone_number);
+                        const baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? 'https://sms.zettatel.com/smsapi/send' : 'https://sms.abmis.co.ke/SMSApi/send');
+                        
+                        const smsParams = new URLSearchParams({
                             userid: smsConfig.apiKey || smsConfig.api_key,
                             password: smsConfig.apiSecret || smsConfig.api_secret,
-                            mobile: txn.phone_number.replace(/[^\d]/g, ''),
-                            msg: notifyMessage, senderid: smsConfig.fromNumber || provider,
-                            msgType: 'text', output: 'json'
+                            mobile: normalizedPhone,
+                            msg: notifyMessage, 
+                            senderid: smsConfig.fromNumber || provider,
+                            msgType: 'text', 
+                            output: 'json'
                         });
-                        await fetch(`${baseUrl}?${params.toString()}`);
-                    } catch (e) {
+
+                        const finalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${smsParams.toString()}`;
+                        console.log(`[Reconcile - SMS] Sending confirmation to ${normalizedPhone} via ${provider}`);
+                        
+                        await fetchWithTimeout(finalUrl, { method: 'GET' }, 15000).catch(e => {
+                            console.error('[Reconcile - SMS] Gateway connection error:', e.message);
+                        });
+                    } catch (e: any) {
                         console.error('[Reconcile] SMS failed:', e.message);
                     }
                 }

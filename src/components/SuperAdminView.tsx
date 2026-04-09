@@ -441,7 +441,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isAddingInstitution, setIsAddingInstitution] = useState(false);
     const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'sms_pricing' | 'marketplace' | 'showcase' | 'system_build'>('profile');
-    const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'ncba'>('mpesa');
+    const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'ncba' | 'gateways'>('mpesa');
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
     const [extendingInstitution, setExtendingInstitution] = useState<Institution | null>(null);
     const [extensionDays, setExtensionDays] = useState(30);
@@ -558,7 +558,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             cpanelSecret: '',
             items: []
         },
-        ncbaConfig: companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', accountNumber: '', environment: 'sandbox', isMock: false, headers: [], params: [], stkPushBaseUrl: '', requestUrl: '', pushStkUrl: '', queryStkUrl: '', callbackUrl: '', callbackUsername: '', callbackSecret: '' }
+        ncbaConfig: companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', accountNumber: '', environment: 'sandbox', isMock: false, headers: [], params: [], stkPushBaseUrl: '', requestUrl: '', pushStkUrl: '', queryStkUrl: '', callbackUrl: '', callbackUsername: '', callbackSecret: '' },
+        enabledGateways: companyDetails?.enabledGateways || ['mpesa']
     });
 
     const [localSmsConfig, setLocalSmsConfig] = useState<SmsConfig>(companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -594,7 +595,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     cpanelSecret: '',
                     items: []
                 },
-                ncbaConfig: companyDetails.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', accountNumber: '', environment: 'sandbox', isMock: false, headers: [], params: [], stkPushBaseUrl: '', requestUrl: '', pushStkUrl: '', queryStkUrl: '', callbackUrl: '', callbackUsername: '', callbackSecret: '' }
+                ncbaConfig: companyDetails.ncbaConfig || { clientId: '', clientSecret: '', baseUrl: '', accountNumber: '', environment: 'sandbox', isMock: false, headers: [], params: [], stkPushBaseUrl: '', requestUrl: '', pushStkUrl: '', queryStkUrl: '', callbackUrl: '', callbackUsername: '', callbackSecret: '' },
+                enabledGateways: companyDetails.enabledGateways || ['mpesa']
             });
             setLocalSmsConfig(companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '', smsUnitPrice: 1, minSmsUnits: 100 });
             setLocalEmailConfig(companyDetails.emailConfig || { host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
@@ -653,6 +655,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 await props.onUpdateCompanyDetails({
                     ...companyDetails,
                     ...localCompanyInfo,
+                    enabledGateways: localCompanyInfo.enabledGateways,
                     showcaseConfig: localCompanyInfo.showcaseConfig,
                     smsConfig: localSmsConfig,
                     emailConfig: localEmailConfig,
@@ -2833,6 +2836,12 @@ Please change it after login.`;
                                             >
                                                 <BuildingOfficeIcon className="w-4 h-4" /> NCBA Config
                                             </button>
+                                            <button 
+                                                onClick={() => setBillingSubTab('gateways')} 
+                                                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${billingSubTab === 'gateways' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                                            >
+                                                <Cog8ToothIcon className="w-4 h-4" /> Gateways Control
+                                            </button>
                                         </div>
                                     </div>
 
@@ -3506,6 +3515,60 @@ Please change it after login.`;
                                                     <p>NCBA API credentials allow programmatic movement of funds. Ensure your client ID, client secret, and settlement accounts are stored securely. These settings apply globally to platform-level settlement.</p>
                                                 </div>
                                                 <button onClick={handleSaveGlobalConfigs} className="btn-primary h-14 px-12 shadow-xl shadow-teal-100 dark:shadow-none bg-teal-600 border-none uppercase tracking-widest text-[10px]">Save NCBA Config</button>
+                                            </div>
+                                        </div>
+                                    {billingSubTab === 'gateways' && (
+                                        <div className="animate-fade-in space-y-6">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                {[
+                                                    { id: 'mpesa', name: 'Safaricom M-Pesa', icon: MpesaIcon, color: 'text-green-600', bg: 'bg-green-50' },
+                                                    { id: 'ncba', name: 'NCBA Bank (Direct)', icon: BuildingOfficeIcon, color: 'text-teal-600', bg: 'bg-teal-50' },
+                                                    { id: 'airtel', name: 'Airtel Money', icon: CreditCardIcon, color: 'text-red-500', bg: 'bg-red-50' },
+                                                    { id: 'intasend', name: 'Intasend (Card/Airtel)', icon: CreditCardIcon, color: 'text-indigo-600', bg: 'bg-indigo-50' }
+                                                ].map(gw => (
+                                                    <div 
+                                                        key={gw.id}
+                                                        onClick={() => {
+                                                            const current = localCompanyInfo.enabledGateways || [];
+                                                            const next = current.includes(gw.id) ? current.filter(id => id !== gw.id) : [...current, gw.id];
+                                                            setLocalCompanyInfo({ ...localCompanyInfo, enabledGateways: next } as any);
+                                                        }}
+                                                        className={`p-6 rounded-[2.5rem] border-2 cursor-pointer transition-all ${
+                                                            (localCompanyInfo.enabledGateways || []).includes(gw.id) 
+                                                                ? 'border-indigo-500 bg-indigo-50/30' 
+                                                                : 'border-slate-100 bg-white hover:border-slate-200'
+                                                        }`}
+                                                    >
+                                                        <div className="flex justify-between items-center">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className={`p-3 rounded-2xl ${gw.bg} ${gw.color}`}>
+                                                                    <gw.icon className="w-6 h-6" />
+                                                                </div>
+                                                                <div>
+                                                                    <h4 className="text-sm font-black uppercase tracking-tight">{gw.name}</h4>
+                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                                        {(localCompanyInfo.enabledGateways || []).includes(gw.id) ? 'Active' : 'Disabled'}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <div className={`w-12 h-6 rounded-full p-1 transition-all ${
+                                                                (localCompanyInfo.enabledGateways || []).includes(gw.id) ? 'bg-indigo-500' : 'bg-slate-200'
+                                                            }`}>
+                                                                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-all ${
+                                                                    (localCompanyInfo.enabledGateways || []).includes(gw.id) ? 'translate-x-6' : 'translate-x-0'
+                                                                }`} />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="p-6 bg-amber-50 dark:bg-amber-900/10 rounded-3xl border border-amber-100 dark:border-amber-900/20">
+                                                <p className="text-xs text-amber-700 dark:text-amber-500 leading-relaxed font-bold">
+                                                    Note: Disabled gateways will be hidden from the "Buy SMS" and "Subscription Renewal" screens for all tenants.
+                                                </p>
+                                            </div>
+                                            <div className="pt-4">
+                                                <button onClick={handleSaveGlobalConfigs} className="btn-primary w-full h-14 shadow-indigo-100 dark:shadow-none uppercase tracking-widest text-xs">Update Gateway Visibility</button>
                                             </div>
                                         </div>
                                     )}
