@@ -261,6 +261,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     });
 
     const [approvalSubTab, setApprovalSubTab] = useState<'pending' | 'approved'>('pending');
+    const [processingItems, setProcessingItems] = useState<string[]>([]);
 
     const activeSubTab = externalActiveTab || localActiveSubTab;
     const setActiveSubTab = (tab: any) => {
@@ -2312,26 +2313,20 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <button 
-                                                        disabled={isProcessing}
+                                                        disabled={isProcessing || processingItems.includes(p.id)}
                                                         onClick={async () => {
                                                             try {
-                                                                setIsProcessing(true);
-                                                                setProcessingProgress(20);
+                                                                setProcessingItems(prev => [...prev, p.id]);
                                                                 await onApprovePayouts?.([p.id]);
-                                                                setProcessingProgress(100);
-                                                                setTimeout(() => {
-                                                                    setIsProcessing(false);
-                                                                    setProcessingProgress(0);
-                                                                }, 500);
                                                             } catch (err: any) {
                                                                 alert(`Approval failed: ${err.message}`);
-                                                                setIsProcessing(false);
-                                                                setProcessingProgress(0);
+                                                            } finally {
+                                                                setProcessingItems(prev => prev.filter(id => id !== p.id));
                                                             }
                                                         }}
-                                                        className="bg-slate-900 dark:bg-indigo-600 text-white px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:scale-100"
+                                                        className="bg-slate-900 dark:bg-indigo-600 text-white px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:scale-100 min-w-[140px]"
                                                     >
-                                                        {isProcessing && processingProgress < 100 ? 'Processing...' : 'Approve Draft'}
+                                                        {processingItems.includes(p.id) ? 'Processing...' : 'Approve Draft'}
                                                     </button>
                                                 </div>
                                             </div>
@@ -2389,16 +2384,32 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
                                             <div className="flex items-center gap-3">
                                                 <button 
-                                                    onClick={() => onApproveCollection?.(col.id, 'rejected')}
-                                                    className="px-6 py-3 rounded-2xl border-2 border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-95 text-slate-400"
+                                                    disabled={isProcessing || processingItems.includes(`${col.id}_reject`)}
+                                                    onClick={async () => {
+                                                        try {
+                                                            setProcessingItems(prev => [...prev, `${col.id}_reject`]);
+                                                            await onApproveCollection?.(col.id, 'rejected');
+                                                        } finally {
+                                                            setProcessingItems(prev => prev.filter(id => id !== `${col.id}_reject`));
+                                                        }
+                                                    }}
+                                                    className="px-6 py-3 rounded-2xl border-2 border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-95 text-slate-400 disabled:opacity-30"
                                                 >
-                                                    Reject
+                                                    {processingItems.includes(`${col.id}_reject`) ? '...' : 'Reject'}
                                                 </button>
                                                 <button 
-                                                    onClick={() => onApproveCollection?.(col.id, 'approved')}
-                                                    className="bg-slate-900 dark:bg-indigo-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20 active:scale-95"
+                                                    disabled={isProcessing || processingItems.includes(`${col.id}_approve`)}
+                                                    onClick={async () => {
+                                                        try {
+                                                            setProcessingItems(prev => [...prev, `${col.id}_approve`]);
+                                                            await onApproveCollection?.(col.id, 'approved');
+                                                        } finally {
+                                                            setProcessingItems(prev => prev.filter(id => id !== `${col.id}_approve`));
+                                                        }
+                                                    }}
+                                                    className="bg-slate-900 dark:bg-indigo-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20 active:scale-95 disabled:opacity-50 min-w-[120px]"
                                                 >
-                                                    Approve
+                                                    {processingItems.includes(`${col.id}_approve`) ? 'Confirming...' : 'Approve'}
                                                 </button>
                                             </div>
                                         </div>
@@ -2448,14 +2459,22 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                     <p className="text-xl font-black text-slate-900 dark:text-white tracking-tighter">KES {p.netPayout.toLocaleString()}</p>
                                                 </div>
                                                 <button 
+                                                    disabled={isProcessing || processingItems.includes(`${p.id}_disburse`)}
                                                     onClick={async () => {
                                                         if (window.confirm(`Disburse KES ${p.netPayout.toLocaleString()} to ${getFarmerName(p.farmerId)}?`)) {
-                                                            await onDisbursePayouts?.([p.id]);
+                                                            try {
+                                                                setProcessingItems(prev => [...prev, `${p.id}_disburse`]);
+                                                                await onDisbursePayouts?.([p.id]);
+                                                            } catch (err: any) {
+                                                                alert(`Disbursement failed: ${err.message}`);
+                                                            } finally {
+                                                                setProcessingItems(prev => prev.filter(id => id !== `${p.id}_disburse`));
+                                                            }
                                                         }
                                                     }}
-                                                    className="bg-emerald-600 text-white px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95"
+                                                    className="bg-emerald-600 text-white px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95 disabled:opacity-50 min-w-[140px]"
                                                 >
-                                                    Disburse Funds
+                                                    {processingItems.includes(`${p.id}_disburse`) ? 'Disbursing...' : 'Disburse Funds'}
                                                 </button>
                                             </div>
                                         </div>
