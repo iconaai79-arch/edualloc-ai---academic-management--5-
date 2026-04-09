@@ -176,6 +176,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     onAddSaccoAccount
 }) => {
     const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'communication' | 'settings'>('overview');
+    const [approvalSubTab, setApprovalSubTab] = useState<'pending' | 'archive' | 'disbursed'>('pending');
     const [farmerSubTab, setFarmerSubTab] = useState<'registry' | 'collections' | 'logistics' | 'payouts'>('registry');
     const [payoutRate, setPayoutRate] = useState<number>(currentInstitution?.coopSettings?.payoutRate || 50);
     
@@ -2416,10 +2417,16 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 Drafts & Deviations
                             </button>
                             <button
-                                onClick={() => setApprovalSubTab('approved')}
-                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${approvalSubTab === 'approved' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                                onClick={() => setApprovalSubTab('archive')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${approvalSubTab === 'archive' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
                             >
-                                Approved Payouts
+                                Approved Archive
+                            </button>
+                            <button
+                                onClick={() => setApprovalSubTab('disbursed')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${approvalSubTab === 'disbursed' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                            >
+                                Disbursed History
                             </button>
                         </div>
                         
@@ -2577,36 +2584,79 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             </>
                         ) : (
                             <div className="space-y-6 animate-fade-in">
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-600">
-                                            <SuccessIcon className="w-4 h-4" />
+                                {approvalSubTab === 'archive' && (
+                                    <>
+                                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
+                                    <div className="flex items-center gap-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-600">
+                                                <SuccessIcon className="w-4 h-4" />
+                                            </div>
+                                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Approved Payouts Archive</h3>
                                         </div>
-                                        <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Approved Payouts Archive</h3>
+                                        
+                                        <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                                            <input 
+                                                type="date" 
+                                                value={startDate}
+                                                onChange={e => setStartDate(e.target.value)}
+                                                className="bg-transparent text-[9px] font-black uppercase tracking-widest outline-none border-none p-1 dark:text-white cursor-pointer"
+                                            />
+                                            <div className="w-px h-3 bg-slate-300 dark:bg-slate-700" />
+                                            <input 
+                                                type="date" 
+                                                value={endDate}
+                                                onChange={e => setEndDate(e.target.value)}
+                                                className="bg-transparent text-[9px] font-black uppercase tracking-widest outline-none border-none p-1 dark:text-white cursor-pointer"
+                                            />
+                                        </div>
                                     </div>
-                                    {selectedPayouts.length > 0 && (
-                                        <div className="flex items-center gap-4 animate-scale-in">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600">{selectedPayouts.length} selected for batch</p>
-                                            <button 
-                                                onClick={() => {
-                                                    setDisbursementBatchIds(selectedPayouts);
-                                                    setIsDisbursementModalOpen(true);
-                                                }}
-                                                className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95"
-                                            >
-                                                Bulk Disburse Selected
-                                            </button>
-                                            <button 
-                                                onClick={() => setSelectedPayouts([])}
-                                                className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-rose-500"
-                                            >
-                                                Clear
-                                            </button>
-                                        </div>
-                                    )}
+
+                                    <div className="flex items-center gap-4">
+                                        {approvalSubTab === 'archive' && (
+                                            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800">
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={payouts.filter(p => p.status === 'approved' && p.payoutMonth.substring(0, 10) >= startDate && p.payoutMonth.substring(0, 10) <= endDate).length > 0 && selectedPayouts.length === payouts.filter(p => p.status === 'approved' && p.payoutMonth.substring(0, 10) >= startDate && p.payoutMonth.substring(0, 10) <= endDate).length}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) {
+                                                            const allIds = payouts.filter(p => p.status === 'approved' && p.payoutMonth.substring(0, 10) >= startDate && p.payoutMonth.substring(0, 10) <= endDate).map(p => p.id);
+                                                            setSelectedPayouts(allIds);
+                                                        } else {
+                                                            setSelectedPayouts([]);
+                                                        }
+                                                    }}
+                                                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                                                />
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Select All</span>
+                                            </div>
+                                        )}
+
+                                        {selectedPayouts.length > 0 && (
+                                            <div className="flex items-center gap-4 animate-scale-in">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600">{selectedPayouts.length} selected</p>
+                                                <button 
+                                                    onClick={() => {
+                                                        setDisbursementBatchIds(selectedPayouts);
+                                                        setIsDisbursementModalOpen(true);
+                                                    }}
+                                                    className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95"
+                                                >
+                                                    Bulk Disburse
+                                                </button>
+                                                <button 
+                                                    onClick={() => setSelectedPayouts([])}
+                                                    className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-rose-500"
+                                                >
+                                                    Clear
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
+
                                 <div className="grid grid-cols-1 gap-4">
-                                    {payouts.filter(p => p.status === 'approved').map(p => (
+                                    {payouts.filter(p => p.status === 'approved' && p.payoutMonth.substring(0, 10) >= startDate && p.payoutMonth.substring(0, 10) <= endDate).map(p => (
                                         <div key={p.id} className={`bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border ${selectedPayouts.includes(p.id) ? 'border-indigo-500 ring-2 ring-indigo-500/10' : 'border-slate-100 dark:border-slate-700'} shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-md transition-all`}>
                                             <div className="flex items-center gap-6">
                                                 <input 
@@ -2665,12 +2715,88 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 </div>
                                         </div>
                                     ))}
-                                    {payouts.filter(p => p.status === 'approved').length === 0 && (
+                                    {payouts.filter(p => p.status === 'approved' && p.payoutMonth.substring(0, 10) >= startDate && p.payoutMonth.substring(0, 10) <= endDate).length === 0 && (
                                         <div className="bg-slate-50/50 dark:bg-slate-900/30 p-20 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center text-center">
                                             <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
                                                 <PayoutIcon className="w-8 h-8 text-slate-300" />
                                             </div>
-                                            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">No Approved Payouts</h3>
+                                            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">No Approved Payouts for this period</h3>
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                )}
+
+                        {approvalSubTab === 'disbursed' && (
+                            <div className="space-y-6 animate-fade-in">
+                                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
+                                    <div className="flex items-center gap-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600">
+                                                <PayoutIcon className="w-4 h-4" />
+                                            </div>
+                                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Paid Disbursement History</h3>
+                                        </div>
+                                        <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                                            <input 
+                                                type="date" 
+                                                value={startDate}
+                                                onChange={e => setStartDate(e.target.value)}
+                                                className="bg-transparent text-[9px] font-black uppercase tracking-widest outline-none border-none p-1 dark:text-white cursor-pointer"
+                                            />
+                                            <div className="w-px h-3 bg-slate-300 dark:bg-slate-700" />
+                                            <input 
+                                                type="date" 
+                                                value={endDate}
+                                                onChange={e => setEndDate(e.target.value)}
+                                                className="bg-transparent text-[9px] font-black uppercase tracking-widest outline-none border-none p-1 dark:text-white cursor-pointer"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-4">
+                                    {payouts.filter(p => p.status === 'paid' && p.payoutMonth.substring(0, 10) >= startDate && p.payoutMonth.substring(0, 10) <= endDate).map(p => (
+                                        <div key={p.id} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-md transition-all">
+                                            <div className="flex items-center gap-6">
+                                                <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-900 flex items-center justify-center font-black text-indigo-400 text-sm">
+                                                    {getFarmerName(p.farmerId).substring(0, 2).toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-lg font-black tracking-tight text-slate-900 dark:text-white">{getFarmerName(p.farmerId)}</h4>
+                                                    <div className="flex items-center gap-3 mt-1">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{p.payoutMonth}</p>
+                                                        <span className="w-1 h-1 rounded-full bg-slate-200" />
+                                                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600">Disbursed</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="flex items-center gap-8">
+                                                <div className="text-right">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Amount Paid</p>
+                                                    <p className="text-xl font-black text-slate-900 dark:text-white tracking-tighter">KES {p.netPayout.toLocaleString()}</p>
+                                                </div>
+                                                
+                                                <div className="h-10 w-px bg-slate-100 dark:bg-slate-700 hidden md:block" />
+                                                
+                                                <div className="text-left md:min-w-[150px]">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-indigo-50 text-indigo-600`}>
+                                                            {p.disbursementMethod || 'Manual'}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-tight truncate max-w-[140px]">Ref: {p.disbursementReference || 'N/A'}</p>
+                                                    <p className="text-[8px] font-bold text-slate-400">{p.disbursementDate ? new Date(p.disbursementDate).toLocaleString() : ''}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {payouts.filter(p => p.status === 'paid' && p.payoutMonth.substring(0, 10) >= startDate && p.payoutMonth.substring(0, 10) <= endDate).length === 0 && (
+                                        <div className="bg-slate-50/50 dark:bg-slate-900/30 p-20 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center text-center">
+                                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No Disbursement History found for this period</p>
                                         </div>
                                     )}
                                 </div>
