@@ -604,7 +604,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
 
     const [isSavingConfigs, setIsSavingConfigs] = useState(false);
     const [isTestingNcba, setIsTestingNcba] = useState(false);
-    const [ncbaTestResult, setNcbaTestResult] = useState<{ success: boolean; message?: string; diagnostics?: any; error?: string } | null>(null);
+    const [ncbaTestResult, setNcbaTestResult] = useState<{ success: boolean; message?: string; diagnostics?: any; error?: string; hint?: string } | null>(null);
 
     useEffect(() => {
         if (companyDetails) {
@@ -1240,6 +1240,7 @@ Please change it after login.`;
                     onGenerateReceipt={props.onGenerateReceipt || (() => { })}
                     notifications={props.notifications || []}
                     onAddTimeOffRequest={props.onAddTimeOffRequest || (async () => { })}
+                    onLogAction={props.onLogAction || (async () => { })}
                 />
             </React.Suspense>
         );
@@ -2174,8 +2175,8 @@ Please change it after login.`;
                             currentUser={currentUser}
                             smsBalance={props.companyDetails?.smsBalance || 0}
                             currentInstitution={props.currentInstitution}
-                            mpesaConfig={companyDetails?.mpesaConfig || companyDetails?.mpesa_config}
-                            ncbaConfig={companyDetails?.ncbaConfig || companyDetails?.ncba_config}
+                            mpesaConfig={companyDetails?.mpesaConfig}
+                            ncbaConfig={companyDetails?.ncbaConfig}
                             smsConfig={props.smsConfig}
                             onRefreshData={onRefreshData}
                             transactions={transactions}

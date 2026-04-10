@@ -585,6 +585,7 @@ export interface CompanyDetails {
     enforceGlobalOtp?: boolean;
     ncbaConfig?: NcbaConfig;
     enabledGateways?: string[];
+    smsBalance?: number;
 }
 
 export interface UserTask {

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { BuySMSModal } from './BuySMSModal';
 import { PlusIcon } from './icons/PlusIcon';
 
-import type { User, Department, Course, Institution, MpesaConfig, SmsConfig, SmsLog, SmsOutbox, MpesaTransaction } from '../types';
+import type { User, Department, Course, Institution, MpesaConfig, SmsConfig, SmsLog, SmsOutbox, MpesaTransaction, NcbaConfig } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
 import { apiService } from '../services/apiService';
 
@@ -21,6 +21,7 @@ interface CommunicationsManagerProps {
     moduleContext?: 'school' | 'carwash' | 'property' | 'agrovet' | 'cooperative' | 'church';
     companyDetails?: any;
     transactions?: MpesaTransaction[];
+    ncbaConfig?: NcbaConfig;
 }
 
 const calculateSmsParts = (msg: string) => {
@@ -49,7 +50,7 @@ const calculateSmsParts = (msg: string) => {
 };
 
 
-export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ users, departments, courses, institutions, onSendSms, currentUser, smsBalance, currentInstitution, mpesaConfig, smsConfig, onRefreshData, moduleContext = 'school', companyDetails, transactions }) => {
+export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ users, departments, courses, institutions, onSendSms, currentUser, smsBalance, currentInstitution, mpesaConfig, smsConfig, onRefreshData, moduleContext = 'school', companyDetails, transactions, ncbaConfig }) => {
     const isRetailAgency = useMemo(() => {
         if (currentInstitution?.institutionType === 'Church') return false;
         return RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
