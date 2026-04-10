@@ -173,6 +173,7 @@ interface SmartUserImporterModalProps {
     companyDetails?: CompanyDetails;
     isRetailAgency?: boolean;
     isPm?: boolean;
+    isCoop?: boolean;
 }
 
 const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose, onImport, existingUsers, departments, currentInstitution, currentUser, onLogAction, onAddTransaction, companyDetails, isRetailAgency, isPm: isPmProp }) => {
@@ -189,10 +190,11 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
     const existingUserStaffIds = useMemo(() => new Set<string>((existingUsers || []).filter(u => u && u.staffId).map(u => String(u.staffId).toLowerCase())), [existingUsers]);
     const institutionDomain = useMemo(() => currentInstitution?.email?.split('@')[1] || 'institution.edu', [currentInstitution]);
     const isCoop = useMemo(() => {
+        if (typeof props.isCoop === 'boolean') return props.isCoop;
         const type = currentInstitution?.institutionType;
         const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
-        return type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || subType.includes('coop') || subType.includes('sacco');
-    }, [currentInstitution]);
+        return type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || subType.includes('coop') || subType.includes('sacco') || subType.includes('dairy') || subType.includes('tea') || subType.includes('coffee') || subType.includes('sugar');
+    }, [currentInstitution, props.isCoop]);
 
     const isEdu = isEduInstitution(currentInstitution);
 
@@ -888,7 +890,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
         return type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || 
                type?.toLowerCase() === 'cooperative' || type?.toLowerCase() === 'sacco' ||
-               subType.includes('coop') || subType.includes('sacco');
+               subType.includes('coop') || subType.includes('sacco') || subType.includes('dairy') ||
+               subType.includes('tea') || subType.includes('coffee') || subType.includes('sugar');
     }, [currentInstitution, isCoopProp]);
 
     const isPm = useMemo(() => {
@@ -1604,6 +1607,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                     onClose={() => setEditingUser(null)}
                     onSave={async (id, data) => { if (onEditUser) { await onEditUser(id, data); } setEditingUser(null); }}
                     currentInstitution={currentInstitution}
+                    isCoop={isCoop}
                     fixedDepartmentId={currentUser?.role === 'hod' || currentUser?.role === 'tto' ? currentUser.departmentId : undefined}
                 />
             )}

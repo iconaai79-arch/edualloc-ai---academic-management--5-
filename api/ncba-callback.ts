@@ -144,8 +144,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.log(`[NCBA] ✅ Payment Verified for Transaction ${transactionId}`);
             
             // 3. Update Transaction Record
+            // Update transaction status and capture reference ID
             await supabase.from('ncba_transactions').update({
                 status: 'completed',
+                reference_id: body.ReferenceID || body.TransactionID || body.CheckoutRequestID,
                 metadata: {
                     ...txn.metadata,
                     callback_payload: body,

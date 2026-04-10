@@ -11,9 +11,10 @@ interface EditUserModalProps {
   onSave: (lecturerId: string, data: UserUpdateData) => Promise<void> | void;
   currentInstitution?: Institution | null;
   fixedDepartmentId?: string;
+  isCoop?: boolean;
 }
 
-export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments, onClose, onSave, currentInstitution, fixedDepartmentId }) => {
+export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments, onClose, onSave, currentInstitution, fixedDepartmentId, isCoop: isCoopProp }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -29,10 +30,11 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const isHigherEd = isHigherEdInstitution(currentInstitution);
   const isEdu = isSchool || isHigherEd;
   const isCoop = useMemo(() => {
+    if (typeof isCoopProp === 'boolean') return isCoopProp;
     const type = currentInstitution?.institutionType;
     const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
-    return type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || subType.includes('coop') || subType.includes('sacco');
-  }, [currentInstitution]);
+    return type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || subType.includes('coop') || subType.includes('sacco') || subType.includes('dairy') || subType.includes('tea') || subType.includes('coffee') || subType.includes('sugar');
+  }, [currentInstitution, isCoopProp]);
 
   const isPm = useMemo(() => {
     const type = currentInstitution?.institutionType;
@@ -63,7 +65,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
     );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const expertiseArray = expertise.split(',').map(item => item.trim()).filter(Boolean);
     const rolesWithDepartment: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher'];
@@ -80,21 +82,25 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
       return;
     }
 
-    if (name.trim() && email.trim() && phoneNumber.trim() && staffId.trim()) {
+    if (name.trim() && email.trim() && (phoneNumber.trim() || user.phoneNumber) && staffId.trim()) {
       const uniqueRoles = [...new Set(roles)];
-      onSave(user.id, {
-        name,
-        email,
-        phoneNumber,
-        staffId,
-        expertise: expertiseArray,
-        role: uniqueRoles[0], // Keep first as primary
-        roles: uniqueRoles,
-        departmentId: (needsDepartment && !isCoop && !isPm && isEdu) ? assignedDepartmentId : undefined,
-        gender,
-        driverType: roles.includes('driver') ? driverType : undefined
-      });
-      onClose();
+      try {
+        await onSave(user.id, {
+          name,
+          email,
+          phoneNumber: phoneNumber || user.phoneNumber,
+          staffId,
+          expertise: expertiseArray,
+          role: uniqueRoles[0], // Keep first as primary
+          roles: uniqueRoles,
+          departmentId: (needsDepartment && !isCoop && !isPm && isEdu) ? assignedDepartmentId : undefined,
+          gender,
+          driverType: roles.includes('driver') ? driverType : undefined
+        });
+        onClose();
+      } catch (err: any) {
+        alert("Persistence Failure: " + (err.message || "The records could not be synchronized with the cloud registry."));
+      }
     }
   };
 

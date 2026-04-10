@@ -1566,9 +1566,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const now = new Date().toISOString();
                 
                 // Extract M-Pesa Reference / Receipt Number if available
-                const receiptNum = externalData.MpesaReceiptNumber || externalData.ReceiptNumber || 
+                const receiptNum = externalData.ReferenceID || externalData.MpesaReceiptNumber || externalData.ReceiptNumber || 
                                  externalData.BankReference || externalData.ProviderReference || 
-                                 externalData.TransactionReference;
+                                 externalData.TransactionReference || externalData.TransactionID;
                 
                 // Extract Payer Info if available
                 const payerName = externalData.PayerName || externalData.CustomerName || externalData.Payer;
@@ -1579,6 +1579,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     completed_at: finalStatus === 'completed' ? now : null,
                     updated_at: now,
                     receipt_number: receiptNum || null,
+                    reference_id: receiptNum || null,
                     payer_name: payerName || transaction.payer_name,
                     phone_number: payerPhone || transaction.phone_number,
                     external_data: externalData
@@ -1941,6 +1942,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         id: `ncba_${Date.now()}`,
                         transaction_id: txnId,
                         checkout_request_id: txnId,
+                        reference_id: txnId,
                         institution_id: targetInstId || 'SYSTEM',
                         amount: amount,
                         phone_number: phone || recipient,
@@ -2040,7 +2042,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (resStatus.ok) {
                     const statusData = await resStatus.json() as any;
                     if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED' || String(statusData.ResultCode) === '0') {
-                        const { data: txn } = await supabase.from('ncba_transactions').update({ status: 'completed' }).eq('transaction_id', checkoutRequestId).select().single();
+                        const { data: txn } = await supabase.from('ncba_transactions').update({ 
+                            status: 'completed',
+                            reference_id: statusData.ReferenceID || statusData.TransactionID || checkoutRequestId,
+                            completed_at: new Date().toISOString()
+                        }).eq('transaction_id', checkoutRequestId).select().single();
                         if (txn) await reconcilePayment({ ...txn, provider: 'ncba' });
                         return res.status(200).json({ success: true, status: 'completed', data: statusData });
                     }
@@ -2079,6 +2085,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const { data: txn } = await supabase.from('ncba_transactions')
                         .update({ 
                             status: 'completed',
+                            reference_id: result.ReferenceID || result.TransactionID || checkoutRequestId,
                             external_data: result,
                             completed_at: new Date().toISOString()
                         })
@@ -2144,6 +2151,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (String(body.ResultCode) === '0' || body.status === 'SUCCESS' || body.status === 'COMPLETED') {
                 const { data: txn } = await supabase.from('ncba_transactions').update({ 
                     status: 'completed',
+                    reference_id: body.ReferenceID || body.TransactionID || checkoutRequestId,
                     external_data: body,
                     completed_at: new Date().toISOString()
                 }).eq('transaction_id', checkoutRequestId).select().single();
