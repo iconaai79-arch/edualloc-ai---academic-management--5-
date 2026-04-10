@@ -1485,7 +1485,7 @@ export const App: React.FC = () => {
         };
         await apiService.saveModuleRecord('sacco_accounts', payload);
         await handleLogAction(`Opened SACCO account for farmer ID: ${data.farmerId}`);
-        loadData();
+        await loadData(false, true);
     }, [activeInstitution, currentUser, loadData, handleLogAction]);
 
     const handleImportFarmers = useCallback(async (farmers: any[]) => {

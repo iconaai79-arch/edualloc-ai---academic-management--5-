@@ -3386,13 +3386,22 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             <div className="p-8">
                                 <div className="flex items-center justify-between mb-8">
                                     <h2 className="text-xl font-black tracking-tighter uppercase">SACCO Accounts</h2>
-                                    <button 
-                                        onClick={() => setIsOpeningAccount(true)}
-                                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
-                                    >
-                                        <PlusIcon className="w-4 h-4" />
-                                        Open Account
-                                    </button>
+                                    <div className="flex gap-4">
+                                        <button 
+                                            onClick={() => loadData?.()}
+                                            className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95"
+                                        >
+                                            <TrendingUpIcon className="w-4 h-4" />
+                                            Sync Data
+                                        </button>
+                                        <button 
+                                            onClick={() => setIsOpeningAccount(true)}
+                                            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
+                                        >
+                                            <PlusIcon className="w-4 h-4" />
+                                            Open Account
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left border-separate border-spacing-y-4">
@@ -3416,9 +3425,9 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                             {acc.accountType}
                                                         </span>
                                                     </td>
-                                                    <td className="px-6 py-5 text-right font-black text-emerald-600">KES {acc.balance.toLocaleString()}</td>
+                                                    <td className="px-6 py-5 text-right font-black text-emerald-600">KES {(acc.balance || 0).toLocaleString()}</td>
                                                     <td className="px-6 py-5">
-                                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{acc.status}</span>
+                                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{acc.status || 'active'}</span>
                                                     </td>
                                                     <td className="px-6 py-5 text-right rounded-r-3xl">
                                                         <button className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:underline">View Statement</button>

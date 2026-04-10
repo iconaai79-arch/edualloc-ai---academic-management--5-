@@ -206,7 +206,7 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
                                 </div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">SACCO Balance</p>
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                    KES {stats.saccoBalance.toLocaleString()}
+                                    KES {(stats.saccoBalance || 0).toLocaleString()}
                                 </h3>
                             </div>
 
@@ -367,9 +367,9 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
                                          <ArrowUpRight className="w-10 h-10 text-slate-100 dark:text-slate-800 transition-colors group-hover:text-indigo-500" />
                                      </div>
                                      <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">{acc.accountType} ACCOUNT</p>
-                                     <h4 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter mb-4">KES {acc.balance.toLocaleString()}</h4>
+                                     <h4 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter mb-4">KES {(acc.balance || 0).toLocaleString()}</h4>
                                      <div className="flex gap-4">
-                                         <span className="px-4 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[9px] font-black uppercase tracking-widest rounded-full">{acc.status}</span>
+                                         <span className="px-4 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[9px] font-black uppercase tracking-widest rounded-full">{acc.status || 'active'}</span>
                                      </div>
                                  </div>
                              ))}
