@@ -2045,6 +2045,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const { data: txn } = await supabase.from('ncba_transactions').update({ 
                             status: 'completed',
                             reference_id: statusData.ReferenceID || statusData.TransactionID || checkoutRequestId,
+                            receipt_number: statusData.ReferenceID || statusData.TransactionID || checkoutRequestId,
                             completed_at: new Date().toISOString()
                         }).eq('transaction_id', checkoutRequestId).select().single();
                         if (txn) await reconcilePayment({ ...txn, provider: 'ncba' });
@@ -2148,10 +2149,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // NCBA Spec: Payload contains TransactionID, ResultCode, etc.
             if (!checkoutRequestId) return res.status(400).json({ success: false, message: 'No TransactionID' });
 
-            if (String(body.ResultCode) === '0' || body.status === 'SUCCESS' || body.status === 'COMPLETED') {
+            // Extract identifiers from potentially nested body
+            const bodyRaw = body.Body?.stkCallback || body;
+            const bankRef = bodyRaw.ReferenceID || bodyRaw.TransactionID || checkoutRequestId;
+
+            if (String(bodyRaw.ResultCode || body.ResultCode) === '0' || bodyRaw.status === 'SUCCESS' || body.status === 'SUCCESS') {
                 const { data: txn } = await supabase.from('ncba_transactions').update({ 
                     status: 'completed',
-                    reference_id: body.ReferenceID || body.TransactionID || checkoutRequestId,
+                    reference_id: bankRef,
+                    receipt_number: bankRef,
                     external_data: body,
                     completed_at: new Date().toISOString()
                 }).eq('transaction_id', checkoutRequestId).select().single();

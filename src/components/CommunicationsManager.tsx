@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { BuySMSModal } from './BuySMSModal';
 import { PlusIcon } from './icons/PlusIcon';
 
-import type { User, Department, Course, Institution, MpesaConfig, SmsConfig, SmsLog, SmsOutbox } from '../types';
+import type { User, Department, Course, Institution, MpesaConfig, SmsConfig, SmsLog, SmsOutbox, MpesaTransaction } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
 import { apiService } from '../services/apiService';
 

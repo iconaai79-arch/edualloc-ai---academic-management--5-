@@ -29,6 +29,7 @@ import { CheckCircleIcon as SuccessIcon } from '../icons/CheckCircleIcon';
 import { XIcon } from '../icons/XIcon';
 import { ShieldCheckIcon as SecurityIcon } from '../icons/ShieldCheckIcon';
 import { QrCodeIcon } from '../icons/QrCodeIcon';
+import { LockClosedIcon } from '../icons/LockClosedIcon';
 
 import { SettingsManager } from '../SettingsManager';
 import { CommunicationsManager } from '../CommunicationsManager';
@@ -86,7 +87,7 @@ interface CooperativeManagerProps {
     onAddIncome?: (data: Partial<CoopIncome>) => Promise<void>;
     onLogAction?: (action: string) => Promise<void>;
     onInitiatePayouts?: (payoutIds: string[]) => Promise<void>;
-    onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
+    onApprovePayouts?: (payoutIds: string[], status?: 'initiated' | 'approved' | 'paid' | 'rejected' | 'pending') => Promise<void>;
     onDisbursePayouts?: (payoutIds: string[]) => Promise<void>;
     onAddPayouts?: (payouts: any[]) => Promise<void>;
     currentInstitution?: Institution | null;
@@ -672,9 +673,10 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         }
     };
 
-    const handleConfirmVerification = async () => {
-        if (userEnteredCode !== verificationCode) {
+    const handleVerifyCode = async (code: string) => {
+        if (code !== verificationCode) {
             alert("Invalid verification code. Access denied.");
+            setUserEnteredCode('');
             return;
         }
 
@@ -684,7 +686,10 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         try {
             setIsProcessing(true);
             setProcessingProgress(30);
-            await onApprovePayouts?.(pendingApprovalIds);
+            
+            const targetStatus = isUndoVerification ? 'pending' : 'approved';
+            await onApprovePayouts?.(pendingApprovalIds, targetStatus);
+            
             setProcessingProgress(100);
             setTimeout(() => { setIsProcessing(false); setProcessingProgress(0); }, 500);
         } catch (err: any) {
@@ -797,6 +802,14 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             setIsOpeningAccount(false);
             setNewSaccoAccount({ accountType: 'Savings', status: 'active' });
             if (onLogAction) await onLogAction(`Opened SACCO account for farmer ${newSaccoAccount.farmerId}`);
+            
+            // Send SMS notification
+            const farmer = farmers.find(f => f.id === newSaccoAccount.farmerId);
+            if (farmer && farmer.phone && onSendSms) {
+                const message = `Success! Your SACCO ${newSaccoAccount.accountType} account has been opened. Member ID: ${farmer.memberId}. Thank you for choosing our Cooperative SACCO.`;
+                await onSendSms(farmer.phone, message, currentInstitution?.smsConfig, 1, currentInstitution?.id);
+            }
+            alert("SACCO account opened successfully!");
         } catch (err) {
             console.error(err);
             alert("Failed to open SACCO account");
@@ -4817,7 +4830,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     </button>
                                     <button 
                                         disabled={userEnteredCode.length !== 6}
-                                        onClick={handleConfirmVerification}
+                                        onClick={() => handleVerifyCode(userEnteredCode)}
                                         className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 active:scale-95 disabled:opacity-50"
                                     >
                                         Authorize Payout

@@ -1,7 +1,6 @@
-
 import React, { useState, useRef } from 'react';
 import { MpesaIcon } from './icons/MpesaIcon';
-import type { TransactionStatus, InvoiceItem, MpesaConfig } from '../types';
+import type { User, Department, Course, Institution, MpesaConfig, SmsConfig, SmsLog, SmsOutbox, MpesaTransaction, TransactionStatus, InvoiceItem } from '../types';
 import { apiService } from '../services/apiService';
 
 interface BuySMSModalProps {
@@ -59,7 +58,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
             if (sData?.enabledGateways) {
                 setEnabledGateways(sData.enabledGateways);
                 if (!sData.enabledGateways.includes(provider)) {
-                    setProvider(sData.enabledGateways[0] || 'mpesa');
+                    setProvider((sData.enabledGateways[0] as any) || 'mpesa');
                 }
             }
         };

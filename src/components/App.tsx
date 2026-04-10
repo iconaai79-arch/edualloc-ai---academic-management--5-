@@ -2847,8 +2847,8 @@ export const App: React.FC = () => {
                                         await apiService.disburseBulkMpesa(payoutIds, currentUser.id);
                                         loadData();
                                     }}
-                                    onApprovePayouts={async (payoutIds) => {
-                                        await apiService.updatePayoutStatus(payoutIds, 'approved', currentUser.id);
+                                    onApprovePayouts={async (payoutIds, status = 'approved') => {
+                                        await apiService.updatePayoutStatus(payoutIds, status, currentUser.id);
                                         loadData();
                                     }}
                                     onAddPayouts={async (payouts: any[]) => {
@@ -3664,6 +3664,7 @@ export const App: React.FC = () => {
                                     letterheadConfig={activeLetterheadConfig}
                                     logoUrl={activeBranding.logoUrl}
                                     footerImageUrl={activeFooterImageUrl}
+                                    transactions={transactions}
                                     onSendBulkCredentials={async (users, method) => {
                                         const res = await apiService.sendBulkCredentials(users, method);
                                         await handleLogAction(`Sent bulk credentials to ${res.success_count} users via ${method}`);
@@ -4010,6 +4011,7 @@ export const App: React.FC = () => {
                                         await apiService.saveCoopExpense({ ...data, id: `exp_${Date.now()}`, institutionId: instId, recordedBy: currentUser.id }); 
                                         await loadData(); 
                                     }}
+                                    onAddSaccoAccount={handleAddSaccoAccount}
                                     onAddCoopAgrovetInventory={async (data) => {
                                         const instId = activeInstitution?.id || currentUser.institutionId;
                                         await apiService.saveCoopAgrovetInventory({ ...data, institutionId: instId });
@@ -4029,8 +4031,8 @@ export const App: React.FC = () => {
                                         await apiService.disburseBulkMpesa(payoutIds, currentUser.id);
                                         loadData();
                                     }}
-                                    onApprovePayouts={async (payoutIds) => {
-                                        await apiService.updatePayoutStatus(payoutIds, 'approved', currentUser.id);
+                                    onApprovePayouts={async (payoutIds, status = 'approved') => {
+                                        await apiService.updatePayoutStatus(payoutIds, status, currentUser.id);
                                         loadData();
                                     }}
                                     onAddPayouts={async (payouts: any[]) => {

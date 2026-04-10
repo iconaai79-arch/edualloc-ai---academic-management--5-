@@ -112,9 +112,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.warn(`[NCBA Security] Missing signature for protected institution: ${institutionId}`);
         }
         // Standard NCBA 2024 Payload mapping
-        const transactionId = body.TransactionID || body.CheckoutRequestID || body.ReferenceID;
-        const resultCode = String(body.ResultCode || body.status_code || '');
-        const status = body.status || '';
+        const bodyRaw = body.Body?.stkCallback || body;
+        const transactionId = bodyRaw.TransactionID || bodyRaw.CheckoutRequestID || bodyRaw.ReferenceID || body.TransactionID || body.CheckoutRequestID || body.ReferenceID;
+        const resultCode = String(bodyRaw.ResultCode ?? body.ResultCode ?? body.status_code ?? '');
+        const status = bodyRaw.status || body.status || '';
 
         if (!transactionId) {
             console.error('[NCBA] Missing TransactionID in payload');
@@ -144,10 +145,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.log(`[NCBA] ✅ Payment Verified for Transaction ${transactionId}`);
             
             // 3. Update Transaction Record
+            // Extract the actual Bank Reference (ReferenceID)
+            const bankRef = bodyRaw.ReferenceID || bodyRaw.TransactionID || bodyRaw.CheckoutRequestID || body.ReferenceID || body.TransactionID || body.CheckoutRequestID;
+            
             // Update transaction status and capture reference ID
             await supabase.from('ncba_transactions').update({
                 status: 'completed',
-                reference_id: body.ReferenceID || body.TransactionID || body.CheckoutRequestID,
+                reference_id: bankRef,
+                receipt_number: bankRef, // Crucial: Populate receipt_number as well
                 metadata: {
                     ...txn.metadata,
                     callback_payload: body,

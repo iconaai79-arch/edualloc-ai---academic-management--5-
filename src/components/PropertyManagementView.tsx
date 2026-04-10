@@ -79,13 +79,14 @@ interface PropertyManagementViewProps {
     logoUrl: string | null;
     footerImageUrl: string | null;
     onSendBulkCredentials?: (users: User[], method: 'email' | 'sms') => Promise<{ success_count: number; fail_count: number }>;
+    transactions?: any[];
 }
 
 export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     currentUser, currentInstitution, companyDetails, users, onDataChange,
     onAddUser, onEditUser, onDeleteUser, onImportUsers, onLogAction,
     smsConfig, departments, subjects, courses, letterheadConfig, logoUrl, footerImageUrl,
-    onSendBulkCredentials
+    onSendBulkCredentials, transactions = []
 }) => {
     const institutionId = currentInstitution.id;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'payouts' | 'reports' | 'listings' | 'comms' | 'inquiries' | 'staff' | 'config'>('dashboard');

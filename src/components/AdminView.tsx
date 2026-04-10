@@ -192,7 +192,7 @@ export interface AdminViewProps {
     onAddCoopAgrovetSale?: (data: Partial<CoopAgrovetSales>) => Promise<void>;
     onAddCoopAgrovetSales?: (data: Partial<CoopAgrovetSales>[]) => Promise<void>;
     onInitiatePayouts?: (data: any) => Promise<void>;
-    onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
+    onApprovePayouts?: (payoutIds: string[], status?: 'initiated' | 'approved' | 'paid' | 'rejected' | 'pending') => Promise<void>;
     onDisbursePayouts?: (payoutIds: string[]) => Promise<void>;
     onAddPayouts?: (payouts: any[]) => Promise<void>;
     onUpdateCompanyDetails?: (data: Partial<CompanyDetails>) => Promise<void>;
