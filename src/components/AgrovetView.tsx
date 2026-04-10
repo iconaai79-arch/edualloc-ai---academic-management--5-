@@ -159,6 +159,7 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
     // MODALS / FORMS
     const [prodForm, setProdForm] = useState<Partial<AgrovetProduct>>({ category: 'Seeds', unitType: 'kg', reorderLevel: 10 });
     const [farmerForm, setFarmerForm] = useState<Partial<AgrovetFarmer>>({ loyaltyPoints: 0, creditLimit: 0 });
+    const [vetForm, setVetForm] = useState<Partial<AgrovetConsultation>>({ fee: 0, isPaid: true, symptoms: '', diagnosis: '', prescription: '' });
     const [batchForm, setBatchForm] = useState<Partial<AgrovetBatch>>({ quantity: 0, costPrice: 0, sellingPrice: 0 });
     const [showBatchModal, setShowBatchModal] = useState(false);
     const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
@@ -197,6 +198,38 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
         await apiService.saveModuleRecord('agrovet_customers', newFarmer);
         setShowFarmerModal(false);
         loadData();
+    };
+
+    const handleSaveConsultation = async () => {
+        if (!vetForm.customerId || !vetForm.diagnosis) {
+            alert("Please select a farmer and enter a diagnosis");
+            return;
+        }
+        const newConsult: AgrovetConsultation = {
+            id: `avc_${Date.now()}`,
+            institutionId,
+            customerId: vetForm.customerId!,
+            animalId: vetForm.animalId,
+            symptoms: vetForm.symptoms || '',
+            diagnosis: vetForm.diagnosis!,
+            prescription: vetForm.prescription || '',
+            fee: vetForm.fee || 0,
+            isPaid: vetForm.isPaid ?? true,
+            vetId: currentUser.id,
+            vetName: currentUser.name || 'Vet Staff',
+            createdAt: new Date().toISOString(),
+            date: new Date().toISOString().split('T')[0]
+        };
+        try {
+            await apiService.saveModuleRecord('agrovet_consultations', newConsult);
+            setShowConsultationModal(false);
+            setVetForm({ fee: 0, isPaid: true, symptoms: '', diagnosis: '', prescription: '' });
+            loadData();
+            alert('Consultation logged successfully!');
+        } catch (e) {
+            console.error(e);
+            alert('Failed to save consultation');
+        }
     };
 
     const handleAddBatch = async () => {
@@ -975,9 +1008,73 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
                             </button>
                         </div>
                         <div className="p-8 space-y-4">
-                            <p className="text-slate-400 text-sm italic py-10 text-center">Form implementation for vet consultations is coming soon. Please contact administrator for direct database entry.</p>
-                            <button onClick={() => setShowConsultationModal(false)} className="w-full bg-purple-600 hover:bg-purple-500 text-white py-4 rounded-xl font-black text-sm uppercase tracking-[0.2em] transition-all italic">
-                                Close
+                            <div>
+                                <label className="block text-[10px] font-black text-purple-500 uppercase tracking-[0.2em] mb-2 italic">Select Farmer</label>
+                                <select
+                                    value={vetForm.customerId || ''}
+                                    onChange={(e) => setVetForm({ ...vetForm, customerId: e.target.value })}
+                                    className="w-full bg-slate-900/50 border border-purple-600/20 rounded-xl py-3 px-4 text-white font-bold focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                                >
+                                    <option value="">-- SELECT FARMER --</option>
+                                    {farmers.map(f => (
+                                        <option key={f.id} value={f.id}>{f.name.toUpperCase()}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-purple-500 uppercase tracking-[0.2em] mb-2 italic">Symptoms</label>
+                                <textarea
+                                    value={vetForm.symptoms}
+                                    onChange={(e) => setVetForm({ ...vetForm, symptoms: e.target.value })}
+                                    className="w-full bg-slate-900/50 border border-purple-600/20 rounded-xl py-3 px-4 text-white font-bold focus:outline-none focus:ring-2 focus:ring-purple-500/50 h-20"
+                                    placeholder="DESCRIBE SYMPTOMS..."
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-purple-500 uppercase tracking-[0.2em] mb-2 italic">Diagnosis</label>
+                                    <input
+                                        type="text"
+                                        value={vetForm.diagnosis}
+                                        onChange={(e) => setVetForm({ ...vetForm, diagnosis: e.target.value })}
+                                        className="w-full bg-slate-900/50 border border-purple-600/20 rounded-xl py-3 px-4 text-white font-bold focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                                        placeholder="ENTER DIAGNOSIS"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-purple-500 uppercase tracking-[0.2em] mb-2 italic">Consultation Fee</label>
+                                    <input
+                                        type="number"
+                                        value={vetForm.fee}
+                                        onChange={(e) => setVetForm({ ...vetForm, fee: parseFloat(e.target.value) || 0 })}
+                                        className="w-full bg-slate-900/50 border border-purple-600/20 rounded-xl py-3 px-4 text-white font-bold focus:outline-none focus:ring-2 focus:ring-purple-500/50 font-serif"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-purple-500 uppercase tracking-[0.2em] mb-2 italic">Prescription / Recommendations</label>
+                                <textarea
+                                    value={vetForm.prescription}
+                                    onChange={(e) => setVetForm({ ...vetForm, prescription: e.target.value })}
+                                    className="w-full bg-slate-900/50 border border-purple-600/20 rounded-xl py-3 px-4 text-white font-bold focus:outline-none focus:ring-2 focus:ring-purple-500/50 h-24"
+                                    placeholder="DRUGS, DOSAGE, OR ADVICE..."
+                                />
+                            </div>
+                            <div className="flex items-center gap-3 py-2">
+                                <input
+                                    type="checkbox"
+                                    id="isPaid"
+                                    checked={vetForm.isPaid}
+                                    onChange={(e) => setVetForm({ ...vetForm, isPaid: e.target.checked })}
+                                    className="w-5 h-5 accent-purple-600"
+                                />
+                                <label htmlFor="isPaid" className="text-xs font-black text-white uppercase tracking-widest">Mark as Paid</label>
+                            </div>
+                            <button
+                                onClick={handleSaveConsultation}
+                                className="w-full bg-purple-600 hover:bg-purple-500 text-white py-4 rounded-xl font-black text-sm uppercase tracking-[0.2em] transition-all shadow-xl shadow-purple-900/40 hover:scale-[1.01] active:scale-95 mt-4 italic"
+                            >
+                                Save Consultation
                             </button>
                         </div>
                     </div>
