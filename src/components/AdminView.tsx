@@ -547,6 +547,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     };
 
     const perspectiveOptions = [
+        { role: 'legal_admin', label: 'Law Firm Module', icon: <ShieldIcon className="w-6 h-6" />, color: 'bg-slate-50 text-slate-800' },
+        { role: 'driving_instructor', label: 'Driving School Module', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-800' },
         { role: 'security', label: 'Security Module', icon: <ShieldIcon className="w-6 h-6" />, color: 'bg-red-50 text-red-600' },
         { role: 'store', label: 'Inventory Module', icon: <ArchiveBoxIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600' },
         { role: 'transport_assistant', label: 'Transport Module', icon: <MapPinIcon className="w-6 h-6" />, color: 'bg-teal-50 text-teal-600' },
@@ -566,9 +568,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         { role: 'sacco_officer', label: 'SACCO Module', icon: <CreditCardIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
         { role: 'agrovet_admin', label: 'Agrovet Module', icon: <BeakerIcon className="w-6 h-6" />, color: 'bg-green-50 text-green-600' },
         { role: 'customer', label: 'Customer Portal', icon: <SearchIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' },
-        { role: 'church_admin', label: 'Church System', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-700' },
-        { role: 'legal_admin', label: 'Law Firm Module', icon: <ShieldIcon className="w-6 h-6" />, color: 'bg-slate-50 text-slate-800' },
-        { role: 'driving_instructor', label: 'Driving School Module', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-800' }
+        { role: 'church_admin', label: 'Church System', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-700' }
     ].filter(opt => {
         if (isRetailAgency) {
             return ['retail_agent', 'customer'].includes(opt.role);
