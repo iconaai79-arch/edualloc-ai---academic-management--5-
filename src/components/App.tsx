@@ -438,6 +438,14 @@ export const App: React.FC = () => {
     const [coopIncome, setCoopIncome] = useState<CoopIncome[]>([]);
     const [demoRequests, setDemoRequests] = useState<DemoRequest[]>([]);
 
+    // Legal & Law Firm State
+    const [lawClients, setLawClients] = useState<LawClient[]>([]);
+    const [lawMatters, setLawMatters] = useState<LawMatter[]>([]);
+    const [lawDocuments, setLawDocuments] = useState<LawDocument[]>([]);
+    const [lawTimeEntries, setLawTimeEntries] = useState<LawTimeEntry[]>([]);
+    const [lawInvoices, setLawInvoices] = useState<LawInvoice[]>([]);
+    const [lawTrustTransactions, setLawTrustTransactions] = useState<LawTrustTransaction[]>([]);
+
     const [isGeneratingDemoData, setIsGeneratingDemoData] = useState(false);
     const [demoDataGenerationProgress, setDemoDataGenerationProgress] = useState(0);
     const [demoDataGenerationMessage, setDemoDataGenerationMessage] = useState("");
@@ -691,7 +699,7 @@ export const App: React.FC = () => {
             setReceipts(recs || []);
             setActivityLog(logs || []);
             setNotifications(notifs || []);
-            let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [], sar: any[] = [], enr: any[] = [], abs: any[] = [], con: any[] = [], att: any[] = [], item: any[] = [], tt: any[] = [], et: any[] = [], asg: any[] = [], subm: any[] = [], rat: any[] = [], ta: any[] = [], asmt: any[] = [], asmtMarks: any[] = [], bks: any[] = [], ltx: any[] = [], apts: any[] = [], sups: any[] = [], stx: any[] = [], cinv: any[] = [], ccats: any[] = [], cstores: any[] = [], bApps: any[] = [], bFunds: any[] = [], lo: any[] = [], obs: any[] = [], vis: any[] = [], sec: any[] = [], reqRecords: any[] = [], retExp: any[] = [], rStores: any[] = [], rInv: any[] = [], tor: any[] = [], fBulletin: any[] = [], fDocs: any[] = [], fWatch: any[] = [], fMaint: any[] = [], fCheckIn: any[] = [], vhcls: any[] = [], tonb: any[] = [], vlogs: any[] = [], cafe: any[] = [], cOrders: any[] = [], rSales: any[] = [], cwJobs: any[] = [], cFarmers: any[] = [], cColls: any[] = [], cRiders: any[] = [], cAgroInv: any[] = [], cAgroSales: any[] = [], cSaccoAcc: any[] = [], cSaccoTx: any[] = [], cPayouts: any[] = [], cExps: any[] = [], cInc: any[] = [];
+            let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [], sar: any[] = [], enr: any[] = [], abs: any[] = [], con: any[] = [], att: any[] = [], item: any[] = [], tt: any[] = [], et: any[] = [], asg: any[] = [], subm: any[] = [], rat: any[] = [], ta: any[] = [], asmt: any[] = [], asmtMarks: any[] = [], bks: any[] = [], ltx: any[] = [], apts: any[] = [], sups: any[] = [], stx: any[] = [], cinv: any[] = [], ccats: any[] = [], cstores: any[] = [], bApps: any[] = [], bFunds: any[] = [], lo: any[] = [], obs: any[] = [], vis: any[] = [], sec: any[] = [], reqRecords: any[] = [], retExp: any[] = [], rStores: any[] = [], rInv: any[] = [], tor: any[] = [], fBulletin: any[] = [], fDocs: any[] = [], fWatch: any[] = [], fMaint: any[] = [], fCheckIn: any[] = [], vhcls: any[] = [], tonb: any[] = [], vlogs: any[] = [], cafe: any[] = [], cOrders: any[] = [], rSales: any[] = [], cwJobs: any[] = [], cFarmers: any[] = [], cColls: any[] = [], cRiders: any[] = [], cAgroInv: any[] = [], cAgroSales: any[] = [], cSaccoAcc: any[] = [], cSaccoTx: any[] = [], cPayouts: any[] = [], cExps: any[] = [], cInc: any[] = [], lClients: any[] = [], lMatters: any[] = [], lDocs: any[] = [], lTime: any[] = [], lInvs: any[] = [], lTrust: any[] = [];
             let ims: any[] = [];
             let demoLeads: any[] = [];
             
@@ -705,7 +713,7 @@ export const App: React.FC = () => {
                     ? apiService.fetchDemoRequests().catch(() => []) 
                     : Promise.resolve([]);
 
-                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, ims, demoLeads] = await Promise.all([
+                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, lClients, lMatters, lDocs, lTime, lInvs, lTrust, ims, demoLeads] = await Promise.all([
                     apiService.fetchInvoices(effectiveInstId).catch(() => []),
                     apiService.fetchExtensionRequests(currentUser?.role === 'super_admin' ? 'ALL' : effectiveInstId).catch(() => []),
                     apiService.fetchVoteHeads(effectiveInstId).catch(() => []),
@@ -767,6 +775,12 @@ export const App: React.FC = () => {
                     apiService.fetchModuleRecords<CoopMonthlyPayout>('coop_monthly_payouts', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<CoopExpense>('coop_expenses', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<CoopIncome>('coop_income', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<LawClient>('law_clients', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<LawMatter>('law_matters', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<LawDocument>('law_documents', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<LawTimeEntry>('law_time_entries', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<LawInvoice>('law_invoices', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<LawTrustTransaction>('law_trust_transactions', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', effectiveInstId).catch(() => []),
                     demoLeadsPromise
                 ]);
@@ -846,6 +860,13 @@ export const App: React.FC = () => {
             setCoopPayouts(cPayouts || []);
             setCoopExpenses(cExps || []);
             setCoopIncome(cInc || []);
+
+            setLawClients(lClients || []);
+            setLawMatters(lMatters || []);
+            setLawDocuments(lDocs || []);
+            setLawTimeEntries(lTime || []);
+            setLawInvoices(lInvs || []);
+            setLawTrustTransactions(lTrust || []);
 
             setIsGeneratingDemoData(false);
             setLoadStatus("");
@@ -1630,6 +1651,55 @@ export const App: React.FC = () => {
             throw err;
         }
     }, [loadData, handleLogAction, activeInstitution, currentUser]);
+
+    const handleAddLawClient = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId) return;
+        await apiService.saveModuleRecord('law_clients', { ...data, id: `lc_${Date.now()}`, institutionId: instId });
+        await handleLogAction(`Added law client: ${data.name}`);
+        await loadData(false, true);
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+    const handleAddLawMatter = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId) return;
+        await apiService.saveModuleRecord('law_matters', { ...data, id: `lm_${Date.now()}`, institutionId: instId, status: 'open' });
+        await handleLogAction(`Opened law matter: ${data.title}`);
+        await loadData(false, true);
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+    const handleUpdateLawMatter = useCallback(async (id: string, data: any) => {
+        const matter = lawMatters.find(m => m.id === id);
+        if (matter) {
+            await apiService.saveModuleRecord('law_matters', { ...matter, ...data });
+            await handleLogAction(`Updated law matter: ${matter.title}`);
+            await loadData(false, true);
+        }
+    }, [lawMatters, loadData, handleLogAction]);
+
+    const handleAddLawTimeEntry = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId || !currentUser) return;
+        await apiService.saveModuleRecord('law_time_entries', { ...data, id: `lt_${Date.now()}`, institutionId: instId, staffId: currentUser.id });
+        await handleLogAction(`Recorded law time entry for matter`);
+        await loadData(false, true);
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+    const handleAddLawTrustTransaction = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId) return;
+        await apiService.saveModuleRecord('law_trust_transactions', { ...data, id: `ltt_${Date.now()}`, institutionId: instId });
+        await handleLogAction(`Recorded law trust transaction`);
+        await loadData(false, true);
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+    const handleAddLawInvoice = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId) return;
+        await apiService.saveModuleRecord('law_invoices', { ...data, id: `li_${Date.now()}`, institutionId: instId });
+        await handleLogAction(`Generated law invoice: ${data.invoiceNumber}`);
+        await loadData(false, true);
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
 
     const handleAddPayouts = useCallback(async (payouts: any[]) => {
         try {
@@ -2717,6 +2787,18 @@ export const App: React.FC = () => {
                                     coopPayouts={coopPayouts}
                                     coopExpenses={coopExpenses}
                                     coopIncome={coopIncome}
+                                    lawClients={lawClients}
+                                    lawMatters={lawMatters}
+                                    lawDocuments={lawDocuments}
+                                    lawTimeEntries={lawTimeEntries}
+                                    lawInvoices={lawInvoices}
+                                    lawTrustTransactions={lawTrustTransactions}
+                                    onAddLawClient={handleAddLawClient}
+                                    onAddLawMatter={handleAddLawMatter}
+                                    onAddLawTimeEntry={handleAddLawTimeEntry}
+                                    onAddLawTrustTransaction={handleAddLawTrustTransaction}
+                                    onAddLawInvoice={handleAddLawInvoice}
+                                    onUpdateLawMatter={handleUpdateLawMatter}
                                     onAddFarmer={async (data) => { 
                                         const instId = activeInstitution?.id || currentUser.institutionId;
                                         const payload = { ...data, id: `f_${Date.now()}`, institutionId: instId };
@@ -3079,6 +3161,18 @@ export const App: React.FC = () => {
                                     coopPayouts={coopPayouts}
                                     coopExpenses={coopExpenses}
                                     coopIncome={coopIncome}
+                                    lawClients={lawClients}
+                                    lawMatters={lawMatters}
+                                    lawDocuments={lawDocuments}
+                                    lawTimeEntries={lawTimeEntries}
+                                    lawInvoices={lawInvoices}
+                                    lawTrustTransactions={lawTrustTransactions}
+                                    onAddLawClient={handleAddLawClient}
+                                    onAddLawMatter={handleAddLawMatter}
+                                    onAddLawTimeEntry={handleAddLawTimeEntry}
+                                    onAddLawTrustTransaction={handleAddLawTrustTransaction}
+                                    onAddLawInvoice={handleAddLawInvoice}
+                                    onUpdateLawMatter={handleUpdateLawMatter}
                                     onAddFarmer={handleAddFarmer}
                                     onUpdateFarmer={handleUpdateFarmer}
                                     onImportFarmers={handleImportFarmers}
@@ -3898,6 +3992,18 @@ export const App: React.FC = () => {
                                     coopPayouts={coopPayouts}
                                     coopExpenses={coopExpenses}
                                     coopIncome={coopIncome}
+                                    lawClients={lawClients}
+                                    lawMatters={lawMatters}
+                                    lawDocuments={lawDocuments}
+                                    lawTimeEntries={lawTimeEntries}
+                                    lawInvoices={lawInvoices}
+                                    lawTrustTransactions={lawTrustTransactions}
+                                    onAddLawClient={handleAddLawClient}
+                                    onAddLawMatter={handleAddLawMatter}
+                                    onAddLawTimeEntry={handleAddLawTimeEntry}
+                                    onAddLawTrustTransaction={handleAddLawTrustTransaction}
+                                    onAddLawInvoice={handleAddLawInvoice}
+                                    onUpdateLawMatter={handleUpdateLawMatter}
                                     onAddFarmer={async (data) => { 
                                         const instId = activeInstitution?.id || currentUser.institutionId;
                                         const payload = { ...data, id: `f_${Date.now()}`, institutionId: instId };

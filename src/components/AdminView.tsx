@@ -13,7 +13,8 @@ import type {
     InvoiceItem, TransactionStatus, FeedbackSubmission, LessonRating, Invoice, Receipt, Unavailability,
     BiometricConfig, TimeOffRequestStatus, StudentAbsenceRequestStatus, SecurityAlert, Visitor, Requisition, Role,
     Submission, UserUpdateData, County, Assignment, RetailExpense, RetailStore, RetailInventoryItem, Supplier,
-    CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome
+    CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome,
+    LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction
 } from '../types';
 const UserManager = lazy(() => import('./UserManager').then(m => ({ default: m.UserManager })));
 const TimetableGenerator = lazy(() => import('./TimetableGenerator').then(m => ({ default: m.TimetableGenerator })));
@@ -30,6 +31,7 @@ const ProcurementManager = lazy(() => import('./ProcurementManager').then(m => (
 const CooperativeManager = lazy(() => import('./coop/CooperativeManager').then(m => ({ default: m.CooperativeManager })));
 const CarServiceView = lazy(() => import('./carservice/CarServiceView').then(m => ({ default: m.CarServiceView })));
 const ChurchDashboard = lazy(() => import('./church/ChurchDashboard').then(m => ({ default: m.ChurchDashboard })));
+const LawManager = lazy(() => import('./law/LawManager').then(m => ({ default: m.LawManager })));
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
@@ -164,7 +166,22 @@ export interface AdminViewProps {
     onAddTask?: (data: any) => Promise<void> | void;
     onUpdateTask?: (id: string, isComplete: boolean) => Promise<void>;
     onDeleteTask?: (id: string) => Promise<void>;
-    onLogAction?: (action: string) => Promise<void>;
+    onLogAction: (message: string) => Promise<void>;
+
+    // Legal & Law Firm Props
+    lawClients: LawClient[];
+    lawMatters: LawMatter[];
+    lawDocuments: LawDocument[];
+    lawTimeEntries: LawTimeEntry[];
+    lawInvoices: LawInvoice[];
+    lawTrustTransactions: LawTrustTransaction[];
+    onAddLawClient: (data: any) => Promise<void>;
+    onAddLawMatter: (data: any) => Promise<void>;
+    onAddLawTimeEntry: (data: any) => Promise<void>;
+    onAddLawTrustTransaction: (data: any) => Promise<void>;
+    onAddLawInvoice: (data: any) => Promise<void>;
+    onUpdateLawMatter: (id: string, data: any) => Promise<void>;
+
     onSendBulkCredentials?: (users: User[], method: 'sms' | 'email') => Promise<{ success_count: number, fail_count: number }>;
     onSendSms?: (recipient: string, message: string, config?: SmsConfig, units?: number, instId?: string) => Promise<any>;
     onSaveSmsConfig?: (config: SmsConfig) => void;
@@ -416,6 +433,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'sacco', label: 'SACCO', icon: <CreditCardIcon className="w-5 h-5 mr-2" /> },
             { id: 'agrovet', label: 'Agrovet', icon: <BeakerIcon className="w-5 h-5 mr-2" /> },
             { id: 'church', label: 'Church System', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
+            { id: 'law', label: 'Legal Module', icon: <ShieldIcon className="w-5 h-5 mr-2" /> },
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         ];
 
@@ -478,6 +496,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             if (tab.id === 'agrovet') return institutionType === 'Agrovet' || businessSubType === 'Agrovet';
             if (tab.id === 'car_service') return isBusiness && (businessSubType === 'Car Service' || businessSubType === 'Mechanic');
             if (tab.id === 'church') return isChurch;
+            if (tab.id === 'law') return roleToUse === 'legal_admin' || institutionType === 'Law Firm';
 
             return true;
         });
@@ -1174,11 +1193,29 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 )}
 
                 {activeTab === 'church' && isChurch && (
-                    <div className="animate-fade-in-up">
-                        <ChurchDenominationProvider church={props.currentInstitution!}>
-                            <ChurchDashboard />
-                        </ChurchDenominationProvider>
-                    </div>
+                    <ChurchDenominationProvider institution={props.currentInstitution}>
+                        <ChurchDashboard currentUser={props.currentUser} currentInstitution={props.currentInstitution} users={props.users} onLogAction={props.onLogAction} />
+                    </ChurchDenominationProvider>
+                )}
+
+                {activeTab === 'law' && (
+                    <LawManager 
+                        currentUser={props.currentUser}
+                        currentInstitution={props.currentInstitution}
+                        clients={props.lawClients}
+                        matters={props.lawMatters}
+                        documents={props.lawDocuments}
+                        timeEntries={props.lawTimeEntries}
+                        invoices={props.lawInvoices}
+                        trustTransactions={props.lawTrustTransactions}
+                        users={props.users}
+                        onAddClient={props.onAddLawClient}
+                        onAddMatter={props.onAddLawMatter}
+                        onAddTimeEntry={props.onAddLawTimeEntry}
+                        onAddTrustTransaction={props.onAddLawTrustTransaction}
+                        onAddInvoice={props.onAddLawInvoice}
+                        onUpdateMatter={props.onUpdateLawMatter}
+                    />
                 )}
 
                 {activeTab === 'reports' && !isCoop && (

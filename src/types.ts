@@ -1,5 +1,5 @@
 
-export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'pharmacy_admin' | 'pharmacist' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor';
+export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'pharmacy_admin' | 'pharmacist' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'legal_admin' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor';
 
 export type RankingCriteria = 'points' | 'mean_points' | 'total_marks';
 
@@ -3164,4 +3164,82 @@ export interface ChurchSaintDay {
     celebrationDate: string; // MM-DD
     liturgicalColor: 'White' | 'Green' | 'Purple' | 'Red';
     description?: string;
+}
+
+// --- Law Firm Module ---
+export interface LawClient {
+    id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    clientType: 'individual' | 'corporate';
+    institutionId: string;
+    createdAt: string;
+}
+
+export interface LawMatter {
+    id: string;
+    clientId: string;
+    title: string;
+    description?: string;
+    caseNumber?: string;
+    practiceArea: string;
+    status: 'open' | 'closed' | 'pending' | 'archived';
+    managerId: string;
+    institutionId: string;
+    priority: 'low' | 'medium' | 'high' | 'urgent';
+    openedAt: string;
+    closedAt?: string;
+    createdAt: string;
+}
+
+export interface LawDocument {
+    id: string;
+    matterId: string;
+    title: string;
+    fileUrl: string;
+    documentType?: string;
+    version: number;
+    status: string;
+    uploadedBy: string;
+    institutionId: string;
+    createdAt: string;
+}
+
+export interface LawTimeEntry {
+    id: string;
+    matterId: string;
+    staffId: string;
+    activityDate: string;
+    description: string;
+    durationMinutes: number;
+    ratePerHour: number;
+    billingStatus: 'unbilled' | 'billed' | 'waived' | 'pro-bono';
+    institutionId: string;
+    createdAt: string;
+}
+
+export interface LawInvoice {
+    id: string;
+    matterId: string;
+    clientId: string;
+    invoiceNumber: string;
+    totalAmount: number;
+    taxAmount: number;
+    status: 'draft' | 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled';
+    dueDate?: string;
+    institutionId: string;
+    createdAt: string;
+}
+
+export interface LawTrustTransaction {
+    id: string;
+    clientId: string;
+    matterId?: string;
+    amount: number;
+    transactionType: 'deposit' | 'disbursement' | 'transfer';
+    reference?: string;
+    institutionId: string;
+    createdAt: string;
 }
