@@ -1480,6 +1480,7 @@ export const App: React.FC = () => {
             ...data, 
             id: `sacco_${Date.now()}`, 
             institutionId: instId,
+            balance: 0,
             createdAt: new Date().toISOString()
         };
         await apiService.saveModuleRecord('sacco_accounts', payload);

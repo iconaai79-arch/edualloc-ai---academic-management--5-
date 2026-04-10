@@ -3034,7 +3034,7 @@ export interface SaccoAccount {
     id: string;
     institutionId: string;
     farmerId: string;
-    accountType: 'Savings' | 'Shares' | 'Loan';
+    accountType: 'savings' | 'shares' | 'loan';
     balance: number;
     status: 'active' | 'suspended';
     createdAt: string;

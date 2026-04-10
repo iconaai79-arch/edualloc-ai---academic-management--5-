@@ -218,7 +218,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [isAddingIncome, setIsAddingIncome] = useState(false);
     const [isOpeningAccount, setIsOpeningAccount] = useState(false);
     const [newSaccoAccount, setNewSaccoAccount] = useState<Partial<SaccoAccount>>({
-        accountType: 'Savings',
+        accountType: 'savings',
         status: 'active'
     });
     const [newInventory, setNewInventory] = useState<any>({});
@@ -800,7 +800,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                 createdAt: new Date().toISOString()
             });
             setIsOpeningAccount(false);
-            setNewSaccoAccount({ accountType: 'Savings', status: 'active' });
+            setNewSaccoAccount({ accountType: 'savings', status: 'active' });
             if (onLogAction) await onLogAction(`Opened SACCO account for farmer ${newSaccoAccount.farmerId}`);
             
             // Send SMS notification
@@ -4573,7 +4573,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Account Type</label>
                                 <div className="grid grid-cols-2 gap-4">
-                                {(['Savings', 'Shares'] as const).map(type => (
+                                {(['savings', 'shares'] as const).map(type => (
                                     <button
                                         key={type}
                                         type="button"

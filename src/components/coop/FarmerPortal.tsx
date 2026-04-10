@@ -65,7 +65,7 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
     const [isOpeningAccount, setIsOpeningAccount] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [newSaccoAccount, setNewSaccoAccount] = useState<Partial<SaccoAccount>>({
-        accountType: 'Savings',
+        accountType: 'savings',
         status: 'active'
     });
 
@@ -97,7 +97,7 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
                 institutionId: currentUser.institutionId || ''
             });
             setIsOpeningAccount(false);
-            setNewSaccoAccount({ accountType: 'Savings', status: 'active' });
+            setNewSaccoAccount({ accountType: 'savings', status: 'active' });
         } catch (err) {
             console.error(err);
             alert("Failed to open SACCO account");
@@ -750,7 +750,7 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Account Type</label>
                                 <div className="grid grid-cols-2 gap-4">
-                                    {(['Savings', 'Shares'] as const).map(type => (
+                                    {(['savings', 'shares'] as const).map(type => (
                                         <button
                                             key={type}
                                             type="button"
