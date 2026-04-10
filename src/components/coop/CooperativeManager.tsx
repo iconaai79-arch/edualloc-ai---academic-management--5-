@@ -18,6 +18,7 @@ import { FileTextIcon as StatementIcon } from '../icons/FileTextIcon';
 import { EnvelopeIcon as EmailIcon } from '../icons/EnvelopeIcon';
 import { SendIcon as SmsIcon } from '../icons/SendIcon';
 import { EyeIcon } from '../icons/EyeIcon';
+import { TrendingUpIcon } from '../icons/TrendingUpIcon';
 import { ArrowUpRightIcon as ExportIcon } from '../icons/ArrowUpRightIcon';
 import { Cog8ToothIcon as CogIcon } from '../icons/Cog8ToothIcon';
 import { InformationCircleIcon as AlertIcon } from '../icons/InformationCircleIcon';
