@@ -14,7 +14,8 @@ import type {
     BiometricConfig, TimeOffRequestStatus, StudentAbsenceRequestStatus, SecurityAlert, Visitor, Requisition, Role,
     Submission, UserUpdateData, County, Assignment, RetailExpense, RetailStore, RetailInventoryItem, Supplier,
     CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome,
-    LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction
+    LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction,
+    LawAgreement, LawAgreementTemplate
 } from '../types';
 const UserManager = lazy(() => import('./UserManager').then(m => ({ default: m.UserManager })));
 const TimetableGenerator = lazy(() => import('./TimetableGenerator').then(m => ({ default: m.TimetableGenerator })));
@@ -181,6 +182,11 @@ export interface AdminViewProps {
     onAddLawTrustTransaction: (data: any) => Promise<void>;
     onAddLawInvoice: (data: any) => Promise<void>;
     onUpdateLawMatter: (id: string, data: any) => Promise<void>;
+    lawAgreementTemplates: LawAgreementTemplate[];
+    lawAgreements: LawAgreement[];
+    onAddLawAgreementTemplate: (data: any) => Promise<void>;
+    onGenerateLawAgreement: (data: any) => Promise<void>;
+    onApproveLawAgreement: (id: string, notes: string) => Promise<void>;
 
     onSendBulkCredentials?: (users: User[], method: 'sms' | 'email') => Promise<{ success_count: number, fail_count: number }>;
     onSendSms?: (recipient: string, message: string, config?: SmsConfig, units?: number, instId?: string) => Promise<any>;
@@ -1215,6 +1221,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onAddTrustTransaction={props.onAddLawTrustTransaction}
                         onAddInvoice={props.onAddLawInvoice}
                         onUpdateMatter={props.onUpdateLawMatter}
+                        agreementTemplates={props.lawAgreementTemplates}
+                        agreements={props.lawAgreements}
+                        onAddAgreementTemplate={props.onAddLawAgreementTemplate}
+                        onGenerateAgreement={props.onGenerateLawAgreement}
+                        onApproveAgreement={props.onApproveLawAgreement}
                     />
                 )}
 

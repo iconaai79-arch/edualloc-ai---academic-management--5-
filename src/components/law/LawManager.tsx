@@ -7,7 +7,9 @@ import {
     LawTimeEntry, 
     LawInvoice, 
     LawTrustTransaction,
-    Institution
+    Institution,
+    LawAgreement,
+    LawAgreementTemplate
 } from '../../types';
 import { 
     BriefcaseIcon as Briefcase, 
@@ -28,7 +30,6 @@ import {
     CheckCircleIcon as CheckCircle,
     XIcon as X
 } from '../icons';
-
 interface LawManagerProps {
     currentUser: User;
     currentInstitution: Institution | null;
@@ -45,6 +46,11 @@ interface LawManagerProps {
     onAddTrustTransaction: (data: Partial<LawTrustTransaction>) => Promise<void>;
     onAddInvoice: (data: Partial<LawInvoice>) => Promise<void>;
     onUpdateMatter: (id: string, data: Partial<LawMatter>) => Promise<void>;
+    agreementTemplates: LawAgreementTemplate[];
+    agreements: LawAgreement[];
+    onAddAgreementTemplate: (data: Partial<LawAgreementTemplate>) => Promise<void>;
+    onGenerateAgreement: (data: Partial<LawAgreement>) => Promise<void>;
+    onApproveAgreement: (id: string, notes: string) => Promise<void>;
 }
 
 export const LawManager: React.FC<LawManagerProps> = ({
@@ -57,14 +63,19 @@ export const LawManager: React.FC<LawManagerProps> = ({
     invoices = [],
     trustTransactions = [],
     users = [],
+    agreementTemplates = [],
+    agreements = [],
     onAddClient,
     onAddMatter,
     onAddTimeEntry,
     onAddTrustTransaction,
     onAddInvoice,
-    onUpdateMatter
+    onUpdateMatter,
+    onAddAgreementTemplate,
+    onGenerateAgreement,
+    onApproveAgreement
 }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'matters' | 'clients' | 'billing' | 'accounting' | 'conflicts'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'matters' | 'clients' | 'billing' | 'accounting' | 'conflicts' | 'agreements'>('dashboard');
     const [searchQuery, setSearchQuery] = useState('');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -117,6 +128,7 @@ export const LawManager: React.FC<LawManagerProps> = ({
                     {[
                         { id: 'dashboard', label: 'Command Center', icon: <TrendingUp className="w-5 h-5" /> },
                         { id: 'matters', label: 'Matter Lifecycle', icon: <Briefcase className="w-5 h-5" /> },
+                        { id: 'agreements', label: 'Contract Studio', icon: <FileText className="w-5 h-5" /> },
                         { id: 'clients', label: 'Client Vault', icon: <Users className="w-5 h-5" /> },
                         { id: 'billing', label: 'Time & Invoicing', icon: <CreditCard className="w-5 h-5" /> },
                         { id: 'accounting', label: 'Trust Accounting', icon: <Wallet className="w-5 h-5" /> },
@@ -385,7 +397,124 @@ export const LawManager: React.FC<LawManagerProps> = ({
                         </div>
                     )}
 
-                    {/* Additional tabs will be implemented similarly */}
+                    {activeTab === 'agreements' && (
+                        <div className="animate-fade-in space-y-12">
+                            <div className="flex justify-between items-end px-2">
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mb-1">Contract Studio</p>
+                                    <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">E-Agreement Center</h2>
+                                </div>
+                                <div className="flex gap-4">
+                                    <button className="bg-slate-100 dark:bg-slate-800 text-slate-600 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-slate-200">
+                                        Manage Templates
+                                    </button>
+                                    <button 
+                                        onClick={() => {/* Trigger self-generation flow */}}
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 flex items-center gap-3"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        Self-Generate Contract
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
+                                {/* Templates Section */}
+                                <div className="lg:col-span-1 space-y-6">
+                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest px-2">Professional Templates</h3>
+                                    <div className="space-y-4">
+                                        {(agreementTemplates.length > 0 ? agreementTemplates : [
+                                            { name: 'Standard Lease Agreement', category: 'Real Estate', fee: '5,000' },
+                                            { name: 'Commercial Sales Contract', category: 'Commercial', fee: '15,000' },
+                                            { name: 'Non-Disclosure (NDA)', category: 'General', fee: '2,500' }
+                                        ]).map((t: any, i) => (
+                                            <div key={i} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-500/50 transition-all cursor-pointer group">
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
+                                                        <FileText className="w-5 h-5" />
+                                                    </div>
+                                                    <span className="text-[8px] font-black uppercase px-2 py-1 bg-slate-50 dark:bg-slate-800 rounded-lg text-slate-500">{t.category}</span>
+                                                </div>
+                                                <h4 className="text-[13px] font-black text-slate-900 dark:text-white uppercase mb-1">{t.name}</h4>
+                                                <p className="text-[10px] font-bold text-indigo-600">KES {t.baseFee || t.fee}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Active Agreements & Approvals */}
+                                <div className="lg:col-span-3 space-y-8">
+                                    <div className="flex items-center gap-6">
+                                        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Approvals Queue</h3>
+                                        <span className="px-3 py-1 bg-amber-100 text-amber-600 rounded-full text-[9px] font-black uppercase tracking-tighter">
+                                            {agreements.filter(a => a.reviewStatus === 'pending_approval').length} Pending Review
+                                        </span>
+                                    </div>
+
+                                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
+                                        <table className="w-full text-left">
+                                            <thead>
+                                                <tr className="border-b border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+                                                    <th className="py-6 px-10 text-[9px] font-black uppercase tracking-widest text-slate-400">Agreement Title</th>
+                                                    <th className="py-6 px-10 text-[9px] font-black uppercase tracking-widest text-slate-400">Payment Status</th>
+                                                    <th className="py-6 px-10 text-[9px] font-black uppercase tracking-widest text-slate-400">Review Status</th>
+                                                    <th className="py-6 px-10 text-[9px] font-black uppercase tracking-widest text-slate-400">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                                {agreements.map(a => (
+                                                    <tr key={a.id} className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                                        <td className="py-6 px-10">
+                                                            <p className="text-sm font-black text-slate-900 dark:text-white mb-0.5">{a.title}</p>
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Client: {getClientName(a.clientId)}</p>
+                                                        </td>
+                                                        <td className="py-6 px-10">
+                                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter ${
+                                                                a.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+                                                            }`}>
+                                                                {a.paymentStatus}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-6 px-10">
+                                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter ${
+                                                                a.reviewStatus === 'pending_approval' ? 'bg-amber-100 text-amber-600' :
+                                                                a.reviewStatus === 'approved' ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'
+                                                            }`}>
+                                                                {a.reviewStatus.replace('_', ' ')}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-6 px-10">
+                                                            <div className="flex items-center gap-2">
+                                                                <button className="p-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-xl hover:text-indigo-600 transition-all">
+                                                                    <EyeIcon className="w-4 h-4" />
+                                                                </button>
+                                                                {a.reviewStatus === 'pending_approval' && (
+                                                                    <button 
+                                                                        onClick={() => onApproveAgreement(a.id, 'Verified and Approved.')}
+                                                                        className="p-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20"
+                                                                    >
+                                                                        <CheckCircle className="w-4 h-4" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {agreements.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={4} className="py-24 text-center">
+                                                            <FileText className="w-12 h-12 text-slate-200 mx-auto mb-6" />
+                                                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">No contract generated yet</p>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </main>
 

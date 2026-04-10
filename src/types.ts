@@ -3243,3 +3243,31 @@ export interface LawTrustTransaction {
     institutionId: string;
     createdAt: string;
 }
+
+export interface LawAgreementTemplate {
+    id: string;
+    institutionId: string;
+    name: string;
+    category: string;
+    content: string;
+    baseFee: number;
+    createdAt: string;
+}
+
+export interface LawAgreement {
+    id: string;
+    institutionId: string;
+    templateId: string;
+    matterId?: string;
+    clientId: string;
+    title: string;
+    partyDetails: any;
+    finalContent?: string;
+    paymentStatus: 'unpaid' | 'paid';
+    reviewStatus: 'draft' | 'pending_approval' | 'approved' | 'rejected';
+    lawyerId?: string;
+    lawyerNotes?: string;
+    signedUrl?: string;
+    createdAt: string;
+    updatedAt: string;
+}
