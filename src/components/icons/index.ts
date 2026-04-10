@@ -1,4 +1,4 @@
-﻿export * from './AcademicCapIcon';
+export * from './AcademicCapIcon';
 export * from './AlertTriangleIcon';
 export * from './ArchiveBoxIcon';
 export * from './ArrowDownRightIcon';
@@ -12,6 +12,7 @@ export * from './ArrowTrendingUpIcon';
 export * from './ArrowUpRightIcon';
 export * from './ArrowUpTrayIcon';
 export * from './BanknotesIcon';
+export * from './BriefcaseIcon';
 export * from './BarChart3Icon';
 export * from './BeakerIcon';
 export * from './BedIcon';

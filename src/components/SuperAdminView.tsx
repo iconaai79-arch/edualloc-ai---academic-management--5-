@@ -11,7 +11,8 @@ import type {
     CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales,
     SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome,
     RetailStore, RetailInventoryItem, Supplier, RetailExpense, TransportVehicle,
-    TransportOnboarding, VehicleLog, AppNotification
+    TransportOnboarding, VehicleLog, AppNotification,
+    LawAgreement, LawAgreementTemplate, LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction
 } from '../types';
 import { TransactionsManager } from './TransactionsManager';
 import { DatabaseSettings } from './DatabaseSettings';
@@ -343,6 +344,23 @@ export interface SuperAdminViewProps {
     leaveOutRequests?: LeaveOutRequest[];
     demoRequests: DemoRequest[];
     onUpdateDemoStatus: (id: string, status: DemoRequest['status']) => Promise<void>;
+    lawAgreementTemplates: LawAgreementTemplate[];
+    lawAgreements: LawAgreement[];
+    lawClients: LawClient[];
+    lawMatters: LawMatter[];
+    lawDocuments: LawDocument[];
+    lawTimeEntries: LawTimeEntry[];
+    lawInvoices: LawInvoice[];
+    lawTrustTransactions: LawTrustTransaction[];
+    onAddLawClient: (data: any) => Promise<void>;
+    onAddLawMatter: (data: any) => Promise<void>;
+    onAddLawTimeEntry: (data: any) => Promise<void>;
+    onAddLawTrustTransaction: (data: any) => Promise<void>;
+    onAddLawInvoice: (data: any) => Promise<void>;
+    onUpdateLawMatter: (id: string, data: any) => Promise<void>;
+    onAddLawAgreementTemplate: (data: any) => Promise<void>;
+    onGenerateLawAgreement: (data: any) => Promise<void>;
+    onApproveLawAgreement: (id: string, notes: string) => Promise<void>;
 }
 
 export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminViewProps) => {
@@ -419,7 +437,24 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         onUpdateCounty,
         onDeleteCounty,
         demoRequests = [],
-        onUpdateDemoStatus
+        onUpdateDemoStatus,
+        lawAgreementTemplates = [],
+        lawAgreements = [],
+        lawClients = [],
+        lawMatters = [],
+        lawDocuments = [],
+        lawTimeEntries = [],
+        lawInvoices = [],
+        lawTrustTransactions = [],
+        onAddLawClient,
+        onAddLawMatter,
+        onAddLawTimeEntry,
+        onAddLawTrustTransaction,
+        onAddLawInvoice,
+        onUpdateLawMatter,
+        onAddLawAgreementTemplate,
+        onGenerateLawAgreement,
+        onApproveLawAgreement
     } = props;
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'external_module' | 'interactions' | 'reports' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests'>('dashboard');

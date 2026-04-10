@@ -28,7 +28,8 @@ import {
     ArrowUpRightIcon as ArrowUpRight,
     WalletIcon as Wallet,
     CheckCircleIcon as CheckCircle,
-    XIcon as X
+    XIcon as X,
+    EyeIcon
 } from '../icons';
 interface LawManagerProps {
     currentUser: User;
