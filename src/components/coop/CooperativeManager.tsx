@@ -120,6 +120,7 @@ interface CooperativeManagerProps {
     onAddSales?: (data: Partial<CoopAgrovetSales>[]) => Promise<void>;
     onSendSms?: (recipient: string, message: string, config?: any, units?: number, institutionId?: string) => Promise<any>;
     onAddSaccoAccount?: (data: Partial<SaccoAccount>) => Promise<void>;
+    onRefreshData?: () => Promise<void> | void;
 }
 
 export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
@@ -177,7 +178,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     onAddSale,
     onAddSales,
     onSendSms,
-    onAddSaccoAccount
+    onAddSaccoAccount,
+    onRefreshData
 }) => {
     const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'communication' | 'settings'>('overview');
     const [approvalSubTab, setApprovalSubTab] = useState<'pending' | 'archive' | 'disbursed' | 'approvers'>('pending');
@@ -3389,7 +3391,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     <h2 className="text-xl font-black tracking-tighter uppercase">SACCO Accounts</h2>
                                     <div className="flex gap-4">
                                         <button 
-                                            onClick={() => loadData?.()}
+                                            onClick={() => onRefreshData?.()}
                                             className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95"
                                         >
                                             <TrendingUpIcon className="w-4 h-4" />

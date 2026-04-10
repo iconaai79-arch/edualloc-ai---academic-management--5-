@@ -15,7 +15,8 @@ import type {
     Submission, UserUpdateData, County, Assignment, RetailExpense, RetailStore, RetailInventoryItem, Supplier,
     CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome,
     LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction,
-    LawAgreement, LawAgreementTemplate
+    LawAgreement, LawAgreementTemplate,
+    DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings
 } from '../types';
 const UserManager = lazy(() => import('./UserManager').then(m => ({ default: m.UserManager })));
 const TimetableGenerator = lazy(() => import('./TimetableGenerator').then(m => ({ default: m.TimetableGenerator })));
@@ -33,6 +34,7 @@ const CooperativeManager = lazy(() => import('./coop/CooperativeManager').then(m
 const CarServiceView = lazy(() => import('./carservice/CarServiceView').then(m => ({ default: m.CarServiceView })));
 const ChurchDashboard = lazy(() => import('./church/ChurchDashboard').then(m => ({ default: m.ChurchDashboard })));
 const LawManager = lazy(() => import('./law/LawManager').then(m => ({ default: m.LawManager })));
+const DrivingSchoolManager = lazy(() => import('./ds/DrivingSchoolManager').then(m => ({ default: m.DrivingSchoolManager })));
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
@@ -317,6 +319,20 @@ export interface AdminViewProps {
     onDeleteAssessment?: (id: string) => Promise<void> | void;
     onUpdateAssessmentStatus?: (id: string, status: string) => Promise<void> | void;
     onSaveAssessmentMarks?: (id: string, marks: any[]) => Promise<void> | void;
+
+    // Driving School Props
+    dsInstructors?: DSInstructor[];
+    dsVehicles?: DSVehicle[];
+    dsStudents?: DSStudent[];
+    dsLessons?: DSLesson[];
+    dsMastery?: DSSkillMastery[];
+    dsSettings?: DSSettings | null;
+    onAddDSInstructor?: (data: any) => Promise<void>;
+    onAddDSVehicle?: (data: any) => Promise<void>;
+    onAddDSStudent?: (data: any) => Promise<void>;
+    onAddDSLesson?: (data: any) => Promise<void>;
+    onAddDSMastery?: (data: any) => Promise<void>;
+    onUpdateDSSettings?: (data: any) => Promise<void>;
 }
 
 export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
@@ -340,7 +356,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law'>('dashboard');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects' | 'registry'>('wizard');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
@@ -440,6 +456,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'agrovet', label: 'Agrovet', icon: <BeakerIcon className="w-5 h-5 mr-2" /> },
             { id: 'church', label: 'Church System', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
             { id: 'law', label: 'Legal Module', icon: <ShieldIcon className="w-5 h-5 mr-2" /> },
+            { id: 'driving_school', label: 'Driving School', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         ];
 
@@ -503,6 +520,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             if (tab.id === 'car_service') return isBusiness && (businessSubType === 'Car Service' || businessSubType === 'Mechanic');
             if (tab.id === 'church') return isChurch;
             if (tab.id === 'law') return roleToUse === 'legal_admin' || institutionType === 'Law Firm';
+            if (tab.id === 'driving_school') return roleToUse === 'driving_instructor' || institutionType === 'Driving School';
 
             return true;
         });
@@ -548,7 +566,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         { role: 'sacco_officer', label: 'SACCO Module', icon: <CreditCardIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
         { role: 'agrovet_admin', label: 'Agrovet Module', icon: <BeakerIcon className="w-6 h-6" />, color: 'bg-green-50 text-green-600' },
         { role: 'customer', label: 'Customer Portal', icon: <SearchIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' },
-        { role: 'church_admin', label: 'Church System', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-700' }
+        { role: 'church_admin', label: 'Church System', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-700' },
+        { role: 'legal_admin', label: 'Law Firm Module', icon: <ShieldIcon className="w-6 h-6" />, color: 'bg-slate-50 text-slate-800' },
+        { role: 'driving_instructor', label: 'Driving School Module', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-800' }
     ].filter(opt => {
         if (isRetailAgency) {
             return ['retail_agent', 'customer'].includes(opt.role);
@@ -1069,6 +1089,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                  onImportStudents={props.onImportStudents}
                                  onWithdrawRequest={props.onWithdrawRequest}
                                  onAddExtensionRequest={props.onAddExtensionRequest}
+                                 onRefreshData={props.onRefreshData}
                                 activeTab={coopTabMap[activeTab] as any}
                                 onTabChange={(tab) => {
                                     const reverseMap: Record<string, string> = {
@@ -1198,16 +1219,16 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     />
                 )}
 
-                {activeTab === 'church' && isChurch && (
-                    <ChurchDenominationProvider institution={props.currentInstitution}>
-                        <ChurchDashboard currentUser={props.currentUser} currentInstitution={props.currentInstitution} users={props.users} onLogAction={props.onLogAction} />
+                {activeTab === 'church' && isChurch && props.currentInstitution && (
+                    <ChurchDenominationProvider church={props.currentInstitution}>
+                        <ChurchDashboard />
                     </ChurchDenominationProvider>
                 )}
 
                 {activeTab === 'law' && (
                     <LawManager 
                         currentUser={props.currentUser}
-                        currentInstitution={props.currentInstitution}
+                        currentInstitution={props.currentInstitution ?? null}
                         clients={props.lawClients}
                         matters={props.lawMatters}
                         documents={props.lawDocuments}
@@ -1226,6 +1247,27 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onAddAgreementTemplate={props.onAddLawAgreementTemplate}
                         onGenerateAgreement={props.onGenerateLawAgreement}
                         onApproveAgreement={props.onApproveLawAgreement}
+                    />
+                )}
+
+                {activeTab === 'driving_school' && (
+                    <DrivingSchoolManager
+                        currentUser={props.currentUser}
+                        currentInstitution={props.currentInstitution}
+                        instructors={props.dsInstructors || []}
+                        vehicles={props.dsVehicles || []}
+                        students={props.dsStudents || []}
+                        lessons={props.dsLessons || []}
+                        mastery={props.dsMastery || []}
+                        settings={props.dsSettings || null}
+                        onAddInstructor={props.onAddDSInstructor || (async () => {})}
+                        onAddVehicle={props.onAddDSVehicle || (async () => {})}
+                        onAddStudent={props.onAddDSStudent || (async () => {})}
+                        onAddLesson={props.onAddDSLesson || (async () => {})}
+                        onAddMastery={props.onAddDSMastery || (async () => {})}
+                        onUpdateSettings={props.onUpdateDSSettings || (async () => {})}
+                        users={props.users || []}
+                        onLogAction={props.onLogAction}
                     />
                 )}
 

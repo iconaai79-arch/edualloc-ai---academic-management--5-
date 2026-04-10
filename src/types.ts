@@ -1,5 +1,5 @@
 
-export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'pharmacy_admin' | 'pharmacist' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'legal_admin' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor';
+export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'pharmacy_admin' | 'pharmacist' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'legal_admin' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor' | 'driving_instructor';
 
 export type RankingCriteria = 'points' | 'mean_points' | 'total_marks';
 
@@ -141,7 +141,7 @@ export interface Institution {
     name: string;
     email: string;
     phoneNumber: string;
-    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary';
+    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School';
     category?: string;
     businessSubType?: string; // Legacy field, eventually merge with category
     slug?: string;
@@ -3270,5 +3270,84 @@ export interface LawAgreement {
     lawyerNotes?: string;
     signedUrl?: string;
     createdAt: string;
+    updatedAt: string;
+}
+
+export interface DSInstructor {
+    id: string;
+    institutionId: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    licenseNumber?: string;
+    specialization?: string;
+    status: 'Active' | 'Inactive' | 'On Leave';
+    rating: number;
+    createdAt: string;
+}
+
+export interface DSVehicle {
+    id: string;
+    institutionId: string;
+    make: string;
+    model: string;
+    plateNumber: string;
+    transmission: 'Manual' | 'Automatic';
+    vehicleType?: string;
+    lastServiceDate?: string;
+    nextServiceDate?: string;
+    status: 'Operational' | 'Maintenance' | 'Out of Service';
+    createdAt: string;
+}
+
+export interface DSStudent {
+    id: string;
+    institutionId: string;
+    userId?: string;
+    fullName: string;
+    passportNumber?: string;
+    phone?: string;
+    licenseTypeInterested?: string;
+    theoryProgressPercent: number;
+    practicalProgressPercent: number;
+    status: 'Enrolled' | 'Graduated' | 'Dropped';
+    enrollmentDate: string;
+    createdAt: string;
+}
+
+export interface DSLesson {
+    id: string;
+    institutionId: string;
+    studentId: string;
+    instructorId?: string;
+    vehicleId?: string;
+    lessonDate: string;
+    startTime: string;
+    endTime: string;
+    lessonType: 'Practical' | 'Theory';
+    topic?: string;
+    status: 'Scheduled' | 'Completed' | 'Cancelled' | 'No Show';
+    instructorNotes?: string;
+    routeTrackedData?: any;
+    createdAt: string;
+}
+
+export interface DSSkillMastery {
+    id: string;
+    institutionId: string;
+    studentId: string;
+    skillName: string;
+    rating: number;
+    comments?: string;
+    recordedBy?: string;
+    createdAt: string;
+}
+
+export interface DSSettings {
+    institutionId: string;
+    lessonPricePractical?: number;
+    lessonPriceTheory?: number;
+    cancellationPolicy?: string;
+    workingHours?: any;
     updatedAt: string;
 }

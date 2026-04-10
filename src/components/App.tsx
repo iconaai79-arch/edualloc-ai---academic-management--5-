@@ -69,7 +69,8 @@ import type {
     RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger, Vehicle, RepairOrder, CafeMenuItem, CafeOrder, AppNotification, RetailSale, RetailSaleItem, CarWashJob, CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome,
     ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay, DemoRequest,
     InstitutionModuleState,
-    LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction, LawAgreementTemplate, LawAgreement
+    LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction, LawAgreementTemplate, LawAgreement,
+    DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings
 } from '../types';
 import { XIcon } from './icons/XIcon';
 import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
@@ -449,6 +450,14 @@ export const App: React.FC = () => {
     const [lawAgreementTemplates, setLawAgreementTemplates] = useState<LawAgreementTemplate[]>([]);
     const [lawAgreements, setLawAgreements] = useState<LawAgreement[]>([]);
 
+    // Driving School State
+    const [dsInstructors, setDsInstructors] = useState<DSInstructor[]>([]);
+    const [dsVehicles, setDsVehicles] = useState<DSVehicle[]>([]);
+    const [dsStudents, setDsStudents] = useState<DSStudent[]>([]);
+    const [dsLessons, setDsLessons] = useState<DSLesson[]>([]);
+    const [dsMastery, setDsMastery] = useState<DSSkillMastery[]>([]);
+    const [dsSettings, setDsSettings] = useState<DSSettings | null>(null);
+
     const [isGeneratingDemoData, setIsGeneratingDemoData] = useState(false);
     const [demoDataGenerationProgress, setDemoDataGenerationProgress] = useState(0);
     const [demoDataGenerationMessage, setDemoDataGenerationMessage] = useState("");
@@ -702,7 +711,7 @@ export const App: React.FC = () => {
             setReceipts(recs || []);
             setActivityLog(logs || []);
             setNotifications(notifs || []);
-            let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [], sar: any[] = [], enr: any[] = [], abs: any[] = [], con: any[] = [], att: any[] = [], item: any[] = [], tt: any[] = [], et: any[] = [], asg: any[] = [], subm: any[] = [], rat: any[] = [], ta: any[] = [], asmt: any[] = [], asmtMarks: any[] = [], bks: any[] = [], ltx: any[] = [], apts: any[] = [], sups: any[] = [], stx: any[] = [], cinv: any[] = [], ccats: any[] = [], cstores: any[] = [], bApps: any[] = [], bFunds: any[] = [], lo: any[] = [], obs: any[] = [], vis: any[] = [], sec: any[] = [], reqRecords: any[] = [], retExp: any[] = [], rStores: any[] = [], rInv: any[] = [], tor: any[] = [], fBulletin: any[] = [], fDocs: any[] = [], fWatch: any[] = [], fMaint: any[] = [], fCheckIn: any[] = [], vhcls: any[] = [], tonb: any[] = [], vlogs: any[] = [], cafe: any[] = [], cOrders: any[] = [], rSales: any[] = [], cwJobs: any[] = [], cFarmers: any[] = [], cColls: any[] = [], cRiders: any[] = [], cAgroInv: any[] = [], cAgroSales: any[] = [], cSaccoAcc: any[] = [], cSaccoTx: any[] = [], cPayouts: any[] = [], cExps: any[] = [], cInc: any[] = [], lClients: any[] = [], lMatters: any[] = [], lDocs: any[] = [], lTime: any[] = [], lInvs: any[] = [], lTrust: any[] = [], lTemplates: any[] = [], lAgreements: any[] = [];
+            let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [], sar: any[] = [], enr: any[] = [], abs: any[] = [], con: any[] = [], att: any[] = [], item: any[] = [], tt: any[] = [], et: any[] = [], asg: any[] = [], subm: any[] = [], rat: any[] = [], ta: any[] = [], asmt: any[] = [], asmtMarks: any[] = [], bks: any[] = [], ltx: any[] = [], apts: any[] = [], sups: any[] = [], stx: any[] = [], cinv: any[] = [], ccats: any[] = [], cstores: any[] = [], bApps: any[] = [], bFunds: any[] = [], lo: any[] = [], obs: any[] = [], vis: any[] = [], sec: any[] = [], reqRecords: any[] = [], retExp: any[] = [], rStores: any[] = [], rInv: any[] = [], tor: any[] = [], fBulletin: any[] = [], fDocs: any[] = [], fWatch: any[] = [], fMaint: any[] = [], fCheckIn: any[] = [], vhcls: any[] = [], tonb: any[] = [], vlogs: any[] = [], cafe: any[] = [], cOrders: any[] = [], rSales: any[] = [], cwJobs: any[] = [], cFarmers: any[] = [], cColls: any[] = [], cRiders: any[] = [], cAgroInv: any[] = [], cAgroSales: any[] = [], cSaccoAcc: any[] = [], cSaccoTx: any[] = [], cPayouts: any[] = [], cExps: any[] = [], cInc: any[] = [], lClients: any[] = [], lMatters: any[] = [], lDocs: any[] = [], lTime: any[] = [], lInvs: any[] = [], lTrust: any[] = [], lTemplates: any[] = [], lAgreements: any[] = [], dsInst: any[] = [], dsVeh: any[] = [], dsStud: any[] = [], dsLess: any[] = [], dsMast: any[] = [], dsSet: any[] = [];
             let ims: any[] = [];
             let demoLeads: any[] = [];
             
@@ -716,7 +725,7 @@ export const App: React.FC = () => {
                     ? apiService.fetchDemoRequests().catch(() => []) 
                     : Promise.resolve([]);
 
-                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements, ims, demoLeads] = await Promise.all([
+                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements, dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, ims, demoLeads] = await Promise.all([
                     apiService.fetchInvoices(effectiveInstId).catch(() => []),
                     apiService.fetchExtensionRequests(currentUser?.role === 'super_admin' ? 'ALL' : effectiveInstId).catch(() => []),
                     apiService.fetchVoteHeads(effectiveInstId).catch(() => []),
@@ -786,6 +795,12 @@ export const App: React.FC = () => {
                     apiService.fetchModuleRecords<LawTrustTransaction>('law_trust_transactions', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<LawAgreementTemplate>('law_agreement_templates', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<LawAgreement>('law_agreements', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<DSInstructor>('ds_instructors', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<DSVehicle>('ds_vehicles', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<DSStudent>('ds_students', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<DSLesson>('ds_lessons', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<DSSkillMastery>('ds_skill_mastery', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<DSSettings>('ds_settings', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', effectiveInstId).catch(() => []),
                     demoLeadsPromise
                 ]);
@@ -839,6 +854,14 @@ export const App: React.FC = () => {
             setVisitors(vis || []);
             setSecurityAlerts(sec || []);
             setRequisitions(reqRecords || []);
+            
+            // Driving School State Setters
+            setDsInstructors(dsInst || []);
+            setDsVehicles(dsVeh || []);
+            setDsStudents(dsStud || []);
+            setDsLessons(dsLess || []);
+            setDsMastery(dsMast || []);
+            setDsSettings(dsSet && dsSet.length > 0 ? dsSet[0] : null);
             setRetailExpenses(retExp || []);
             setRetailStores(rStores || []);
             setRetailInventory(rInv || []);
@@ -1746,6 +1769,54 @@ export const App: React.FC = () => {
             await loadData(false, true);
         }
     }, [lawAgreements, currentUser, loadData, handleLogAction]);
+
+    const handleAddDSInstructor = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId) return;
+        await apiService.saveModuleRecord('ds_instructors', { ...data, id: `dsi_${Date.now()}`, institutionId: instId, createdAt: new Date().toISOString() });
+        await handleLogAction(`Added driving instructor: ${data.name}`);
+        await loadData(false, true);
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+    const handleAddDSVehicle = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId) return;
+        await apiService.saveModuleRecord('ds_vehicles', { ...data, id: `dsv_${Date.now()}`, institutionId: instId, createdAt: new Date().toISOString() });
+        await handleLogAction(`Added driving school vehicle: ${data.plateNumber}`);
+        await loadData(false, true);
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+    const handleAddDSStudent = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId) return;
+        await apiService.saveModuleRecord('ds_students', { ...data, id: `dss_${Date.now()}`, institutionId: instId, createdAt: new Date().toISOString() });
+        await handleLogAction(`Enrolled driving student: ${data.fullName}`);
+        await loadData(false, true);
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+    const handleAddDSLesson = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId) return;
+        await apiService.saveModuleRecord('ds_lessons', { ...data, id: `dsl_${Date.now()}`, institutionId: instId, createdAt: new Date().toISOString() });
+        await handleLogAction(`Scheduled driving lesson`);
+        await loadData(false, true);
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+    const handleAddDSMastery = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId) return;
+        await apiService.saveModuleRecord('ds_skill_mastery', { ...data, id: `dsm_${Date.now()}`, institutionId: instId, createdAt: new Date().toISOString() });
+        await handleLogAction(`Recorded skill mastery for student`);
+        await loadData(false, true);
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+    const handleUpdateDSSettings = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId) return;
+        await apiService.saveModuleRecord('ds_settings', { ...data, institutionId: instId, updatedAt: new Date().toISOString() });
+        await handleLogAction(`Updated driving school settings`);
+        await loadData(false, true);
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
 
     const handleAddPayouts = useCallback(async (payouts: any[]) => {
         try {
@@ -2850,6 +2921,18 @@ export const App: React.FC = () => {
                                     onAddLawAgreementTemplate={handleAddLawAgreementTemplate}
                                     onGenerateLawAgreement={handleGenerateLawAgreement}
                                     onApproveLawAgreement={handleApproveLawAgreement}
+                                    dsInstructors={dsInstructors}
+                                    dsVehicles={dsVehicles}
+                                    dsStudents={dsStudents}
+                                    dsLessons={dsLessons}
+                                    dsMastery={dsMastery}
+                                    dsSettings={dsSettings}
+                                    onAddDSInstructor={handleAddDSInstructor}
+                                    onAddDSVehicle={handleAddDSVehicle}
+                                    onAddDSStudent={handleAddDSStudent}
+                                    onAddDSLesson={handleAddDSLesson}
+                                    onAddDSMastery={handleAddDSMastery}
+                                    onUpdateDSSettings={handleUpdateDSSettings}
                                     onAddFarmer={async (data) => { 
                                         const instId = activeInstitution?.id || currentUser.institutionId;
                                         const payload = { ...data, id: `f_${Date.now()}`, institutionId: instId };
@@ -3229,6 +3312,18 @@ export const App: React.FC = () => {
                                     onAddLawAgreementTemplate={handleAddLawAgreementTemplate}
                                     onGenerateLawAgreement={handleGenerateLawAgreement}
                                     onApproveLawAgreement={handleApproveLawAgreement}
+                                    dsInstructors={dsInstructors}
+                                    dsVehicles={dsVehicles}
+                                    dsStudents={dsStudents}
+                                    dsLessons={dsLessons}
+                                    dsMastery={dsMastery}
+                                    dsSettings={dsSettings}
+                                    onAddDSInstructor={handleAddDSInstructor}
+                                    onAddDSVehicle={handleAddDSVehicle}
+                                    onAddDSStudent={handleAddDSStudent}
+                                    onAddDSLesson={handleAddDSLesson}
+                                    onAddDSMastery={handleAddDSMastery}
+                                    onUpdateDSSettings={handleUpdateDSSettings}
                                     onAddFarmer={handleAddFarmer}
                                     onUpdateFarmer={handleUpdateFarmer}
                                     onImportFarmers={handleImportFarmers}
@@ -4065,6 +4160,18 @@ export const App: React.FC = () => {
                                     onAddLawAgreementTemplate={handleAddLawAgreementTemplate}
                                     onGenerateLawAgreement={handleGenerateLawAgreement}
                                     onApproveLawAgreement={handleApproveLawAgreement}
+                                    dsInstructors={dsInstructors}
+                                    dsVehicles={dsVehicles}
+                                    dsStudents={dsStudents}
+                                    dsLessons={dsLessons}
+                                    dsMastery={dsMastery}
+                                    dsSettings={dsSettings}
+                                    onAddDSInstructor={handleAddDSInstructor}
+                                    onAddDSVehicle={handleAddDSVehicle}
+                                    onAddDSStudent={handleAddDSStudent}
+                                    onAddDSLesson={handleAddDSLesson}
+                                    onAddDSMastery={handleAddDSMastery}
+                                    onUpdateDSSettings={handleUpdateDSSettings}
                                     onAddFarmer={async (data) => { 
                                         const instId = activeInstitution?.id || currentUser.institutionId;
                                         const payload = { ...data, id: `f_${Date.now()}`, institutionId: instId };
