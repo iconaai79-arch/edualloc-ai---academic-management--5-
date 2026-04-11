@@ -20,7 +20,7 @@ export const getAdminRoleForInstitution = (institution: Partial<Institution>): R
     if (subType.includes('car wash') || subType.includes('car service')) return 'carwash_admin';
     if (subType.includes('agrovet')) return 'agrovet_admin';
     if (subType.includes('property')) return 'property_admin';
-    if (subType.includes('retail') || subType.includes('hardware') || subType.includes('pharmacy') || subType.includes('shop')) return 'retail_agent';
+    if (type === 'Pharmacy' || type === 'Chemist' || subType.includes('retail') || subType.includes('hardware') || subType.includes('pharmacy') || subType.includes('chemist') || subType.includes('shop')) return 'retail_agent';
 
     if (subType.includes('coop') || subType.includes('dairy') || subType.includes('tea') || subType.includes('coffee')) return 'cooperative_manager';
 
@@ -58,7 +58,7 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
     }
 
     // Retail
-    if (subType.includes('retail') || subType.includes('hardware') || subType.includes('pharmacy') || subType.includes('shop')) {
+    if (type === 'Pharmacy' || type === 'Chemist' || subType.includes('retail') || subType.includes('hardware') || subType.includes('pharmacy') || subType.includes('chemist') || subType.includes('shop')) {
         return ['retail_agent', 'field_agent', 'customer', 'supplier', 'lead', 'store'];
     }
 

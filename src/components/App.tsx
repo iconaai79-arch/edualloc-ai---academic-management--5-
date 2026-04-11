@@ -3115,7 +3115,7 @@ export const App: React.FC = () => {
                                         loadData();
                                     }}
                                 />
-                             ) : (activeRole === 'pharmacist' || activeRole === 'pharmacy_admin' || (activeRole === 'admin' && activeInstitution?.institutionType === 'Pharmacy')) ? (
+                             ) : (activeRole === 'pharmacist' || activeRole === 'pharmacy_admin' || (activeRole === 'admin' && (activeInstitution?.institutionType === 'Pharmacy' || activeInstitution?.institutionType === 'Chemist' || activeInstitution?.businessSubType === 'Pharmacy' || activeInstitution?.businessSubType === 'Chemist'))) ? (
                                 <div className="p-8 bg-slate-950 min-h-screen">
                                     <ModernPharmacyManager 
                                          institutionId={activeInstitution?.id || currentUser?.institutionId || ''} 

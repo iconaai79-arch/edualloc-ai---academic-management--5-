@@ -28,8 +28,8 @@ export const HISBroadcasterView: React.FC = () => {
         <div className="animate-fade-in-up space-y-8">
             <div className="flex justify-between items-end">
                 <div>
-                    <h2 className="text-4xl font-black uppercase tracking-tighter">Signal <span className="text-amber-400">Broadcaster</span></h2>
-                    <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-2">Unified communications & emergency paging system</p>
+                    <h2 className="text-4xl font-black uppercase tracking-tighter">Emergency <span className="text-amber-400">Communications</span></h2>
+                    <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-2">Unified paging & institutional priority messaging system</p>
                 </div>
                 <div className="flex gap-4">
                     <button className="bg-rose-600 text-white px-8 py-3 rounded-2xl flex items-center gap-3 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-rose-900/40">

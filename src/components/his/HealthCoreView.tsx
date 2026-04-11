@@ -297,7 +297,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                             { id: 'dental', label: 'Dental Core', icon: ScissorsIcon },
                             { id: 'eye', label: 'Ocular Hub', icon: EyeIcon },
                             { id: 'billing', label: 'Revenue/SHA', icon: CreditCardIcon },
-                            { id: 'broadcaster', label: 'Signal', icon: BellIcon },
+                            { id: 'broadcaster', label: 'Communications', icon: BellIcon },
                             { id: 'appointments', label: 'Scheduling', icon: CalendarIcon },
                             { id: 'attendance', label: 'Presence', icon: ClockIcon },
                             { id: 'config', label: 'Nexus', icon: SettingsIcon },

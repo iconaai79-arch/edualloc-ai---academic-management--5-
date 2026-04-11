@@ -380,7 +380,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
     const isRetailAgency = useMemo(() => {
         if (props.currentInstitution?.institutionType === 'Church') return false;
-        return RETAIL_SUBTYPES.includes(props.currentInstitution?.businessSubType || '');
+        const subType = props.currentInstitution?.businessSubType || '';
+        const type = props.currentInstitution?.institutionType || '';
+        return RETAIL_SUBTYPES.includes(subType) || RETAIL_SUBTYPES.includes(type);
     }, [props.currentInstitution]);
 
     const isChurch = useMemo(() => {
@@ -414,6 +416,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 setActiveTab('car_service');
             } else if (isChurch || role === 'church_admin') {
                 setActiveTab('church');
+            } else if (isRetailAgency || ['Pharmacy', 'Chemist'].includes(businessSubType || '')) {
+                setActiveTab('retail');
             }
             setHasSetDefaultTab(true);
         }
@@ -443,7 +447,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'users', label: 'Members', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
             { id: 'courses', label: isSchool ? 'Grades' : isChurch ? 'Departments' : 'Courses', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
             { id: 'leaveout', label: 'Leave Out', icon: <ArchiveBoxIcon className="w-5 h-5 mr-2" /> },
-            { id: 'comms', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
+            { id: 'comms', label: isRetailAgency ? 'Communications' : 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
             { id: 'retail', label: 'Retail & Agency', icon: <StoreIcon className="w-5 h-5 mr-2" /> },
             { id: 'procurement', label: 'Procurement', icon: <ShoppingBagIcon className="w-5 h-5 mr-2" /> },
             { id: 'coop', label: 'Cooperative', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
@@ -625,7 +629,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 <Suspense fallback={
                     <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 bg-white/50 dark:bg-slate-800/50 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-700 animate-pulse">
                         <ArrowPathIcon className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
-                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Synchronizing Perspective Hub...</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">{isRetailAgency ? 'Initializing Communications Hub...' : 'Synchronizing Perspective Hub...'}</p>
                     </div>
                 }>
                 {activeTab === 'dashboard' && !isCoop && (

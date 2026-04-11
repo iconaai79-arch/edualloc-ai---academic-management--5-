@@ -53,7 +53,9 @@ const calculateSmsParts = (msg: string) => {
 export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ users, departments, courses, institutions, onSendSms, currentUser, smsBalance, currentInstitution, mpesaConfig, smsConfig, onRefreshData, moduleContext = 'school', companyDetails, transactions, ncbaConfig }) => {
     const isRetailAgency = useMemo(() => {
         if (currentInstitution?.institutionType === 'Church') return false;
-        return RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
+        const subType = currentInstitution?.businessSubType || '';
+        const type = currentInstitution?.institutionType || '';
+        return RETAIL_SUBTYPES.includes(subType) || RETAIL_SUBTYPES.includes(type);
     }, [currentInstitution]);
     const isChurch = useMemo(() => currentInstitution?.institutionType === 'Church', [currentInstitution]);
     const [isBuySMSModalOpen, setIsBuySMSModalOpen] = useState(false);
@@ -709,7 +711,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
         <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
             <div className="flex items-center justify-between mb-6">
                 <div className="flex flex-col gap-1">
-                    <h3 className="text-xl font-semibold">Broadcaster</h3>
+                    <h3 className="text-xl font-semibold">{isRetailAgency ? 'Communications Hub' : 'Broadcaster'}</h3>
                     <div className="flex gap-4 mt-1">
                         <button
                             onClick={() => setActiveTab('compose')}

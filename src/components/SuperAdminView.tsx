@@ -1041,7 +1041,7 @@ Please change it after login.`;
         { key: 'institutions', label: 'Institutions', icon: <BuildingOfficeIcon className="w-5 h-5 mr-2" /> },
         { key: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         { key: 'all_users', label: 'Global Users', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
-        { key: 'communications', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
+        { key: 'communications', label: 'Communications', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
         { key: 'user_activity', label: 'Audit Trail', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
         { key: 'demo_requests', label: 'Demo Leads', icon: <CalendarIcon className="w-5 h-5 mr-2" /> },
         { key: 'settings', label: 'Global Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
@@ -1562,6 +1562,7 @@ Please change it after login.`;
                                                 >
                                                     <option value="Education">Education Sector</option>
                                                     <option value="HIS">Health Sector (HIS)</option>
+                                                    <option value="Pharmacy">Pharmacy / Chemist</option>
                                                     <option value="Business">Business Ecosystem</option>
                                                     <option value="Cooperative">Agriculture / Cooperative</option>
                                                     <option value="SACCO">Financial / SACCO</option>
