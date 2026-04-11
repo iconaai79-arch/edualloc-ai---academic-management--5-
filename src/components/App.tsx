@@ -43,6 +43,7 @@ const RiderPortal = lazy(() => import('./coop/RiderPortal').then(m => ({ default
 const BoardingMasterView = lazy(() => import('./BoardingMasterView'));
 const ResellerDashboard = lazy(() => import('./ResellerDashboard'));
 const TenantStorefrontView = lazy(() => import('./retail/TenantStorefrontView').then(m => ({ default: m.TenantStorefrontView })));
+const CommunityHubView = lazy(() => import('./public/CommunityHubView').then(m => ({ default: m.CommunityHubView })));
 
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { getAdminRoleForInstitution } from '../utils/roleUtils';
@@ -473,6 +474,15 @@ export const App: React.FC = () => {
             return false;
         }
     });
+
+    const [showCommunityHub, setShowCommunityHub] = useState(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('view') === 'community' || window.location.hostname === 'community.eduai.co.ke' || window.location.hostname.includes('hub');
+        } catch (e) {
+            return false;
+        }
+    });
     const [activeStoreTenantId, setActiveStoreTenantId] = useState<string | null>(() => {
         try {
             const params = new URLSearchParams(window.location.search);
@@ -503,7 +513,7 @@ export const App: React.FC = () => {
             // Show if URL param set, or hostname is showcase/marketing, or no user and not marketplace/guest portals/tenant stores
             const isMarketingSubdomain = window.location.hostname === 'showcase.eduai.co.ke' || window.location.hostname.includes('showcase') || window.location.hostname.includes('marketing');
             if (isMarketingSubdomain || params.get('view') === 'showcase') return true;
-            return !currentUser && !showMarketplace && !showGuestPortal && !showGuestFeedback && !showTenantStore;
+            return !currentUser && !showMarketplace && !showCommunityHub && !showGuestPortal && !showGuestFeedback && !showTenantStore;
         } catch (e) {
             return !currentUser;
         }
@@ -4366,6 +4376,13 @@ export const App: React.FC = () => {
                     <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
                         {showTenantStore && activeStoreTenantId ? (
                             <TenantStorefrontView institutionId={activeStoreTenantId} />
+                         ) : showCommunityHub ? (
+                            <CommunityHubView 
+                                institutions={institutions}
+                                counties={counties}
+                                onBack={() => setShowCommunityHub(false)}
+                                onBookDemo={() => setShowBookDemo(true)}
+                            />
                          ) : showMarketplace ? (
                             <PropertyMarketplaceView />
                         ) : showMarketing ? (
@@ -4545,9 +4562,9 @@ export const App: React.FC = () => {
                     isPublicView={showMarketplace || showMarketing || showGuestPortal || showGuestFeedback || showTenantStore}
                     onReturn={() => {
                         setImpersonatedRole(null);
-                        setShowGuestPortal(false);
                         setShowGuestFeedback(false);
                         setShowMarketplace(false);
+                        setShowCommunityHub(false);
                         setShowMarketing(false);
                     }}
                     onRestoreSession={onRestoreSuperAdminSession}
