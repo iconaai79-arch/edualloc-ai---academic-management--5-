@@ -125,7 +125,26 @@ CREATE TABLE IF NOT EXISTS institution_module_states (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(institution_id, module_id)
 );
-CREATE INDEX IF NOT EXISTS idx_ims_institution_id ON institution_module_states(institution_id);
+CREATE TABLE IF NOT EXISTS school_registry (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    region TEXT,
+    county TEXT,
+    sub_county TEXT,
+    uic TEXT,
+    knec_code TEXT,
+    cluster TEXT,
+    special_need_type TEXT,
+    disability_type TEXT,
+    accommodation_type TEXT,
+    gender_type TEXT,
+    slug TEXT UNIQUE,
+    institution_id TEXT, -- Link to institution if claimed
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_sr_knec ON school_registry(knec_code);
+CREATE INDEX IF NOT EXISTS idx_sr_slug ON school_registry(slug);
 
 \n-- 2. ACADEMIC STRUCTURE --\n
 CREATE TABLE IF NOT EXISTS academic_levels (
