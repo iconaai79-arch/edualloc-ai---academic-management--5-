@@ -61,11 +61,16 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
     });
 
     const filteredSchools = useMemo(() => {
+        const lower = searchTerm.toLowerCase();
         return registry.filter(s => 
-            s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            s.knecCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            s.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            s.slug?.toLowerCase().includes(searchTerm.toLowerCase())
+            s.name.toLowerCase().includes(lower) || 
+            s.knecCode?.toLowerCase().includes(lower) ||
+            s.id.toLowerCase().includes(lower) ||
+            s.slug?.toLowerCase().includes(lower) ||
+            s.county?.toLowerCase().includes(lower) ||
+            s.region?.toLowerCase().includes(lower) ||
+            s.subCounty?.toLowerCase().includes(lower) ||
+            s.uic?.toLowerCase().includes(lower)
         );
     }, [registry, searchTerm]);
 

@@ -56,12 +56,16 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
     });
 
     const filteredSchools = useMemo(() => {
-        if (!searchTerm) return [];
+        if (!searchTerm || selectedSchool) return [];
+        const lower = searchTerm.toLowerCase();
         return registry.filter(s => 
-            s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            s.knecCode?.toLowerCase().includes(searchTerm.toLowerCase())
-        ).slice(0, 5);
-    }, [registry, searchTerm]);
+            s.name.toLowerCase().includes(lower) || 
+            s.knecCode?.toLowerCase().includes(lower) ||
+            s.county?.toLowerCase().includes(lower) ||
+            s.region?.toLowerCase().includes(lower) ||
+            s.uic?.toLowerCase().includes(lower)
+        ).slice(0, 10);
+    }, [registry, searchTerm, selectedSchool]);
 
     const handleNext = () => setStep(step + 1);
     const handlePrev = () => setStep(step - 1);
