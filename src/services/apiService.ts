@@ -452,6 +452,7 @@ export const apiService = {
             filter?: Record<string, any>; 
             order?: string; 
             limit?: number;
+            offset?: number;
         }
     ): Promise<T[]> {
         const getFilterCol = (mod: string, type: 'institution' | 'county') => {
@@ -505,6 +506,7 @@ export const apiService = {
             if (options?.select) url.searchParams.append('select', options.select);
             if (options?.order) url.searchParams.append('order', options.order);
             if (options?.limit) url.searchParams.append('limit', options.limit.toString());
+            if (options?.offset) url.searchParams.append('offset', options.offset.toString());
             if (options?.filter) {
                 // For now, only simple equality filters are sent to proxy as query params
                 // We could enhance the proxy to handle more complex filters
@@ -1993,5 +1995,24 @@ export const apiService = {
             throw new Error(err.message || err.error || `HTTP error! status: ${response.status}`);
         }
         return response.json();
+    },
+    async fetchFullRegistry(): Promise<SchoolRegistry[]> {
+        let allRecords: SchoolRegistry[] = [];
+        let offset = 0;
+        const limit = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+            const batch = await apiService.fetchModuleRecords<SchoolRegistry>('school_registry', undefined, undefined, { limit, offset });
+            if (!batch || batch.length === 0) {
+                hasMore = false;
+            } else {
+                allRecords = [...allRecords, ...batch];
+                offset += limit;
+                if (batch.length < limit) hasMore = false;
+                if (allRecords.length > 50000) hasMore = false;
+            }
+        }
+        return allRecords;
     }
 };

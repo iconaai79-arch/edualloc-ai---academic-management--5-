@@ -150,7 +150,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             
             const finalLimit = limit ? parseInt(getStrParam(limit)) : (moduleName === 'school_registry' ? 10000 : 1000);
-            q = q.limit(finalLimit);
+            const offset = req.query.offset ? parseInt(getStrParam(req.query.offset)) : 0;
+            
+            q = q.range(offset, offset + finalLimit - 1);
 
             const { data, error } = await q;
             if (error) return res.status(200).json({ success: false, error: error.message });
