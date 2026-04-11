@@ -37,9 +37,63 @@ interface HospitalityManagerProps {
 export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentInstitution, users }) => {
     const category = currentInstitution.category || 'Travel Agency';
     const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'itineraries' | 'inventory' | 'customers'>('overview');
-    
-    const isAgency = category.includes('Agency') || category.includes('Safaris');
-    const isHotel = category.includes('Hotel') || category.includes('Airbnb') || category.includes('Apartments');
+    const [items, setItems] = useState<any[]>([]);
+    const [isAddingItem, setIsAddingItem] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [newItem, setNewItem] = useState({
+        name: '',
+        description: '',
+        price: '',
+        category: isAgency ? 'Safari' : 'Room',
+        features: '',
+        location: '',
+        duration: '',
+        images: [] as string[]
+    });
+
+    const loadItems = async () => {
+        const records = await apiService.fetchModuleRecords('hospitality_items', currentInstitution.id);
+        setItems(records);
+    };
+
+    React.useEffect(() => {
+        loadItems();
+    }, [currentInstitution.id]);
+
+    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        try {
+            const result = await apiService.uploadToShowcaseCpanel(file, currentInstitution.id);
+            if (result.success) {
+                setNewItem(prev => ({ ...prev, images: [...prev.images, result.url] }));
+            }
+        } catch (err) {
+            console.error("Upload failed:", err);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const handleSaveItem = async () => {
+        const payload = {
+            ...newItem,
+            id: `hosp_${Date.now()}`,
+            institutionId: currentInstitution.id,
+            price: Number(newItem.price),
+            features: newItem.features.split(',').map(f => f.trim()),
+            rating: 5.0,
+            reviews: 0,
+            available: true
+        };
+
+        await apiService.saveModuleRecord('hospitality_items', payload);
+        setIsAddingItem(false);
+        setNewItem({ name: '', description: '', price: '', category: isAgency ? 'Safari' : 'Room', features: '', location: '', duration: '', images: [] });
+        loadItems();
+    };
 
     const renderOverview = () => {
         const stats = [
@@ -191,49 +245,139 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
     );
 
     const renderInventory = () => (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-fade-in">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden group hover:shadow-2xl transition-all">
-                    <div className="aspect-video bg-slate-100 dark:bg-slate-900 relative">
-                        <div className="absolute top-4 left-4">
-                            <span className="text-[8px] font-black bg-white/90 text-indigo-600 px-3 py-1 rounded-full uppercase tracking-widest shadow-sm">
-                                {isAgency ? 'Tours' : 'Vacant'}
-                            </span>
+        <div className="space-y-8 animate-fade-in">
+            <div className="flex justify-between items-center mb-6">
+                <div>
+                    <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">Active Catalog</h3>
+                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Manage your {isAgency ? 'Safari Packages' : 'Room Inventory'}</p>
+                </div>
+                <button 
+                    onClick={() => setIsAddingItem(true)}
+                    className="flex items-center gap-2 px-6 py-4 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-xl shadow-indigo-100 dark:shadow-none hover:bg-slate-900 transition-all active:scale-95"
+                >
+                    <Plus className="w-5 h-5" /> Add {isAgency ? 'Package' : 'Category'}
+                </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {items.length === 0 ? (
+                    <div className="col-span-full py-20 bg-slate-50 dark:bg-slate-900/50 rounded-[3rem] border-2 border-dashed border-slate-100 dark:border-slate-800 text-center text-slate-400">
+                        <ImageIcon className="w-16 h-16 mx-auto mb-4 opacity-20" />
+                        <p className="font-black uppercase tracking-widest text-xs italic">No items in catalog yet. Click the button above to start.</p>
+                    </div>
+                ) : items.map((item) => (
+                    <div key={item.id} className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden group hover:shadow-2xl transition-all">
+                        <div className="aspect-video bg-slate-100 dark:bg-slate-900 relative">
+                            {item.images && item.images.length > 0 ? (
+                                <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-slate-200">
+                                    {isAgency ? <Plane className="w-12 h-12" /> : <Bed className="w-12 h-12" />}
+                                </div>
+                            )}
+                            <div className="absolute top-4 left-4">
+                                <span className="text-[8px] font-black bg-white/90 text-indigo-600 px-3 py-1 rounded-full uppercase tracking-widest shadow-sm">
+                                    {item.category}
+                                </span>
+                            </div>
                         </div>
-                        <div className="w-full h-full flex items-center justify-center text-slate-200">
-                            {isAgency ? <Plane className="w-12 h-12" /> : <Bed className="w-12 h-12" />}
+                        <div className="p-8">
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h5 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-lg leading-none">{item.name}</h5>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">{item.duration || item.location}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Price</p>
+                                    <p className="text-sm font-black text-indigo-600 tracking-tighter">KES {item.price.toLocaleString()}</p>
+                                </div>
+                            </div>
+                            <button className="w-full py-4 bg-slate-900 dark:bg-slate-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest group-hover:bg-indigo-600 transition-all">
+                                Edit Details
+                            </button>
                         </div>
                     </div>
-                    <div className="p-8">
-                        <div className="flex justify-between items-start mb-4">
-                            <div>
-                                <h5 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-lg leading-none">
-                                    {isAgency ? 'Serengeti Migration' : 'Suite 30' + i}
-                                </h5>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">
-                                    {isAgency ? '5 Days / 4 Nights' : 'Main Wing • Ocean View'}
-                                </p>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Price</p>
-                                <p className="text-sm font-black text-indigo-600 tracking-tighter">KES 120k</p>
-                            </div>
-                        </div>
-                        
-                        <div className="flex gap-2 my-6">
-                            {[Wifi, Coffee, Utensils].map((Icon, idx) => (
-                                <div key={idx} className="p-2 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-400">
-                                    <Icon className="w-4 h-4" />
-                                </div>
-                            ))}
-                        </div>
+                ))}
+            </div>
 
-                        <button className="w-full py-4 bg-slate-900 dark:bg-slate-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest group-hover:bg-indigo-600 transition-all">
-                            {isAgency ? 'Manage Package' : 'Manage Inventory'}
-                        </button>
+            {/* Add Item Modal */}
+            {isAddingItem && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
+                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-xl" onClick={() => setIsAddingItem(false)}></div>
+                    <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="p-10">
+                            <h4 className="text-2xl font-black uppercase tracking-tight text-slate-800 dark:text-white mb-8">New {isAgency ? 'Safari Package' : 'Room Category'}</h4>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                <div>
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Name / Title</label>
+                                    <input type="text" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} placeholder="e.g. 7 Days Maasai Mara..." className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 ring-indigo-500/50" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Price (KES)</label>
+                                    <input type="number" value={newItem.price} onChange={e => setNewItem({...newItem, price: e.target.value})} placeholder="e.g. 145000" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 ring-indigo-500/50" />
+                                </div>
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Description</label>
+                                <textarea rows={3} value={newItem.description} onChange={e => setNewItem({...newItem, description: e.target.value})} placeholder="Describe the experience..." className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 ring-indigo-500/50 resize-none" />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                                <div>
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Location</label>
+                                    <input type="text" value={newItem.location} onChange={e => setNewItem({...newItem, location: e.target.value})} placeholder="e.g. Maasai Mara, Kenya" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 ring-indigo-500/50" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Duration / Type</label>
+                                    <input type="text" value={newItem.duration} onChange={e => setNewItem({...newItem, duration: e.target.value})} placeholder="e.g. 7 Days" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 ring-indigo-500/50" />
+                                </div>
+                            </div>
+
+                            {/* Photo Upload Section */}
+                            <div className="mb-10">
+                                <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-4 block">Package Gallery (Uploaded to cPanel Showcase)</label>
+                                <div className="grid grid-cols-4 gap-4">
+                                    {newItem.images.map((img, idx) => (
+                                        <div key={idx} className="aspect-square bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 relative group">
+                                            <img src={img} alt="Preview" className="w-full h-full object-cover" />
+                                            <button 
+                                                onClick={() => setNewItem(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }))}
+                                                className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <label className="aspect-square border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl flex flex-col items-center justify-center text-slate-400 hover:border-indigo-600 hover:text-indigo-600 cursor-pointer transition-all relative overflow-hidden">
+                                        {isUploading ? (
+                                            <div className="animate-spin text-indigo-600"><Sparkles className="w-6 h-6" /></div>
+                                        ) : (
+                                            <>
+                                                <ImageIcon className="w-6 h-6 mb-1" />
+                                                <span className="text-[8px] font-black uppercase">Add Photo</span>
+                                            </>
+                                        )}
+                                        <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" disabled={isUploading} />
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-4">
+                                <button onClick={() => setIsAddingItem(false)} className="flex-1 py-5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-[2rem] font-black uppercase text-[10px] tracking-widest">Cancel</button>
+                                <button 
+                                    onClick={handleSaveItem}
+                                    disabled={!newItem.name || !newItem.price || isUploading}
+                                    className="flex-[2] py-5 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-xl shadow-indigo-100 dark:shadow-none hover:bg-slate-900 transition-all disabled:opacity-50"
+                                >
+                                    Publish to Storefront
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            ))}
+            )}
         </div>
     );
 

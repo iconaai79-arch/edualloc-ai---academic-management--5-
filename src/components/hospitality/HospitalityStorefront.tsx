@@ -73,20 +73,9 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                     setTenant(resolvedTenant);
                     document.title = `${resolvedTenant.name} | Book Online`;
 
-                    // Generate dummy sample items based on category
-                    const category = resolvedTenant.category || 'Travel Agency';
-                    const isAgency = category.includes('Agency') || category.includes('Safaris');
-                    
-                    const samples: HospitalityItem[] = isAgency ? [
-                        { id: '1', name: '7-Day Maasai Mara Safari', description: 'Experience the great migration first-hand with our expert guides. Includes luxury tented camp accommodation and full-board meals.', price: 145000, category: 'Safari', images: [], features: ['Professional Guide', '4x4 LandCruiser', 'Full Board', 'Park Fees'], duration: '7 Days', location: 'Maasai Mara, Kenya', rating: 4.9, reviews: 124, available: true },
-                        { id: '2', name: 'Mount Kenya Expedition', description: 'A rewarding climb to the second highest peak in Africa. Choose between Sirimon and Chogoria routes.', price: 65000, category: 'Trip', images: [], features: ['Porters', 'Cook', 'Climbing Gear', 'Rescue Insurance'], duration: '5 Days', location: 'Mt. Kenya National Park', rating: 4.8, reviews: 89, available: true },
-                        { id: '3', name: 'Diani Beach Retreat', description: 'Relax at the pristine white sands of Diani. Includes airport transfers and half-board stay at a 5-star resort.', price: 42000, category: 'Experience', images: [], features: ['Beachfront', 'Spa Access', 'Water Sports', 'Breakfast'], duration: '3 Days', location: 'Diani, South Coast', rating: 4.7, reviews: 256, available: true },
-                    ] : [
-                        { id: '1', name: 'Executive Ocean Suite', description: 'Panoramic views of the Indian Ocean with a private balcony and premium king-sized bed.', price: 25000, category: 'Room', images: [], features: ['Ocean View', 'King Bed', 'Coffee Station', 'Work Desk'], location: 'Main Wing, Floor 5', rating: 4.9, reviews: 412, available: true },
-                        { id: '2', name: 'Family Garden Villa', description: 'Two-bedroom villa nestled in lush tropical gardens. Perfect for families seeking privacy and space.', price: 38000, category: 'Room', images: [], features: ['Private Garden', 'Kitchenette', '2 Bedrooms', 'Patio'], location: 'Garden Area', rating: 4.8, reviews: 128, available: true },
-                        { id: '3', name: 'Deluxe Courtyard Room', description: 'Modern comfort overlooking our serene central courtyard and fountain.', price: 15000, category: 'Room', images: [], features: ['Garden View', 'Quiet Zone', 'Smart TV', 'En-suite'], location: 'West Wing', rating: 4.6, reviews: 310, available: true },
-                    ];
-                    setItems(samples);
+                    // Fetch Real Items
+                    const hospitalityItems = await apiService.fetchModuleRecords<HospitalityItem>('hospitality_items', resolvedTenant.id);
+                    setItems(hospitalityItems);
                 }
             } catch (err) {
                 console.error("Storefront Load Error:", err);
@@ -215,9 +204,14 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                                 <div className="absolute top-6 right-6 z-10 flex items-center gap-1 bg-slate-900/60 backdrop-blur px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-white">
                                     <Star className="w-3 h-3 text-amber-400 fill-amber-400" /> {item.rating}
                                 </div>
-                                <div className="w-full h-full flex items-center justify-center text-slate-200 group-hover:scale-110 transition-transform duration-700">
-                                    {item.category === 'Safari' ? <Compass className="w-16 h-16" /> : <Hotel className="w-16 h-16" />}
-                                </div>
+                                
+                                {item.images && item.images.length > 0 ? (
+                                    <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-slate-200 group-hover:scale-110 transition-transform duration-700">
+                                        {item.category === 'Safari' ? <Compass className="w-16 h-16" /> : <Hotel className="w-16 h-16" />}
+                                    </div>
+                                )}
                                 <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between text-white z-10 opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300">
                                     <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest">
                                         <MapPin className="w-4 h-4" /> {item.location.split(',')[0]}
