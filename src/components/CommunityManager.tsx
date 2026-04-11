@@ -48,6 +48,25 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     const [activeTab, setActiveTab] = useState(getInitialTab());
     const [searchTerm, setSearchTerm] = useState('');
     const [heritageView, setHeritageView] = useState<'tree' | 'stories' | 'gallery' | 'announcements'>('tree');
+    const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+    const [treeMembers, setTreeMembers] = useState([
+        { id: '1', name: 'Samuel Mwangi Sr.', branch: 'Paternal', relation: 'Great Grandfather', birthYear: '1892', deathYear: '1968', notes: 'Founder of the family heritage' },
+        { id: '2', name: 'John Mwangi', branch: 'Paternal', relation: 'Grandfather', birthYear: '1920', deathYear: '', notes: '' },
+        { id: '3', name: 'Grace Wamboi', branch: 'Maternal', relation: 'Grandmother', birthYear: '1925', deathYear: '', notes: '' },
+    ]);
+    const [newMember, setNewMember] = useState({ name: '', branch: 'Paternal', relation: '', birthYear: '', deathYear: '', notes: '' });
+    const [addMemberError, setAddMemberError] = useState('');
+
+    const handleAddMember = () => {
+        if (!newMember.name.trim() || !newMember.relation.trim()) {
+            setAddMemberError('Full name and relationship are required.');
+            return;
+        }
+        setTreeMembers(prev => [...prev, { ...newMember, id: Date.now().toString() }]);
+        setNewMember({ name: '', branch: 'Paternal', relation: '', birthYear: '', deathYear: '', notes: '' });
+        setAddMemberError('');
+        setShowAddMemberModal(false);
+    };
 
     const stats = isHeritage ? [
         { name: 'Ancestors Documented', value: '124', icon: Library, color: 'text-amber-600', bg: 'bg-amber-50' },
@@ -438,24 +457,54 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                             </div>
                         </div>
 
-                        {/* Heritage Status */}
-                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm self-start">
-                            <h4 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight mb-8">Tree Health</h4>
-                            <div className="space-y-6">
-                                <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                                    <span>Verified Members</span>
-                                    <span className="text-amber-600">42 Souls</span>
+                        {/* Heritage Status + Member List */}
+                        <div className="space-y-6">
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h4 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Tree Members</h4>
+                                    <button
+                                        onClick={() => setShowAddMemberModal(true)}
+                                        className="flex items-center gap-2 px-5 py-2.5 bg-amber-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-amber-100 dark:shadow-none hover:bg-amber-700 active:scale-95 transition-all"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        Add Member
+                                    </button>
                                 </div>
-                                <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                                    <span>Documented Generations</span>
-                                    <span className="text-blue-600">4 Generations</span>
+                                <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+                                    {treeMembers.map((m) => (
+                                        <div key={m.id} className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-transparent hover:border-amber-100 transition-all">
+                                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs flex-shrink-0 ${m.branch === 'Paternal' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
+                                                {m.name.charAt(0)}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-black text-slate-800 dark:text-slate-200 text-xs uppercase tracking-tight truncate">{m.name}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{m.relation} · {m.branch}</p>
+                                            </div>
+                                            {m.birthYear && <span className="text-[9px] font-black text-slate-400 uppercase shrink-0">{m.birthYear}</span>}
+                                        </div>
+                                    ))}
                                 </div>
-                                <div className="w-full h-2 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
-                                    <div className="w-[65%] h-full bg-amber-500"></div>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight mb-4">Tree Health</h4>
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                                        <span>Total Members</span>
+                                        <span className="text-amber-600">{treeMembers.length} Souls</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                                        <span>Paternal Branch</span>
+                                        <span className="text-blue-600">{treeMembers.filter(m => m.branch === 'Paternal').length}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                                        <span>Maternal Branch</span>
+                                        <span className="text-pink-600">{treeMembers.filter(m => m.branch === 'Maternal').length}</span>
+                                    </div>
+                                    <div className="w-full h-2 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden mt-2">
+                                        <div className="h-full bg-amber-500 transition-all duration-500" style={{ width: `${Math.min((treeMembers.length / 20) * 100, 100)}%` }}></div>
+                                    </div>
                                 </div>
-                                <button className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all active:scale-95 shadow-xl shadow-slate-200 dark:shadow-none">
-                                    Invite Family Admins
-                                </button>
                             </div>
                         </div>
                     </div>
@@ -651,6 +700,122 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                 {activeTab === 'social' && renderSocial()}
                 {activeTab === 'heritage' && renderHeritage()}
             </div>
+
+            {/* ── Add Family Member Modal ── */}
+            {showAddMemberModal && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                    {/* Overlay */}
+                    <div
+                        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+                        onClick={() => { setShowAddMemberModal(false); setAddMemberError(''); }}
+                    />
+                    {/* Modal Card */}
+                    <div className="relative z-10 bg-white dark:bg-slate-800 rounded-[3rem] shadow-2xl w-full max-w-lg border border-slate-100 dark:border-slate-700 overflow-hidden">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-amber-600 to-amber-700 p-8 relative overflow-hidden">
+                            <div className="absolute -right-8 -top-8 opacity-10">
+                                <TreePalm className="w-48 h-48 text-white" />
+                            </div>
+                            <div className="relative z-10">
+                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-200 mb-1">Family Tree</p>
+                                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Add Family Member</h3>
+                                <p className="text-amber-100 text-xs mt-1">Grow your ancestral lineage one soul at a time.</p>
+                            </div>
+                        </div>
+
+                        {/* Form */}
+                        <div className="p-8 space-y-5">
+                            {addMemberError && (
+                                <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-red-600 text-xs font-bold uppercase tracking-widest">
+                                    {addMemberError}
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="col-span-2">
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Full Name *</label>
+                                    <input
+                                        value={newMember.name}
+                                        onChange={e => setNewMember(p => ({ ...p, name: e.target.value }))}
+                                        placeholder="e.g. James Mwangi"
+                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white placeholder:text-slate-300 focus:outline-none focus:border-amber-400 transition-colors"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Branch *</label>
+                                    <select
+                                        value={newMember.branch}
+                                        onChange={e => setNewMember(p => ({ ...p, branch: e.target.value }))}
+                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-400 transition-colors"
+                                    >
+                                        <option value="Paternal">Paternal</option>
+                                        <option value="Maternal">Maternal</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Relationship *</label>
+                                    <input
+                                        value={newMember.relation}
+                                        onChange={e => setNewMember(p => ({ ...p, relation: e.target.value }))}
+                                        placeholder="e.g. Son, Aunt, Cousin"
+                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white placeholder:text-slate-300 focus:outline-none focus:border-amber-400 transition-colors"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Year of Birth</label>
+                                    <input
+                                        value={newMember.birthYear}
+                                        onChange={e => setNewMember(p => ({ ...p, birthYear: e.target.value }))}
+                                        placeholder="e.g. 1952"
+                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white placeholder:text-slate-300 focus:outline-none focus:border-amber-400 transition-colors"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Year of Death</label>
+                                    <input
+                                        value={newMember.deathYear}
+                                        onChange={e => setNewMember(p => ({ ...p, deathYear: e.target.value }))}
+                                        placeholder="Leave blank if alive"
+                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white placeholder:text-slate-300 focus:outline-none focus:border-amber-400 transition-colors"
+                                    />
+                                </div>
+
+                                <div className="col-span-2">
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Historical Notes</label>
+                                    <textarea
+                                        value={newMember.notes}
+                                        onChange={e => setNewMember(p => ({ ...p, notes: e.target.value }))}
+                                        placeholder="Brief notes on this family member's legacy..."
+                                        rows={3}
+                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white placeholder:text-slate-300 focus:outline-none focus:border-amber-400 transition-colors resize-none"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={() => { setShowAddMemberModal(false); setAddMemberError(''); }}
+                                    className="flex-1 py-4 border-2 border-slate-100 dark:border-slate-700 rounded-2xl font-black uppercase text-[10px] tracking-widest text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleAddMember}
+                                    className="flex-1 py-4 bg-amber-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-amber-200 dark:shadow-none hover:bg-amber-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Add to Tree
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
