@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
     School, 
     Upload, 
@@ -12,6 +12,7 @@ import {
     MapPin, 
     Binary, 
     ChevronRight, 
+    ChevronLeft,
     Download,
     X,
     Database,
@@ -73,6 +74,21 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
             s.uic?.toLowerCase().includes(lower)
         );
     }, [registry, searchTerm]);
+
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 50;
+
+    const paginatedSchools = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return filteredSchools.slice(start, start + pageSize);
+    }, [filteredSchools, currentPage]);
+
+    const totalPages = Math.ceil(filteredSchools.length / pageSize);
+
+    // Reset to page 1 when searching
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
 
     const handleSaveManual = async () => {
         if (!newSchool.name) return;
@@ -172,31 +188,28 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12 pt-12 border-t border-white/5">
-                    {[
-                        { label: 'Total Registry Size', val: registry.length.toLocaleString(), icon: <Database /> },
-                        { label: 'Active In Alumnae', val: registry.filter(s => s.institutionId).length, icon: <Zap /> },
-                        { label: 'Pending Portals', val: '—', icon: <FileText /> },
-                    ].map((s, i) => (
-                        <div key={i} className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center text-indigo-400">
-                                {s.icon}
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{s.label}</p>
-                                <h4 className="text-xl font-black text-white italic">{s.val}</h4>
-                            </div>
-                        </div>
-                    ))}
+                    <div className="bg-white/5 p-6 rounded-3xl border border-white/5 backdrop-blur-md">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Total Registry Size</p>
+                        <h3 className="text-4xl font-black text-white italic tracking-tighter">{registry.length} <span className="text-indigo-400 text-sm not-italic">Schools</span></h3>
+                    </div>
+                    <div className="bg-white/5 p-6 rounded-3xl border border-white/5 backdrop-blur-md">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Search Coverage</p>
+                        <h3 className="text-4xl font-black text-white italic tracking-tighter">{filteredSchools.length} <span className="text-emerald-400 text-sm not-italic">Matched</span></h3>
+                    </div>
+                    <div className="bg-indigo-600/10 p-6 rounded-3xl border border-indigo-500/20 backdrop-blur-md">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400 mb-1">Current Portal Page</p>
+                        <h3 className="text-4xl font-black text-indigo-400 italic tracking-tighter">{currentPage} <span className="text-slate-400 text-sm not-italic">/ {totalPages}</span></h3>
+                    </div>
                 </div>
             </div>
 
-            {/* Management Table */}
-            <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
-                <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row gap-6 items-center">
-                    <div className="relative flex-1 w-full">
+            {/* Registry List */}
+            <div className="bg-white dark:bg-slate-950 rounded-[3rem] p-10 border border-slate-100 dark:border-slate-800 shadow-xl overflow-hidden animate-fade-in-up">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-8 mb-10 pb-10 border-b border-slate-50 dark:border-slate-900">
+                    <div className="relative w-full md:max-w-md group">
                         <input 
-                            type="text" 
-                            placeholder="Search registry by name, knec, uic or slug..." 
+                            type="text"
+                            placeholder="Global Search County, Code, Name..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="w-full h-14 pl-14 pr-6 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none focus:ring-2 focus:ring-indigo-600 outline-none"
@@ -213,7 +226,7 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                     </div>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto min-h-[400px]">
                     <table className="w-full">
                         <thead>
                             <tr className="bg-slate-50/50 dark:bg-slate-800/50 text-left text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 italic">
@@ -225,7 +238,7 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                            {filteredSchools.map((s) => (
+                            {paginatedSchools.map((s) => (
                                 <tr key={s.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors group">
                                     <td className="px-10 py-8">
                                         <div className="flex items-center gap-4">
@@ -283,6 +296,56 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                             ))}
                         </tbody>
                     </table>
+                </div>
+
+                {/* Pagination Controls */}
+                <div className="mt-10 pt-10 border-t border-slate-50 dark:border-slate-900 flex flex-col md:flex-row justify-between items-center gap-6">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                        Showing <span className="text-indigo-600">{paginatedSchools.length}</span> of <span className="text-slate-700 dark:text-white">{filteredSchools.length}</span> results
+                    </p>
+                    
+                    <div className="flex items-center gap-2">
+                        <button 
+                            disabled={currentPage === 1}
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            className="w-12 h-12 rounded-2xl flex items-center justify-center bg-slate-50 dark:bg-slate-800 text-slate-400 hover:bg-indigo-600 hover:text-white transition-all disabled:opacity-30 disabled:hover:bg-slate-50 cursor-pointer"
+                        >
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
+                        
+                        <div className="flex items-center gap-2 px-4">
+                            {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
+                                // Show pages around current page
+                                let pageNum = currentPage;
+                                if (totalPages <= 5) pageNum = i + 1;
+                                else if (currentPage <= 3) pageNum = i + 1;
+                                else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                                else pageNum = currentPage - 2 + i;
+
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => setCurrentPage(pageNum)}
+                                        className={`w-12 h-12 rounded-2xl font-black text-xs transition-all ${
+                                            currentPage === pageNum 
+                                            ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/20' 
+                                            : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:bg-indigo-50 transition-colors'
+                                        }`}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        <button 
+                            disabled={currentPage === totalPages}
+                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                            className="w-12 h-12 rounded-2xl flex items-center justify-center bg-slate-50 dark:bg-slate-800 text-slate-400 hover:bg-indigo-600 hover:text-white transition-all disabled:opacity-30 disabled:hover:bg-slate-50 cursor-pointer"
+                        >
+                            <ChevronRight className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
             </div>
 
