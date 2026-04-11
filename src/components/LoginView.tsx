@@ -641,7 +641,19 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                         <option value="Polytechnic">Polytechnic</option>
                                                         <option value="Driving School">Driving School</option>
                                                         <option value="University">University</option>
+                                                        <option value="Alumni Network">Alumni Network / Alumna Association</option>
                                                     </select>
+                                                </div>
+                                            )}
+
+                                            {regData.category === 'Alumni Network' && (
+                                                <div className="mt-3 p-5 bg-indigo-50 rounded-2xl border border-indigo-100 animate-fade-in">
+                                                    <label className="block text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] mb-2">Associate School / Institution</label>
+                                                    <p className="text-[10px] text-slate-500 mb-3">Alumni will choose their specific school when registering on your portal.</p>
+                                                    <div className="flex items-center gap-2 p-3 bg-white rounded-xl border border-indigo-100">
+                                                        <span className="text-lg">🎓</span>
+                                                        <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide">Schools will be pulled from the platform database automatically.</p>
+                                                    </div>
                                                 </div>
                                             )}
 
