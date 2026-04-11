@@ -23,6 +23,8 @@ import { apiService } from '../../services/apiService';
 import { slugify } from '../../utils/stringUtils';
 import { generateId } from '../../utils/idGenerator';
 
+import { ExcelSmartImporter } from '../common/ExcelSmartImporter';
+
 interface SchoolRegistryManagerProps {
     registry: SchoolRegistry[];
     onRefresh: () => void;
@@ -33,6 +35,19 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
     const [isUploading, setIsUploading] = useState(false);
     const [isAddingManually, setIsAddingManually] = useState(false);
     const [uploadProgress, setUploadProgress] = useState<{ current: number, total: number } | null>(null);
+
+    const registryFields = [
+        { key: 'name', label: 'School / Institution Name', required: true },
+        { key: 'region', label: 'Region / Province' },
+        { key: 'county', label: 'County / State' },
+        { key: 'subCounty', label: 'Sub-County / District' },
+        { key: 'uic', label: 'UIC Master Code' },
+        { key: 'knecCode', label: 'KNEC Center Code' },
+        { key: 'cluster', label: 'Cluster Type' },
+        { key: 'genderType', label: 'Gender Category' },
+        { key: 'accommodationType', label: 'Accommodation Style' },
+        { key: 'specialNeedType', label: 'Inclusion Category' }
+    ];
 
     const [newSchool, setNewSchool] = useState<Partial<SchoolRegistry>>({
         name: '',
@@ -72,14 +87,23 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
         }
     };
 
-    const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        setIsUploading(true);
-        // Simulate parsing and uploading
-        alert("Simulating bulk upload of registry data. In production, this would parse your CSV and generate slugs automatically.");
+    const handleBulkComplete = async (data: any[]) => {
         setIsUploading(false);
+        try {
+            // Process in batches of 10 for performance
+            const batchSize = 10;
+            for (let i = 0; i < data.length; i += batchSize) {
+                const batch = data.slice(i, i + batchSize);
+                await Promise.all(batch.map(item => apiService.saveModuleRecord('school_registry', item)));
+                setUploadProgress({ current: Math.min(i + batchSize, data.length), total: data.length });
+            }
+            alert(`Successfully ingested ${data.length} institutions into the global registry.`);
+            setUploadProgress(null);
+            onRefresh();
+        } catch (err) {
+            console.error(err);
+            alert("Error during bulk ingestion. Check data formats.");
+        }
     };
 
     const handleDelete = async (id: string) => {
@@ -95,6 +119,14 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
 
     return (
         <div className="space-y-8 animate-fade-in">
+            {isUploading && (
+                <ExcelSmartImporter 
+                    fields={registryFields} 
+                    onComplete={handleBulkComplete} 
+                    onClose={() => setIsUploading(false)} 
+                />
+            )}
+
             {/* Header */}
             <div className="bg-slate-950 rounded-[3rem] p-10 border border-slate-800 shadow-2xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-10 opacity-5 -rotate-12">
@@ -112,11 +144,13 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                     </div>
                     
                     <div className="flex items-center gap-4">
-                        <label className="h-14 px-8 bg-slate-900 border border-slate-800 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-3 hover:bg-slate-800 transition-all cursor-pointer">
-                            <Upload className="w-4 h-4 text-indigo-400" />
-                            Bulk Upload Schools
-                            <input type="file" accept=".csv" className="hidden" onChange={handleBulkUpload} />
-                        </label>
+                        <button 
+                            onClick={() => setIsUploading(true)}
+                            className="h-14 px-8 bg-slate-900 border border-slate-800 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-3 hover:bg-slate-800 transition-all cursor-pointer"
+                        >
+                            <Upload className="w-4 h-4 text-emerald-400" />
+                            Smart Bulk Importer
+                        </button>
                         <button 
                             onClick={() => setIsAddingManually(true)}
                             className="h-14 px-10 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-2xl shadow-indigo-500/20 hover:bg-indigo-500 transition-all flex items-center gap-3 active:scale-95"
