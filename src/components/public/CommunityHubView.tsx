@@ -1,18 +1,18 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-    UserGroupIcon, 
-    HeartIcon, 
-    MapPinIcon, 
-    GlobeAltIcon, 
-    CurrencyDollarIcon,
-    MagnifyingGlassIcon,
-    ArrowRightIcon,
-    AcademicCapIcon,
-    HomeIcon,
-    SparklesIcon,
-    ShieldCheckIcon
-} from '@heroicons/react/24/outline';
+    Users, 
+    Heart, 
+    MapPin, 
+    Globe, 
+    CircleDollarSign,
+    Search,
+    ArrowRight,
+    GraduationCap,
+    Home,
+    Sparkles,
+    ShieldCheck
+} from 'lucide-react';
 import type { Institution, County } from '../../types';
 
 interface CommunityHubViewProps {
@@ -50,7 +50,7 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
                 <div className="max-w-7xl mx-auto flex justify-between items-center">
                     <div className="flex items-center gap-3 cursor-pointer" onClick={onBack}>
                         <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
-                            <UserGroupIcon className="w-6 h-6 text-white" />
+                            <Users className="w-6 h-6 text-white" />
                         </div>
                         <span className="font-black text-xl uppercase tracking-tighter text-slate-900">EduAI <span className="text-indigo-600">Community</span></span>
                     </div>
@@ -70,7 +70,7 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
                 <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-3xl -mr-32 -mt-32"></div>
                 <div className="max-w-5xl mx-auto text-center relative z-10">
                     <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-indigo-100 mb-8 animate-fade-in">
-                        <SparklesIcon className="w-4 h-4 text-indigo-500" />
+                        <Sparkles className="w-4 h-4 text-indigo-500" />
                         <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Verified Social Impact Portals</span>
                     </div>
                     <h1 className="text-5xl md:text-7xl font-black text-slate-900 uppercase tracking-tighter mb-6 leading-tight">
@@ -83,7 +83,7 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
                     {/* Search Bar */}
                     <div className="max-w-3xl mx-auto flex flex-col md:flex-row gap-4 p-3 bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 mb-12 transform hover:scale-[1.01] transition-all">
                         <div className="flex-1 flex items-center px-4 gap-3 bg-slate-50 rounded-2xl border border-transparent focus-within:border-indigo-100 focus-within:bg-white transition-all">
-                            <MagnifyingGlassIcon className="w-5 h-5 text-slate-400" />
+                            <Search className="w-5 h-5 text-slate-400" />
                             <input 
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
@@ -131,8 +131,8 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
                                         inst.category === 'Chama/Savings Group' ? 'bg-green-50 text-green-600' : 
                                         inst.category === 'Estate/Neighborhood' ? 'bg-blue-50 text-blue-600' : 'bg-pink-50 text-pink-600'
                                     }`}>
-                                        {inst.category === 'Chama/Savings Group' ? <CurrencyDollarIcon className="w-8 h-8" /> : 
-                                         inst.category === 'Estate/Neighborhood' ? <HomeIcon className="w-8 h-8" /> : <HeartIcon className="w-8 h-8" />}
+                                        {inst.category === 'Chama/Savings Group' ? <CircleDollarSign className="w-8 h-8" /> : 
+                                         inst.category === 'Estate/Neighborhood' ? <Home className="w-8 h-8" /> : <Heart className="w-8 h-8" />}
                                     </div>
                                     <span className="text-[9px] font-black uppercase px-3 py-1 bg-slate-50 text-slate-400 rounded-full tracking-tighter">
                                         ID: {inst.id.slice(0, 6)}
@@ -141,7 +141,7 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
 
                                 <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2 group-hover:text-indigo-600 transition-colors">{inst.name}</h3>
                                 <div className="flex items-center gap-2 mb-6">
-                                    <MapPinIcon className="w-4 h-4 text-slate-300" />
+                                    <MapPin className="w-4 h-4 text-slate-300" />
                                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{inst.phoneNumber || 'Remote Operations'}</span>
                                 </div>
 
@@ -164,7 +164,7 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
                                     className="w-full bg-slate-50 group-hover:bg-indigo-600 text-slate-600 group-hover:text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center justify-center gap-2"
                                 >
                                     Access Portal
-                                    <ArrowRightIcon className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+                                    <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
                                 </button>
                             </div>
                         </div>
@@ -173,7 +173,7 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
 
                 {filteredInsts.length === 0 && (
                     <div className="py-32 text-center">
-                        <GlobeAltIcon className="w-16 h-16 text-slate-200 mx-auto mb-6" />
+                        <Globe className="w-16 h-16 text-slate-200 mx-auto mb-6" />
                         <h3 className="text-2xl font-black text-slate-300 uppercase tracking-widest">No matching communities found</h3>
                         <p className="text-slate-400 mt-2">Try adjusting your filters or search keywords.</p>
                     </div>
@@ -208,7 +208,7 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
                         EduAI Community Neural Link v1.0
                     </p>
                     <div className="flex items-center gap-2">
-                        <ShieldCheckIcon className="w-5 h-5 text-indigo-500" />
+                        <ShieldCheck className="w-5 h-5 text-indigo-500" />
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-800 italic">Secure Social Infrastructure</span>
                     </div>
                 </div>

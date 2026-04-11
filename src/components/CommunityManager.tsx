@@ -1,20 +1,19 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-    UserGroupIcon, 
-    HomeIcon, 
-    HeartIcon, 
-    GlobeAltIcon, 
-    CurrencyDollarIcon,
-    CalendarIcon,
-    ShieldCheckIcon,
-    UsersIcon,
-    ChatBubbleLeftRightIcon,
-    DocumentTextIcon,
-    PlusIcon,
-    ArrowPathIcon,
-    MapPinIcon
-} from '@heroicons/react/24/outline';
+    Users, 
+    Home, 
+    Heart, 
+    Globe, 
+    CircleDollarSign,
+    Calendar,
+    ShieldCheck,
+    MessageSquare,
+    FileText,
+    Plus,
+    RotateCw,
+    MapPin
+} from 'lucide-react';
 import type { Institution, User } from '../types';
 
 interface CommunityManagerProps {
@@ -37,10 +36,10 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     const [searchTerm, setSearchTerm] = useState('');
 
     const stats = [
-        { name: 'Active Members', value: users.length, icon: UsersIcon, color: 'text-blue-600', bg: 'bg-blue-50' },
-        { name: 'Collections (MTD)', value: 'KES 428,500', icon: CurrencyDollarIcon, color: 'text-green-600', bg: 'bg-green-50' },
-        { name: 'Open Projects', value: '12', icon: GlobeAltIcon, color: 'text-purple-600', bg: 'bg-purple-50' },
-        { name: 'Pending Requests', value: '8', icon: ArrowPathIcon, color: 'text-orange-600', bg: 'bg-orange-50' },
+        { name: 'Active Members', value: users.length, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+        { name: 'Collections (MTD)', value: 'KES 428,500', icon: CircleDollarSign, color: 'text-green-600', bg: 'bg-green-50' },
+        { name: 'Open Projects', value: '12', icon: Globe, color: 'text-purple-600', bg: 'bg-purple-50' },
+        { name: 'Pending Requests', value: '8', icon: RotateCw, color: 'text-orange-600', bg: 'bg-orange-50' },
     ];
 
     const renderOverview = () => (
@@ -65,7 +64,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                 {/* Recent Activity */}
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
                     <h3 className="text-xl font-black mb-6 text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-3">
-                        <ChatBubbleLeftRightIcon className="w-6 h-6 text-indigo-600" />
+                        <MessageSquare className="w-6 h-6 text-indigo-600" />
                         Community Bulletin
                     </h3>
                     <div className="space-y-4">
@@ -90,7 +89,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                 {/* Map/Location Preview */}
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden relative min-h-[300px]">
                     <div className="absolute inset-0 bg-slate-100 dark:bg-slate-900 flex items-center justify-center">
-                        <MapPinIcon className="w-12 h-12 text-slate-300 animate-bounce" />
+                        <Home className="w-16 h-16 text-indigo-600 mb-4 animate-pulse" />
                         <span className="ml-3 font-black text-slate-400 uppercase tracking-widest text-xs">Community Map Loading...</span>
                     </div>
                     <div className="absolute top-8 left-8 p-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-2xl shadow-xl z-10 border border-white/20">
@@ -110,18 +109,18 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                     <p className="text-slate-500 font-medium text-sm mt-1">Track member deposits, loans, and merry-go-round cycles.</p>
                 </div>
                 <button className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all font-bold active:scale-95 shadow-lg shadow-green-100 dark:shadow-none">
-                    <CurrencyDollarIcon className="w-5 h-5" />
+                    <CircleDollarSign className="w-5 h-5" />
                     New Deposit
                 </button>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div className="p-6 bg-blue-600 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
-                    <CurrencyDollarIcon className="absolute -right-4 -bottom-4 w-32 h-32 opacity-10" />
+                    <CircleDollarSign className="absolute -right-4 -bottom-4 w-32 h-32 opacity-10" />
                     <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-80">Total Savings Pool</p>
                     <h4 className="text-3xl font-black mt-1 tracking-tighter uppercase">KES 1,250,000</h4>
                     <div className="mt-4 flex items-center gap-2 text-xs font-bold bg-white/20 w-fit px-3 py-1 rounded-full">
-                        <ArrowPathIcon className="w-3 h-3" />
+                        <RotateCw className="w-3 h-3" />
                         +12% from last month
                     </div>
                 </div>
@@ -169,7 +168,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                 </td>
                                 <td className="px-8 py-6 text-center">
                                     <button className="p-3 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-2xl text-indigo-600 transition-all">
-                                        <ArrowPathIcon className="w-5 h-5" />
+                                        <RotateCw className="w-5 h-5" />
                                     </button>
                                 </td>
                             </tr>
@@ -186,14 +185,14 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
                     <div>
                         <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-3">
-                            <HomeIcon className="w-8 h-8 text-indigo-600" />
+                            <Home className="w-8 h-8 text-indigo-600" />
                             Estate Management
                         </h3>
                         <p className="text-slate-500 font-medium text-sm mt-1">Manage residency logs, service charges, and security protocols.</p>
                     </div>
                     <div className="flex gap-3">
                         <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all font-bold active:scale-95 shadow-lg shadow-indigo-100 dark:shadow-none">
-                            <ShieldCheckIcon className="w-5 h-5" />
+                            <ShieldCheck className="w-5 h-5" />
                             Create Security Clear
                         </button>
                         <button className="bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-300 px-6 py-3 rounded-2xl hover:bg-slate-50 transition-all font-bold active:scale-95">
@@ -204,10 +203,10 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {[
-                        { label: 'Total Units', value: '142', icon: HomeIcon, color: 'text-blue-500' },
-                        { label: 'Occupancy', value: '94%', icon: UsersIcon, color: 'text-green-500' },
-                        { label: 'Unpaid Dues', value: 'KES 28k', icon: CurrencyDollarIcon, color: 'text-red-500' },
-                        { label: 'Reports', value: '0 NEW', icon: DocumentTextIcon, color: 'text-indigo-500' }
+                        { label: 'Total Units', value: '142', icon: Home, color: 'text-blue-500' },
+                        { label: 'Occupancy', value: '94%', icon: Users, color: 'text-green-500' },
+                        { label: 'Unpaid Dues', value: 'KES 28k', icon: CircleDollarSign, color: 'text-red-500' },
+                        { label: 'Reports', value: '0 NEW', icon: FileText, color: 'text-indigo-500' }
                     ].map((stat, i) => (
                         <div key={i} className="p-5 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800">
                             <stat.icon className={`w-5 h-5 ${stat.color} mb-3`} />
@@ -229,7 +228,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                         <div key={i} className="flex items-center justify-between p-4 border border-slate-100 dark:border-slate-800 rounded-2xl group hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-all">
                             <div className="flex items-center gap-4">
                                 <div className="w-10 h-10 bg-slate-100 dark:bg-slate-900 rounded-xl flex items-center justify-center">
-                                    <MapPinIcon className="w-5 h-5 text-slate-400" />
+                                    <Home className="w-5 h-5 text-blue-500 mb-3" />
                                 </div>
                                 <div>
                                     <p className="font-bold text-slate-800 dark:text-slate-200">{log.guest}</p>
@@ -251,7 +250,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-2">
                 <div>
                     <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-3">
-                        <HeartIcon className="w-8 h-8 text-red-500" />
+                        <Heart className="w-8 h-8 text-red-500" />
                         Foundation & Social Impact
                     </h3>
                     <p className="text-slate-500 font-medium text-sm mt-1">Beneficiary mapping, relief distribution, and project tracking.</p>
@@ -289,7 +288,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
                     <h4 className="text-lg font-black mb-6 text-slate-800 dark:text-white uppercase tracking-tight">Beneficiary Lookup</h4>
                     <div className="relative mb-6">
-                        <PlusIcon className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-500 cursor-pointer" />
+                        <Plus className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-500 cursor-pointer" />
                         <input 
                             placeholder="Enter Name or ID" 
                             className="w-full p-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl font-bold placeholder:text-slate-300"
@@ -319,7 +318,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <div>
                     <h2 className="text-4xl font-black flex items-center gap-3 text-slate-800 dark:text-white uppercase tracking-tighter">
-                        <UserGroupIcon className="w-12 h-12 text-indigo-600" />
+                        <Users className="w-12 h-12 text-indigo-600" />
                         {category} Gateway
                     </h2>
                     <p className="text-slate-500 font-medium text-sm mt-1">Professional dashboard for community-led organizations and welfare programs.</p>
