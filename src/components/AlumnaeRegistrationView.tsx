@@ -58,13 +58,17 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
     const filteredSchools = useMemo(() => {
         if (!searchTerm || selectedSchool) return [];
         const lower = searchTerm.toLowerCase();
-        return registry.filter(s => 
-            s.name.toLowerCase().includes(lower) || 
-            s.knecCode?.toLowerCase().includes(lower) ||
-            s.county?.toLowerCase().includes(lower) ||
-            s.region?.toLowerCase().includes(lower) ||
-            s.uic?.toLowerCase().includes(lower)
-        ).slice(0, 10);
+        const searchTerms = lower.split(' ').filter(t => t.length > 1);
+        
+        return registry.filter(s => {
+            const schoolData = `${s.name} ${s.knecCode} ${s.county} ${s.region} ${s.uic}`.toLowerCase();
+            
+            // If very short, must be start of name or code
+            if (lower.length < 3) return schoolData.includes(lower);
+            
+            // Multi-word search
+            return searchTerms.every(term => schoolData.includes(term));
+        }).slice(0, 15);
     }, [registry, searchTerm, selectedSchool]);
 
     const handleNext = () => setStep(step + 1);
@@ -114,7 +118,13 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                     <div className="space-y-8 animate-fade-in-up">
                         <div className="text-center">
                             <h2 className="text-4xl font-black uppercase tracking-tighter text-slate-800 dark:text-white leading-none">Find Your <br /><span className="text-indigo-600 italic">Alma Mater</span></h2>
-                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-4 italic">Select your school from our national registry</p>
+                            {registry.length === 0 ? (
+                                <p className="text-indigo-500 text-xs font-black uppercase tracking-widest mt-4 animate-pulse flex items-center justify-center gap-2">
+                                    <Globe className="w-4 h-4 animate-spin" /> Synchronizing National Registry...
+                                </p>
+                            ) : (
+                                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-4 italic">Select your school from our national registry</p>
+                            )}
                         </div>
 
                         <div className="relative group">
@@ -122,7 +132,12 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                                 type="text"
                                 placeholder="Start typing school name or code..."
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={(e) => {
+                                    setSearchTerm(e.target.value);
+                                    if (selectedSchool && e.target.value !== selectedSchool.name) {
+                                        setSelectedSchool(null);
+                                    }
+                                }}
                                 className="w-full h-20 pl-16 pr-8 bg-slate-50 dark:bg-slate-800 rounded-[2rem] text-lg font-bold border-none focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
                             />
                             <Search className="w-7 h-7 absolute left-6 top-6.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
