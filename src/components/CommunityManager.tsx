@@ -21,7 +21,8 @@ import {
     Image as ImageIcon,
     TreePalm,
     CalendarDays as CalendarDaysIcon,
-    ArrowRight
+    ArrowRight,
+    Sparkles
 } from 'lucide-react';
 import type { Institution, User } from '../types';
 
