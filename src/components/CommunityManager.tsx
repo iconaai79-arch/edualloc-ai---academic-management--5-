@@ -45,6 +45,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
 
     const [activeTab, setActiveTab] = useState(getInitialTab());
     const [searchTerm, setSearchTerm] = useState('');
+    const [heritageView, setHeritageView] = useState<'tree' | 'stories' | 'gallery' | 'announcements'>('tree');
 
     const stats = [
         { name: 'Active Members', value: users.length, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
@@ -325,8 +326,6 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     );
 
     const renderHeritage = () => {
-        const [heritageView, setHeritageView] = useState<'tree' | 'stories' | 'gallery' | 'announcements'>('tree');
-
         return (
             <div className="animate-fade-in space-y-8">
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
