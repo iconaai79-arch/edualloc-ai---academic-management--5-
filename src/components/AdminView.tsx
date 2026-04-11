@@ -720,69 +720,71 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             )}
                         </div>
 
-                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                            <h3 className="text-xl font-black tracking-tighter uppercase mb-6 flex items-center gap-2">
-                                <SparklesIcon className="w-5 h-5 text-indigo-600" />
-                                Operational Hub
-                            </h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                                {isEdu && (
-                                    <button
-                                        onClick={() => handleQuickAction('timetable', 'wizard')}
-                                        className="flex flex-col items-start p-6 bg-indigo-600 text-white rounded-3xl shadow-xl shadow-indigo-200 hover:shadow-indigo-300 transition-all group text-left hover:-translate-y-1"
-                                    >
-                                        <div className="p-3 bg-white/20 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
-                                            <BeakerIcon className="w-6 h-6" />
-                                        </div>
-                                        <span className="font-black text-sm uppercase tracking-tight">Timetable Wizard</span>
-                                        <p className="text-[10px] opacity-80 uppercase mt-1">Guided Generation</p>
-                                    </button>
-                                )}
-                                {isCoreAdmin && (
-                                    <button
-                                        onClick={() => setIsPerspectiveModalOpen(true)}
-                                        className="flex flex-col items-start p-6 bg-amber-50 dark:bg-amber-900/30 rounded-3xl border border-amber-100 dark:border-amber-800 hover:border-amber-400 transition-all group text-left"
-                                    >
-                                        <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-amber-600 mb-4 group-hover:scale-110 transition-transform">
-                                            <EyeIcon className="w-6 h-6" />
-                                        </div>
-                                        <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Switch Perspective</span>
-                                        <p className="text-[10px] text-slate-400 uppercase mt-1">View module accounts</p>
-                                    </button>
-                                )}
-                                    <button
-                                        onClick={() => handleQuickAction('users')}
-                                        className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
-                                    >
-                                        <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-indigo-600 mb-4 group-hover:scale-110 transition-transform">
-                                            <UserGroupIcon className="w-6 h-6" />
-                                        </div>
-                                        <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">{isChurch ? 'Workers Hub' : 'Staff Hub'}</span>
-                                    </button>
-                                {isEdu && (
-                                    <>
+                        {!isCommunity && (
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                                <h3 className="text-xl font-black tracking-tighter uppercase mb-6 flex items-center gap-2">
+                                    <SparklesIcon className="w-5 h-5 text-indigo-600" />
+                                    Operational Hub
+                                </h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                                    {isEdu && (
                                         <button
-                                            onClick={() => handleQuickAction('timetable', undefined, 'calendar')}
-                                            className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
+                                            onClick={() => handleQuickAction('timetable', 'wizard')}
+                                            className="flex flex-col items-start p-6 bg-indigo-600 text-white rounded-3xl shadow-xl shadow-indigo-200 hover:shadow-indigo-300 transition-all group text-left hover:-translate-y-1"
                                         >
-                                            <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
-                                                <CalendarDaysIcon className="w-6 h-6" />
+                                            <div className="p-3 bg-white/20 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
+                                                <BeakerIcon className="w-6 h-6" />
                                             </div>
-                                            <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">{isSchool ? 'School Calendar' : isChurch ? 'Liturgical Calendar' : 'Academic Calendar'}</span>
+                                            <span className="font-black text-sm uppercase tracking-tight">Timetable Wizard</span>
+                                            <p className="text-[10px] opacity-80 uppercase mt-1">Guided Generation</p>
                                         </button>
+                                    )}
+                                    {isCoreAdmin && (
                                         <button
-                                            onClick={() => handleQuickAction('timetable', undefined, 'subjects')}
-                                            className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
+                                            onClick={() => setIsPerspectiveModalOpen(true)}
+                                            className="flex flex-col items-start p-6 bg-amber-50 dark:bg-amber-900/30 rounded-3xl border border-amber-100 dark:border-amber-800 hover:border-amber-400 transition-all group text-left"
                                         >
                                             <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-amber-600 mb-4 group-hover:scale-110 transition-transform">
-                                                <BookOpenIcon className="w-6 h-6" />
+                                                <EyeIcon className="w-6 h-6" />
                                             </div>
-                                            <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">{isChurch ? 'Ministries' : 'Subjects'}</span>
+                                            <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Switch Perspective</span>
+                                            <p className="text-[10px] text-slate-400 uppercase mt-1">View module accounts</p>
                                         </button>
-                                    </>
-                                )}
+                                    )}
+                                        <button
+                                            onClick={() => handleQuickAction('users')}
+                                            className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
+                                        >
+                                            <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-indigo-600 mb-4 group-hover:scale-110 transition-transform">
+                                                <UserGroupIcon className="w-6 h-6" />
+                                            </div>
+                                            <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">{isChurch ? 'Workers Hub' : 'Staff Hub'}</span>
+                                        </button>
+                                    {isEdu && (
+                                        <>
+                                            <button
+                                                onClick={() => handleQuickAction('timetable', undefined, 'calendar')}
+                                                className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
+                                            >
+                                                <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
+                                                    <CalendarDaysIcon className="w-6 h-6" />
+                                                </div>
+                                                <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">{isSchool ? 'School Calendar' : isChurch ? 'Liturgical Calendar' : 'Academic Calendar'}</span>
+                                            </button>
+                                            <button
+                                                onClick={() => handleQuickAction('timetable', undefined, 'subjects')}
+                                                className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
+                                            >
+                                                <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-amber-600 mb-4 group-hover:scale-110 transition-transform">
+                                                    <BookOpenIcon className="w-6 h-6" />
+                                                </div>
+                                                <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">{isChurch ? 'Ministries' : 'Subjects'}</span>
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
                             <div className="flex items-center gap-3 mb-6">
