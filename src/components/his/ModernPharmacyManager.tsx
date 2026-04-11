@@ -110,6 +110,52 @@ export const ModernPharmacyManager: React.FC<{
         }
     };
 
+    const theme = useMemo(() => {
+        const t = settings?.theme || 'indigo';
+        const config = {
+            indigo: { accent: 'indigo-400', bg: 'indigo-500', shadow: 'shadow-indigo-500/20', glass: 'from-indigo-500/5', border: 'border-indigo-500/30' },
+            emerald: { accent: 'emerald-400', bg: 'emerald-500', shadow: 'shadow-emerald-500/20', glass: 'from-emerald-500/5', border: 'border-emerald-500/30' },
+            rose: { accent: 'rose-400', bg: 'rose-500', shadow: 'shadow-rose-500/20', glass: 'from-rose-500/5', border: 'border-rose-500/30' },
+            amber: { accent: 'amber-400', bg: 'amber-500', shadow: 'shadow-amber-500/20', glass: 'from-amber-500/5', border: 'border-amber-500/30' },
+            cyan: { accent: 'cyan-400', bg: 'cyan-500', shadow: 'shadow-cyan-500/20', glass: 'from-cyan-500/5', border: 'border-cyan-500/30' }
+        };
+        return config[t] || config.indigo;
+    }, [settings?.theme]);
+
+    const canAccessTab = (tab: typeof activeTab) => {
+        const role = currentUser.role;
+        const pharmRole = staff.find(s => s.fullName === currentUser.fullName)?.role || role; // Fallback to system role
+
+        // Admin/Owner has full access
+        if (role === 'retail_agent' || role === 'admin' || role === 'his_admin') return true;
+
+        switch (pharmRole) {
+            case 'Pharmacist':
+                return ['dashboard', 'pos', 'inventory', 'prescriptions', 'automation', 'reports'].includes(tab);
+            case 'Technician':
+                return ['inventory', 'prescriptions'].includes(tab);
+            case 'Cashier':
+                return ['pos'].includes(tab);
+            case 'Store Manager':
+                return ['dashboard', 'inventory', 'reports'].includes(tab);
+            default:
+                // If they are a generic staff member but not in the pharmacy_staff table specifically, 
+                // give them minimal access if they have the retail_agent role (handled above).
+                return false;
+        }
+    };
+
+    const accessibleTabs = useMemo(() => {
+        const allTabs = ['dashboard', 'pos', 'inventory', 'prescriptions', 'hr', 'accounting', 'automation', 'reports', 'config'] as const;
+        return allTabs.filter(tab => canAccessTab(tab as any));
+    }, [currentUser.role, staff]);
+
+    useEffect(() => {
+        if (!canAccessTab(activeTab) && accessibleTabs.length > 0) {
+            setActiveTab(accessibleTabs[0]);
+        }
+    }, [accessibleTabs]);
+
     useEffect(() => { loadData(); }, [institutionId]);
 
     // Derived Metrics
@@ -508,7 +554,7 @@ export const ModernPharmacyManager: React.FC<{
                 <div className="relative">
                     <div className="absolute -top-10 -left-10 w-40 h-40 bg-indigo-500/20 rounded-full blur-[80px]"></div>
                     <h1 className="text-5xl font-black uppercase tracking-tighter italic leading-none">
-                        Neo <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-emerald-400 to-cyan-400">Pharmaceutics</span>
+                        Neo <span className={`text-transparent bg-clip-text bg-gradient-to-r from-${theme.accent} via-emerald-400 to-cyan-400`}>Pharmaceutics</span>
                     </h1>
                     <div className="flex items-center gap-3 mt-4">
                         <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
@@ -518,13 +564,13 @@ export const ModernPharmacyManager: React.FC<{
                     </div>
                 </div>
 
-                <div className="flex bg-white/5 backdrop-blur-3xl p-1.5 rounded-[2.5rem] border border-white/10 shadow-2xl">
-                    {(['dashboard', 'pos', 'inventory', 'prescriptions', 'hr', 'accounting', 'automation', 'reports', 'config'] as const).map(tab => (
+                <div className="flex bg-white/5 backdrop-blur-3xl p-1.5 rounded-[2.5rem] border border-white/10 shadow-2xl overflow-x-auto no-scrollbar">
+                    {accessibleTabs.map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
                             className={`px-6 py-3.5 rounded-[2rem] text-[9px] font-black uppercase tracking-widest transition-all duration-500 flex items-center gap-3 ${
-                                activeTab === tab ? 'bg-indigo-500 text-white shadow-xl shadow-indigo-500/40 ring-4 ring-indigo-500/20' : 'text-slate-500 hover:text-white hover:bg-white/5'
+                                activeTab === tab ? `bg-${theme.bg} text-white shadow-xl ${theme.shadow} ring-4 ring-${theme.bg}/20` : 'text-slate-500 hover:text-white hover:bg-white/5'
                             }`}
                         >
                             {tab === 'dashboard' && <ChartBarIcon className="w-4 h-4" />}
@@ -546,11 +592,11 @@ export const ModernPharmacyManager: React.FC<{
             {activeTab === 'dashboard' && (
                 <div className="space-y-10 animate-fade-in">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                        <div className="glass-morphism-dark p-10 rounded-[3.5rem] border border-white/5 group hover:border-indigo-500/30 transition-all duration-700">
+                        <div className={`glass-morphism-dark p-10 rounded-[3.5rem] border border-white/5 group hover:${theme.border} transition-all duration-700`}>
                             <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Daily Yield</p>
                             <div className="flex items-end gap-4">
                                 <h3 className="text-4xl font-black italic tracking-tighter">KES {metrics.todayRevenue.toLocaleString()}</h3>
-                                <span className="text-emerald-400 text-[10px] font-black mb-2">+14% ↗</span>
+                                <span className={`${theme.text} text-[10px] font-black mb-2 px-1`}>+14% ↗</span>
                             </div>
                         </div>
                         <div className="glass-morphism-dark p-10 rounded-[3.5rem] border border-white/5">
@@ -583,7 +629,7 @@ export const ModernPharmacyManager: React.FC<{
                              
                              <div className="h-64 flex items-end gap-4 px-4 overflow-x-auto no-scrollbar">
                                  {[40, 60, 45, 90, 120, 80, 150, 110, 180, 140, 200, 170].map((v, i) => (
-                                     <div key={i} className="flex-1 min-w-[20px] bg-gradient-to-t from-indigo-500 to-emerald-400 rounded-t-2xl relative group transition-all hover:scale-x-125" style={{ height: `${v}%` }}>
+                                     <div key={i} className={`flex-1 min-w-[20px] bg-gradient-to-t from-${theme.bg} to-emerald-400 rounded-t-2xl relative group transition-all hover:scale-x-125`} style={{ height: `${v}%` }}>
                                          <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-xl px-3 py-1 rounded-lg text-[8px] font-black opacity-0 group-hover:opacity-100 transition-opacity">
                                              KES {v*1000}
                                          </div>
@@ -1147,8 +1193,8 @@ export const ModernPharmacyManager: React.FC<{
                 <div className="p-12 animate-fade-in space-y-12">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
                         {/* Clinical Inventory Valuation */}
-                        <div className="glass-morphism-dark p-12 rounded-[4rem] border border-white/5 group hover:border-indigo-500/30 transition-all text-center space-y-8">
-                             <div className="w-24 h-24 rounded-[2.5rem] bg-indigo-500/10 flex items-center justify-center text-indigo-400 mx-auto">
+                        <div className={`glass-morphism-dark p-12 rounded-[4rem] border border-white/5 group hover:${theme.border} transition-all text-center space-y-8`}>
+                             <div className={`w-24 h-24 rounded-[2.5rem] bg-${theme.bg}/10 flex items-center justify-center text-${theme.accent} mx-auto`}>
                                  <ArchiveBoxIcon className="w-12 h-12" />
                              </div>
                              <div>
@@ -1157,7 +1203,7 @@ export const ModernPharmacyManager: React.FC<{
                              </div>
                              <button 
                                 onClick={handleGenerateInventoryReport}
-                                className="w-full py-5 rounded-[2rem] bg-indigo-500 text-white text-[10px] font-black uppercase tracking-[0.4em] shadow-xl hover:scale-105 transition-all"
+                                className={`w-full py-5 rounded-[2rem] bg-${theme.bg} text-white text-[10px] font-black uppercase tracking-[0.4em] shadow-xl hover:scale-105 transition-all`}
                              >
                                 Generate Preview
                              </button>
@@ -1308,6 +1354,24 @@ export const ModernPharmacyManager: React.FC<{
                             </div>
                         </div>
 
+                            <div className="glass-morphism-dark p-12 rounded-[4rem] border border-white/5 bg-gradient-to-b from-indigo-500/5 to-transparent">
+                                <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-10 text-indigo-400">Theme <span className="text-white">Experience</span></h3>
+                                <div className="grid grid-cols-5 gap-4">
+                                    {(['indigo', 'emerald', 'rose', 'amber', 'cyan'] as const).map(t => (
+                                        <button 
+                                            key={t}
+                                            onClick={() => setSettings({...settings, theme: t})}
+                                            className={`h-16 rounded-2xl border-2 transition-all flex items-center justify-center ${settings.theme === t ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-60 hover:opacity-100'}`}
+                                            title={t.toUpperCase()}
+                                        >
+                                            <div className={`w-10 h-10 rounded-full bg-${t === 'indigo' ? 'indigo-500' : t === 'emerald' ? 'emerald-500' : t === 'rose' ? 'rose-500' : t === 'amber' ? 'amber-500' : 'cyan-500'}`}></div>
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-6 text-center">Global accent nodes will be recalibrated upon selection.</p>
+                            </div>
+                        </div>
+
                         <div className="space-y-12">
                             <div className="glass-morphism-dark p-12 rounded-[4rem] border border-white/5 bg-gradient-to-b from-amber-500/5 to-transparent">
                                 <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-10 text-amber-500">Operation <span className="text-white">Logic</span></h3>
@@ -1344,7 +1408,7 @@ export const ModernPharmacyManager: React.FC<{
 
                             <button 
                                 onClick={handleSaveSettings}
-                                className="w-full py-8 rounded-[2rem] bg-indigo-500 text-white font-black uppercase tracking-[0.5em] italic shadow-2xl shadow-indigo-500/20 hover:scale-[1.02] active:scale-95 transition-all text-xs"
+                                className={`w-full py-8 rounded-[2rem] bg-${theme.bg} text-white font-black uppercase tracking-[0.5em] italic shadow-2xl ${theme.shadow} hover:scale-[1.02] active:scale-95 transition-all text-xs`}
                             >
                                 Commit Nexus Config
                             </button>

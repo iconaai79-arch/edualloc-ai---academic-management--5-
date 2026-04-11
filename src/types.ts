@@ -2806,6 +2806,7 @@ export interface PharmacySettings {
     receiptFooter?: string;
     lowStockThreshold: number;
     enableSmsReminders: boolean;
+    theme?: 'indigo' | 'emerald' | 'rose' | 'amber' | 'cyan';
     updatedAt: string;
 }
 
