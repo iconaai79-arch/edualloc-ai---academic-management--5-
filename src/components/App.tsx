@@ -526,7 +526,9 @@ export const App: React.FC = () => {
             // Show if URL param set, or hostname is showcase/marketing, or no user and not marketplace/guest portals/tenant stores
             const isMarketingSubdomain = window.location.hostname === 'showcase.eduai.co.ke' || window.location.hostname.includes('showcase') || window.location.hostname.includes('marketing');
             if (isMarketingSubdomain || params.get('view') === 'showcase') return true;
-            return !currentUser && !showMarketplace && !showCommunityHub && !showGuestPortal && !showGuestFeedback && !showTenantStore && params.get('view') !== 'alumnae_register';
+            
+            const isAlumnaeDeepLink = params.get('school') || params.get('alumnae') || params.get('view') === 'alumnae_register';
+            return !currentUser && !showMarketplace && !showCommunityHub && !showGuestPortal && !showGuestFeedback && !showTenantStore && !isAlumnaeDeepLink;
         } catch (e) {
             return !currentUser;
         }
@@ -4442,11 +4444,17 @@ export const App: React.FC = () => {
                                 onBack={() => window.location.href = '/?view=community'}
                                 onViewStore={(id) => window.location.href = `/?shop=${id}`}
                             />
-                        ) : showMarketing ? (
-                            <MarketingLandingPage 
-                                onLogin={() => setShowMarketing(false)}
-                                onBookDemo={() => setShowBookDemo(true)}
-                                onOpenStore={() => setShowMarketplace(true)}
+                        ) : showAlumnaeRegister ? (
+                            <AlumnaeRegistrationView 
+                                registry={schoolRegistry}
+                                initialSchool={selectedRegistrySchool}
+                                onBackToPortal={() => {
+                                    window.location.href = '/?view=community';
+                                }}
+                                onComplete={(data) => {
+                                    alert("Registration Successful! Your details have been submitted to your school for verification. You will receive an email once approved.");
+                                    window.location.href = '/?view=community';
+                                }}
                             />
                         ) : showGuestPortal ? (
                             <PublicAppointmentView
@@ -4471,17 +4479,11 @@ export const App: React.FC = () => {
                                 institutions={institutions}
                                 onClose={() => setShowGuestFeedback(false)} 
                             />
-                        ) : showAlumnaeRegister ? (
-                            <AlumnaeRegistrationView 
-                                registry={schoolRegistry}
-                                initialSchool={selectedRegistrySchool}
-                                onBackToPortal={() => {
-                                    window.location.href = '/?view=community';
-                                }}
-                                onComplete={(data) => {
-                                    alert("Registration Successful! Your details have been submitted to your school for verification. You will receive an email once approved.");
-                                    window.location.href = '/?view=community';
-                                }}
+                        ) : showMarketing ? (
+                            <MarketingLandingPage 
+                                onLogin={() => setShowMarketing(false)}
+                                onBookDemo={() => setShowBookDemo(true)}
+                                onOpenStore={() => setShowMarketplace(true)}
                             />
                         ) : (
                             <LoginView
