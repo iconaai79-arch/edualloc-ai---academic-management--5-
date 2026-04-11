@@ -371,8 +371,12 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const isBusiness = institutionType === 'Business';
 
     const isEdu = useMemo(() => {
-        return isSchoolInstitution(props.currentInstitution) || isHigherEdInstitution(props.currentInstitution);
+        return isEduInstitution(props.currentInstitution);
     }, [props.currentInstitution]);
+
+    const isDS = useMemo(() => {
+        return props.currentInstitution?.category === 'Driving School' || institutionType === 'Driving School';
+    }, [props.currentInstitution, institutionType]);
 
     const isSchool = useMemo(() => {
         return isSchoolInstitution(props.currentInstitution);
@@ -418,6 +422,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 setActiveTab('church');
             } else if (isRetailAgency || ['Pharmacy', 'Chemist'].includes(businessSubType || '')) {
                 setActiveTab('retail');
+            } else if (isDS || role === 'driving_instructor') {
+                setActiveTab('driving_school');
             }
             setHasSetDefaultTab(true);
         }
@@ -524,7 +530,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             if (tab.id === 'car_service') return isBusiness && (businessSubType === 'Car Service' || businessSubType === 'Mechanic');
             if (tab.id === 'church') return isChurch;
             if (tab.id === 'law') return roleToUse === 'legal_admin' || institutionType === 'Law Firm';
-            if (tab.id === 'driving_school') return roleToUse === 'driving_instructor' || institutionType === 'Driving School';
+            if (tab.id === 'driving_school') return roleToUse === 'driving_instructor' || institutionType === 'Driving School' || props.currentInstitution?.category === 'Driving School';
 
             return true;
         });

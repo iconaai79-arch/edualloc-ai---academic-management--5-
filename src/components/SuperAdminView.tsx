@@ -1602,6 +1602,7 @@ Please change it after login.`;
                                                         <option value="TVET">TVET / Vocational</option>
                                                         <option value="Institute">Institute</option>
                                                         <option value="Polytechnic">Polytechnic</option>
+                                                        <option value="Driving School">Driving School</option>
                                                         <option value="University">University</option>
                                                     </select>
                                                 </div>

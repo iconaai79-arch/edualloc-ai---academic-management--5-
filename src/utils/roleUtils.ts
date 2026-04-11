@@ -139,7 +139,7 @@ export const isEduInstitution = (institution: Partial<Institution> | null | unde
     if (!institution) return false;
     const type = institution.institutionType;
     const category = institution.category;
-    const eduCats = ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten', 'Pre-primary', 'Junior Secondary'];
+    const eduCats = ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten', 'Pre-primary', 'Junior Secondary', 'Driving School'];
     return type === 'Education' || eduCats.includes(type as any) || eduCats.includes(category || '');
 };
 
