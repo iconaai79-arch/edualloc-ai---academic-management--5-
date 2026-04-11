@@ -680,7 +680,7 @@ export const App: React.FC = () => {
                 apiService.fetchModuleRecords<County>('counties').catch(() => []),
                 apiService.fetchCompanySettings().catch(() => null),
                 apiService.fetchUsers(instId).catch(() => []),
-                apiService.fetchModuleRecords<SchoolRegistry>('school_registry').catch(() => []),
+                apiService.fetchModuleRecords<SchoolRegistry>('school_registry', undefined, undefined, { limit: 10000 }).catch(() => []),
             ]);
 
             let d: any[] = [], s: any[] = [], c: any[] = [], a: any[] = [], ay: any[] = [], sem: any[] = [], r: any[] = [], b: any[] = [], al: any[] = [], tasks: any[] = [], txns: any[] = [], recs: any[] = [], logs: any[] = [], notifs: any[] = [];

@@ -540,7 +540,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
 
     const fetchSchoolRegistry = useCallback(async () => {
         try {
-            const data = await apiService.fetchModuleRecords<SchoolRegistry>('school_registry');
+            const data = await apiService.fetchModuleRecords<SchoolRegistry>('school_registry', undefined, undefined, { limit: 10000 });
             setSchoolRegistry(data);
         } catch (e) {
             console.error("Failed to fetch school registry:", e);
