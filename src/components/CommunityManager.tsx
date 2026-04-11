@@ -34,12 +34,14 @@ interface CommunityManagerProps {
 export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInstitution, users }) => {
     const category = currentInstitution.category || 'NGO/Foundation';
     
+    const isHeritage = category.includes('Family') || category.includes('Heritage');
+
     // Determine initial view based on category
     const getInitialTab = () => {
         if (category.includes('Chama')) return 'savings';
         if (category.includes('Estate')) return 'residences';
         if (category.includes('NGO')) return 'social';
-        if (category.includes('Family') || category.includes('Heritage')) return 'heritage';
+        if (isHeritage) return 'heritage';
         return 'overview';
     };
 
@@ -47,7 +49,12 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     const [searchTerm, setSearchTerm] = useState('');
     const [heritageView, setHeritageView] = useState<'tree' | 'stories' | 'gallery' | 'announcements'>('tree');
 
-    const stats = [
+    const stats = isHeritage ? [
+        { name: 'Ancestors Documented', value: '124', icon: Library, color: 'text-amber-600', bg: 'bg-amber-50' },
+        { name: 'Family Members', value: users.length, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+        { name: 'Heritage Documents', value: '452', icon: FileText, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+        { name: 'Active Memorials', value: '3', icon: Heart, color: 'text-rose-600', bg: 'bg-rose-50' },
+    ] : [
         { name: 'Active Members', value: users.length, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
         { name: 'Collections (MTD)', value: 'KES 428,500', icon: CircleDollarSign, color: 'text-green-600', bg: 'bg-green-50' },
         { name: 'Open Projects', value: '12', icon: Globe, color: 'text-purple-600', bg: 'bg-purple-50' },
@@ -73,24 +80,28 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Recent Activity */}
+                {/* Recent Activity / Announcements Contextual */}
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
                     <h3 className="text-xl font-black mb-6 text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-3">
                         <MessageSquare className="w-6 h-6 text-indigo-600" />
-                        Community Bulletin
+                        {isHeritage ? 'Ancestral Timeline' : 'Community Bulletin'}
                     </h3>
                     <div className="space-y-4">
-                        {[
+                        {(isHeritage ? [
+                            { title: 'New Marriage Records Added', date: 'Highland Branch', type: 'Archival' },
+                            { title: 'Oral History Recording: Elder John', date: 'Maternal Side', type: 'Voice' },
+                            { title: 'Clan Meeting Scheduled', date: 'Aug 15th, 2026', type: 'Meeting' }
+                        ] : [
                             { title: 'Annual General Meeting', date: 'Oct 24, 2024', type: 'Event' },
                             { title: 'Water Tank Maintenance', date: 'Oct 20, 2024', type: 'Maintenance' },
                             { title: 'New Security Protocol', date: 'Oct 18, 2024', type: 'Security' }
-                        ].map((item, i) => (
+                        ]).map((item, i) => (
                             <div key={i} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-transparent hover:border-indigo-100 transition-all cursor-pointer">
                                 <div>
                                     <p className="font-bold text-slate-800 dark:text-slate-200">{item.title}</p>
                                     <p className="text-xs text-slate-400 font-medium">{item.date}</p>
                                 </div>
-                                <span className="text-[9px] font-black uppercase px-3 py-1 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-full text-slate-500 tracking-widest">
+                                <span className={`text-[9px] font-black uppercase px-3 py-1 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-full tracking-widest ${isHeritage ? 'text-amber-600 border-amber-100' : 'text-slate-500'}`}>
                                     {item.type}
                                 </span>
                             </div>
@@ -98,16 +109,29 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                     </div>
                 </div>
 
-                {/* Map/Location Preview */}
+                {/* Map/Location vs Vault Preview */}
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden relative min-h-[300px]">
-                    <div className="absolute inset-0 bg-slate-100 dark:bg-slate-900 flex items-center justify-center">
-                        <Home className="w-16 h-16 text-indigo-600 mb-4 animate-pulse" />
-                        <span className="ml-3 font-black text-slate-400 uppercase tracking-widest text-xs">Community Map Loading...</span>
+                    <div className="absolute inset-0 bg-slate-100 dark:bg-slate-900 flex flex-col items-center justify-center p-8 text-center">
+                        {isHeritage ? (
+                            <>
+                                <Library className="w-16 h-16 text-amber-600 mb-4 animate-pulse" />
+                                <span className="font-black text-slate-800 dark:text-white uppercase tracking-widest text-xs">Digital Heritage Vault</span>
+                                <p className="text-[10px] text-slate-500 mt-2 max-w-[200px]">Your family documents and media are securely preserved in the ancestral archives.</p>
+                                <button onClick={() => setActiveTab('heritage')} className="mt-6 px-6 py-2 bg-amber-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest">Explore Archives</button>
+                            </>
+                        ) : (
+                            <>
+                                <Home className="w-16 h-16 text-indigo-600 mb-4 animate-pulse" />
+                                <span className="font-black text-slate-400 uppercase tracking-widest text-xs">Community Map Loading...</span>
+                            </>
+                        )}
                     </div>
-                    <div className="absolute top-8 left-8 p-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-2xl shadow-xl z-10 border border-white/20">
-                        <p className="text-[10px] font-black uppercase text-indigo-600 tracking-widest">Live Operations</p>
-                        <p className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-tight">Active Project Sites</p>
-                    </div>
+                    {!isHeritage && (
+                        <div className="absolute top-8 left-8 p-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-2xl shadow-xl z-10 border border-white/20">
+                            <p className="text-[10px] font-black uppercase text-indigo-600 tracking-widest">Live Operations</p>
+                            <p className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-tight">Active Project Sites</p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
