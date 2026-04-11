@@ -97,11 +97,17 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
                 // Validation: Skip if required name is missing or empty
                 if (!obj.name || obj.name.trim() === '') return null;
 
-                const shortId = Math.random().toString(36).substr(2, 5);
-                obj.id = `sch_${shortId}_${Date.now()}`;
+                // Stable ID: If KNEC or UIC exists, use it to allow UPSERT (update existing)
+                // Otherwise use a random ID. This prevents "Registry Conflict" on re-imports.
+                let baseId = `sch_${Math.random().toString(36).substr(2, 5)}_${Date.now()}`;
+                if (obj.knecCode && obj.knecCode.trim()) baseId = `sch_knec_${slugify(obj.knecCode)}`;
+                else if (obj.uic && obj.uic.trim()) baseId = `sch_uic_${slugify(obj.uic)}`;
                 
-                // Ensure slug uniqueness by appending a short hash
-                obj.slug = `${slugify(obj.name)}-${shortId}`;
+                obj.id = baseId;
+                
+                // Ensure slug uniqueness by appending the short ID
+                const hash = baseId.split('_').pop() || '000';
+                obj.slug = `${slugify(obj.name)}-${hash.substring(0, 5)}`;
                 
                 obj.createdAt = new Date().toISOString();
                 obj.updatedAt = new Date().toISOString();

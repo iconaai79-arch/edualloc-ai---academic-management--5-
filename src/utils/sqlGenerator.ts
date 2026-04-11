@@ -1513,6 +1513,13 @@ CREATE POLICY "Institutions are public" ON institutions FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Users can view own profile" ON users;
 CREATE POLICY "Users can view own profile" ON users FOR SELECT USING (auth.uid()::text = id OR 'u_' || auth.uid()::text = id OR public.get_curr_user_role() = 'super_admin');
 
+-- Global School Registry RLS --
+ALTER TABLE school_registry ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public select: school_registry" ON school_registry;
+CREATE POLICY "Public select: school_registry" ON school_registry FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Super Admin manage: school_registry" ON school_registry;
+CREATE POLICY "Super Admin manage: school_registry" ON school_registry FOR ALL USING (public.get_curr_user_role() = 'super_admin') WITH CHECK (public.get_curr_user_role() = 'super_admin');
+
 DROP POLICY IF EXISTS "Institutional tenancy select: subjects" ON subjects;
 CREATE POLICY "Institutional tenancy select: subjects" ON subjects FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
 
