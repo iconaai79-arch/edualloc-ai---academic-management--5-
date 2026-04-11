@@ -444,7 +444,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 setActiveTab('logistics');
             } else if (role === 'transport_assistant') {
                 setActiveTab('transport');
-            } else if (isCommunity || role === 'community_admin') {
+            } else if (isCommunity || role === 'community_admin' || role === 'family_admin') {
                 setActiveTab('community');
             }
             setHasSetDefaultTab(true);

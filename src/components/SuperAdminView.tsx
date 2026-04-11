@@ -1114,6 +1114,7 @@ Please change it after login.`;
         { role: 'coop_chairman', label: 'Coop Chairman (Approvals)', icon: <CheckCircleIcon className="w-5 h-5 text-indigo-600" />, color: 'bg-indigo-50 text-indigo-600' },
         { role: 'farmer', label: 'Farmer Portal', icon: <UserGroupIcon className="w-5 h-5 text-emerald-600" />, color: 'bg-emerald-50 text-emerald-600' },
         { role: 'rider', label: 'Rider Portal', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600' },
+        { role: 'family_admin', label: 'Family & Heritage', icon: <History className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' },
         { role: 'church_admin', label: 'Church System', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-700' },
         { role: 'marketplace', label: 'Public Marketplace', icon: <ShoppingCartIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600', isService: true }
     ].filter(opt => {

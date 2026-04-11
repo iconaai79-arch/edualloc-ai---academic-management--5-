@@ -677,7 +677,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                         <option value="Estate/Neighborhood">Estate / Neighborhood Management</option>
                                                         <option value="NGO/Foundation">NGO / Social Foundation</option>
                                                         <option value="Resource Center">Community Hub / Resource Center</option>
-                                                        <option value="Relief/Social Work">Social Work / Welfare Relief</option>
+                                                        <option value="Relief/Social Work">Social Work / Welfare Relief</option>`r`n                                                         <option value="Family Heritage">Family & Heritage Preservation</option>
                                                     </select>
                                                 </div>
                                             )}

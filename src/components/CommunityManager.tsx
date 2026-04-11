@@ -19,7 +19,9 @@ import {
     Library,
     Mic,
     Image as ImageIcon,
-    TreePalm
+    TreePalm,
+    CalendarDays as CalendarDaysIcon,
+    ArrowRight
 } from 'lucide-react';
 import type { Institution, User } from '../types';
 
@@ -321,136 +323,250 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
         </div>
     );
 
-    const renderHeritage = () => (
-        <div className="animate-fade-in space-y-8">
-            <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
-                    <TreePalm className="w-64 h-64" />
-                </div>
-                <div className="relative z-10 flex flex-col md:flex-row justify-between gap-8">
-                    <div className="max-w-xl">
-                        <h3 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-4">
-                            <History className="w-10 h-10 text-amber-600" />
-                            Digital Ancestry Map
-                        </h3>
-                        <p className="text-slate-500 font-medium mt-2">Visualize your lineage, connect the branches, and preserve the stories of those who came before us.</p>
+    const renderHeritage = () => {
+        const [heritageView, setHeritageView] = useState<'tree' | 'stories' | 'gallery' | 'announcements'>('tree');
+
+        return (
+            <div className="animate-fade-in space-y-8">
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
+                        <TreePalm className="w-64 h-64" />
                     </div>
-                    <div className="flex items-center gap-4">
-                        <button className="bg-amber-600 hover:bg-amber-700 text-white px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-amber-100 transition-all active:scale-95 flex items-center gap-3">
-                            <Plus className="w-5 h-5" />
-                            Add Ancestor
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Visual Family Tree Preview */}
-                <div className="lg:col-span-2 bg-slate-900 rounded-[3rem] p-12 text-white relative overflow-hidden min-h-[500px] border-4 border-slate-800 shadow-2xl">
-                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/graphy.png')] opacity-10"></div>
-                    <div className="relative z-10 flex flex-col items-center">
-                        <div className="w-full flex justify-between items-center mb-12">
-                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-400">Gen 1: Foundational Roots</p>
-                            <div className="flex gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Paternal</div>
-                                <div className="flex items-center gap-2 ml-4"><div className="w-2 h-2 rounded-full bg-pink-500"></div> Maternal</div>
-                            </div>
+                    <div className="relative z-10 flex flex-col md:flex-row justify-between items-end gap-8">
+                        <div className="max-w-xl">
+                            <h3 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-4">
+                                <History className="w-10 h-10 text-amber-600" />
+                                {heritageView === 'tree' ? 'Ancestry Map' : 
+                                 heritageView === 'stories' ? 'Origin & Oral History' : 
+                                 heritageView === 'gallery' ? 'Heritage Gallery' : 'Family Council'}
+                            </h3>
+                            <p className="text-slate-500 font-medium mt-2">
+                                {heritageView === 'tree' ? 'Visualize your lineage and connect the branches of your family tree.' : 
+                                 heritageView === 'stories' ? 'Document the stories of your origin, migration, and family achievements.' : 
+                                 heritageView === 'gallery' ? 'Preserve the faces and places that define your family legacy.' : 'Coordinate family meetings, ceremonies, and important announcements.'}
+                            </p>
                         </div>
-
-                        {/* Interactive Tree Root Simulation */}
-                        <div className="space-y-16 w-full max-w-2xl">
-                            <div className="flex flex-col items-center">
-                                <div className="p-4 bg-white/10 border-2 border-amber-500 rounded-2xl backdrop-blur-md text-center group cursor-pointer hover:bg-amber-500 transition-all">
-                                    <p className="font-black text-sm uppercase tracking-tight group-hover:text-slate-900">Samuel Mwangi Sr.</p>
-                                    <p className="text-[9px] font-black text-amber-400 uppercase group-hover:text-slate-800">1892 - 1968</p>
-                                </div>
-                                <div className="w-0.5 h-16 bg-gradient-to-b from-amber-500 to-indigo-500"></div>
-                                <div className="flex gap-20 items-start relative">
-                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[240px] h-0.5 bg-indigo-500"></div>
-                                    <div className="flex flex-col items-center">
-                                        <div className="w-0.5 h-8 bg-indigo-500"></div>
-                                        <div className="p-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm text-center">
-                                            <p className="font-bold text-xs uppercase tracking-tight">John Mwangi</p>
-                                            <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Son</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col items-center">
-                                        <div className="w-0.5 h-8 bg-indigo-500"></div>
-                                        <div className="p-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm text-center border-t-4 border-t-amber-500 animate-pulse">
-                                            <p className="font-bold text-xs uppercase tracking-tight">Grace Wamboi</p>
-                                            <p className="text-[8px] font-black text-amber-400 uppercase tracking-widest">Daughter</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="absolute bottom-12 text-center text-[10px] font-black uppercase text-slate-500 tracking-[0.4em]">
-                            Hold & Drag to Explore Lineage
-                        </div>
-                    </div>
-                </div>
-
-                {/* Digital Heritage Vault */}
-                <div className="space-y-6">
-                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                        <div className="flex justify-between items-center mb-8">
-                            <h4 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-3">
-                                <Library className="w-6 h-6 text-indigo-600" />
-                                Heritage Vault
-                            </h4>
-                            <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded-xl">
-                                <Network className="w-4 h-4 text-slate-400" />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="flex bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
                             {[
-                                { name: 'Family Bible Scans', type: 'DOCS', icon: FileText, color: 'text-blue-500', bg: 'bg-blue-50' },
-                                { name: 'Old Library Audio', type: 'VOICE', icon: Mic, color: 'text-red-500', bg: 'bg-red-50' },
-                                { name: 'Ancestral Farm Ph.', type: 'IMAGE', icon: ImageIcon, color: 'text-emerald-500', bg: 'bg-emerald-50' },
-                                { name: 'Memorial Sites', type: 'LOC', icon: MapPin, color: 'text-amber-500', bg: 'bg-amber-50' }
-                            ].map((vault, i) => (
-                                <div key={i} className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-transparent hover:border-indigo-100 transition-all cursor-pointer group">
-                                    <div className={`p-3 w-fit rounded-xl ${vault.bg} ${vault.color} mb-3 group-hover:rotate-12 transition-transform`}>
-                                        <vault.icon className="w-5 h-5" />
-                                    </div>
-                                    <p className="font-bold text-[11px] text-slate-800 dark:text-slate-200 uppercase leading-tight">{vault.name}</p>
-                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">{vault.type}</p>
-                                </div>
-                            ))}
-                        </div>
-                        
-                        <button className="w-full mt-8 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-slate-200 dark:shadow-none transition-all active:scale-95">
-                            Upload New Heritage Item
-                        </button>
-                    </div>
-
-                    {/* Remembrance Timeline */}
-                    <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-8 rounded-[3rem] text-white overflow-hidden relative group">
-                        <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12 group-hover:rotate-0 transition-transform">
-                            <RotateCw className="w-24 h-24" />
-                        </div>
-                        <h4 className="text-lg font-black uppercase tracking-tighter mb-6 relative z-10 flex items-center gap-3">
-                            <Ghost className="w-5 h-5" />
-                            Memorial Wall
-                        </h4>
-                        <div className="space-y-4 relative z-10">
-                            {[
-                                { name: 'Asha Mwikali', date: 'Next Sunday', event: 'Remembrance Service' },
-                                { name: 'Pius Mwangi', date: 'Oct 29', event: '10th Anniversary' }
-                            ].map((m, i) => (
-                                <div key={i} className="p-4 bg-white/10 rounded-2xl border border-white/10 backdrop-blur-md">
-                                    <p className="font-bold text-sm">{m.name}</p>
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-indigo-200">{m.event} • {m.date}</p>
-                                </div>
+                                { id: 'tree', label: 'Tree', icon: Network },
+                                { id: 'stories', label: 'Stories', icon: Library },
+                                { id: 'gallery', label: 'Gallery', icon: ImageIcon },
+                                { id: 'announcements', label: 'Council', icon: Ghost }
+                            ].map((view) => (
+                                <button
+                                    key={view.id}
+                                    onClick={() => setHeritageView(view.id as any)}
+                                    className={`px-4 py-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${heritageView === view.id ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    <view.icon className="w-4 h-4" />
+                                    <span className="hidden sm:inline">{view.label}</span>
+                                </button>
                             ))}
                         </div>
                     </div>
                 </div>
+
+                {heritageView === 'tree' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* Visual Family Tree Preview */}
+                        <div className="lg:col-span-2 bg-slate-900 rounded-[3rem] p-12 text-white relative overflow-hidden min-h-[500px] border-4 border-slate-800 shadow-2xl">
+                            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/graphy.png')] opacity-10"></div>
+                            <div className="relative z-10 flex flex-col items-center">
+                                <div className="w-full flex justify-between items-center mb-12">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-400">Gen 1: Foundational Roots</p>
+                                    <div className="flex gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                        <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Paternal</div>
+                                        <div className="flex items-center gap-2 ml-4"><div className="w-2 h-2 rounded-full bg-pink-500"></div> Maternal</div>
+                                    </div>
+                                </div>
+
+                                {/* Interactive Tree Root Simulation */}
+                                <div className="space-y-16 w-full max-w-2xl">
+                                    <div className="flex flex-col items-center">
+                                        <div className="p-4 bg-white/10 border-2 border-amber-500 rounded-2xl backdrop-blur-md text-center group cursor-pointer hover:bg-amber-500 transition-all">
+                                            <p className="font-black text-sm uppercase tracking-tight group-hover:text-slate-900">Samuel Mwangi Sr.</p>
+                                            <p className="text-[9px] font-black text-amber-400 uppercase group-hover:text-slate-800">1892 - 1968</p>
+                                        </div>
+                                        <div className="w-0.5 h-16 bg-gradient-to-b from-amber-500 to-indigo-500"></div>
+                                        <div className="flex gap-20 items-start relative">
+                                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[240px] h-0.5 bg-indigo-500"></div>
+                                            <div className="flex flex-col items-center">
+                                                <div className="w-0.5 h-8 bg-indigo-500"></div>
+                                                <div className="p-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm text-center transition-all hover:bg-white/10 select-none">
+                                                    <p className="font-bold text-xs uppercase tracking-tight">John Mwangi</p>
+                                                    <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Son</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col items-center">
+                                                <div className="w-0.5 h-8 bg-indigo-500"></div>
+                                                <div className="p-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm text-center border-t-4 border-t-amber-500 animate-pulse transition-all hover:scale-105 active:scale-95 cursor-pointer">
+                                                    <p className="font-bold text-xs uppercase tracking-tight">Grace Wamboi</p>
+                                                    <p className="text-[8px] font-black text-amber-400 uppercase tracking-widest">Daughter</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="absolute bottom-12 text-center text-[10px] font-black uppercase text-slate-500 tracking-[0.4em]">
+                                    Hold & Drag to Explore Lineage
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Heritage Status */}
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm self-start">
+                            <h4 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight mb-8">Tree Health</h4>
+                            <div className="space-y-6">
+                                <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                                    <span>Verified Members</span>
+                                    <span className="text-amber-600">42 Souls</span>
+                                </div>
+                                <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                                    <span>Documented Generations</span>
+                                    <span className="text-blue-600">4 Generations</span>
+                                </div>
+                                <div className="w-full h-2 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
+                                    <div className="w-[65%] h-full bg-amber-500"></div>
+                                </div>
+                                <button className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all active:scale-95 shadow-xl shadow-slate-200 dark:shadow-none">
+                                    Invite Family Admins
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {heritageView === 'stories' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm min-h-[400px]">
+                            <div className="flex justify-between items-center mb-10">
+                                <h4 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white">Historical Origins</h4>
+                                <button className="p-3 bg-amber-50 text-amber-600 rounded-2xl hover:bg-amber-100 transition-colors">
+                                    <Plus className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <div className="space-y-6">
+                                {[
+                                    { title: 'The Great Migration from Abyssinia', date: 'Circa 1780', text: 'Our elders tell of a journey through the mountains, carrying nothing but seeds and hope...', author: 'Mzee Mwangi' },
+                                    { title: 'The First Ancestral Farm', date: 'Jan 12, 1920', text: 'Samuel Sr. acquired the first 40 acres in the highlands, where the black soil yields gold...', author: 'Grace W.' }
+                                ].map((story, i) => (
+                                    <div key={i} className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-transparent hover:border-amber-100 transition-all cursor-pointer">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <h5 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm">{story.title}</h5>
+                                            <span className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">{story.date}</span>
+                                        </div>
+                                        <p className="text-slate-500 text-sm line-clamp-2 italic mb-4">"{story.text}"</p>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-[10px] font-black uppercase text-slate-400">Oral Historian: {story.author}</span>
+                                            <ArrowRight className="w-4 h-4 text-slate-300" />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-900 rounded-[3rem] p-8 text-white relative overflow-hidden flex items-center justify-center">
+                            <div className="absolute inset-0 bg-gradient-to-br from-amber-600/10 to-transparent"></div>
+                            <div className="relative z-10 text-center animate-pulse">
+                                <Mic className="w-20 h-20 text-amber-500 mx-auto mb-6 opacity-50" />
+                                <h4 className="text-2xl font-black uppercase tracking-tighter mb-2">Voice of Elders</h4>
+                                <p className="text-slate-400 text-sm uppercase font-bold tracking-[0.2em]">Record Oral Testimony</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {heritageView === 'gallery' && (
+                    <div className="space-y-8">
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <div className="flex justify-between items-center mb-10">
+                                <div>
+                                    <h4 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white">Heirloom Gallery</h4>
+                                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Preserve every smile & milestone</p>
+                                </div>
+                                <button className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-xl shadow-indigo-100 transition-all active:scale-95">
+                                    <ImageIcon className="w-5 h-5" />
+                                    Upload Photos
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                                {[1,2,3,4].map(i => (
+                                    <div key={i} className="aspect-square bg-slate-100 dark:bg-slate-900 rounded-3xl overflow-hidden group relative cursor-pointer">
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                            <Sparkles className="w-8 h-8 text-white scale-0 group-hover:scale-100 transition-transform duration-500" />
+                                        </div>
+                                        <div className="w-full h-full bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 animate-pulse"></div>
+                                        <div className="absolute bottom-4 left-4">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-white/70">Heritage Milestone {i}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {heritageView === 'announcements' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div className="lg:col-span-2 space-y-8">
+                            {/* Announcements Feed */}
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                <h4 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white mb-8">Family Proclamations</h4>
+                                <div className="space-y-6">
+                                    {[
+                                        { title: 'Annual Family Reunion 2026', type: 'CEREMONY', date: 'Aug 15', detail: 'Hosted at the Ancestral Farm. All branches requested to RSVP.' },
+                                        { title: 'Heritage Portal Update', type: 'ADMIN', date: 'Today', detail: 'New migration maps for the Western branches added.' }
+                                    ].map((post, i) => (
+                                        <div key={i} className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-transparent hover:border-slate-100 transition-all flex gap-6">
+                                            <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-2xl flex flex-col items-center justify-center border border-slate-100 shadow-sm flex-shrink-0">
+                                                <span className="text-xs font-black text-amber-600 uppercase tracking-tighter">{post.date.split(' ')[0]}</span>
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{post.date.split(' ')[1] || ''}</span>
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-[8px] font-black bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full tracking-widest">{post.type}</span>
+                                                    <h5 className="font-black text-slate-800 dark:text-white text-sm uppercase tracking-tight">{post.title}</h5>
+                                                </div>
+                                                <p className="text-slate-500 text-xs leading-relaxed">{post.detail}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Calendar Quick View */}
+                        <div className="space-y-6">
+                            <div className="bg-slate-900 text-white p-8 rounded-[3rem] shadow-2xl relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-8 opacity-10">
+                                    <CalendarDaysIcon className="w-20 h-20" />
+                                </div>
+                                <h4 className="text-lg font-black uppercase tracking-tighter mb-6 relative z-10 flex items-center gap-2">
+                                    Council Meetings
+                                </h4>
+                                <div className="space-y-4 relative z-10">
+                                    <div className="p-4 bg-white/10 rounded-2xl border border-white/5">
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-amber-400">Next Meeting</p>
+                                        <p className="text-sm font-bold mt-1">Heritage Committee Sync</p>
+                                        <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Zoom • Saturday, 4PM</p>
+                                    </div>
+                                    <button className="w-full py-3 bg-amber-500 text-slate-900 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-amber-500/20 active:scale-95 transition-all">
+                                        Join Council Link
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button className="w-full p-8 border-4 border-dashed border-slate-100 dark:border-slate-800 rounded-[3rem] text-slate-300 font-black uppercase tracking-widest text-[10px] hover:border-amber-200 hover:text-amber-500 transition-all flex flex-col items-center gap-4">
+                                <Plus className="w-8 h-8" />
+                                Create Announcement
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
-        </div>
-    );
+        );
+    };
 
     return (
         <div className="p-6">

@@ -11,7 +11,8 @@ import {
     GraduationCap,
     Home,
     Sparkles,
-    ShieldCheck
+    ShieldCheck,
+    History
 } from 'lucide-react';
 import type { Institution, County } from '../../types';
 
@@ -30,7 +31,7 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
     const communityInsts = useMemo(() => {
         return institutions.filter(inst => 
             inst.institutionType === 'Community' || 
-            ['NGO/Foundation', 'Chama/Savings Group', 'Estate/Neighborhood', 'Relief/Social Work'].includes(inst.category || '')
+            ['NGO/Foundation', 'Chama/Savings Group', 'Estate/Neighborhood', 'Relief/Social Work', 'Family Heritage'].includes(inst.category || '')
         );
     }, [institutions]);
 
@@ -105,13 +106,13 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
                     </div>
 
                     <div className="flex flex-wrap justify-center gap-3">
-                        {['all', 'Chama/Savings Group', 'Estate/Neighborhood', 'NGO/Foundation'].map((filter) => (
+                        {['all', 'Chama/Savings Group', 'Estate/Neighborhood', 'NGO/Foundation', 'Family Heritage'].map((filter) => (
                             <button
                                 key={filter}
                                 onClick={() => setActiveFilter(filter)}
                                 className={`px-6 py-2 rounded-full font-black uppercase text-[9px] tracking-widest transition-all border-2 ${activeFilter === filter ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-100' : 'bg-white border-slate-100 text-slate-400 hover:border-indigo-200'}`}
                             >
-                                {filter === 'all' ? 'Browse All' : filter.split('/')[0]}
+                                {filter === 'all' ? 'Browse All' : filter === 'Family Heritage' ? 'Heritage' : filter.split('/')[0]}
                             </button>
                         ))}
                     </div>
@@ -129,10 +130,12 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
                                 <div className="flex justify-between items-start mb-6">
                                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-transform group-hover:scale-110 ${
                                         inst.category === 'Chama/Savings Group' ? 'bg-green-50 text-green-600' : 
-                                        inst.category === 'Estate/Neighborhood' ? 'bg-blue-50 text-blue-600' : 'bg-pink-50 text-pink-600'
+                                        inst.category === 'Estate/Neighborhood' ? 'bg-blue-50 text-blue-600' : 
+                                        inst.category === 'Family Heritage' ? 'bg-amber-50 text-amber-600' : 'bg-pink-50 text-pink-600'
                                     }`}>
                                         {inst.category === 'Chama/Savings Group' ? <CircleDollarSign className="w-8 h-8" /> : 
-                                         inst.category === 'Estate/Neighborhood' ? <Home className="w-8 h-8" /> : <Heart className="w-8 h-8" />}
+                                         inst.category === 'Estate/Neighborhood' ? <Home className="w-8 h-8" /> : 
+                                         inst.category === 'Family Heritage' ? <History className="w-8 h-8" /> : <Heart className="w-8 h-8" />}
                                     </div>
                                     <span className="text-[9px] font-black uppercase px-3 py-1 bg-slate-50 text-slate-400 rounded-full tracking-tighter">
                                         ID: {inst.id.slice(0, 6)}
