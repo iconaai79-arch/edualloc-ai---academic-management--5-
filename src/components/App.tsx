@@ -1010,6 +1010,34 @@ export const App: React.FC = () => {
         localStorage.removeItem('eduai_super_admin_session');
     };
 
+    // Inactivity Watcher: Auto-logout after 90 minutes of total inactivity
+    useEffect(() => {
+        if (!currentUser) return;
+
+        const IDLE_TIMEOUT = 90 * 60 * 1000; // 90 Minutes
+        let timeoutId: NodeJS.Timeout;
+
+        const resetTimer = () => {
+            if (timeoutId) clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                console.log("[Auth] Session expired due to 90 minutes of inactivity.");
+                handleLogout();
+            }, IDLE_TIMEOUT);
+        };
+
+        // Standard user activity events
+        const activities = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+        activities.forEach(e => document.addEventListener(e, resetTimer));
+
+        // Start the initial countdown
+        resetTimer();
+
+        return () => {
+            if (timeoutId) clearTimeout(timeoutId);
+            activities.forEach(e => document.removeEventListener(e, resetTimer));
+        };
+    }, [currentUser]);
+
     // --- Infrastructure Handlers ---
 
     const handleAddDepartment = async (name: string) => {
