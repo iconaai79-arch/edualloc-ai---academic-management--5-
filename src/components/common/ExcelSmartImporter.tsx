@@ -82,25 +82,33 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
         const ws = workbook.Sheets[wsname];
         const allData = XLSX.utils.sheet_to_json(ws) as any[];
 
-        const finalData = allData.map(row => {
-            const obj: any = {};
-            fields.forEach(f => {
-                const mappedHeader = headerMapping[f.key];
-                if (mappedHeader) {
-                    obj[f.key] = row[mappedHeader];
-                }
-            });
+        const finalData = allData
+            .map(row => {
+                const obj: any = {};
+                fields.forEach(f => {
+                    const mappedHeader = headerMapping[f.key];
+                    if (mappedHeader) {
+                        const val = row[mappedHeader];
+                        // Sanitize: ensure no undefined, and stringify if needed
+                        obj[f.key] = val !== undefined && val !== null ? String(val).trim() : '';
+                    }
+                });
 
-            // Generic processing for School Registry if fields match
-            if (obj.name) {
-                obj.slug = slugify(obj.name);
-            }
-            obj.id = `sch_${Math.random().toString(36).substr(2, 9)}_${Date.now()}`;
-            obj.createdAt = new Date().toISOString();
-            obj.updatedAt = new Date().toISOString();
+                // Validation: Skip if required name is missing or empty
+                if (!obj.name || obj.name.trim() === '') return null;
 
-            return obj;
-        });
+                const shortId = Math.random().toString(36).substr(2, 5);
+                obj.id = `sch_${shortId}_${Date.now()}`;
+                
+                // Ensure slug uniqueness by appending a short hash
+                obj.slug = `${slugify(obj.name)}-${shortId}`;
+                
+                obj.createdAt = new Date().toISOString();
+                obj.updatedAt = new Date().toISOString();
+
+                return obj;
+            })
+            .filter(item => item !== null);
 
         onComplete(finalData);
         setIsLoading(false);

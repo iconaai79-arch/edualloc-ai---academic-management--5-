@@ -90,19 +90,25 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
     const handleBulkComplete = async (data: any[]) => {
         setIsUploading(false);
         try {
-            // Process in batches of 10 for performance
             const batchSize = 10;
             for (let i = 0; i < data.length; i += batchSize) {
                 const batch = data.slice(i, i + batchSize);
-                await Promise.all(batch.map(item => apiService.saveModuleRecord('school_registry', item)));
+                await Promise.all(batch.map(async (item) => {
+                    try {
+                        await apiService.saveModuleRecord('school_registry', item);
+                    } catch (err: any) {
+                        console.error(`Failed to ingest school ${item.name}:`, err.message || err);
+                        throw err; // Still throw to stop the batch
+                    }
+                }));
                 setUploadProgress({ current: Math.min(i + batchSize, data.length), total: data.length });
             }
             alert(`Successfully ingested ${data.length} institutions into the global registry.`);
             setUploadProgress(null);
             onRefresh();
-        } catch (err) {
-            console.error(err);
-            alert("Error during bulk ingestion. Check data formats.");
+        } catch (err: any) {
+            console.error("Bulk Ingestion Critical Error:", err);
+            alert(`Error during bulk ingestion: ${err.message || 'Check database constraints or network connection.'}`);
         }
     };
 
