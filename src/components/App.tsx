@@ -21,6 +21,8 @@ import { MarketingLandingPage } from './public/MarketingLandingPage';
 import { BookDemoModal } from './public/BookDemoModal';
 import { AlumnaeRegistrationView } from './AlumnaeRegistrationView';
 import { AlumnaeActivationView } from './AlumnaeActivationView';
+import { ConstructionManager } from './ConstructionManager';
+import { ConstructionProjectView } from './ConstructionProjectView';
 
 // Lazy-loaded major portals
 const AdminView = lazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
@@ -4015,6 +4017,11 @@ export const App: React.FC = () => {
                                         return res;
                                     }}
                                 />
+                            ) : (activeRole === 'construction_admin' || (isAdminCatchAll && (activeInstitution?.institutionType === 'Construction' || activeInstitution?.category?.includes('Construction')))) ? (
+                                <ConstructionManager 
+                                    currentInstitution={activeInstitution!}
+                                    users={users.filter(u => u.institutionId === currentUser.institutionId)}
+                                />
                             ) : isAdminCatchAll ? (
                                 <AdminView
                                     currentUser={currentUser}
@@ -4421,11 +4428,15 @@ export const App: React.FC = () => {
                 ) : (
                     <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
                         {showTenantStore && activeStoreTenantId ? (
-                            institutions.find(inst => inst.id === activeStoreTenantId || inst.slug === activeStoreTenantId)?.institutionType === 'Hospitality' ? (
-                                <HospitalityStorefront institutionId={activeStoreTenantId} />
-                            ) : (
-                                <TenantStorefrontView institutionId={activeStoreTenantId} />
-                            )
+                            (() => {
+                                const targetInst = institutions.find(inst => inst.id === activeStoreTenantId || inst.slug === activeStoreTenantId);
+                                if (targetInst?.institutionType === 'Hospitality') {
+                                    return <HospitalityStorefront institutionId={activeStoreTenantId} />;
+                                } else if (targetInst?.institutionType === 'Construction') {
+                                    return <ConstructionProjectView institutionId={activeStoreTenantId} />;
+                                }
+                                return <TenantStorefrontView institutionId={activeStoreTenantId} />;
+                            })()
                          ) : showCommunityHub ? (
                             <CommunityHubView 
                                 institutions={institutions}
