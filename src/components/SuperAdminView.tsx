@@ -1556,6 +1556,7 @@ Please change it after login.`;
                                                         if (type === 'Education') category = 'Primary';
                                                         if (type === 'Business') category = 'Agrovet';
                                                         if (type === 'HIS') category = 'Medical Center';
+                                                        if (type === 'Law Firm') category = 'Law Firm';
                                                         setNewInstData({ ...newInstData, institutionType: type, category: category });
                                                     }}
                                                     className="form-select font-black text-indigo-600 border-indigo-100"
@@ -1566,6 +1567,7 @@ Please change it after login.`;
                                                     <option value="Business">Business Ecosystem</option>
                                                     <option value="Cooperative">Agriculture / Cooperative</option>
                                                     <option value="SACCO">Financial / SACCO</option>
+                                                     <option value="Law Firm">Legal / Law Firm</option>
                                                     <option value="Church">Religious / Church</option>
                                                     <option value="Broadcaster">Media / Broadcaster</option>
                                                     <option value="Reseller">Reseller Agency</option>

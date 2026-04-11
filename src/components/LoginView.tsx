@@ -601,6 +601,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                     if (type === 'Education') cat = 'Primary';
                                                     if (type === 'Business') cat = 'Agrovet';
                                                     if (type === 'HIS') cat = 'Medical Center';
+                                                    if (type === 'Law Firm') cat = 'Law Firm';
                                                     setRegData({ ...regData, institutionType: type, category: cat, businessSubType: cat });
                                                 }}
                                             >
@@ -610,6 +611,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                 <option value="Business">Business Ecosystem</option>
                                                 <option value="Cooperative">Agriculture / Cooperative</option>
                                                 <option value="SACCO">Financial / SACCO</option>
+                                                <option value="Law Firm">Legal / Law Firm</option>
                                                 <option value="Church">Religious / Church</option>
                                                 <option value="Broadcaster">Media / Broadcaster</option>
                                                 <option value="Reseller">Reseller Agency</option>
