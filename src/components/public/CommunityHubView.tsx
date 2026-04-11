@@ -147,6 +147,30 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
                         </div>
                     </div>
 
+                    {/* Alumnae Registry Card */}
+                    <div 
+                        onClick={() => window.location.href = '/?view=alumnae_register'}
+                        className="bg-indigo-700 rounded-[3rem] p-8 border border-indigo-600 shadow-2xl hover:-translate-y-2 transition-all group overflow-hidden relative cursor-pointer"
+                    >
+                        <div className="absolute bottom-0 right-0 w-48 h-48 bg-white/5 rounded-full -mb-20 -mr-20 group-hover:scale-110 transition-transform"></div>
+                        <div className="relative z-10 h-full flex flex-col justify-between">
+                            <div>
+                                <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center text-white mb-6 backdrop-blur-md">
+                                    <GraduationCap className="w-8 h-8" />
+                                </div>
+                                <h3 className="text-2xl font-black text-white uppercase tracking-tighter leading-none mb-4">
+                                    Alumnae & <br /> <span className="text-white/60 italic">Graduates</span>
+                                </h3>
+                                <p className="text-white/60 text-xs font-bold uppercase tracking-widest leading-relaxed">
+                                    Join your institution's elite professional network. Reconnect with peers and mentor the next generation.
+                                </p>
+                            </div>
+                            <button className="mt-8 py-4 bg-white text-indigo-700 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 shadow-xl shadow-indigo-900/40">
+                                Join Network Now <ArrowRight className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+
                     {filteredInsts.map((inst, i) => (
                         <div key={inst.id} className="bg-white rounded-[3rem] p-8 border border-slate-100 shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all group overflow-hidden relative">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rotate-45 translate-x-16 -translate-y-16 group-hover:bg-indigo-50 transition-colors"></div>

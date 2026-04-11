@@ -19,6 +19,7 @@ import { sendEmailNotification, getInstitutionEmailConfig } from '../services/em
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
 import { MarketingLandingPage } from './public/MarketingLandingPage';
 import { BookDemoModal } from './public/BookDemoModal';
+import { AlumnaeRegistrationView } from './AlumnaeRegistrationView';
 
 // Lazy-loaded major portals
 const AdminView = lazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
@@ -525,11 +526,20 @@ export const App: React.FC = () => {
             // Show if URL param set, or hostname is showcase/marketing, or no user and not marketplace/guest portals/tenant stores
             const isMarketingSubdomain = window.location.hostname === 'showcase.eduai.co.ke' || window.location.hostname.includes('showcase') || window.location.hostname.includes('marketing');
             if (isMarketingSubdomain || params.get('view') === 'showcase') return true;
-            return !currentUser && !showMarketplace && !showCommunityHub && !showGuestPortal && !showGuestFeedback && !showTenantStore;
+            return !currentUser && !showMarketplace && !showCommunityHub && !showGuestPortal && !showGuestFeedback && !showTenantStore && params.get('view') !== 'alumnae_register';
         } catch (e) {
             return !currentUser;
         }
     });
+
+    const [showAlumnaeRegister, setShowAlumnaeRegister] = useState(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('view') === 'alumnae_register';
+        } catch (e) { return false; }
+    });
+
+    const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [showBookDemo, setShowBookDemo] = useState(false);
 
@@ -647,11 +657,12 @@ export const App: React.FC = () => {
             const instId = currentUser && (currentUser.role === 'super_admin' || currentUser.role.startsWith('county_')) ? undefined : currentUser?.institutionId;
             const cntId = currentUser && currentUser.role.startsWith('county_') ? currentUser.countyId : undefined;
 
-            const [insts, cnts, sett, u] = await Promise.all([
+            const [insts, cnts, sett, u, reg] = await Promise.all([
                 apiService.fetchInstitutions(instId).catch(() => []),
                 apiService.fetchModuleRecords<County>('counties').catch(() => []),
                 apiService.fetchCompanySettings().catch(() => null),
                 apiService.fetchUsers(instId).catch(() => []),
+                apiService.fetchModuleRecords<SchoolRegistry>('school_registry').catch(() => []),
             ]);
 
             let d: any[] = [], s: any[] = [], c: any[] = [], a: any[] = [], ay: any[] = [], sem: any[] = [], r: any[] = [], b: any[] = [], al: any[] = [], tasks: any[] = [], txns: any[] = [], recs: any[] = [], logs: any[] = [], notifs: any[] = [];
@@ -680,6 +691,7 @@ export const App: React.FC = () => {
                 setInstitutions(insts);
             }
             if (cnts && cnts.length > 0) setCounties(cnts);
+            if (reg) setSchoolRegistry(reg);
             if (sett) {
                 setCompanyDetails(sett);
                 if (sett.marketplaceConfig?.customUrl) {
@@ -4441,8 +4453,21 @@ export const App: React.FC = () => {
                                 institutions={institutions}
                                 onClose={() => setShowGuestFeedback(false)} 
                             />
+                        ) : showAlumnaeRegister ? (
+                            <AlumnaeRegistrationView 
+                                registry={schoolRegistry}
+                                onBackToPortal={() => {
+                                    window.location.href = '/?view=community';
+                                }}
+                                onComplete={(data) => {
+                                    alert("Registration Successful! Your details have been submitted to your school for verification. You will receive an email once approved.");
+                                    window.location.href = '/?view=community';
+                                }}
+                            />
                         ) : (
                             <LoginView
+                            logoUrl={activeLetterheadConfig?.headerImageUrl || logoUrl}
+                            institutionName={activeInstitution?.name || companyDetails.name}
                             onLogin={async (e, p) => {
                                 // Discovery Phase: Search for user directly in DB if not in local cache
                                 let matchedUsers = (users || []).filter(u => u && (u.email?.toLowerCase() === e.toLowerCase() || u.phoneNumber === e) && (u.password === p || (!u.password && p === 'password123')));
