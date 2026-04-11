@@ -75,7 +75,7 @@ import { ArrowTrendingUpIcon } from './icons/ArrowTrendingUpIcon';
 import { CalendarDaysIcon as CalendarIcon } from './icons/CalendarDaysIcon';
 import { GlobeAltIcon } from './icons/GlobeAltIcon';
 import { CrossIcon } from './icons/CrossIcon';
-
+import { PalmTreeIcon as Palmtree } from './icons/PalmTreeIcon';
 import { CommunicationsManager } from './CommunicationsManager';
 import { EditInstitutionModal } from './EditInstitutionModal';
 import { apiService } from '../services/apiService';
@@ -109,6 +109,14 @@ const LecturerView = React.lazy(() => import('./LecturerView').then(m => ({ defa
 const StudentView = React.lazy(() => import('./StudentView').then(m => ({ default: m.StudentView })));
 const AcademicsOfficerView = React.lazy(() => import('./AcademicsOfficerView').then(m => ({ default: m.AcademicsOfficerView })));
 const LoginView = React.lazy(() => import('./LoginView').then(m => ({ default: m.LoginView })));
+const HospitalityMarketplace = React.lazy(() => import('./hospitality/HospitalityMarketplace').then(m => ({ default: m.HospitalityMarketplace })));
+
+import { 
+    Compass, 
+    Hotel, 
+    Filter,
+    History
+} from 'lucide-react';
 
 export interface SuperAdminViewProps {
     institutions: Institution[];
@@ -1039,6 +1047,7 @@ Please change it after login.`;
     const tabs = [
         { key: 'dashboard', label: 'Dashboard', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
         { key: 'institutions', label: 'Institutions', icon: <BuildingOfficeIcon className="w-5 h-5 mr-2" /> },
+        { key: 'hospitality', label: 'Hospitality Hub', icon: <Palmtree className="w-5 h-5 mr-2" /> },
         { key: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         { key: 'all_users', label: 'Global Users', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
         { key: 'communications', label: 'Communications', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
@@ -1560,6 +1569,7 @@ Please change it after login.`;
                                                         if (type === 'Law Firm') category = 'Law Firm';
                                                         if (type === 'Logistics') category = 'Cargo & Delivery';
                                                         if (type === 'Community') category = 'Chama/Savings Group';
+                                                        if (type === 'Hospitality') category = 'Safari operator';
                                                         setNewInstData({ ...newInstData, institutionType: type, category: category });
                                                     }}
                                                     className="form-select font-black text-indigo-600 border-indigo-100"
@@ -1575,6 +1585,7 @@ Please change it after login.`;
                                                      <option value="Community">Community & Welfare</option>
                                                     <option value="Church">Religious / Church</option>
                                                     <option value="Broadcaster">Media / Broadcaster</option>
+                                                    <option value="Hospitality">Tourism & Hospitality</option>
                                                     <option value="Reseller">Reseller Agency</option>
                                                 </select>
                                             </div>
@@ -1679,6 +1690,22 @@ Please change it after login.`;
                                                         <option value="Catholic">Catholic (Sacramental/SCC)</option>
                                                         <option value="Protestant">Protestant (Evangelical/Cell Groups)</option>
                                                         <option value="Orthodox">Orthodox (Holy Mysteries/Fasting Calendar)</option>
+                                                    </select>
+                                                </div>
+                                            )}
+                                            {newInstData.institutionType === 'Hospitality' && (
+                                                <div className="animate-fade-in-up">
+                                                    <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Tourism Specialization</label>
+                                                    <select
+                                                        value={newInstData.category}
+                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value })}
+                                                        className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
+                                                        required
+                                                    >
+                                                        <option value="Safari operator">Safari & Tour Operator</option>
+                                                        <option value="Hotel & Resort">Hotel & Luxury Resort</option>
+                                                        <option value="Travel Agency">Travel & Booking Agency</option>
+                                                        <option value="Airbnb/Rental">Vacation Rental / Airbnb</option>
                                                     </select>
                                                 </div>
                                             )}
@@ -2302,6 +2329,175 @@ Please change it after login.`;
                                 onSaveTimetableSettings={props.onSaveTimetableSettings}
                             />
                         )}
+                    </div>
+                )}
+
+                {activeTab === 'hospitality' && (
+                    <div className="space-y-10 animate-fade-in-up">
+                        {/* Header & Quick Action */}
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                            <div>
+                                <h1 className="text-4xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">Hospitality <span className="text-indigo-600 italic">Network</span></h1>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2">
+                                    <SparklesIcon className="w-3 h-3 text-amber-500" /> Managed Global Tourism Ecosystem
+                                </p>
+                            </div>
+                            <button 
+                                onClick={() => window.open('/?view=travel', '_blank')}
+                                className="px-10 py-5 bg-indigo-600 text-white rounded-[2rem] font-black uppercase tracking-widest text-[10px] shadow-2xl shadow-indigo-100/50 hover:bg-slate-900 transition-all flex items-center gap-3 active:scale-95"
+                            >
+                                <GlobeAltIcon className="w-5 h-5" /> Visit Public Travel Hub
+                            </button>
+                        </div>
+
+                        {/* Network Statistics */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {[
+                                { label: 'Active Partners', val: institutions.filter(i => i.institutionType === 'Hospitality').length, icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-600' },
+                                { label: 'Safaris & Trips', val: 124, icon: <Compass className="w-6 h-6" />, color: 'bg-orange-500' },
+                                { label: 'Guest Bookings', val: '2,840', icon: <UserGroupIcon className="w-6 h-6" />, color: 'bg-emerald-500' },
+                                { label: 'Platform Revenue Share', val: 'KES 450k', icon: <BanknotesIcon className="w-6 h-6" />, color: 'bg-blue-600' },
+                            ].map((stat, i) => (
+                                <div key={i} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col justify-between group hover:border-indigo-500/30 transition-all">
+                                    <div className={`w-14 h-14 ${stat.color} text-white rounded-2xl flex items-center justify-center mb-6 shadow-xl`}>
+                                        {stat.icon}
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">{stat.label}</p>
+                                        <h4 className="text-3xl font-black text-slate-800 dark:text-white group-hover:text-indigo-600 transition-colors uppercase italic">{stat.val}</h4>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Marketplace Preview Section */}
+                        <div className="bg-slate-950 rounded-[4rem] p-12 border border-slate-800 relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 p-12 opacity-5 rotate-12 group-hover:opacity-10 transition-opacity">
+                                <Palmtree className="w-96 h-96 text-indigo-400" />
+                            </div>
+                            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-12 items-center">
+                                <div className="lg:col-span-1 space-y-6">
+                                    <h3 className="text-5xl font-black uppercase tracking-tighter text-white leading-none">
+                                        Travel Hub <br /> <span className="text-indigo-400">Preview</span>
+                                    </h3>
+                                    <p className="text-slate-400 text-sm font-bold leading-relaxed mb-6 uppercase tracking-wider italic">
+                                        Visualize how hospitality partners are represented in the global marketplace. This is the live view seen by authenticated guests and travelers.
+                                    </p>
+                                    <div className="space-y-4">
+                                        <div className="flex items-center gap-3 text-xs font-black text-white/50 uppercase tracking-widest">
+                                            <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> SEO Optimized Listings
+                                        </div>
+                                        <div className="flex items-center gap-3 text-xs font-black text-white/50 uppercase tracking-widest">
+                                            <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> Real-time Booking Sync
+                                        </div>
+                                        <div className="flex items-center gap-3 text-xs font-black text-white/50 uppercase tracking-widest">
+                                            <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> Luxury Aesthetics
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="lg:col-span-2 h-[500px] bg-slate-900 rounded-[3rem] border border-slate-800 overflow-hidden relative shadow-2xl">
+                                    <div className="h-full overflow-y-auto scrollbar-none">
+                                        <div className="origin-top scale-[0.70] w-[142%] h-[142%] bg-white dark:bg-slate-950 pointer-events-none">
+                                            <HospitalityMarketplace 
+                                                institutions={institutions} 
+                                                onBack={() => {}} 
+                                                onViewStore={() => {}} 
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="absolute inset-x-0 bottom-0 py-10 bg-gradient-to-t from-slate-950 to-transparent flex justify-center">
+                                        <button 
+                                            onClick={() => window.open('/?view=travel', '_blank')}
+                                            className="px-10 py-5 bg-white text-slate-950 rounded-[2rem] font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl active:scale-95 transition-all"
+                                        >
+                                            Inspect External Interface
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Partner Management List */}
+                        <div className="bg-white dark:bg-slate-800 rounded-[3.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                            <div className="p-10 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center">
+                                <div>
+                                    <h3 className="text-2xl font-black uppercase tracking-tighter">Hospitality Partners</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Directory of tourism agencies & hotels</p>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 text-slate-400 group hover:text-indigo-600 hover:border-indigo-100 transition-all">
+                                        <Filter className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                        <tr className="text-left text-[10px] font-black text-slate-400 uppercase tracking-widest italic">
+                                            <th className="px-10 py-6">Identity & Brand</th>
+                                            <th className="px-10 py-6">Operational Focus</th>
+                                            <th className="px-10 py-6">Engagement Status</th>
+                                            <th className="px-10 py-6">Platform Lifecycle</th>
+                                            <th className="px-10 py-6 text-right">Portfolio Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                        {institutions.filter(i => i.institutionType === 'Hospitality').map((inst, idx) => (
+                                            <tr key={inst.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors group">
+                                                <td className="px-10 py-8">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-14 h-14 bg-indigo-50 dark:bg-indigo-900/40 rounded-2xl flex items-center justify-center text-indigo-600 font-black text-xl shadow-inner group-hover:scale-110 transition-transform">
+                                                            {inst.name.charAt(0)}
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">{inst.name}</h4>
+                                                            <p className="text-[10px] font-mono text-slate-400 lowercase">{inst.id}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-10 py-8">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl">
+                                                            {inst.category?.includes('Safari') ? <Compass className="w-4 h-4 text-orange-600" /> : <Hotel className="w-4 h-4 text-indigo-600" />}
+                                                        </div>
+                                                        <span className="text-xs font-black uppercase text-slate-600 dark:text-slate-400 tracking-tight">{inst.category || 'General'}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-10 py-8">
+                                                    <div className="space-y-1">
+                                                        <div className="h-1.5 w-32 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                            <div className="h-full bg-indigo-500" style={{ width: `${60 + (idx * 5)}%` }}></div>
+                                                        </div>
+                                                        <p className="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Engagement Health: {60 + (idx * 5)}%</p>
+                                                    </div>
+                                                </td>
+                                                <td className="px-10 py-8">
+                                                    <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${inst.status === 'active' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+                                                        {inst.status}
+                                                    </span>
+                                                </td>
+                                                <td className="px-10 py-8 text-right">
+                                                    <div className="flex justify-end gap-3">
+                                                        <button 
+                                                            onClick={() => onLoginAsAdmin(inst.id)}
+                                                            className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 transition-all shadow-lg shadow-indigo-100"
+                                                        >
+                                                            Portal
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => openPerspectiveSelection(inst)}
+                                                            className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 text-slate-400 hover:text-indigo-600 transition-all"
+                                                        >
+                                                            <EyeIcon className="w-5 h-5" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 )}
 
