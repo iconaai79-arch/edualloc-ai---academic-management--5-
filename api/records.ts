@@ -77,7 +77,7 @@ async function getAuthUser(supabase: any, authHeader?: string) {
   return null;
 }
 
-const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'system_settings', 'pm_listings', 'retail_inventory_items'];
+const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'system_settings', 'pm_listings', 'retail_inventory_items', 'school_registry'];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
