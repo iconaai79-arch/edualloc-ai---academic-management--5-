@@ -40,6 +40,7 @@ const CommunityManager = lazy(() => import('./CommunityManager').then(m => ({ de
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
+import { isSchoolInstitution, isEduInstitution } from '../utils/roleUtils';
 
 import { ClipboardListIcon } from './icons/ClipboardListIcon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
