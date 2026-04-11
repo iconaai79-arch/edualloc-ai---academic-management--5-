@@ -45,6 +45,7 @@ const ResellerDashboard = lazy(() => import('./ResellerDashboard'));
 const TenantStorefrontView = lazy(() => import('./retail/TenantStorefrontView').then(m => ({ default: m.TenantStorefrontView })));
 const CommunityHubView = lazy(() => import('./public/CommunityHubView').then(m => ({ default: m.CommunityHubView })));
 const TransportHubView = lazy(() => import('./public/TransportHubView').then(m => ({ default: m.TransportHubView })));
+const HospitalityStorefront = lazy(() => import('./hospitality/HospitalityStorefront').then(m => ({ default: m.HospitalityStorefront })));
 
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { getAdminRoleForInstitution } from '../utils/roleUtils';
@@ -4385,7 +4386,11 @@ export const App: React.FC = () => {
                 ) : (
                     <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
                         {showTenantStore && activeStoreTenantId ? (
-                            <TenantStorefrontView institutionId={activeStoreTenantId} />
+                            institutions.find(inst => inst.id === activeStoreTenantId || inst.slug === activeStoreTenantId)?.institutionType === 'Hospitality' ? (
+                                <HospitalityStorefront institutionId={activeStoreTenantId} />
+                            ) : (
+                                <TenantStorefrontView institutionId={activeStoreTenantId} />
+                            )
                          ) : showCommunityHub ? (
                             <CommunityHubView 
                                 institutions={institutions}
