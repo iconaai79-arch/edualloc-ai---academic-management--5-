@@ -658,7 +658,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                         <option value="Cargo & Delivery">Logistics & Cargo Delivery</option>
                                                         <option value="Staff Shuttle">Corporate / Staff Shuttle</option>
                                                         <option value="Educational Transport">Educational Transport</option>
-                                                        <option value="Public Transport">Public / Private Hire Services</option>
+                                                        <option value="Public Transport SACCO">Public Transport (SACCO)</option>
                                                     </select>
                                                 </div>
                                             )}

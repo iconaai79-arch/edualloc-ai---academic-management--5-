@@ -12,7 +12,14 @@ import {
     FileText,
     Plus,
     RotateCw,
-    MapPin
+    MapPin,
+    Ghost,
+    History,
+    Network,
+    Library,
+    Mic,
+    Image as ImageIcon,
+    TreePalm
 } from 'lucide-react';
 import type { Institution, User } from '../types';
 
@@ -29,6 +36,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
         if (category.includes('Chama')) return 'savings';
         if (category.includes('Estate')) return 'residences';
         if (category.includes('NGO')) return 'social';
+        if (category.includes('Family') || category.includes('Heritage')) return 'heritage';
         return 'overview';
     };
 
@@ -313,6 +321,137 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
         </div>
     );
 
+    const renderHeritage = () => (
+        <div className="animate-fade-in space-y-8">
+            <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
+                    <TreePalm className="w-64 h-64" />
+                </div>
+                <div className="relative z-10 flex flex-col md:flex-row justify-between gap-8">
+                    <div className="max-w-xl">
+                        <h3 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-4">
+                            <History className="w-10 h-10 text-amber-600" />
+                            Digital Ancestry Map
+                        </h3>
+                        <p className="text-slate-500 font-medium mt-2">Visualize your lineage, connect the branches, and preserve the stories of those who came before us.</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <button className="bg-amber-600 hover:bg-amber-700 text-white px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-amber-100 transition-all active:scale-95 flex items-center gap-3">
+                            <Plus className="w-5 h-5" />
+                            Add Ancestor
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Visual Family Tree Preview */}
+                <div className="lg:col-span-2 bg-slate-900 rounded-[3rem] p-12 text-white relative overflow-hidden min-h-[500px] border-4 border-slate-800 shadow-2xl">
+                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/graphy.png')] opacity-10"></div>
+                    <div className="relative z-10 flex flex-col items-center">
+                        <div className="w-full flex justify-between items-center mb-12">
+                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-400">Gen 1: Foundational Roots</p>
+                            <div className="flex gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Paternal</div>
+                                <div className="flex items-center gap-2 ml-4"><div className="w-2 h-2 rounded-full bg-pink-500"></div> Maternal</div>
+                            </div>
+                        </div>
+
+                        {/* Interactive Tree Root Simulation */}
+                        <div className="space-y-16 w-full max-w-2xl">
+                            <div className="flex flex-col items-center">
+                                <div className="p-4 bg-white/10 border-2 border-amber-500 rounded-2xl backdrop-blur-md text-center group cursor-pointer hover:bg-amber-500 transition-all">
+                                    <p className="font-black text-sm uppercase tracking-tight group-hover:text-slate-900">Samuel Mwangi Sr.</p>
+                                    <p className="text-[9px] font-black text-amber-400 uppercase group-hover:text-slate-800">1892 - 1968</p>
+                                </div>
+                                <div className="w-0.5 h-16 bg-gradient-to-b from-amber-500 to-indigo-500"></div>
+                                <div className="flex gap-20 items-start relative">
+                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[240px] h-0.5 bg-indigo-500"></div>
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-0.5 h-8 bg-indigo-500"></div>
+                                        <div className="p-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm text-center">
+                                            <p className="font-bold text-xs uppercase tracking-tight">John Mwangi</p>
+                                            <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Son</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-0.5 h-8 bg-indigo-500"></div>
+                                        <div className="p-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm text-center border-t-4 border-t-amber-500 animate-pulse">
+                                            <p className="font-bold text-xs uppercase tracking-tight">Grace Wamboi</p>
+                                            <p className="text-[8px] font-black text-amber-400 uppercase tracking-widest">Daughter</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="absolute bottom-12 text-center text-[10px] font-black uppercase text-slate-500 tracking-[0.4em]">
+                            Hold & Drag to Explore Lineage
+                        </div>
+                    </div>
+                </div>
+
+                {/* Digital Heritage Vault */}
+                <div className="space-y-6">
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                        <div className="flex justify-between items-center mb-8">
+                            <h4 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-3">
+                                <Library className="w-6 h-6 text-indigo-600" />
+                                Heritage Vault
+                            </h4>
+                            <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded-xl">
+                                <Network className="w-4 h-4 text-slate-400" />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            {[
+                                { name: 'Family Bible Scans', type: 'DOCS', icon: FileText, color: 'text-blue-500', bg: 'bg-blue-50' },
+                                { name: 'Old Library Audio', type: 'VOICE', icon: Mic, color: 'text-red-500', bg: 'bg-red-50' },
+                                { name: 'Ancestral Farm Ph.', type: 'IMAGE', icon: ImageIcon, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+                                { name: 'Memorial Sites', type: 'LOC', icon: MapPin, color: 'text-amber-500', bg: 'bg-amber-50' }
+                            ].map((vault, i) => (
+                                <div key={i} className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-transparent hover:border-indigo-100 transition-all cursor-pointer group">
+                                    <div className={`p-3 w-fit rounded-xl ${vault.bg} ${vault.color} mb-3 group-hover:rotate-12 transition-transform`}>
+                                        <vault.icon className="w-5 h-5" />
+                                    </div>
+                                    <p className="font-bold text-[11px] text-slate-800 dark:text-slate-200 uppercase leading-tight">{vault.name}</p>
+                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">{vault.type}</p>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        <button className="w-full mt-8 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-slate-200 dark:shadow-none transition-all active:scale-95">
+                            Upload New Heritage Item
+                        </button>
+                    </div>
+
+                    {/* Remembrance Timeline */}
+                    <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-8 rounded-[3rem] text-white overflow-hidden relative group">
+                        <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12 group-hover:rotate-0 transition-transform">
+                            <RotateCw className="w-24 h-24" />
+                        </div>
+                        <h4 className="text-lg font-black uppercase tracking-tighter mb-6 relative z-10 flex items-center gap-3">
+                            <Ghost className="w-5 h-5" />
+                            Memorial Wall
+                        </h4>
+                        <div className="space-y-4 relative z-10">
+                            {[
+                                { name: 'Asha Mwikali', date: 'Next Sunday', event: 'Remembrance Service' },
+                                { name: 'Pius Mwangi', date: 'Oct 29', event: '10th Anniversary' }
+                            ].map((m, i) => (
+                                <div key={i} className="p-4 bg-white/10 rounded-2xl border border-white/10 backdrop-blur-md">
+                                    <p className="font-bold text-sm">{m.name}</p>
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-indigo-200">{m.event} • {m.date}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
     return (
         <div className="p-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -354,6 +493,14 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                             Social Impact
                         </button>
                     )}
+                    {(category.includes('Family') || category.includes('Heritage')) && (
+                        <button
+                            onClick={() => setActiveTab('heritage')}
+                            className={`px-6 py-2.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all ${activeTab === 'heritage' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Family Tree
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -362,6 +509,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                 {activeTab === 'savings' && renderSavings()}
                 {activeTab === 'residences' && renderResidences()}
                 {activeTab === 'social' && renderSocial()}
+                {activeTab === 'heritage' && renderHeritage()}
             </div>
         </div>
     );
