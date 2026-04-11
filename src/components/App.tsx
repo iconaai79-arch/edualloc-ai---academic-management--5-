@@ -20,6 +20,7 @@ import { ChurchDenominationProvider } from './church/ChurchDenominationProvider'
 import { MarketingLandingPage } from './public/MarketingLandingPage';
 import { BookDemoModal } from './public/BookDemoModal';
 import { AlumnaeRegistrationView } from './AlumnaeRegistrationView';
+import { AlumnaeActivationView } from './AlumnaeActivationView';
 
 // Lazy-loaded major portals
 const AdminView = lazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
@@ -542,6 +543,7 @@ export const App: React.FC = () => {
     });
 
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
+    const [showAlumnaeActivation, setShowAlumnaeActivation] = useState(false);
     const [selectedRegistrySchool, setSelectedRegistrySchool] = useState<SchoolRegistry | null>(null);
 
     // SEO and Deeplinking for Alumnae
@@ -4444,6 +4446,13 @@ export const App: React.FC = () => {
                                 onBack={() => window.location.href = '/?view=community'}
                                 onViewStore={(id) => window.location.href = `/?shop=${id}`}
                             />
+                        ) : showAlumnaeActivation ? (
+                            <AlumnaeActivationView 
+                                onFinish={() => {
+                                    setShowAlumnaeActivation(false);
+                                    window.location.href = '/?view=community';
+                                }}
+                            />
                         ) : showAlumnaeRegister ? (
                             <AlumnaeRegistrationView 
                                 registry={schoolRegistry}
@@ -4452,8 +4461,8 @@ export const App: React.FC = () => {
                                     window.location.href = '/?view=community';
                                 }}
                                 onComplete={(data) => {
-                                    alert("Registration Successful! Your details have been submitted to your school for verification. You will receive an email once approved.");
-                                    window.location.href = '/?view=community';
+                                    setShowAlumnaeActivation(true);
+                                    setShowAlumnaeRegister(false);
                                 }}
                             />
                         ) : showGuestPortal ? (
