@@ -390,7 +390,14 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     }, [props.currentInstitution, institutionType]);
 
     const isCommunity = useMemo(() => {
-        return props.currentInstitution?.category === 'Community' || institutionType === 'Community' || props.currentInstitution?.category?.includes('NGO') || props.currentInstitution?.category?.includes('Chama') || props.currentInstitution?.category?.includes('Estate');
+        const cat = props.currentInstitution?.category;
+        return institutionType === 'Community' || 
+               cat === 'Community' || 
+               cat?.includes('NGO') || 
+               cat?.includes('Chama') || 
+               cat?.includes('Estate') || 
+               cat?.includes('Heritage') || 
+               cat?.includes('Family');
     }, [props.currentInstitution, institutionType]);
 
     const isSchool = useMemo(() => {
@@ -514,7 +521,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
             // Educational tabs
             if (['timetable', 'courses', 'leaveout', 'users'].includes(tab.id)) {
-                if (tab.id === 'users' && (isCoop || institutionType === 'SACCO' || institutionType === 'Agrovet')) return true;
+                if (tab.id === 'users' && (isCoop || isCommunity || institutionType === 'SACCO' || institutionType === 'Agrovet')) return true;
                 return isEdu;
             }
 
@@ -529,7 +536,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
             // Retail & Procurement tabs
             if (['retail', 'procurement'].includes(tab.id)) {
-                if (isEdu || isChurch) return false;
+                if (isEdu || isChurch || isCommunity) return false;
                 if (isBusiness) {
                     return RETAIL_SUBTYPES.includes(businessSubType || '');
                 }
