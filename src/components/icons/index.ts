@@ -116,3 +116,4 @@ export * from './WrenchIcon';
 export * from './XCircleIcon';
 export * from './XIcon';
 export * from './ZapIcon';
+export * from './PalmTreeIcon';

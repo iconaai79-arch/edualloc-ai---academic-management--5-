@@ -619,6 +619,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                 <option value="Church">Religious / Church</option>
                                                 <option value="Broadcaster">Media / Broadcaster</option>
                                                 <option value="Reseller">Reseller Agency</option>
+                                                <option value="Hospitality">Tourism & Hospitality</option>
                                             </select>
 
                                             {regData.institutionType === 'Education' && (
@@ -728,6 +729,24 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                         <option value="Catholic">Catholic (Sacramental/SCC)</option>
                                                         <option value="Protestant">Protestant (Evangelical/Cell Groups)</option>
                                                         <option value="Orthodox">Orthodox (Holy Mysteries/Fasting Calendar)</option>
+                                                    </select>
+                                                </div>
+                                            )}
+
+                                            {regData.institutionType === 'Hospitality' && (
+                                                <div className="mt-3 animate-fade-in">
+                                                    <label className={labelClasses}>Hospitality Niche</label>
+                                                    <select
+                                                        className={inputClasses}
+                                                        value={regData.category || ''}
+                                                        onChange={e => setRegData({ ...regData, category: e.target.value, businessSubType: e.target.value })}
+                                                        required
+                                                    >
+                                                        <option value="">-- Select Focus Area --</option>
+                                                        <option value="Travel Agency">Travel Agency (Local & Int'l)</option>
+                                                        <option value="Tours & Safaris">Tours, Safaris & Expeditions</option>
+                                                        <option value="Hotels & Resorts">Hotels, Lodges & Resorts</option>
+                                                        <option value="Airbnb/Apartments">Airbnb & Short-term Rentals</option>
                                                     </select>
                                                 </div>
                                             )}

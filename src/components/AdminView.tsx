@@ -38,6 +38,7 @@ const LawManager = lazy(() => import('./law/LawManager').then(m => ({ default: m
 const DrivingSchoolManager = lazy(() => import('./ds/DrivingSchoolManager').then(m => ({ default: m.DrivingSchoolManager })));
 const CommunityManager = lazy(() => import('./CommunityManager').then(m => ({ default: m.CommunityManager })));
 const AlumniManager = lazy(() => import('./AlumniManager').then(m => ({ default: m.AlumniManager })));
+const HospitalityManager = lazy(() => import('./HospitalityManager').then(m => ({ default: m.HospitalityManager })));
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
@@ -57,6 +58,14 @@ import { AcademicCapIcon } from './icons/AcademicCapIcon';
 import { EyeIcon } from './icons/EyeIcon';
 import { ShieldIcon } from './icons/ShieldIcon';
 import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
+import { PalmTreeIcon } from './icons/PalmTreeIcon';
+import { TruckIcon } from './icons/TruckIcon';
+import { StoreIcon } from './icons/StoreIcon';
+import { ShoppingBagIcon } from './icons/ShoppingBagIcon';
+import { UserPlusIcon } from './icons/UserPlusIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { CreditCardIcon } from './icons/CreditCardIcon';
+import { BeakerIcon } from './icons/BeakerIcon';
 import { CurrencyIcon } from './icons/CurrencyIcon';
 import { UserIcon } from './icons/UserIcon';
 import { XIcon } from './icons/XIcon';
@@ -360,7 +369,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality'>('dashboard');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects' | 'registry'>('wizard');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
@@ -410,6 +419,10 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         const cat = props.currentInstitution?.category;
         return cat?.includes('Heritage') || cat?.includes('Family');
     }, [props.currentInstitution]);
+
+    const isHospitality = useMemo(() => {
+        return institutionType === 'Hospitality';
+    }, [institutionType]);
 
     const isSchool = useMemo(() => {
         return isSchoolInstitution(props.currentInstitution);
@@ -467,6 +480,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 setActiveTab('community');
             } else if (isAlumni || role === 'alumni_admin') {
                 setActiveTab('alumni');
+            } else if (isHospitality || role === 'hospitality_admin') {
+                setActiveTab('hospitality');
             }
             setHasSetDefaultTab(true);
         }
@@ -513,6 +528,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'driving_school', label: 'Driving School', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
             { id: 'community', label: isHeritage ? 'Family Council' : 'Community Hub', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
             { id: 'alumni', label: 'Alumni Network', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
+            { id: 'hospitality', label: 'Hospitality Hub', icon: <PalmTreeIcon className="w-5 h-5 mr-2" /> },
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         ];
 
@@ -583,6 +599,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             if (tab.id === 'driving_school') return roleToUse === 'driving_instructor' || institutionType === 'Driving School' || props.currentInstitution?.category === 'Driving School';
             if (tab.id === 'community') return isCommunity || roleToUse === 'community_admin';
             if (tab.id === 'alumni') return isAlumni || roleToUse === 'alumni_admin';
+            if (tab.id === 'hospitality') return isHospitality || roleToUse === 'hospitality_admin';
 
             return true;
         });
@@ -1350,6 +1367,12 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         currentInstitution={props.currentInstitution!}
                         users={props.users || []}
                         allInstitutions={props.institutions || []}
+                    />
+                )}
+                {activeTab === 'hospitality' && (
+                    <HospitalityManager
+                        currentInstitution={props.currentInstitution!}
+                        users={props.users || []}
                     />
                 )}
 
