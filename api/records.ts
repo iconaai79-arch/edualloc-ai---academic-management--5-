@@ -148,7 +148,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const [col, dir] = order.split('.');
                 q = q.order(col, { ascending: dir !== 'desc' });
             }
-            if (limit) q = q.limit(parseInt(getStrParam(limit)));
+            
+            const finalLimit = limit ? parseInt(getStrParam(limit)) : (moduleName === 'school_registry' ? 10000 : 1000);
+            q = q.limit(finalLimit);
 
             const { data, error } = await q;
             if (error) return res.status(200).json({ success: false, error: error.message });
