@@ -400,6 +400,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                cat?.includes('Family');
     }, [props.currentInstitution, institutionType]);
 
+    const isHeritage = useMemo(() => {
+        const cat = props.currentInstitution?.category;
+        return cat?.includes('Heritage') || cat?.includes('Family');
+    }, [props.currentInstitution]);
+
     const isSchool = useMemo(() => {
         return isSchoolInstitution(props.currentInstitution);
     }, [props.currentInstitution]);
@@ -480,10 +485,10 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         const baseTabs = [
             { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
             { id: 'timetable', label: 'Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
-            { id: 'users', label: 'Members', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
+            { id: 'users', label: isHeritage ? 'Family Members' : isCommunity ? 'Community Members' : 'Members', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
             { id: 'courses', label: isSchool ? 'Grades' : isChurch ? 'Departments' : 'Courses', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
             { id: 'leaveout', label: 'Leave Out', icon: <ArchiveBoxIcon className="w-5 h-5 mr-2" /> },
-            { id: 'comms', label: isRetailAgency ? 'Communications' : 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
+            { id: 'comms', label: isHeritage ? 'Announcements' : isCommunity ? 'Community Updates' : isRetailAgency ? 'Communications' : 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
             { id: 'retail', label: 'Retail & Agency', icon: <StoreIcon className="w-5 h-5 mr-2" /> },
             { id: 'procurement', label: 'Procurement', icon: <ShoppingBagIcon className="w-5 h-5 mr-2" /> },
             { id: 'coop', label: 'Cooperative', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
@@ -492,13 +497,13 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
             { id: 'transport', label: 'Fleet Registry', icon: <MapPinIcon className="w-5 h-5 mr-2" /> },
             { id: 'logistics', label: 'Logistics Hub', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
-            { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
+            { id: 'reports', label: isHeritage ? 'Records' : isCommunity ? 'Analytics' : 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
             { id: 'sacco', label: 'SACCO', icon: <CreditCardIcon className="w-5 h-5 mr-2" /> },
             { id: 'agrovet', label: 'Agrovet', icon: <BeakerIcon className="w-5 h-5 mr-2" /> },
             { id: 'church', label: 'Church System', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
             { id: 'law', label: 'Legal Module', icon: <ShieldIcon className="w-5 h-5 mr-2" /> },
             { id: 'driving_school', label: 'Driving School', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
-            { id: 'community', label: 'Community Hub', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
+            { id: 'community', label: isHeritage ? 'Family Council' : 'Community Hub', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         ];
 
