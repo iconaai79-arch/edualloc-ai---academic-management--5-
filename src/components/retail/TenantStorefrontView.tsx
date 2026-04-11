@@ -60,13 +60,46 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                 if (resolvedTenant) {
                     setTenant(resolvedTenant);
                     // Use the resolved unique ID for subsequent item fetches
-                    const [instListings, instRetail] = await Promise.all([
+                    const [instListings, instRetail, agroProducts, agroBatches] = await Promise.all([
                         apiService.fetchModuleRecords<PMListing>('pm_listings', resolvedTenant.id),
-                        apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', resolvedTenant.id)
+                        apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', resolvedTenant.id),
+                        (resolvedTenant.institutionType === 'Agrovet' || resolvedTenant.category === 'Agrovet') ? apiService.fetchModuleRecords('agrovet_products', resolvedTenant.id) : Promise.resolve([]),
+                        (resolvedTenant.institutionType === 'Agrovet' || resolvedTenant.category === 'Agrovet') ? apiService.fetchModuleRecords('agrovet_batches', resolvedTenant.id) : Promise.resolve([])
                     ]);
 
-                    setListings(instListings.filter(l => l.status === 'Active' || l.status === 'Published'));
-                    setRetailProducts(instRetail.filter(item => item.marketplaceEnabled === true));
+                    setListings((instListings || []).filter((l: any) => l.status === 'Active' || l.status === 'Published'));
+                    
+                    let products = (instRetail || []).filter((item: any) => item.marketplaceEnabled === true);
+                    
+                    if (agroProducts && agroProducts.length > 0) {
+                        const mappedAgro = agroProducts.map((p: any) => {
+                            const productBatches = (agroBatches || []).filter((b: any) => b.productId === p.id);
+                            // Find latest batch or first one
+                            const activeBatch = productBatches.sort((a: any, b: any) => new Date(b.receivedDate).getTime() - new Date(a.receivedDate).getTime())[0];
+                            return {
+                                id: p.id,
+                                institutionId: p.institutionId,
+                                name: p.name,
+                                description: p.description,
+                                category: p.category,
+                                sku: `AGRO-${p.id.slice(0, 4)}`,
+                                costPrice: activeBatch?.costPrice || 0,
+                                basePrice: activeBatch?.sellingPrice || 0,
+                                srpPrice: activeBatch?.sellingPrice || 0,
+                                quantity: p.currentStock || 0,
+                                unit: p.unitType || 'unit',
+                                marketplaceEnabled: true,
+                                reorderLevel: p.reorderLevel || 0,
+                                bufferStock: 0,
+                                viewCount: 0,
+                                inquiryCount: 0,
+                                createdAt: new Date().toISOString()
+                            } as RetailInventoryItem;
+                        });
+                        products = [...products, ...mappedAgro];
+                    }
+
+                    setRetailProducts(products);
                     document.title = `${resolvedTenant.name} | Official Storefront`;
                 }
             } catch (error) {
@@ -167,7 +200,8 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
         );
     }
 
-    const themeColor = tenant.themeColor || '#4f46e5';
+    const isAgrovet = tenant.institutionType === 'Agrovet' || tenant.category === 'Agrovet';
+    const themeColor = tenant.themeColor || (isAgrovet ? '#10b981' : '#4f46e5');
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-500 pb-20">
@@ -187,7 +221,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                             {tenant.logoUrl ? (
                                 <img src={tenant.logoUrl} alt={tenant.name} className="w-10 h-10 object-contain rounded-lg" />
                             ) : (
-                                <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-black text-lg">
+                                <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-black text-lg shadow-lg rotate-3 transition-transform hover:rotate-0" style={{ backgroundColor: themeColor }}>
                                     {tenant.name.charAt(0)}
                                 </div>
                             )}
@@ -226,7 +260,10 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                         {tenant.name}
                     </h2>
                     <p className="mt-6 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-[0.2em] text-xs max-w-lg mx-auto">
-                        Explore our curated selection of {listings.length} properties and {retailProducts.length} retail products.
+                        {isAgrovet 
+                            ? `Providing premium agricultural inputs, veterinary services, and animal health solutions to the community.`
+                            : `Explore our curated selection of ${listings.length} properties and ${retailProducts.length} retail products.`
+                        }
                     </p>
                 </div>
             </div>

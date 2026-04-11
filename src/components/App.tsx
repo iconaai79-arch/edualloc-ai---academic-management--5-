@@ -476,7 +476,21 @@ export const App: React.FC = () => {
     const [activeStoreTenantId, setActiveStoreTenantId] = useState<string | null>(() => {
         try {
             const params = new URLSearchParams(window.location.search);
-            return params.get('shop');
+            const shop = params.get('shop');
+            if (shop) return shop;
+
+            // Subdomain discovery: e.g. agrovent.eduai.co.ke
+            const host = window.location.hostname.toLowerCase();
+            const parts = host.split('.');
+            // Check for valid tenant subdomain (e.g. tenant.domain.com or tenant.eduai.co.ke)
+            if (parts.length >= 2) {
+                const sub = parts[0];
+                const reserved = ['www', 'app', 'marketplace', 'showcase', 'marketing', 'api', 'localhost', '127'];
+                if (!reserved.includes(sub) && !sub.includes('portal') && !sub.includes('admin')) {
+                    return sub; // Return as slug
+                }
+            }
+            return null;
         } catch (e) {
             return null;
         }
