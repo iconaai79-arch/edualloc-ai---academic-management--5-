@@ -378,6 +378,10 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         return props.currentInstitution?.category === 'Driving School' || institutionType === 'Driving School';
     }, [props.currentInstitution, institutionType]);
 
+    const isLaw = useMemo(() => {
+        return props.currentInstitution?.category === 'Law Firm' || institutionType === 'Law Firm';
+    }, [props.currentInstitution, institutionType]);
+
     const isSchool = useMemo(() => {
         return isSchoolInstitution(props.currentInstitution);
     }, [props.currentInstitution]);
@@ -424,6 +428,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 setActiveTab('retail');
             } else if (isDS || role === 'driving_instructor') {
                 setActiveTab('driving_school');
+            } else if (isLaw || role === 'legal_admin') {
+                setActiveTab('law');
             }
             setHasSetDefaultTab(true);
         }
