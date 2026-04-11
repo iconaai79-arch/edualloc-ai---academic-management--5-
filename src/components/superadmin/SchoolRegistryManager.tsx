@@ -20,6 +20,9 @@ import {
 import type { SchoolRegistry } from '../../types';
 import { apiService } from '../../services/apiService';
 
+import { slugify } from '../../utils/stringUtils';
+import { generateId } from '../../utils/idGenerator';
+
 interface SchoolRegistryManagerProps {
     registry: SchoolRegistry[];
     onRefresh: () => void;
@@ -31,13 +34,43 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
     const [isAddingManually, setIsAddingManually] = useState(false);
     const [uploadProgress, setUploadProgress] = useState<{ current: number, total: number } | null>(null);
 
+    const [newSchool, setNewSchool] = useState<Partial<SchoolRegistry>>({
+        name: '',
+        county: '',
+        region: '',
+        knecCode: '',
+        uic: '',
+        genderType: 'Mixed',
+        accommodationType: 'Mixed',
+        specialNeedType: 'Regular'
+    });
+
     const filteredSchools = useMemo(() => {
         return registry.filter(s => 
             s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
             s.knecCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            s.uic?.toLowerCase().includes(searchTerm.toLowerCase())
+            s.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            s.slug?.toLowerCase().includes(searchTerm.toLowerCase())
         );
     }, [registry, searchTerm]);
+
+    const handleSaveManual = async () => {
+        if (!newSchool.name) return;
+        try {
+            const data: any = {
+                ...newSchool,
+                id: `sch_${Date.now()}`,
+                slug: slugify(newSchool.name!),
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('school_registry', data);
+            setIsAddingManually(false);
+            onRefresh();
+        } catch (err) {
+            console.error(err);
+        }
+    };
 
     const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -45,16 +78,14 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
 
         setIsUploading(true);
         // Simulate parsing and uploading
-        // In a real app, you'd use a parser and then apiService.saveModuleRecord for each
-        alert("Simulating bulk upload of registry data. In production, this would parse your CSV file.");
+        alert("Simulating bulk upload of registry data. In production, this would parse your CSV and generate slugs automatically.");
         setIsUploading(false);
     };
 
     const handleDelete = async (id: string) => {
         if (window.confirm("Are you sure you want to remove this school from the global registry?")) {
             try {
-                // await apiService.deleteModuleRecord('school_registry', id);
-                alert("School removed from registry.");
+                await apiService.deleteModuleRecord('school_registry', id);
                 onRefresh();
             } catch (err) {
                 console.error(err);
@@ -120,7 +151,7 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                     <div className="relative flex-1 w-full">
                         <input 
                             type="text" 
-                            placeholder="Search registry by name, knec or uic..." 
+                            placeholder="Search registry by name, knec, uic or slug..." 
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="w-full h-14 pl-14 pr-6 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none focus:ring-2 focus:ring-indigo-600 outline-none"
@@ -144,7 +175,7 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                 <th className="px-10 py-6">School Identity</th>
                                 <th className="px-10 py-6">Geography</th>
                                 <th className="px-10 py-6">Master Codes</th>
-                                <th className="px-10 py-6">Status</th>
+                                <th className="px-10 py-6">SEO Alumnae Link</th>
                                 <th className="px-10 py-6 text-right">Portfolio Actions</th>
                             </tr>
                         </thead>
@@ -188,13 +219,12 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                         </div>
                                     </td>
                                     <td className="px-10 py-8">
-                                        <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
-                                            s.institutionId 
-                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
-                                            : 'bg-slate-50 text-slate-400 border-slate-100'
-                                        }`}>
-                                            {s.institutionId ? 'Portal Active' : 'Registry Only'}
-                                        </span>
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Shareable Portal Link</span>
+                                            <code className="text-[10px] bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg text-slate-500">
+                                                /?school={s.slug || s.id}
+                                            </code>
+                                        </div>
                                     </td>
                                     <td className="px-10 py-8 text-right">
                                         <button 
@@ -211,20 +241,83 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                 </div>
             </div>
 
-            {/* Empty State */}
-            {registry.length === 0 && (
-                <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-24 text-center border-2 border-dashed border-slate-100 dark:border-slate-800">
-                    <Database className="w-16 h-16 text-slate-200 mx-auto mb-6" />
-                    <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter italic">Global Registry Empty</h3>
-                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2 max-w-sm mx-auto">
-                        Upload your master list of learning institutions to enable alumnae portal discoveries.
-                    </p>
-                    <button 
-                        onClick={() => setIsAddingManually(true)}
-                        className="mt-8 px-10 py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-indigo-100"
-                    >
-                        Initialize Database
-                    </button>
+            {/* Manual Add Modal */}
+            {isAddingManually && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xl z-[3000] flex items-center justify-center p-6">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[3rem] shadow-2xl border border-white/10 overflow-hidden animate-fade-in-up">
+                        <div className="p-10 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">Register <span className="text-indigo-600 italic">New Institution</span></h3>
+                                <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-1">Manual registry entry with SEO optimization</p>
+                            </div>
+                            <button onClick={() => setIsAddingManually(false)} className="w-12 h-12 bg-white dark:bg-slate-950 rounded-2xl flex items-center justify-center text-slate-400 hover:text-indigo-600 transition-colors shadow-sm">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <div className="p-10 grid grid-cols-2 gap-8">
+                            <div className="col-span-2 space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4 italic">Institution Legal Name</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. Moi Girls High School Eldoret"
+                                    value={newSchool.name}
+                                    onChange={(e) => setNewSchool({...newSchool, name: e.target.value})}
+                                    className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4 italic">KNEC Center Code</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. 1020304"
+                                    value={newSchool.knecCode}
+                                    onChange={(e) => setNewSchool({...newSchool, knecCode: e.target.value})}
+                                    className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4 italic">UIC Registry Code</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. SCH-001"
+                                    value={newSchool.uic}
+                                    onChange={(e) => setNewSchool({...newSchool, uic: e.target.value})}
+                                    className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4 italic">County Location</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. Uasin Gishu"
+                                    value={newSchool.county}
+                                    onChange={(e) => setNewSchool({...newSchool, county: e.target.value})}
+                                    className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4 italic">Regional Admin</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. Rift Valley"
+                                    value={newSchool.region}
+                                    onChange={(e) => setNewSchool({...newSchool, region: e.target.value})}
+                                    className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="p-10 bg-slate-50 dark:bg-slate-800/50 flex gap-4">
+                            <button onClick={() => setIsAddingManually(false)} className="flex-1 h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest text-slate-400 hover:text-slate-600 transition-colors">Cancel Entry</button>
+                            <button 
+                                onClick={handleSaveManual}
+                                className="flex-[2] h-16 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-2xl hover:bg-indigo-600 transition-all active:scale-95"
+                            >
+                                Integrate Into Registry
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

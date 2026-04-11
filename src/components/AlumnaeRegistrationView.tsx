@@ -23,14 +23,23 @@ import type { SchoolRegistry } from '../types';
 
 interface AlumnaeRegistrationViewProps {
     registry: SchoolRegistry[];
+    initialSchool?: SchoolRegistry | null;
     onComplete: (data: any) => void;
     onBackToPortal: () => void;
 }
 
-export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = ({ registry, onComplete, onBackToPortal }) => {
-    const [step, setStep] = useState(1);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedSchool, setSelectedSchool] = useState<SchoolRegistry | null>(null);
+export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = ({ registry, initialSchool, onComplete, onBackToPortal }) => {
+    const [step, setStep] = useState(initialSchool ? 2 : 1);
+    const [searchTerm, setSearchTerm] = useState(initialSchool?.name || '');
+    const [selectedSchool, setSelectedSchool] = useState<SchoolRegistry | null>(initialSchool || null);
+
+    React.useEffect(() => {
+        if (initialSchool) {
+            setSelectedSchool(initialSchool);
+            setSearchTerm(initialSchool.name);
+            setStep(2);
+        }
+    }, [initialSchool]);
     
     const [formData, setFormData] = useState({
         fullName: '',

@@ -3360,3 +3360,22 @@ export interface DSSettings {
     workingHours?: any;
     updatedAt: string;
 }
+
+export interface SchoolRegistry {
+    id: string;
+    name: string;
+    region?: string;
+    county?: string;
+    subCounty?: string;
+    uic?: string;
+    knecCode?: string;
+    cluster?: string;
+    specialNeedType?: 'Regular' | 'SNE' | 'Integrated';
+    disabilityType?: string;
+    accommodationType?: 'Boarding' | 'Day' | 'Mixed';
+    genderType?: 'Boys' | 'Girls' | 'Mixed';
+    slug?: string;
+    institutionId?: string; // Links to registered tenant if claimed
+    createdAt: string;
+    updatedAt: string;
+}

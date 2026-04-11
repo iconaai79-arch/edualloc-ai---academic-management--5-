@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS school_registry (
     accommodation_type VARCHAR(100), -- Boarding, Day, Mixed
     gender_type VARCHAR(100), -- Boys, Girls, Mixed
     institution_id VARCHAR(255), -- Reference to an active tenant if school is claimed
+    slug VARCHAR(255) UNIQUE, -- SEO friendly URL identifier
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -21,3 +22,4 @@ CREATE TABLE IF NOT EXISTS school_registry (
 CREATE INDEX IF NOT EXISTS idx_school_registry_knec ON school_registry(knec_code);
 CREATE INDEX IF NOT EXISTS idx_school_registry_uic ON school_registry(uic);
 CREATE INDEX IF NOT EXISTS idx_school_registry_county ON school_registry(county);
+CREATE INDEX IF NOT EXISTS idx_school_registry_slug ON school_registry(slug);

@@ -540,6 +540,24 @@ export const App: React.FC = () => {
     });
 
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
+    const [selectedRegistrySchool, setSelectedRegistrySchool] = useState<SchoolRegistry | null>(null);
+
+    // SEO and Deeplinking for Alumnae
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const slug = params.get('school') || params.get('alumnae');
+        if (slug && schoolRegistry.length > 0) {
+            const matched = schoolRegistry.find(s => s.slug === slug || s.id === slug);
+            if (matched) {
+                setSelectedRegistrySchool(matched);
+                setShowAlumnaeRegister(true);
+                // Update SEO Meta Tags dynamically
+                document.title = `${matched.name} | Alumnae Registration | EduAI`;
+                const metaDesc = document.querySelector('meta[name="description"]');
+                if (metaDesc) metaDesc.setAttribute('content', `Join the official Alumnae network for ${matched.name}. Reconnect with your alma mater and professional network.`);
+            }
+        }
+    }, [schoolRegistry]);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [showBookDemo, setShowBookDemo] = useState(false);
 
@@ -4456,6 +4474,7 @@ export const App: React.FC = () => {
                         ) : showAlumnaeRegister ? (
                             <AlumnaeRegistrationView 
                                 registry={schoolRegistry}
+                                initialSchool={selectedRegistrySchool}
                                 onBackToPortal={() => {
                                     window.location.href = '/?view=community';
                                 }}

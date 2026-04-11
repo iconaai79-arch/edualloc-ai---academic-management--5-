@@ -40,3 +40,13 @@ export const formatPhoneNumber = (phone: string): string => {
 
     return phone;
 };
+
+export const slugify = (text: string): string => {
+    return text
+        .toString()
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w-]+/g, '')
+        .replace(/--+/g, '-');
+};
