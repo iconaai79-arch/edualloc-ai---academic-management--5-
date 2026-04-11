@@ -186,6 +186,14 @@ export interface Institution {
     moduleStates?: InstitutionModuleState[];
     coopSettings?: CoopSettings;
     academicConfig?: AcademicConfig;
+    region?: string;
+    uic?: string;
+    knecCode?: string;
+    cluster?: string;
+    specialNeedType?: 'Regular' | 'SNE' | 'Integrated';
+    disabilityType?: string;
+    accommodationType?: 'Boarding' | 'Day' | 'Mixed';
+    genderType?: 'Boys' | 'Girls' | 'Mixed';
 }
 
 export interface NcbaConfig {

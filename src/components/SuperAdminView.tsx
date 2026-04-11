@@ -99,6 +99,7 @@ import { ParentView } from './ParentView';
 import { CountyManager } from './CountyManager';
 import { PropertyMarketplaceView } from './PropertyMarketplaceView';
 import { ExternalModuleView } from './ExternalModuleView';
+import { SchoolRegistryManager } from './superadmin/SchoolRegistryManager';
 import { MarketingLandingPage } from './public/MarketingLandingPage';
 import { DemoRequestManager } from './DemoRequestManager';
 import { DemoRequest } from '../types';
@@ -467,7 +468,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'external_module' | 'interactions' | 'reports' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests'>('dashboard');
     const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links'>('list'); // Modified for Counties, Resellers & Business
-    const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses'>('subjects');
+    const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses' | 'registry'>('subjects');
+    const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
 
     const [healthStatus, setHealthStatus] = useState<any>(null);
     const [isRefreshingHealth, setIsRefreshingHealth] = useState(false);
@@ -536,6 +538,15 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     // Timetable state
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects'>('wizard');
 
+    const fetchSchoolRegistry = useCallback(async () => {
+        try {
+            const data = await apiService.fetchModuleRecords<SchoolRegistry>('school_registry');
+            setSchoolRegistry(data);
+        } catch (e) {
+            console.error("Failed to fetch school registry:", e);
+        }
+    }, []);
+
     const fetchWithdrawalRequests = useCallback(async () => {
         try {
             const data = await apiService.fetchModuleRecords<CommissionWithdrawalRequest>('commission_withdrawal_requests');
@@ -566,7 +577,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     useEffect(() => {
         if (activeTab === 'dashboard') fetchHealth();
         fetchWithdrawalRequests();
-    }, [activeTab, fetchHealth, fetchWithdrawalRequests]);
+        fetchSchoolRegistry();
+    }, [activeTab, fetchHealth, fetchWithdrawalRequests, fetchSchoolRegistry]);
 
     const filteredInstitutions = useMemo(() => {
         const list = Array.isArray(institutions) ? institutions : [];
@@ -2271,6 +2283,12 @@ Please change it after login.`;
                                 >
                                     Courses / Grades
                                 </button>
+                                <button
+                                    onClick={() => setAcademicsSubTab('registry')}
+                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${academicsSubTab === 'registry' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}
+                                >
+                                    Global School Registry
+                                </button>
                             </nav>
                         </div>
 
@@ -2327,6 +2345,13 @@ Please change it after login.`;
                                 allocations={allocations || []}
                                 timetableSettings={timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                                 onSaveTimetableSettings={props.onSaveTimetableSettings}
+                            />
+                        )}
+
+                        {academicsSubTab === 'registry' && (
+                            <SchoolRegistryManager 
+                                registry={schoolRegistry}
+                                onRefresh={fetchSchoolRegistry}
                             />
                         )}
                     </div>
