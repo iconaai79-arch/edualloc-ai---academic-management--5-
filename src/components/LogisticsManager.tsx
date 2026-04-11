@@ -23,7 +23,12 @@ import {
     Armchair,
     DoorOpen,
     QrCode,
-    Smartphone
+    Smartphone,
+    UserPlus,
+    Receipt,
+    Ticket,
+    Landmark,
+    Users
 } from 'lucide-react';
 import type { Institution, User as UserType } from '../types';
 
@@ -52,7 +57,13 @@ interface LogisticsManagerProps {
 
 export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInstitution, users }) => {
     const isShuttle = currentInstitution.category === 'Staff Shuttle' || currentInstitution.category === 'Corporate Shuttle';
-    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'analytics' | 'epod' | 'shuttle'>(isShuttle ? 'shuttle' : 'manifest');
+    const isPublicTransport = currentInstitution.category === 'Public Transport' || currentInstitution.institutionType === 'Logistics' && currentInstitution.category === 'Cargo & Delivery';
+    // Actually, based on user request, let's explicitly detect Public Transport
+    const isSACCO = currentInstitution.category === 'Public Transport' || currentInstitution.category?.includes('SACCO');
+
+    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'analytics' | 'epod' | 'shuttle' | 'sacco'>(
+        isSACCO ? 'sacco' : isShuttle ? 'shuttle' : 'manifest'
+    );
     const [searchTerm, setSearchTerm] = useState('');
 
     const drivers = useMemo(() => users.filter(u => u.role === 'driver'), [users]);
@@ -102,7 +113,12 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         s.clientName.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const stats = isShuttle ? [
+    const stats = isSACCO ? [
+        { label: 'SACCO Members', value: '42', icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+        { label: 'Fleet Strength', value: '124', icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+        { label: 'Trip Commission', value: 'KES 84k', icon: Receipt, color: 'text-green-600', bg: 'bg-green-50' },
+        { label: 'Pending Licenses', value: '8', icon: AlertCircle, color: 'text-orange-600', bg: 'bg-orange-50' },
+    ] : isShuttle ? [
         { label: 'Total Passengers', value: users.length.toString(), icon: User, color: 'text-blue-600', bg: 'bg-blue-50' },
         { label: 'Active Shuttles', value: '8', icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50' },
         { label: 'Seat Occupancy', value: '74%', icon: Armchair, color: 'text-green-600', bg: 'bg-green-50' },
@@ -423,7 +439,128 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         </div>
     );
 
-    return (
+    const renderSACCOHub = () => (
+        <div className="animate-fade-in-up space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Member & Vehicle Registry */}
+                <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <div className="flex justify-between items-center mb-8">
+                        <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-3">
+                            <UserPlus className="w-6 h-6 text-indigo-600" />
+                            Member Registry
+                        </h3>
+                        <button className="bg-indigo-600 text-white px-6 py-2 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 dark:shadow-none transition-all active:scale-95">
+                            Onboard Owner
+                        </button>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="bg-slate-50 dark:bg-slate-900/50">
+                                    <th className="px-6 py-4 text-left text-[9px] font-black uppercase text-slate-400 tracking-widest">Owner</th>
+                                    <th className="px-6 py-4 text-left text-[9px] font-black uppercase text-slate-400 tracking-widest">Vehicle (Plate)</th>
+                                    <th className="px-6 py-4 text-left text-[9px] font-black uppercase text-slate-400 tracking-widest">Memb. Fee</th>
+                                    <th className="px-6 py-4 text-left text-[9px] font-black uppercase text-slate-400 tracking-widest">Trips MTD</th>
+                                    <th className="px-6 py-4 text-right text-[9px] font-black uppercase text-slate-400 tracking-widest">Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                                {[
+                                    { owner: 'Joseph Mwaniki', plate: 'KDC 992P', fee: 'Paid', trips: 142, revenue: 'KES 42,500' },
+                                    { owner: 'Grace Wambui', plate: 'KBB 120Z', fee: 'Paid', trips: 89, revenue: 'KES 28,100' },
+                                    { owner: 'Kevin Otieno', plate: 'KDM 441X', fee: 'Pending', trips: 12, revenue: 'KES 4,200' },
+                                ].map((m, i) => (
+                                    <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
+                                        <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200">{m.owner}</td>
+                                        <td className="px-6 py-4 font-black text-indigo-600">{m.plate}</td>
+                                        <td className="px-6 py-4">
+                                            <span className={`px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${m.fee === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                {m.fee}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 font-bold text-slate-600">{m.trips}</td>
+                                        <td className="px-6 py-4 text-right font-black text-slate-800 dark:text-white uppercase tracking-tighter">{m.revenue}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* Commision & License Tracking */}
+                <div className="space-y-6">
+                    <div className="bg-slate-900 rounded-[3rem] p-8 shadow-2xl relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/20 to-transparent"></div>
+                        <div className="relative z-10">
+                            <div className="flex items-center gap-3 mb-6">
+                                <Landmark className="w-6 h-6 text-indigo-400" />
+                                <h3 className="text-xl font-black text-white uppercase tracking-tight">Financial Engine</h3>
+                            </div>
+                            <div className="space-y-4">
+                                <div className="p-4 bg-white/5 border border-white/5 rounded-2xl backdrop-blur-sm">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Trip Commission Rate</p>
+                                    <div className="flex justify-between items-end">
+                                        <p className="text-2xl font-black text-white uppercase tracking-tighter">15.0%</p>
+                                        <button className="text-[10px] font-black text-indigo-400 uppercase tracking-widest hover:text-white transition-colors">Adjust</button>
+                                    </div>
+                                </div>
+                                <div className="p-4 bg-white/5 border border-white/5 rounded-2xl backdrop-blur-sm">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Municipal Daily Levy</p>
+                                    <div className="flex justify-between items-end">
+                                        <p className="text-2xl font-black text-white uppercase tracking-tighter">KES 300</p>
+                                        <button className="text-[10px] font-black text-indigo-400 uppercase tracking-widest hover:text-white transition-colors">Apply</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                        <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-3 mb-6">
+                            <Receipt className="w-5 h-5 text-green-600" />
+                            License Wallet
+                        </h3>
+                        <div className="space-y-4">
+                            {[
+                                { item: 'Municipality Permit', due: 'Expires in 4 days', color: 'text-red-500' },
+                                { item: 'NTSA Inspection', due: 'Due next month', color: 'text-slate-400' },
+                                { item: 'Insurance (Fleet)', due: 'Up to date', color: 'text-green-600' }
+                            ].map((l, i) => (
+                                <div key={i} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl">
+                                    <div>
+                                        <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">{l.item}</p>
+                                        <p className={`text-[9px] font-black uppercase tracking-widest ${l.color}`}>{l.due}</p>
+                                    </div>
+                                    <button className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-xl shadow-sm transition-all">
+                                        <Clock className="w-4 h-4 text-slate-400" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Public Booking Portal Preview */}
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-12 rounded-[4rem] text-white relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+                <div className="max-w-2xl relative z-10">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 rounded-full text-[9px] font-black uppercase tracking-widest mb-6 backdrop-blur-md">
+                        <Ticket className="w-3 h-3" />
+                        Online Booking Portal Active
+                    </div>
+                    <h2 className="text-4xl font-black uppercase tracking-tighter mb-4">Public Ticket Gateway</h2>
+                    <p className="text-blue-50 font-medium mb-8">Passengers can now discover routes and book seats online. All revenue is automatically split between the SACCO and the vehicle owner.</p>
+                    <div className="flex gap-4">
+                        <button className="bg-white text-indigo-600 px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl hover:translate-y-[-2px] transition-all active:scale-95">Preview Public Portal</button>
+                        <button className="bg-blue-500/30 border border-white/20 px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-blue-500/40 transition-all">Configure Pricing</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
+    const renderEPOD = () => (
         <div className="animate-fade-in-up space-y-8">
             <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
                 <div className="flex justify-between items-start mb-12">
@@ -488,14 +625,16 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 <div>
                     <div className="flex items-center gap-3 mb-4">
                         <div className="w-12 h-12 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-center shadow-2xl">
-                            {isShuttle ? <DoorOpen className="w-6 h-6 text-indigo-400" /> : <Truck className="w-6 h-6 text-indigo-400" />}
+                            {isSACCO ? <Landmark className="w-6 h-6 text-indigo-400" /> : isShuttle ? <DoorOpen className="w-6 h-6 text-indigo-400" /> : <Truck className="w-6 h-6 text-indigo-400" />}
                         </div>
                         <h1 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">
-                            {isShuttle ? 'Shuttle' : 'Logistics'} <span className="text-indigo-600">{isShuttle ? 'Operations' : 'Control'}</span>
+                            {isSACCO ? 'Transport SACCO' : isShuttle ? 'Shuttle' : 'Logistics'} <span className="text-indigo-600">{isSACCO ? 'Ledger' : isShuttle ? 'Operations' : 'Control'}</span>
                         </h1>
                     </div>
                     <p className="text-slate-500 font-medium max-w-xl group-hover/logistics:text-slate-600 transition-colors">
-                        {isShuttle 
+                        {isSACCO 
+                            ? 'The cooperative management hub. Onboard individual vehicle owners, manage municipal licenses, track trip commissions, and oversee public online bookings.'
+                            : isShuttle 
                             ? 'Corporate & staff mobility management. Track shuttle routes, manage seat reservations, and monitor real-time staff boarding and attendance.' 
                             : 'The mission control for your supply chain. Real-time fleet tracking, automated manifests, and digital proof-of-delivery for modern cargo operations.'}
                     </p>
@@ -503,7 +642,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 <div className="flex gap-4">
                     <button className="px-8 py-4 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase text-xs tracking-[0.2em] shadow-2xl shadow-slate-200 dark:shadow-none hover:translate-y-[-2px] active:translate-y-[1px] transition-all flex items-center gap-3">
                         <Plus className="w-5 h-5" />
-                        {isShuttle ? 'Add New Route' : 'Plan New Trip'}
+                        {isSACCO ? 'Register Member' : isShuttle ? 'Add New Route' : 'Plan New Trip'}
                     </button>
                 </div>
             </div>
@@ -529,11 +668,12 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             {/* Navigation Tabs */}
             <div className="flex items-center gap-4 bg-slate-100 dark:bg-slate-900/50 p-2 rounded-[2rem] w-fit border border-slate-200 dark:border-slate-800 shadow-inner">
                 {[
+                    { id: 'sacco', label: 'SACCO Hub', icon: Landmark, show: isSACCO },
                     { id: 'shuttle', label: 'Shuttle Control', icon: DoorOpen, show: isShuttle },
-                    { id: 'manifest', label: isShuttle ? 'Route History' : 'Cargo Manifest', icon: Package, show: true },
-                    { id: 'fleet', label: 'Fleet Control', icon: Truck, show: true },
-                    { id: 'analytics', label: isShuttle ? 'Commute Data' : 'Route Science', icon: BarChart3, show: true },
-                    { id: 'epod', label: 'Proof Center', icon: Signature, show: !isShuttle }
+                    { id: 'manifest', label: isSACCO ? 'Trip Registry' : isShuttle ? 'Route History' : 'Cargo Manifest', icon: Package, show: true },
+                    { id: 'fleet', label: isSACCO ? 'Vehicle Registry' : 'Fleet Control', icon: Truck, show: true },
+                    { id: 'analytics', label: isSACCO ? 'Dividend Data' : isShuttle ? 'Commute Data' : 'Route Science', icon: BarChart3, show: true },
+                    { id: 'epod', label: 'Proof Center', icon: Signature, show: !isShuttle && !isSACCO }
                 ].filter(t => t.show).map((tab) => (
                     <button
                         key={tab.id}
@@ -556,6 +696,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 {activeTab === 'fleet' && renderFleet()}
                 {activeTab === 'epod' && renderEPOD()}
                 {activeTab === 'shuttle' && renderShuttleHub()}
+                {activeTab === 'sacco' && renderSACCOHub()}
                 {activeTab === 'analytics' && (
                     <div className="bg-white dark:bg-slate-800 p-20 rounded-[4rem] text-center border-4 border-dashed border-slate-100 dark:border-slate-800 flex flex-col items-center">
                         <BarChart3 className="w-16 h-16 text-indigo-200 mb-8 animate-pulse" />

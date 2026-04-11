@@ -44,6 +44,7 @@ const BoardingMasterView = lazy(() => import('./BoardingMasterView'));
 const ResellerDashboard = lazy(() => import('./ResellerDashboard'));
 const TenantStorefrontView = lazy(() => import('./retail/TenantStorefrontView').then(m => ({ default: m.TenantStorefrontView })));
 const CommunityHubView = lazy(() => import('./public/CommunityHubView').then(m => ({ default: m.CommunityHubView })));
+const TransportHubView = lazy(() => import('./public/TransportHubView').then(m => ({ default: m.TransportHubView })));
 
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { getAdminRoleForInstitution } from '../utils/roleUtils';
@@ -483,6 +484,15 @@ export const App: React.FC = () => {
             return false;
         }
     });
+    const [showTransportHub, setShowTransportHub] = useState(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('view') === 'transport' || window.location.hostname === 'transport.eduai.co.ke' || window.location.hostname.includes('shuttle');
+        } catch (e) {
+            return false;
+        }
+    });
+
     const [activeStoreTenantId, setActiveStoreTenantId] = useState<string | null>(() => {
         try {
             const params = new URLSearchParams(window.location.search);
@@ -4382,6 +4392,11 @@ export const App: React.FC = () => {
                                 counties={counties}
                                 onBack={() => setShowCommunityHub(false)}
                                 onBookDemo={() => setShowBookDemo(true)}
+                            />
+                         ) : showTransportHub ? (
+                            <TransportHubView 
+                                institutions={institutions}
+                                onBack={() => setShowTransportHub(false)}
                             />
                          ) : showMarketplace ? (
                             <PropertyMarketplaceView />
