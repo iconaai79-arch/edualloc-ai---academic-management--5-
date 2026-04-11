@@ -17,7 +17,6 @@ import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
 import { ShoppingCartIcon } from './icons/ShoppingCartIcon';
 
 interface LoginViewProps {
-    // FIXED: Added 'suspended' to return types of onLogin to match implementation in App.tsx
     onLogin: (email: string, password: string) => Promise<'success' | 'expired' | 'failed' | 'suspended' | 'otp_required'>;
     onVerifyOtp: (code: string) => boolean;
     onResendOtp: () => void;
@@ -65,18 +64,18 @@ export const LoginView: React.FC<LoginViewProps> = ({
     const [isRegistering, setIsRegistering] = useState(false);
     const [otpCode, setOtpCode] = useState('');
 
-    // New State for County Registration Toggle
     const [regType, setRegType] = useState<'institution' | 'county'>('institution');
 
     const [regData, setRegData] = useState<InstitutionRegistrationData>({
         institutionName: '',
         institutionEmail: '',
         institutionPhone: '',
-        institutionType: 'University',
+        institutionType: 'Education',
         adminName: '',
         adminEmail: '',
         loadDemoData: false,
         businessSubType: '',
+        category: 'Primary',
         termsAccepted: false,
     });
 
@@ -90,7 +89,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
         termsAccepted: false,
     });
 
-    // Check for reset token and reseller ID on mount
     React.useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('resetToken');
@@ -101,7 +99,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
         const resellerId = urlParams.get('resellerId');
         if (resellerId) {
             setRegData(prev => ({ ...prev, resellerId }));
-            // Automatically switch to register view if invited
             setView('register');
         }
     }, []);
@@ -168,7 +165,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 return;
             }
             
-            // Handle both initial submit and resend
             const isResend = view === 'recovery_otp';
             if (isResend) setIsResending(true);
             else setIsSubmitting(true);
@@ -178,7 +174,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 if (res.success) {
                     if (isResend) {
                         alert("A new verification code has been sent to your phone.");
-                        setOtpCode(''); // Clear old code
+                        setOtpCode('');
                     } else {
                         setView('recovery_otp');
                     }
@@ -276,7 +272,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 setError(result.message);
             }
         } catch (err: any) {
-            // setError("Registration failed. Please verify connection to the central registry.");
             setError(err.message || "Registration failed.");
         } finally {
             setIsRegistering(false);
@@ -596,54 +591,81 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                             </div>
                                         </div>
                                         <div>
-                                            <label className={labelClasses}>Institution Type</label>
-                                            <select className={inputClasses} value={regData.institutionType} onChange={e => setRegData({ ...regData, institutionType: e.target.value, businessSubType: '' })}>
-                                                <option value="Primary">Primary School</option>
-                                                <option value="Secondary">Secondary School</option>
-                                                <option value="University">University</option>
-                                                <option value="College">College</option>
-                                                <option value="Institute">Institute</option>
-                                                <option value="Polytechnic">Polytechnic</option>
-                                                <option value="ECD">ECD Center</option>
-                                                <option value="International">International School</option>
-                                                <option value="HIS">Health Information System (HIS)</option>
+                                            <label className={labelClasses}>Institution Group / Type</label>
+                                            <select 
+                                                className={inputClasses} 
+                                                value={regData.institutionType} 
+                                                onChange={e => {
+                                                    const type = e.target.value;
+                                                    let cat = '';
+                                                    if (type === 'Education') cat = 'Primary';
+                                                    if (type === 'Business') cat = 'Agrovet';
+                                                    if (type === 'HIS') cat = 'Medical Center';
+                                                    setRegData({ ...regData, institutionType: type, category: cat, businessSubType: cat });
+                                                }}
+                                            >
+                                                <option value="Education">Education Sector</option>
+                                                <option value="HIS">Health Sector (HIS)</option>
                                                 <option value="Pharmacy">Pharmacy / Chemist</option>
-                                                <option value="Cooperative">Cooperative / Agriculture</option>
-                                                <option value="Business">Business</option>
-                                                <option value="Reseller">Reseller</option>
-                                                <option value="Church">Church / Religious Institution</option>
+                                                <option value="Business">Business Ecosystem</option>
+                                                <option value="Cooperative">Agriculture / Cooperative</option>
+                                                <option value="SACCO">Financial / SACCO</option>
+                                                <option value="Church">Religious / Church</option>
+                                                <option value="Broadcaster">Media / Broadcaster</option>
+                                                <option value="Reseller">Reseller Agency</option>
                                             </select>
-                                            {regData.institutionType === 'Business' && (
+
+                                            {regData.institutionType === 'Education' && (
                                                 <div className="mt-3 animate-fade-in">
-                                                    <label className={labelClasses}>Business Category</label>
+                                                    <label className={labelClasses}>Education Level / Category</label>
                                                     <select
                                                         className={inputClasses}
-                                                        value={regData.businessSubType || ''}
-                                                        onChange={e => setRegData({ ...regData, businessSubType: e.target.value })}
+                                                        value={regData.category || 'Primary'}
+                                                        onChange={e => setRegData({ ...regData, category: e.target.value, businessSubType: e.target.value })}
                                                         required
                                                     >
-                                                        <option value="">-- Select Business Type --</option>
-                                                        <option value="Car Wash">Car Wash</option>
-                                                        <option value="Car Service">Car Service / Mechanic</option>
-                                                        <option value="Agrovet">Agrovet</option>
-                                                        <option value="SACCO">SACCO / Credit Union</option>
-                                                        <option value="Property Management">Property Management</option>
-                                                        <option value="Salon/Kinyozi">Salon / Kinyozi</option>
-                                                        <option value="Pharmacy">Pharmacy</option>
-                                                        <option value="Chemist">Chemist</option>
-                                                        <option value="Retail Shop">Retail Shop</option>
-                                                        <option value="Retail Agency">Retail Agency</option>
-                                                        <option value="Law Firm">Law Firm</option>
+                                                        <option value="Kindergarten">Kindergarten / Playgroup</option>
+                                                        <option value="ECD">ECD Center</option>
+                                                        <option value="Primary">Primary School</option>
+                                                        <option value="Secondary">Secondary School</option>
+                                                        <option value="International">International School</option>
+                                                        <option value="College">College</option>
+                                                        <option value="TVET">TVET / Vocational</option>
+                                                        <option value="Institute">Institute</option>
+                                                        <option value="Polytechnic">Polytechnic</option>
+                                                        <option value="University">University</option>
                                                     </select>
                                                 </div>
                                             )}
+
+                                            {(regData.institutionType === 'Business' || regData.institutionType === 'Business Ecosystem') && (
+                                                <div className="mt-3 animate-fade-in">
+                                                    <label className={labelClasses}>Business Niche / Category</label>
+                                                    <select
+                                                        className={inputClasses}
+                                                        value={regData.category || ''}
+                                                        onChange={e => setRegData({ ...regData, category: e.target.value, businessSubType: e.target.value })}
+                                                        required
+                                                    >
+                                                        <option value="">-- Select Business Type --</option>
+                                                        <option value="Agrovet">Agrovet (Agricultural Supplies)</option>
+                                                        <option value="Property Management">Property Management (Rent/Leases)</option>
+                                                        <option value="Retail Agency">Retail Agency (Commission Based)</option>
+                                                        <option value="Car Wash">Car Wash / Service Center</option>
+                                                        <option value="Hardware">Hardware Store</option>
+                                                        <option value="Pharmacy">Pharmacy / Chemist</option>
+                                                        <option value="General">General Retail / Business</option>
+                                                    </select>
+                                                </div>
+                                            )}
+
                                             {regData.institutionType === 'Church' && (
-                                                <div className="animate-fade-in-up">
+                                                <div className="animate-fade-in-up mt-3">
                                                     <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 select-none">Select Church Tradition</label>
                                                     <select
                                                         className={inputClasses + " border-2 border-indigo-200"}
                                                         value={regData.businessSubType || ''}
-                                                        onChange={e => setRegData({ ...regData, businessSubType: e.target.value as any })}
+                                                        onChange={e => setRegData({ ...regData, businessSubType: e.target.value as any, category: e.target.value })}
                                                         required
                                                     >
                                                         <option value="">-- Choose Tradition --</option>
