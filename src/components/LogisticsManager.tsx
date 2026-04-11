@@ -18,7 +18,12 @@ import {
     AlertCircle,
     User,
     CheckCircle2,
-    Clock
+    CheckCircle2,
+    Clock,
+    Armchair,
+    DoorOpen,
+    QrCode,
+    Smartphone
 } from 'lucide-react';
 import type { Institution, User as UserType } from '../types';
 
@@ -46,7 +51,8 @@ interface LogisticsManagerProps {
 }
 
 export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInstitution, users }) => {
-    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'analytics' | 'epod'>('manifest');
+    const isShuttle = currentInstitution.category === 'Staff Shuttle' || currentInstitution.category === 'Corporate Shuttle';
+    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'analytics' | 'epod' | 'shuttle'>(isShuttle ? 'shuttle' : 'manifest');
     const [searchTerm, setSearchTerm] = useState('');
 
     const drivers = useMemo(() => users.filter(u => u.role === 'driver'), [users]);
@@ -96,7 +102,12 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         s.clientName.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const stats = [
+    const stats = isShuttle ? [
+        { label: 'Total Passengers', value: users.length.toString(), icon: User, color: 'text-blue-600', bg: 'bg-blue-50' },
+        { label: 'Active Shuttles', value: '8', icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+        { label: 'Seat Occupancy', value: '74%', icon: Armchair, color: 'text-green-600', bg: 'bg-green-50' },
+        { label: 'Departures (Today)', value: '14', icon: DoorOpen, color: 'text-purple-600', bg: 'bg-purple-50' },
+    ] : [
         { label: 'Active Shipments', value: '24', icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
         { label: 'Idle Fleet', value: '3', icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50' },
         { label: 'Fuel Efficiency', value: '88%', icon: Fuel, color: 'text-green-600', bg: 'bg-green-50' },
@@ -305,7 +316,114 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         </div>
     );
 
-    const renderEPOD = () => (
+    const renderShuttleHub = () => (
+        <div className="animate-fade-in-up space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Real-time Departure Board */}
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <div className="flex justify-between items-center mb-8">
+                        <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-3">
+                            <DoorOpen className="w-6 h-6 text-indigo-600" />
+                            Live Departures
+                        </h3>
+                        <div className="flex gap-2">
+                             <span className="px-3 py-1 bg-slate-50 dark:bg-slate-900 rounded-full text-[9px] font-black text-slate-400 uppercase tracking-widest">Main Hub</span>
+                        </div>
+                    </div>
+                    <div className="space-y-4">
+                        {[
+                            { route: 'Nairobi CBD - Upperhill', time: '07:30 AM', status: 'boarding', vehicle: 'KDC 992P', occupancy: 85 },
+                            { route: 'Westlands - Industrial Area', time: '08:00 AM', status: 'scheduled', vehicle: 'KBB 120Z', occupancy: 42 },
+                            { route: 'Airport Link - Cargo Hub', time: '08:15 AM', status: 'delayed', vehicle: 'KDM 441X', occupancy: 0 },
+                        ].map((d, i) => (
+                            <div key={i} className="flex items-center justify-between p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-transparent hover:border-indigo-100 transition-all cursor-pointer">
+                                <div className="flex items-center gap-4">
+                                    <div className={`p-4 rounded-2xl ${d.status === 'boarding' ? 'bg-indigo-100 text-indigo-600 animate-pulse' : 'bg-white dark:bg-slate-800 text-slate-400 shadow-sm'}`}>
+                                        <Clock className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <p className="font-black text-slate-800 dark:text-white uppercase tracking-tight">{d.route}</p>
+                                        <p className="text-[10px] font-black text-slate-400 tracking-widest uppercase">{d.time} • {d.vehicle}</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${
+                                        d.status === 'boarding' ? 'bg-green-100 text-green-700' : 
+                                        d.status === 'delayed' ? 'bg-red-100 text-red-700' : 'bg-slate-200 text-slate-500'
+                                    }`}>
+                                        {d.status}
+                                    </span>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-tighter">{d.occupancy}% Booked</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* QR Presence Monitor */}
+                <div className="bg-slate-900 rounded-[3rem] p-8 shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full -translate-y-32 translate-x-32 blur-3xl"></div>
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-8">
+                            <div className="w-12 h-12 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center">
+                                <QrCode className="w-6 h-6 text-indigo-400" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-white uppercase tracking-tight">Boarding Access</h3>
+                                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Active QR Attendance</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4 mb-8">
+                            {users.slice(0, 3).map((u, i) => (
+                                <div key={i} className="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl backdrop-blur-sm">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-10 h-10 bg-indigo-500/20 text-indigo-300 rounded-xl flex items-center justify-center font-black">
+                                            {u.name.charAt(0)}
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-white text-sm tracking-tight">{u.name}</p>
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Boarded: 07:28 AM</p>
+                                        </div>
+                                    </div>
+                                    <CheckCircle2 className="w-5 h-5 text-green-400" />
+                                </div>
+                            ))}
+                        </div>
+
+                        <button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-xl shadow-indigo-900/50 transition-all flex items-center justify-center gap-3 active:scale-95">
+                            <Smartphone className="w-5 h-5" />
+                            Open Mobile Scanner
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            {/* Seat Map / Reservation Center */}
+            <div className="bg-white dark:bg-slate-800 p-10 rounded-[4rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden text-center flex flex-col items-center">
+                <Armchair className="w-16 h-16 text-indigo-100 mb-6 animate-bounce" />
+                <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-4">Seat Reservation Center</h3>
+                <p className="text-slate-500 font-medium max-w-sm mb-10">Employees can book their preferred seats for tomorrow's morning commute once the schedule is released.</p>
+                <div className="grid grid-cols-4 md:grid-cols-8 gap-3 max-w-2xl">
+                    {Array.from({ length: 16 }).map((_, i) => (
+                        <div key={i} className={`w-8 h-8 rounded-lg cursor-pointer transition-all ${i % 3 === 0 ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700 hover:bg-indigo-200'} border border-transparent`}></div>
+                    ))}
+                </div>
+                <div className="mt-8 flex gap-6 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-sm bg-indigo-600"></div>
+                        <span>Occupied</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-sm bg-slate-200 dark:bg-slate-700"></div>
+                        <span>Available</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
+    return (
         <div className="animate-fade-in-up space-y-8">
             <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
                 <div className="flex justify-between items-start mb-12">
@@ -370,20 +488,22 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 <div>
                     <div className="flex items-center gap-3 mb-4">
                         <div className="w-12 h-12 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-center shadow-2xl">
-                            <Truck className="w-6 h-6 text-indigo-400" />
+                            {isShuttle ? <DoorOpen className="w-6 h-6 text-indigo-400" /> : <Truck className="w-6 h-6 text-indigo-400" />}
                         </div>
                         <h1 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">
-                            Logistics <span className="text-indigo-600">Control</span>
+                            {isShuttle ? 'Shuttle' : 'Logistics'} <span className="text-indigo-600">{isShuttle ? 'Operations' : 'Control'}</span>
                         </h1>
                     </div>
                     <p className="text-slate-500 font-medium max-w-xl group-hover/logistics:text-slate-600 transition-colors">
-                        The mission control for your supply chain. Real-time fleet tracking, automated manifests, and digital proof-of-delivery for modern cargo operations.
+                        {isShuttle 
+                            ? 'Corporate & staff mobility management. Track shuttle routes, manage seat reservations, and monitor real-time staff boarding and attendance.' 
+                            : 'The mission control for your supply chain. Real-time fleet tracking, automated manifests, and digital proof-of-delivery for modern cargo operations.'}
                     </p>
                 </div>
                 <div className="flex gap-4">
                     <button className="px-8 py-4 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase text-xs tracking-[0.2em] shadow-2xl shadow-slate-200 dark:shadow-none hover:translate-y-[-2px] active:translate-y-[1px] transition-all flex items-center gap-3">
                         <Plus className="w-5 h-5" />
-                        Plan New Trip
+                        {isShuttle ? 'Add New Route' : 'Plan New Trip'}
                     </button>
                 </div>
             </div>
@@ -409,11 +529,12 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             {/* Navigation Tabs */}
             <div className="flex items-center gap-4 bg-slate-100 dark:bg-slate-900/50 p-2 rounded-[2rem] w-fit border border-slate-200 dark:border-slate-800 shadow-inner">
                 {[
-                    { id: 'manifest', label: 'Cargo Manifest', icon: Package },
-                    { id: 'fleet', label: 'Fleet Control', icon: Truck },
-                    { id: 'analytics', label: 'Route Science', icon: BarChart3 },
-                    { id: 'epod', label: 'Proof Center', icon: Signature }
-                ].map((tab) => (
+                    { id: 'shuttle', label: 'Shuttle Control', icon: DoorOpen, show: isShuttle },
+                    { id: 'manifest', label: isShuttle ? 'Route History' : 'Cargo Manifest', icon: Package, show: true },
+                    { id: 'fleet', label: 'Fleet Control', icon: Truck, show: true },
+                    { id: 'analytics', label: isShuttle ? 'Commute Data' : 'Route Science', icon: BarChart3, show: true },
+                    { id: 'epod', label: 'Proof Center', icon: Signature, show: !isShuttle }
+                ].filter(t => t.show).map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
@@ -434,6 +555,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 {activeTab === 'manifest' && renderManifest()}
                 {activeTab === 'fleet' && renderFleet()}
                 {activeTab === 'epod' && renderEPOD()}
+                {activeTab === 'shuttle' && renderShuttleHub()}
                 {activeTab === 'analytics' && (
                     <div className="bg-white dark:bg-slate-800 p-20 rounded-[4rem] text-center border-4 border-dashed border-slate-100 dark:border-slate-800 flex flex-col items-center">
                         <BarChart3 className="w-16 h-16 text-indigo-200 mb-8 animate-pulse" />
