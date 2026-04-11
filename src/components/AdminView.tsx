@@ -33,6 +33,7 @@ const ProcurementManager = lazy(() => import('./ProcurementManager').then(m => (
 const CooperativeManager = lazy(() => import('./coop/CooperativeManager').then(m => ({ default: m.CooperativeManager })));
 const CarServiceView = lazy(() => import('./carservice/CarServiceView').then(m => ({ default: m.CarServiceView })));
 const ChurchDashboard = lazy(() => import('./church/ChurchDashboard').then(m => ({ default: m.ChurchDashboard })));
+const LogisticsManager = lazy(() => import('./LogisticsManager').then(m => ({ default: m.LogisticsManager })));
 const LawManager = lazy(() => import('./law/LawManager').then(m => ({ default: m.LawManager })));
 const DrivingSchoolManager = lazy(() => import('./ds/DrivingSchoolManager').then(m => ({ default: m.DrivingSchoolManager })));
 const CommunityManager = lazy(() => import('./CommunityManager').then(m => ({ default: m.CommunityManager })));
@@ -357,7 +358,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community'>('dashboard');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects' | 'registry'>('wizard');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
@@ -439,7 +440,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 setActiveTab('driving_school');
             } else if (isLaw || role === 'legal_admin') {
                 setActiveTab('law');
-            } else if (isLogistics || role === 'transport_admin' || role === 'transport_assistant') {
+            } else if (isLogistics || role === 'transport_admin') {
+                setActiveTab('logistics');
+            } else if (role === 'transport_assistant') {
                 setActiveTab('transport');
             } else if (isCommunity || role === 'community_admin') {
                 setActiveTab('community');
@@ -479,7 +482,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'car_service', label: 'Car Service', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
             { id: 'customers', label: 'Customers', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> },
             { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
-            { id: 'transport', label: 'Transport', icon: <MapPinIcon className="w-5 h-5 mr-2" /> },
+            { id: 'transport', label: 'Fleet Registry', icon: <MapPinIcon className="w-5 h-5 mr-2" /> },
+            { id: 'logistics', label: 'Logistics Hub', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
             { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
             { id: 'sacco', label: 'SACCO', icon: <CreditCardIcon className="w-5 h-5 mr-2" /> },
             { id: 'agrovet', label: 'Agrovet', icon: <BeakerIcon className="w-5 h-5 mr-2" /> },
@@ -515,7 +519,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
             // Transport/Logistics
             if (tab.id === 'transport') {
-                return isEdu;
+                return (isEdu || isLogistics) && !isChurch && !isCoop;
+            }
+
+            if (tab.id === 'logistics') {
+                return isLogistics && !isChurch && !isCoop;
             }
 
             // Retail & Procurement tabs
@@ -1298,6 +1306,12 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onUpdateSettings={props.onUpdateDSSettings || (async () => {})}
                         users={props.users || []}
                         onLogAction={props.onLogAction}
+                    />
+                )}
+                {activeTab === 'logistics' && (
+                    <LogisticsManager 
+                        currentInstitution={props.currentInstitution!}
+                        users={props.users || []}
                     />
                 )}
                 {activeTab === 'community' && (
