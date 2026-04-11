@@ -12,7 +12,8 @@ import {
     Home,
     Sparkles,
     ShieldCheck,
-    History
+    History,
+    Palmtree
 } from 'lucide-react';
 import type { Institution, County } from '../../types';
 
@@ -122,6 +123,30 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
             {/* Main Content */}
             <section className="max-w-7xl mx-auto px-6 py-20">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {/* Travel Hub Promotion Card */}
+                    <div 
+                        onClick={() => window.location.href = '/?view=travel'}
+                        className="bg-slate-900 rounded-[3rem] p-8 border border-slate-800 shadow-2xl hover:-translate-y-2 transition-all group overflow-hidden relative cursor-pointer md:col-span-2 lg:col-span-1"
+                    >
+                        <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 rotate-45 translate-x-16 -translate-y-16 group-hover:bg-indigo-500/20 transition-colors"></div>
+                        <div className="relative z-10 h-full flex flex-col justify-between">
+                            <div>
+                                <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white mb-6 shadow-xl shadow-indigo-500/20">
+                                    <Palmtree className="w-8 h-8" />
+                                </div>
+                                <h3 className="text-2xl font-black text-white uppercase tracking-tighter leading-none mb-4">
+                                    Travel & <br /> <span className="text-indigo-400 italic">Leisure Hub</span>
+                                </h3>
+                                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest leading-relaxed">
+                                    Discover the best safaris, hotels, and tours from our verified partners.
+                                </p>
+                            </div>
+                            <button className="mt-8 py-4 bg-white text-slate-900 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 group-hover:bg-indigo-400 group-hover:text-white transition-all">
+                                Explore Travel Marketplace <ArrowRight className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+
                     {filteredInsts.map((inst, i) => (
                         <div key={inst.id} className="bg-white rounded-[3rem] p-8 border border-slate-100 shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all group overflow-hidden relative">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rotate-45 translate-x-16 -translate-y-16 group-hover:bg-indigo-50 transition-colors"></div>

@@ -46,6 +46,7 @@ const TenantStorefrontView = lazy(() => import('./retail/TenantStorefrontView').
 const CommunityHubView = lazy(() => import('./public/CommunityHubView').then(m => ({ default: m.CommunityHubView })));
 const TransportHubView = lazy(() => import('./public/TransportHubView').then(m => ({ default: m.TransportHubView })));
 const HospitalityStorefront = lazy(() => import('./hospitality/HospitalityStorefront').then(m => ({ default: m.HospitalityStorefront })));
+const HospitalityMarketplace = lazy(() => import('./hospitality/HospitalityMarketplace').then(m => ({ default: m.HospitalityMarketplace })));
 
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { getAdminRoleForInstitution } from '../utils/roleUtils';
@@ -4405,6 +4406,12 @@ export const App: React.FC = () => {
                             />
                          ) : showMarketplace ? (
                             <PropertyMarketplaceView />
+                         ) : window.location.search.includes('view=travel') ? (
+                            <HospitalityMarketplace 
+                                institutions={institutions}
+                                onBack={() => window.location.href = '/?view=community'}
+                                onViewStore={(id) => window.location.href = `/?shop=${id}`}
+                            />
                         ) : showMarketing ? (
                             <MarketingLandingPage 
                                 onLogin={() => setShowMarketing(false)}
