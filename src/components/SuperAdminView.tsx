@@ -1558,6 +1558,7 @@ Please change it after login.`;
                                                         if (type === 'HIS') category = 'Medical Center';
                                                         if (type === 'Law Firm') category = 'Law Firm';
                                                         if (type === 'Logistics') category = 'Cargo & Delivery';
+                                                        if (type === 'Community') category = 'Chama/Savings Group';
                                                         setNewInstData({ ...newInstData, institutionType: type, category: category });
                                                     }}
                                                     className="form-select font-black text-indigo-600 border-indigo-100"
@@ -1570,6 +1571,7 @@ Please change it after login.`;
                                                     <option value="SACCO">Financial / SACCO</option>
                                                      <option value="Law Firm">Legal / Law Firm</option>
                                                      <option value="Logistics">Transport & Logistics</option>
+                                                     <option value="Community">Community & Welfare</option>
                                                     <option value="Church">Religious / Church</option>
                                                     <option value="Broadcaster">Media / Broadcaster</option>
                                                     <option value="Reseller">Reseller Agency</option>
@@ -1624,6 +1626,23 @@ Please change it after login.`;
                                                         <option value="Staff Shuttle">Corporate / Staff Shuttle</option>
                                                         <option value="Educational Transport">Educational Transport</option>
                                                         <option value="Public Transport">Public / Private Hire Services</option>
+                                                    </select>
+                                                </div>
+                                            )}
+                                            {newInstData.institutionType === 'Community' && (
+                                                <div className="animate-fade-in-up">
+                                                    <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Community Focus Area</label>
+                                                    <select
+                                                        value={newInstData.category}
+                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value })}
+                                                        className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
+                                                        required
+                                                    >
+                                                        <option value="Chama/Savings Group">Self Help / Savings Group (Chama)</option>
+                                                        <option value="Estate/Neighborhood">Estate / Neighborhood Management</option>
+                                                        <option value="NGO/Foundation">NGO / Social Foundation</option>
+                                                        <option value="Resource Center">Community Hub / Resource Center</option>
+                                                        <option value="Relief/Social Work">Social Work / Welfare Relief</option>
                                                     </select>
                                                 </div>
                                             )}

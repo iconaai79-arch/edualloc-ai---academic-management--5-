@@ -35,6 +35,7 @@ const CarServiceView = lazy(() => import('./carservice/CarServiceView').then(m =
 const ChurchDashboard = lazy(() => import('./church/ChurchDashboard').then(m => ({ default: m.ChurchDashboard })));
 const LawManager = lazy(() => import('./law/LawManager').then(m => ({ default: m.LawManager })));
 const DrivingSchoolManager = lazy(() => import('./ds/DrivingSchoolManager').then(m => ({ default: m.DrivingSchoolManager })));
+const CommunityManager = lazy(() => import('./CommunityManager').then(m => ({ default: m.CommunityManager })));
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
@@ -386,6 +387,10 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         return props.currentInstitution?.category === 'Logistics' || institutionType === 'Logistics' || props.currentInstitution?.category === 'Educational Transport' || props.currentInstitution?.category === 'Staff Shuttle';
     }, [props.currentInstitution, institutionType]);
 
+    const isCommunity = useMemo(() => {
+        return props.currentInstitution?.category === 'Community' || institutionType === 'Community' || props.currentInstitution?.category?.includes('NGO') || props.currentInstitution?.category?.includes('Chama') || props.currentInstitution?.category?.includes('Estate');
+    }, [props.currentInstitution, institutionType]);
+
     const isSchool = useMemo(() => {
         return isSchoolInstitution(props.currentInstitution);
     }, [props.currentInstitution]);
@@ -436,6 +441,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 setActiveTab('law');
             } else if (isLogistics || role === 'transport_admin' || role === 'transport_assistant') {
                 setActiveTab('transport');
+            } else if (isCommunity || role === 'community_admin') {
+                setActiveTab('community');
             }
             setHasSetDefaultTab(true);
         }
@@ -479,6 +486,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'church', label: 'Church System', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
             { id: 'law', label: 'Legal Module', icon: <ShieldIcon className="w-5 h-5 mr-2" /> },
             { id: 'driving_school', label: 'Driving School', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
+            { id: 'community', label: 'Community Hub', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         ];
 
@@ -543,6 +551,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             if (tab.id === 'church') return isChurch;
             if (tab.id === 'law') return roleToUse === 'legal_admin' || institutionType === 'Law Firm';
             if (tab.id === 'driving_school') return roleToUse === 'driving_instructor' || institutionType === 'Driving School' || props.currentInstitution?.category === 'Driving School';
+            if (tab.id === 'community') return isCommunity || roleToUse === 'community_admin';
 
             return true;
         });
@@ -980,7 +989,6 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         smsConfig={props.smsConfig}
                         onRefreshData={props.onRefreshData}
                         moduleContext={isCoop ? 'cooperative' : (isRetailAgency ? 'agrovet' : isChurch ? 'church' : 'school')}
-                        transactions={props.transactions}
                     />
                 )}
 
@@ -1290,6 +1298,12 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onUpdateSettings={props.onUpdateDSSettings || (async () => {})}
                         users={props.users || []}
                         onLogAction={props.onLogAction}
+                    />
+                )}
+                {activeTab === 'community' && (
+                    <CommunityManager 
+                        currentInstitution={props.currentInstitution!}
+                        users={props.users || []}
                     />
                 )}
 
