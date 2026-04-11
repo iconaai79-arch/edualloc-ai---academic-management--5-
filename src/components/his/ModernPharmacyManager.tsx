@@ -1352,7 +1352,6 @@ export const ModernPharmacyManager: React.FC<{
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
                             <div className="glass-morphism-dark p-12 rounded-[4rem] border border-white/5 bg-gradient-to-b from-indigo-500/5 to-transparent">
                                 <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-10 text-indigo-400">Theme <span className="text-white">Experience</span></h3>
