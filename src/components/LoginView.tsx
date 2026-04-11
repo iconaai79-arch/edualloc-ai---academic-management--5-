@@ -602,6 +602,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                     if (type === 'Business') cat = 'Agrovet';
                                                     if (type === 'HIS') cat = 'Medical Center';
                                                     if (type === 'Law Firm') cat = 'Law Firm';
+                                                    if (type === 'Logistics') cat = 'Cargo & Delivery';
                                                     setRegData({ ...regData, institutionType: type, category: cat, businessSubType: cat });
                                                 }}
                                             >
@@ -612,6 +613,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                 <option value="Cooperative">Agriculture / Cooperative</option>
                                                 <option value="SACCO">Financial / SACCO</option>
                                                 <option value="Law Firm">Legal / Law Firm</option>
+                                                <option value="Logistics">Transport & Logistics</option>
                                                 <option value="Church">Religious / Church</option>
                                                 <option value="Broadcaster">Media / Broadcaster</option>
                                                 <option value="Reseller">Reseller Agency</option>
@@ -635,7 +637,26 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                         <option value="TVET">TVET / Vocational</option>
                                                         <option value="Institute">Institute</option>
                                                         <option value="Polytechnic">Polytechnic</option>
+                                                        <option value="Driving School">Driving School</option>
                                                         <option value="University">University</option>
+                                                    </select>
+                                                </div>
+                                            )}
+
+                                            {regData.institutionType === 'Logistics' && (
+                                                <div className="mt-3 animate-fade-in">
+                                                    <label className={labelClasses}>Logistics Niche / Focus</label>
+                                                    <select
+                                                        className={inputClasses}
+                                                        value={regData.category || ''}
+                                                        onChange={e => setRegData({ ...regData, category: e.target.value, businessSubType: e.target.value })}
+                                                        required
+                                                    >
+                                                        <option value="">-- Select Focus --</option>
+                                                        <option value="Cargo & Delivery">Logistics & Cargo Delivery</option>
+                                                        <option value="Staff Shuttle">Corporate / Staff Shuttle</option>
+                                                        <option value="Educational Transport">Educational Transport</option>
+                                                        <option value="Public Transport">Public / Private Hire Services</option>
                                                     </select>
                                                 </div>
                                             )}

@@ -30,6 +30,14 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
     onAddVehicle, onUpdateVehicle, onDeleteVehicle,
     onAddUser, onEditUser
 }) => {
+    const isLogistics = currentInstitution.institutionType === 'Logistics' || 
+                       currentInstitution.category === 'Cargo & Delivery' || 
+                       currentInstitution.category === 'Staff Shuttle' ||
+                       currentInstitution.category === 'Public Transport';
+                       
+    const passengerTerm = isLogistics ? 'Passenger/Client' : 'Student';
+    const registryTerm = isLogistics ? 'Manifest/Boarding' : 'Student Assignment';
+
     const [activeTab, setActiveTab] = useState<'vehicles' | 'drivers' | 'students'>('vehicles');
     const [isAdding, setIsAdding] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -174,7 +182,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                         <TruckIcon className="w-10 h-10 text-indigo-600" />
                         Transport Management
                     </h2>
-                    <p className="text-slate-500 font-medium text-sm mt-1">Manage vehicles, drivers, and student assignments.</p>
+                    <p className="text-slate-500 font-medium text-sm mt-1">Manage vehicles, drivers, and {passengerTerm.toLowerCase()} assignments.</p>
                 </div>
                 {!isAdding && (
                     <button
@@ -182,7 +190,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg shadow-indigo-200 dark:shadow-none font-bold active:scale-95"
                     >
                         <PlusIcon className="w-5 h-5" />
-                        {activeTab === 'vehicles' ? 'Register Vehicle' : activeTab === 'drivers' ? 'Register Driver' : 'Assign Students'}
+                        {activeTab === 'vehicles' ? 'Register Vehicle' : activeTab === 'drivers' ? 'Register Driver' : `Assign ${passengerTerm}`}
                     </button>
                 )}
             </div>
@@ -204,7 +212,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                     onClick={() => { setActiveTab('students'); setIsAdding(false); }}
                     className={`px-8 py-2.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all ${activeTab === 'students' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                    Student Assignment
+                    {registryTerm}
                 </button>
             </div>
 
@@ -430,7 +438,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                                             <div>
                                                 <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Capacity</p>
                                                 <p className="font-bold text-slate-700 dark:text-slate-200">
-                                                    {assignedStudentsCount} / {vehicle.capacity} Students
+                                                    {assignedStudentsCount} / {vehicle.capacity} {passengerTerm}s
                                                 </p>
                                             </div>
                                         </div>
@@ -543,7 +551,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                         <table className="w-full">
                             <thead>
                                 <tr className="bg-slate-50 dark:bg-slate-900/50">
-                                    <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Student</th>
+                                    <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">{passengerTerm}</th>
                                     <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">ID Number</th>
                                     <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Assigned Vehicle</th>
                                     <th className="px-8 py-6 text-center text-[10px] font-black uppercase text-slate-400 tracking-widest">Actions</th>
@@ -589,7 +597,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                                 ))}
                                 {filteredStudents.length === 0 && (
                                     <tr>
-                                        <td colSpan={4} className="px-8 py-20 text-center font-black text-slate-300 uppercase tracking-widest">No students found matching your criteria</td>
+                                        <td colSpan={4} className="px-8 py-20 text-center font-black text-slate-300 uppercase tracking-widest">No {passengerTerm.toLowerCase()}s found matching your criteria</td>
                                     </tr>
                                 )}
                             </tbody>
