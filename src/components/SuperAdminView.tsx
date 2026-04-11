@@ -467,8 +467,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     } = props;
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'external_module' | 'interactions' | 'reports' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests'>('dashboard');
-    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links'>('list'); // Modified for Counties, Resellers & Business
-    const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses' | 'registry'>('subjects');
+    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry'>('list'); // Modified for Counties, Resellers, Business & Registry
+    const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses'>('subjects');
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
 
     const [healthStatus, setHealthStatus] = useState<any>(null);
@@ -1523,6 +1523,12 @@ Please change it after login.`;
                             >
                                 External Hub
                             </button>
+                            <button
+                                onClick={() => setInstitutionsSubTab('registry')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${institutionsSubTab === 'registry' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                School Registry
+                            </button>
                         </div>
 
                         {institutionsSubTab === 'list' && (
@@ -2219,6 +2225,12 @@ Please change it after login.`;
                                     url="https://registry.edualloc.com"
                                     description="Manage cloud deployments, database migrations, and institutional infrastructure at scale."
                                 />
+                            </div>
+                        )}
+
+                        {institutionsSubTab === 'registry' && (
+                            <div className="animate-fade-in-up">
+                                <SchoolRegistryManager registry={schoolRegistry} onRefresh={fetchSchoolRegistry} />
                             </div>
                         )}
                     </div>
