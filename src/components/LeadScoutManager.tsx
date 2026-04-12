@@ -53,7 +53,14 @@ export const LeadScoutManager: React.FC = () => {
                 },
                 body: JSON.stringify({ topic: query, location, niche })
             });
-            const result = await response.json();
+            const contentType = response.headers.get('content-type');
+            let result: any;
+            if (contentType && contentType.includes('application/json')) {
+                result = await response.json();
+            } else {
+                const text = await response.text();
+                result = { success: false, message: `Server error: ${text.substring(0, 100)}` };
+            }
             if (result.success) {
                 await fetchProspects();
                 setQuery('');

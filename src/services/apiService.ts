@@ -295,7 +295,16 @@ export const apiService = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'verifyResetOtp', recipient: phone, message: code })
             });
-            const result = await response.json();
+            const contentType = response.headers.get('content-type');
+            let result: any;
+            if (contentType && contentType.includes('application/json')) {
+                result = await response.json();
+            } else {
+                const text = await response.text();
+                console.error("[apiService] Non-JSON response in verifyResetOtp:", text.substring(0, 200));
+                return { success: false, message: "Server returned invalid response format" };
+            }
+
             return { 
                 success: response.ok && result.success, 
                 message: result.message,
@@ -602,8 +611,15 @@ export const apiService = {
                 throw new Error(`${errData.error || `Failed to save ${module}`}${reasonStr}${debugStr}`);
             }
 
-            const savedData = await response.json();
-            return savedData ? toCamelCase(savedData) : null;
+            const contentTypePost = response.headers.get('content-type');
+            if (contentTypePost && contentTypePost.includes('application/json')) {
+                const savedData = await response.json().catch(() => null);
+                return savedData ? toCamelCase(savedData) : null;
+            } else {
+                const text = await response.text();
+                console.warn(`[apiService] Save [${module}] returned non-JSON:`, text.substring(0, 200));
+                return null;
+            }
         } catch (e: any) {
             console.error(`Save Exception [${module}]:`, e);
             throw e;
@@ -659,8 +675,15 @@ export const apiService = {
                 throw new Error(`${errData.error || `Failed to save ${module}`}${reasonStr}${debugStr}`);
             }
 
-            const savedData = await response.json();
-            return Array.isArray(savedData) ? savedData.map(toCamelCase) : [toCamelCase(savedData)] as any;
+            const contentTypeBulk = response.headers.get('content-type');
+            if (contentTypeBulk && contentTypeBulk.includes('application/json')) {
+                const savedData = await response.json().catch(() => null);
+                return Array.isArray(savedData) ? savedData.map(toCamelCase) : (savedData ? [toCamelCase(savedData)] : []) as any;
+            } else {
+                const text = await response.text();
+                console.warn(`[apiService] Bulk Save [${module}] returned non-JSON:`, text.substring(0, 200));
+                return [];
+            }
         } catch (e: any) {
             console.error(`Bulk Save Exception [${module}]:`, e);
             throw e;
@@ -795,6 +818,12 @@ export const apiService = {
             const response = await fetch(`${window.location.origin}/api/system?action=checkEmail&email=${encodeURIComponent(email.toLowerCase())}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const text = await response.text();
+                console.error("[apiService] Non-JSON response in checkEmailExists:", text.substring(0, 200));
+                return false;
+            }
             const data = await response.json();
             return !!data.exists;
         } catch (e) {
@@ -1245,7 +1274,16 @@ export const apiService = {
                 body: JSON.stringify({ action, recipient: formattedPhone, amount, config, metadata, provider })
             });
 
-            const result = await response.json();
+            const contentType = response.headers.get('content-type');
+            let result: any;
+            if (contentType && contentType.includes('application/json')) {
+                result = await response.json();
+            } else {
+                const text = await response.text();
+                console.error(`[apiService] Non-JSON response in initiatePayment [${provider}]:`, text.substring(0, 200));
+                return { success: false, message: "Payment gateway returned invalid response format" };
+            }
+            
             if (response.ok && result.success && metadata?.invoiceId) {
                 // Auto-record a pending transaction
                 await apiService.recordPayment({
@@ -1283,7 +1321,15 @@ export const apiService = {
                     config
                 })
             });
-            const result = await response.json();
+            const contentType = response.headers.get('content-type');
+            let result: any;
+            if (contentType && contentType.includes('application/json')) {
+                result = await response.json();
+            } else {
+                const text = await response.text();
+                console.error(`[apiService] Non-JSON response in checkPaymentStatus [${provider}]:`, text.substring(0, 200));
+                return { status: 'pending' };
+            }
             if (result.status === 'completed' && result.metadata?.invoiceId) {
                 await apiService.reconcilePayment(result);
             }
@@ -1352,7 +1398,15 @@ export const apiService = {
                     config
                 })
             });
-            const result = await response.json();
+            const contentType = response.headers.get('content-type');
+            let result: any;
+            if (contentType && contentType.includes('application/json')) {
+                result = await response.json();
+            } else {
+                const text = await response.text();
+                console.warn("[apiService] Non-JSON response in checkMpesaStatus:", text.substring(0, 200));
+                throw new Error("Invalid response format from status query");
+            }
             if (!response.ok || result.success === false) {
                 console.error("M-Pesa status query rejected by backend:", result);
                 // If it's a transient error, we can return pending, but if it's a configuration error, we should know.
@@ -1421,7 +1475,14 @@ export const apiService = {
                     transactionId
                 })
             });
-            return await response.json();
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                return await response.json();
+            } else {
+                const text = await response.text();
+                console.error("[apiService] Non-JSON response in verifyMpesaTransaction:", text.substring(0, 200));
+                return { success: false, message: "Internal server error: Invalid response format" };
+            }
         } catch (e: any) {
             return { success: false, message: e.message || "Request failed" };
         }
@@ -1988,7 +2049,14 @@ export const apiService = {
             const err = await response.json().catch(() => ({}));
             throw new Error(err.message || err.error || `HTTP error! status: ${response.status}`);
         }
-        return response.json();
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            return response.json();
+        } else {
+            const text = await response.text();
+            console.error("[apiService] Non-JSON response in POST [RPC]:", text.substring(0, 200));
+            throw new Error(`Server Error (${response.status}): Invalid response format`);
+        }
     },
     async fetchFullRegistry(): Promise<SchoolRegistry[]> {
         let allRecords: SchoolRegistry[] = [];

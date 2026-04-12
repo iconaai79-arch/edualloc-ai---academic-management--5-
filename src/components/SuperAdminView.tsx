@@ -500,7 +500,10 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         onAddDSStudent,
         onAddDSLesson,
         onAddDSMastery,
-        onUpdateDSSettings
+        onUpdateDSSettings,
+        carListings = [],
+        carTestDrives = [],
+        carAppraisals = []
     } = props;
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout'>('dashboard');

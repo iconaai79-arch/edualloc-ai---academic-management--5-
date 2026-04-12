@@ -15,13 +15,13 @@ const getSupabase = () => {
 async function getAuthUser(supabase: any, authHeader?: string) {
   if (!authHeader) return null;
   const token = authHeader.replace('Bearer ', '');
-  if (!token) return null;
+  if (!token || token === 'undefined' || token === 'null') return null;
 
   console.log(`[getAuthUser] Debug: token length ${token.length}, startsWith ${token.substring(0, 10)}...`);
 
   try {
     // 1. Try JWT
-    if (token.includes('.') && token.split('.').length === 3) {
+    if (token.length > 20 && token.includes('.') && token.split('.').length === 3) {
       const { data, error: authErr } = await supabase.auth.getUser(token);
       if (authErr) console.error('[Auth JWT Error]', authErr.message);
       
@@ -121,7 +121,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const shouldSkipTenancy = (user?.role === 'super_admin') || (isPublicModule && !getStrParam(queryInstitutionId));
 
             if (user && !shouldSkipTenancy) {
-                const isCounty = user.role.startsWith('county_');
+                const isCounty = user.role?.startsWith('county_');
                 if (isCounty) {
                     if (moduleName === 'counties') q = q.eq('id', user.institutionId);
                     else if (moduleName === 'institutions') q = q.eq('county_id', user.institutionId);
