@@ -216,7 +216,7 @@ export interface SuperAdminViewProps {
     demoDataGenerationProgress?: number;
     demoDataGenerationMessage?: string;
     onSendBulkCredentials?: (users: User[], method: 'email' | 'sms') => Promise<{ success_count: number; fail_count: number }>;
-    onSendSms?: (r: string, m: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
+    onSendSms?: (recipient: string | string[], message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<{ success: boolean; message: string; }>;
     onSaveSmsConfig?: (config: SmsConfig) => void;
     onUpdateRequest: (requestId: string, data: Partial<Omit<AllocationRequest, 'id'>>) => void;
     onWithdrawRequest: (id: string) => Promise<void>;
@@ -508,7 +508,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout'>('dashboard');
     const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry'>('list'); // Modified for Counties, Resellers, Business & Registry
-    const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses'>('subjects');
+    const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses' | 'registry'>('subjects');
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
 
     const [healthStatus, setHealthStatus] = useState<any>(null);
@@ -781,6 +781,30 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             else alert(`Failed to send OTP test: ${res.message || "Verify your gateway settings."}${res.errorDetail ? `\n\nDetail: ${JSON.stringify(res.errorDetail)}` : ""}`);
         } catch (e) {
             alert("OTP Test Gateway connection error.");
+        } finally {
+            setIsTesting(false);
+        }
+    };
+
+    const handleTestMpesa = async () => {
+        if (!testRecipient) return alert("Enter a phone number for STK Push test.");
+        setIsTesting(true);
+        try {
+            const result = await apiService.post('/api/payments/stk-push', {
+                phoneNumber: testRecipient,
+                amount: 1,
+                accountReference: 'EduAI-Test',
+                transactionDesc: 'Platform Connectivity Test',
+                config: localMpesaConfig
+            });
+            if (result.ResponseCode === '0' || result.success) {
+                alert("STK Push initiated successfully. Check your phone.");
+            } else {
+                alert(`STK Push failed: ${result.CustomerMessage || result.message || 'Unknown error'}`);
+            }
+        } catch (e: any) {
+            console.error("Mpesa Test Error:", e);
+            alert(`Mpesa Gateway test failed: ${e.message}`);
         } finally {
             setIsTesting(false);
         }

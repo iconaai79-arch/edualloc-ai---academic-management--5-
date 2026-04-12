@@ -881,7 +881,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                     <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Branch *</label>
                                     <select
                                         value={newMember.branch}
-                                        onChange={e => setNewMember(p => ({ ...p, branch: e.target.value }))}
+                                        onChange={e => setNewMember(p => ({ ...p, branch: e.target.value as 'Paternal' | 'Maternal' }))}
                                         className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-400 transition-colors"
                                     >
                                         <option value="Paternal">Paternal</option>
