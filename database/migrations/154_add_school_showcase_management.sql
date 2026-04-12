@@ -9,8 +9,8 @@ ALTER TABLE institutions ADD COLUMN IF NOT EXISTS showcase_cpanel_token TEXT;
 
 -- Create school gallery table
 CREATE TABLE IF NOT EXISTS school_gallery (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
     image_url TEXT NOT NULL,
     caption TEXT,
     event_date DATE,
@@ -20,8 +20,8 @@ CREATE TABLE IF NOT EXISTS school_gallery (
 
 -- Create school advertisements table
 CREATE TABLE IF NOT EXISTS school_ads (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
     image_url TEXT NOT NULL,
     link_url TEXT,
     title TEXT,
