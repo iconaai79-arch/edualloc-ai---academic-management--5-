@@ -88,12 +88,18 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
             alert("Please select an account type");
             return;
         }
+        if (!farmer) {
+            alert("No cooperative farmer profile found. Please contact administration to register as a member first.");
+            setIsProcessing(false);
+            return;
+        }
+
         setIsProcessing(true);
         try {
             await onAddSaccoAccount?.({
                 ...newSaccoAccount,
                 id: `sa_${Date.now()}`,
-                farmerId: currentUser.id,
+                farmerId: farmer.id,
                 institutionId: currentUser.institutionId || ''
             });
             setIsOpeningAccount(false);
