@@ -1,6 +1,6 @@
 -- Create Marketing Prospects Table for Lead Scouting
 CREATE TABLE IF NOT EXISTS marketing_prospects (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id TEXT PRIMARY KEY,
     business_name TEXT NOT NULL,
     niche TEXT, -- e.g., 'Property', 'Education', 'Automotive', 'Logistics'
     email TEXT UNIQUE NOT NULL,

@@ -70,10 +70,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         const prospects = JSON.parse(jsonMatch[0]);
 
-        // Storage Phase
+        // Storage Phase - Generate consistent IDs for TEXT primary key
         const { data: savedData, error: dbError } = await supabase
             .from('marketing_prospects')
             .upsert(prospects.map((p: any) => ({
+                id: `pros_${Math.random().toString(36).slice(2, 11)}`,
                 business_name: p.businessName,
                 niche: p.niche,
                 email: p.email,
@@ -85,17 +86,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             })), { onConflict: 'email' })
             .select();
 
-        if (dbError) throw dbError;
+        if (dbError) {
+            console.error("Supabase Upsert Error:", dbError);
+            throw new Error(`Database Error: ${dbError.message}`);
+        }
 
         return res.status(200).json({ 
             success: true, 
-            count: savedData.length,
-            message: `Scout successfully identified and stored ${savedData.length} new high-potential leads.`,
-            prospects: savedData 
+            count: savedData?.length || 0,
+            message: `Scout successfully identified and stored ${savedData?.length || 0} new high-potential leads.`,
+            prospects: savedData || []
         });
 
     } catch (error: any) {
         console.error("Lead Scout Error:", error);
-        return res.status(500).json({ error: "Scouting Failed", message: error.message });
+        // Ensure we always return a JSON error response even if parsing fails
+        return res.status(500).json({ 
+            success: false, 
+            error: "Scouting Failed", 
+            message: error.message,
+            debug: process.env.NODE_ENV === 'development' ? error : undefined
+        });
     }
 }

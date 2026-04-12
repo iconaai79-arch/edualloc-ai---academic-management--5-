@@ -57,9 +57,13 @@ export const LeadScoutManager: React.FC = () => {
             if (result.success) {
                 await fetchProspects();
                 setQuery('');
+                alert(result.message || "Scout mission successful!");
+            } else {
+                alert(`Scouting Issue: ${result.message || result.error || 'Unknown failure'}`);
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
+            alert(`Network Error: ${e.message || 'Failed to connect to scouting service'}`);
         } finally {
             setScouting(false);
         }
