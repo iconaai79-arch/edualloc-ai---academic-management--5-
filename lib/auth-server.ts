@@ -36,6 +36,9 @@ export async function getAuthenticatedUser(supabase: SupabaseClient, authHeader?
                     userId = data.user.id;
                     userEmail = data.user.email || null;
                 }
+            } catch (e) {
+                console.warn('[Auth] token validation error:', e);
+            }
         }
 
         if (!userId && token && (token.startsWith('u_') || token.includes('-'))) {

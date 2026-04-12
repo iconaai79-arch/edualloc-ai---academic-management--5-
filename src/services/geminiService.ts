@@ -61,8 +61,15 @@ const safeGenerateContent = async (prompt: string, config: any = {}, preferredMo
             throw new Error(errorData.message || errorData.error || `AI Service Error: ${response.status}`);
         }
 
-        const data = await response.json();
-        return data; // Expected to contain { text: string }
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            const data = await response.json();
+            return data; // Expected to contain { text: string }
+        } else {
+            const text = await response.text();
+            console.error("[geminiService] Non-JSON response from AI Service:", text.substring(0, 200));
+            throw new Error(`AI Service Error (${response.status}): Invalid response format`);
+        }
 
     } catch (error: any) {
         console.error("[System Debug] Engine Error details:", error);
@@ -406,13 +413,15 @@ export const getChatResponse = async (history: { role: string, parts: { text: st
             })
         });
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || "Chat service error");
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            const data = await response.json();
+            return data.text || "I'm sorry, I couldn't process that.";
+        } else {
+            const text = await response.text();
+            console.error("[geminiService] Non-JSON response from Chat Service:", text.substring(0, 200));
+            return "I'm sorry, I encountered a communication error with the AI matrix.";
         }
-
-        const data = await response.json();
-        return data.text || "I'm sorry, I couldn't process that.";
 
     } catch (error) {
         console.error("AI chat error:", error);

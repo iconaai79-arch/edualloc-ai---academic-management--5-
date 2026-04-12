@@ -144,13 +144,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             });
 
-            if (order && typeof order === 'string') {
-                const [col, dir] = order.split('.');
-                q = q.order(col, { ascending: dir !== 'desc' });
+            const orderParam = getStrParam(order);
+            if (orderParam && orderParam.includes('.')) {
+                const [col, dir] = orderParam.split('.');
+                if (col) {
+                    q = q.order(col, { ascending: dir === 'asc' });
+                }
+            } else if (orderParam) {
+                q = q.order(orderParam, { ascending: true });
             }
             
-            const finalLimit = limit ? parseInt(getStrParam(limit)) : (moduleName === 'school_registry' ? 10000 : 1000);
-            const offset = req.query.offset ? parseInt(getStrParam(req.query.offset)) : 0;
+            let finalLimit = limit ? parseInt(getStrParam(limit)) : (moduleName === 'school_registry' ? 10000 : 1000);
+            if (isNaN(finalLimit)) finalLimit = 1000;
+            
+            let offset = req.query.offset ? parseInt(getStrParam(req.query.offset)) : 0;
+            if (isNaN(offset)) offset = 0;
             
             q = q.range(offset, offset + finalLimit - 1);
 
