@@ -1,7 +1,8 @@
 -- CampaignAI: Political Campaign Management Schema
+-- Updated to use TEXT IDs to match system-wide standard
 CREATE TABLE IF NOT EXISTS campaign_profiles (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
     candidate_name TEXT NOT NULL,
     position TEXT NOT NULL, -- MCA, MP, Senator, Governor, President, Deputy
     party_name TEXT,
@@ -14,8 +15,8 @@ CREATE TABLE IF NOT EXISTS campaign_profiles (
 );
 
 CREATE TABLE IF NOT EXISTS voter_outreach (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    campaign_id UUID REFERENCES campaign_profiles(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY,
+    campaign_id TEXT REFERENCES campaign_profiles(id) ON DELETE CASCADE,
     voter_name TEXT,
     phone_number TEXT UNIQUE,
     id_number TEXT,
@@ -28,8 +29,8 @@ CREATE TABLE IF NOT EXISTS voter_outreach (
 );
 
 CREATE TABLE IF NOT EXISTS campaign_events (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    campaign_id UUID REFERENCES campaign_profiles(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY,
+    campaign_id TEXT REFERENCES campaign_profiles(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     description TEXT,
     location TEXT NOT NULL,
@@ -53,10 +54,10 @@ ALTER TABLE campaign_events ENABLE ROW LEVEL SECURITY;
 
 -- Policies (Simplified for the candidate/admin)
 CREATE POLICY "Campaign admins can manage their profiles" ON campaign_profiles
-    FOR ALL TO authenticated USING (institution_id = auth.uid() OR public.get_curr_user_role() = 'super_admin');
+    FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 
 CREATE POLICY "Campaign admins can manage their voters" ON voter_outreach
-    FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM campaign_profiles WHERE id = voter_outreach.campaign_id AND institution_id = auth.uid()) OR public.get_curr_user_role() = 'super_admin');
+    FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM campaign_profiles WHERE id = voter_outreach.campaign_id AND institution_id = auth.uid()::text) OR public.get_curr_user_role() = 'super_admin');
 
 CREATE POLICY "Campaign admins can manage their events" ON campaign_events
-    FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM campaign_profiles WHERE id = campaign_events.campaign_id AND institution_id = auth.uid()) OR public.get_curr_user_role() = 'super_admin');
+    FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM campaign_profiles WHERE id = campaign_events.campaign_id AND institution_id = auth.uid()::text) OR public.get_curr_user_role() = 'super_admin');
