@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import type { Institution, SubscriptionConfig, County } from '../types';
 
@@ -25,24 +24,6 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     customSmsPrice: '',
     category: '',
     businessSubType: '',
-    ncbaConfig: {
-      clientId: '',
-      clientSecret: '',
-      callbackUsername: '',
-      callbackSecret: '',
-      callbackUrl: '',
-      baseUrl: '',
-      accountNumber: '',
-      shortCode: '',
-      environment: 'sandbox' as 'sandbox' | 'production',
-      stkPushBaseUrl: '',
-      requestUrl: '',
-      pushStkUrl: '',
-      queryStkUrl: '',
-      isMock: false,
-      headers: [] as { name: string; value: string }[],
-      params: [] as { name: string; value: string }[]
-    }
   });
 
   useEffect(() => {
@@ -61,24 +42,6 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         customSmsPrice: institution.customSmsPrice?.toString() || '',
         category: institution.category || institution.businessSubType || '',
         businessSubType: institution.businessSubType || '',
-        ncbaConfig: {
-          clientId: institution.ncbaConfig?.clientId || '',
-          clientSecret: institution.ncbaConfig?.clientSecret || '',
-          callbackUsername: institution.ncbaConfig?.callbackUsername || '',
-          callbackSecret: institution.ncbaConfig?.callbackSecret || '',
-          callbackUrl: institution.ncbaConfig?.callbackUrl || '',
-          baseUrl: institution.ncbaConfig?.baseUrl || '',
-          accountNumber: institution.ncbaConfig?.accountNumber || '',
-          shortCode: institution.ncbaConfig?.shortCode || '',
-          environment: institution.ncbaConfig?.environment || 'sandbox',
-          stkPushBaseUrl: institution.ncbaConfig?.stkPushBaseUrl || '',
-          requestUrl: institution.ncbaConfig?.requestUrl || '',
-          pushStkUrl: institution.ncbaConfig?.pushStkUrl || '',
-          queryStkUrl: institution.ncbaConfig?.queryStkUrl || '',
-          isMock: institution.ncbaConfig?.isMock || false,
-          headers: institution.ncbaConfig?.headers || [],
-          params: institution.ncbaConfig?.params || []
-        }
       });
     }
   }, [institution]);
@@ -115,47 +78,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       customSmsPrice: formData.customSmsPrice ? parseFloat(formData.customSmsPrice) : undefined,
       category: formData.category || undefined,
       businessSubType: formData.category || formData.businessSubType || undefined,
-      ncbaConfig: formData.ncbaConfig
     };
     onSave(institution.id, saveData);
-  };
-
-
-  const [isTestingNcba, setIsTestingNcba] = useState(false);
-  const [ncbaTestResult, setNcbaTestResult] = useState<any>(null);
-
-  const handleTestNcbaAuth = async () => {
-    setIsTestingNcba(true);
-    setNcbaTestResult(null);
-    try {
-      const { apiService } = await import('../services/apiService');
-      const res = await apiService.post('/api/integrations', {
-        action: 'testNcbaAuth',
-        config: formData.ncbaConfig
-      });
-      setNcbaTestResult(res);
-    } catch (err: any) {
-      setNcbaTestResult({ success: false, error: err.message || 'Connection failed' });
-    } finally {
-      setIsTestingNcba(false);
-    }
-  };
-
-  const handleTestNcbaStk = async () => {
-    const phoneNumber = prompt('Enter phone number for NCBA STK Push test:', formData.phoneNumber);
-    if (!phoneNumber) return;
-
-    try {
-      const { apiService } = await import('../services/apiService');
-      const res = await apiService.initiatePayment('ncba', 1, phoneNumber, undefined, formData.ncbaConfig);
-      if (res.success) alert("NCBA STK Push request sent to phone.");
-      else {
-        const detail = res.error || (res.details ? JSON.stringify(res.details) : '');
-        alert(`NCBA Initiation Failure: ${res.message || 'Unknown error.'}${detail ? '\n\nDetail: ' + detail : ''}`);
-      }
-    } catch (e: any) {
-      alert(`NCBA Handshake Error: ${e.message || 'Connection failed'}`);
-    }
   };
 
   const [activeTab, setActiveTab] = useState<'identity' | 'financials'>('identity');
@@ -234,7 +158,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       <option value="Pharmacy">Pharmacy / Chemist</option>
                     </select>
                   </div>
-                  {formData.institutionType === 'Education' && (
+                  {(formData.institutionType === 'Education') && (
                     <div className="animate-fade-in-up">
                       <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1">Educational Level / Category</label>
                       <select
@@ -256,6 +180,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       </select>
                     </div>
                   )}
+                  {formData.institutionType === 'Business' && (
                     <div className="animate-fade-in-up">
                       <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1">Business Niche / Category</label>
                       <select
@@ -274,6 +199,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                         <option value="General">General Retail / Business</option>
                       </select>
                     </div>
+                  )}
                   {formData.institutionType === 'Church' && (
                     <div className="animate-fade-in-up">
                       <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1">Church Tradition (Denomination)</label>
@@ -285,7 +211,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       >
                         <option value="">-- Select Tradition --</option>
                         <option value="Catholic">Catholic (Sacramental/SCC)</option>
-                        <option value="Protestant">Protestant (Evangelical/Cell Groups)</option>
+                        <option value="Protestant">Protest Protestant (Evangelical/Cell Groups)</option>
                         <option value="Orthodox">Orthodox (Holy Mysteries/Fasting Calendar)</option>
                       </select>
                     </div>
@@ -386,7 +312,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                     <div className="w-8 h-8 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded-xl flex items-center justify-center">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
                     </div>
-                    <h4 className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-widest">NCBA Integration Node</h4>
+                    <h4 className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-widest">System Identifiers</h4>
                   </div>
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -395,320 +321,10 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                         <p className="text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300 truncate">{institution.id}</p>
                       </div>
                       <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
-                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Secret Registry Code</p>
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Registry Code</p>
                         <p className="text-[10px] font-mono font-bold text-indigo-600 truncate">{institution.institutionCode || 'N/A'}</p>
                       </div>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="md:col-span-2">
-                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">STK Push Base URL</label>
-                        <input
-                          type="text"
-                          value={formData.ncbaConfig.stkPushBaseUrl}
-                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, stkPushBaseUrl: e.target.value } })}
-                          className="form-input text-[10px] h-10 font-mono"
-                          placeholder="https://c2bapis.ncbagroup.com"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Request URL (GET)</label>
-                        <input
-                          type="text"
-                          value={formData.ncbaConfig.requestUrl}
-                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, requestUrl: e.target.value } })}
-                          className="form-input text-[10px] h-10 font-mono"
-                          placeholder="/v1/stk/request"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Push STK URL (POST)</label>
-                        <input
-                          type="text"
-                          value={formData.ncbaConfig.pushStkUrl}
-                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, pushStkUrl: e.target.value } })}
-                          className="form-input text-[10px] h-10 font-mono"
-                          placeholder="/v1/stk/push"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">STK Push Query URL (POST)</label>
-                        <input
-                          type="text"
-                          value={formData.ncbaConfig.queryStkUrl || ''}
-                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, queryStkUrl: e.target.value } })}
-                          className="form-input text-[10px] h-10 font-mono"
-                          placeholder="/v1/stk/query"
-                        />
-                      </div>
-                      <div>
-                        <div className="flex justify-between items-center mb-1 px-1">
-                          <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Username</label>
-                          <button 
-                            type="button" 
-                            onClick={(e) => {
-                              e.preventDefault();
-                              const gen = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
-                              setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, clientId: gen } });
-                            }}
-                            className="text-[8px] font-black uppercase text-indigo-500 hover:underline"
-                          >
-                            Generate
-                          </button>
-                        </div>
-                        <input
-                          type="text"
-                          value={formData.ncbaConfig.clientId}
-                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, clientId: e.target.value } })}
-                          className="form-input text-[10px] h-10"
-                          placeholder="Username"
-                        />
-                      </div>
-                       <div>
-                        <div className="flex justify-between items-center mb-1 px-1">
-                          <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Secret Key</label>
-                          <button 
-                            type="button" 
-                            onClick={(e) => {
-                              e.preventDefault();
-                              const gen = Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
-                              setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, clientSecret: gen } });
-                            }}
-                            className="text-[8px] font-black uppercase text-indigo-500 hover:underline"
-                          >
-                            Generate
-                          </button>
-                        </div>
-                        <input
-                          type="password"
-                          value={formData.ncbaConfig.clientSecret}
-                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, clientSecret: e.target.value } })}
-                          className="form-input text-[10px] h-10"
-                          placeholder="••••••••••••••••"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Account Number</label>
-                        <input
-                          type="text"
-                          value={formData.ncbaConfig.accountNumber || ''}
-                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, accountNumber: e.target.value } })}
-                          className="form-input text-[10px] h-10 font-mono"
-                          placeholder="Bank Account Number"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Short Code</label>
-                        <input
-                          type="text"
-                          value={formData.ncbaConfig.shortCode}
-                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, shortCode: e.target.value } })}
-                          className="form-input text-[10px] h-10 font-mono"
-                          placeholder="e.g. 123456"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Callback URL</label>
-                        <input
-                          type="url"
-                          value={formData.ncbaConfig.callbackUrl || ''}
-                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, callbackUrl: e.target.value } })}
-                          className="form-input text-[10px] h-10 font-mono text-indigo-600"
-                          placeholder="https://..."
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">API Environment</label>
-                        <select
-                          value={formData.ncbaConfig.environment}
-                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, environment: e.target.value as any } })}
-                          className="form-select text-[10px] h-10 font-black uppercase tracking-widest"
-                        >
-                          <option value="sandbox">Sandbox</option>
-                          <option value="production">Production</option>
-                        </select>
-                      </div>
-                      <div className="md:col-span-2">
-                        <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/20">
-                          <input
-                            type="checkbox"
-                            id="ncba-mock-mode"
-                            checked={formData.ncbaConfig.isMock}
-                            onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, isMock: e.target.checked } })}
-                            className="h-5 w-5 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
-                          />
-                          <div>
-                            <label htmlFor="ncba-mock-mode" className="text-[10px] font-black uppercase text-amber-900 dark:text-amber-200 tracking-widest block">Enable Bank Mock Mode</label>
-                            <p className="text-[9px] text-amber-700/70 dark:text-amber-400/60 font-bold uppercase tracking-tight">Simulates successful payments without hitting live bank APIs. Use for testing when bank gateway is unreachable.</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">Custom HTTP Headers</label>
-                        <button
-                          type="button"
-                          onClick={() => setFormData({
-                            ...formData,
-                            ncbaConfig: {
-                              ...formData.ncbaConfig,
-                              headers: [...(formData.ncbaConfig.headers || []), { name: '', value: '' }]
-                            }
-                          })}
-                          className="text-[9px] font-black uppercase text-indigo-600 hover:underline"
-                        >
-                          + Add Header
-                        </button>
-                      </div>
-                      <div className="space-y-2">
-                        {(formData.ncbaConfig.headers || []).map((header, idx) => (
-                          <div key={idx} className="flex gap-2 items-center">
-                            <input
-                              type="text"
-                              value={header.name}
-                              placeholder="Name"
-                              onChange={e => {
-                                const newHeaders = [...formData.ncbaConfig.headers];
-                                newHeaders[idx].name = e.target.value;
-                                setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, headers: newHeaders } });
-                              }}
-                              className="form-input text-[10px] h-8 bg-slate-50 dark:bg-slate-950 font-mono"
-                            />
-                            <input
-                              type="text"
-                              value={header.value}
-                              placeholder="Value"
-                              onChange={e => {
-                                const newHeaders = [...formData.ncbaConfig.headers];
-                                newHeaders[idx].value = e.target.value;
-                                setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, headers: newHeaders } });
-                              }}
-                              className="form-input text-[10px] h-8 bg-slate-50 dark:bg-slate-950 font-mono"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const newHeaders = formData.ncbaConfig.headers.filter((_, i) => i !== idx);
-                                setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, headers: newHeaders } });
-                              }}
-                              className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">Custom Parameters</label>
-                        <button
-                          type="button"
-                          onClick={() => setFormData({
-                            ...formData,
-                            ncbaConfig: {
-                              ...formData.ncbaConfig,
-                              params: [...(formData.ncbaConfig.params || []), { name: '', value: '' }]
-                            }
-                          })}
-                          className="text-[9px] font-black uppercase text-indigo-600 hover:underline"
-                        >
-                          + Add Parameter
-                        </button>
-                      </div>
-                      <div className="space-y-2">
-                        {(formData.ncbaConfig.params || []).map((param, idx) => (
-                          <div key={idx} className="flex gap-2 items-center">
-                            <input
-                              type="text"
-                              value={param.name}
-                              placeholder="Key"
-                              onChange={e => {
-                                const newParams = [...formData.ncbaConfig.params];
-                                newParams[idx].name = e.target.value;
-                                setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, params: newParams } });
-                              }}
-                              className="form-input text-[10px] h-8 bg-slate-50 dark:bg-slate-950 font-mono"
-                            />
-                            <input
-                              type="text"
-                              value={param.value}
-                              placeholder="Value"
-                              onChange={e => {
-                                const newParams = [...formData.ncbaConfig.params];
-                                newParams[idx].value = e.target.value;
-                                setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, params: newParams } });
-                              }}
-                              className="form-input text-[10px] h-8 bg-slate-50 dark:bg-slate-950 font-mono"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const newParams = formData.ncbaConfig.params.filter((_, i) => i !== idx);
-                                setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, params: newParams } });
-                              }}
-                              className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="pt-4 flex flex-col gap-4">
-                      <div className="flex gap-4">
-                        <button
-                          type="button"
-                          onClick={handleTestNcbaAuth}
-                          disabled={isTestingNcba}
-                          className="flex items-center gap-2 text-[9px] font-black uppercase text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-5 py-2.5 rounded-xl transition-all border border-indigo-100 disabled:opacity-50"
-                        >
-                          {isTestingNcba ? (
-                            <div className="w-3 h-3 border border-indigo-600 border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                          )}
-                          {isTestingNcba ? 'Verifying Gateway...' : 'Verify Auth (Get Token)'}
-                        </button>
-                        
-                        <button
-                          type="button"
-                          onClick={handleTestNcbaStk}
-                          className="flex items-center gap-2 text-[9px] font-black uppercase text-white bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 rounded-xl transition-all shadow-md active:scale-95"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                          Test STK Push
-                        </button>
-                      </div>
-
-                      {ncbaTestResult && (
-                        <div className={`p-4 rounded-2xl border animate-fade-in-up ${ncbaTestResult.success ? 'bg-emerald-50/50 border-emerald-100' : 'bg-red-50/50 border-red-100'}`}>
-                          <div className="flex items-start gap-3">
-                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${ncbaTestResult.success ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                              {ncbaTestResult.success ? (
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                              ) : (
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                               <p className={`text-[10px] font-black uppercase tracking-tight ${ncbaTestResult.success ? 'text-emerald-700' : 'text-red-700'}`}>
-                                  {ncbaTestResult.success ? 'Gateway Verified' : 'Authentication Failed'}
-                               </p>
-                               <p className="text-[10px] text-slate-500 font-medium leading-tight mt-1 line-clamp-2">
-                                  {ncbaTestResult.hint || ncbaTestResult.message || ncbaTestResult.error || (ncbaTestResult.success ? 'Token retrieved successfully.' : 'Check credentials.')}
-                               </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-
                   </div>
                 </div>
               </div>
@@ -717,7 +333,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
 
           <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-6 flex justify-end items-center gap-3 border-t border-slate-100 dark:border-slate-800">
             <button type="button" onClick={onClose} className="btn-secondary h-12 px-8">Discard</button>
-            <button type="submit" className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100 dark:shadow-none">Save Registry Link</button>
+            <button type="submit" className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100 dark:shadow-none">Save Changes</button>
           </div>
         </form>
       </div>

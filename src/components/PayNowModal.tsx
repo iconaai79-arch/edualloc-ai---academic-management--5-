@@ -5,7 +5,7 @@ import type { TransactionStatus, InvoiceItem, MpesaConfig } from '../types';
 import { apiService } from '../services/apiService';
 
 interface PayNowModalProps {
-    isOpen?: boolean; // Optional because some uses check it before rendering
+    isOpen?: boolean;
     onClose: () => void;
     onPay?: (paymentData: { amount: number; phoneNumber: string; payerName: string; }, items: InvoiceItem[]) => Promise<TransactionStatus>;
     onSubmit?: (paymentData: { amount: number; phoneNumber: string; payerName: string; }, items: InvoiceItem[]) => Promise<TransactionStatus>;
@@ -15,7 +15,6 @@ interface PayNowModalProps {
     mpesaConfig: MpesaConfig;
     airtelMoneyConfig?: any;
     intasendConfig?: any;
-    ncbaConfig?: any;
     institutionId?: string;
     institutionCode?: string;
     institutionName?: string;
@@ -25,19 +24,17 @@ interface PayNowModalProps {
 
 export const PayNowModal: React.FC<PayNowModalProps> = ({
     isOpen = true, onClose, onPay, onSubmit, onSuccess, monthlyPrice = 0, yearlyPrice = 0,
-    mpesaConfig, airtelMoneyConfig, intasendConfig, ncbaConfig, institutionId, institutionCode, institutionName,
+    mpesaConfig, airtelMoneyConfig, intasendConfig, institutionId, institutionCode, institutionName,
     forceAmount, forcedItems
 }) => {
     const [phoneNumber, setPhoneNumber] = useState('254');
     const [payerName, setPayerName] = useState('');
     const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly' | 'forced'>(forceAmount !== undefined ? 'forced' : 'monthly');
-    const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend' | 'ncba'>('mpesa');
+    const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend'>('mpesa');
     const [enabledGateways, setEnabledGateways] = useState<string[]>(['mpesa']);
     const [isLoading, setIsLoading] = useState(false);
     const [finalStatus, setFinalStatus] = useState<TransactionStatus | null>(null);
     const [statusMessage, setStatusMessage] = useState('');
-    const [ncbaMode, setNcbaMode] = useState<'stk' | 'qr'>('stk');
-    const [ncbaQrData, setNcbaQrData] = useState<string | null>(null);
 
     React.useEffect(() => {
         const fetchGateways = async () => {
@@ -69,7 +66,6 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
         }];
 
         try {
-            // 1. Initiate STK Push via Backend API
             const metadata = {
                 type: forceAmount !== undefined ? 'one-off' : 'subscription',
                 plan: selectedPlan,
@@ -83,17 +79,6 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                 initiateResult = await apiService.initiateMpesaPayment(amount, phoneNumber, metadata, mpesaConfig);
             } else if (provider === 'airtel') {
                 initiateResult = await apiService.initiatePayment('airtel', amount, phoneNumber, metadata, airtelMoneyConfig);
-            } else if (provider === 'ncba') {
-                if (ncbaMode === 'qr') {
-                    const qrResult = await apiService.generateNcbaQr(amount, institutionId);
-                    if (qrResult.success && qrResult.qr) {
-                        setNcbaQrData(qrResult.qr);
-                        setIsLoading(false);
-                        return;
-                    }
-                    throw new Error(qrResult.message || 'Failed to generate QR code.');
-                }
-                initiateResult = await apiService.initiatePayment('ncba', amount, phoneNumber, metadata, ncbaConfig);
             } else {
                 initiateResult = await apiService.initiatePayment('intasend', amount, phoneNumber, metadata, intasendConfig);
             }
@@ -108,16 +93,14 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
 
                 const checkoutRequestId = initiateResult.data?.CheckoutRequestID || initiateResult.checkoutRequestId;
                 
-                // 2. Poll for Status Updates
                 let attempts = 0;
-                const maxAttempts = 60; // ~3 minutes of polling
+                const maxAttempts = 60;
 
                 const pollInterval = setInterval(async () => {
                     attempts++;
                     const { status } = await apiService.checkPaymentStatus(provider, checkoutRequestId, 
                         provider === 'mpesa' ? mpesaConfig : 
-                        (provider === 'airtel' ? airtelMoneyConfig : 
-                        (provider === 'ncba' ? ncbaConfig : intasendConfig)));
+                        (provider === 'airtel' ? airtelMoneyConfig : intasendConfig));
 
                     if (status === 'completed') {
                         clearInterval(pollInterval);
@@ -153,7 +136,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
     if (!isOpen) return null;
 
     const handleClose = () => {
-        if (isLoading) return; // Don't close while processing
+        if (isLoading) return;
         onClose();
     }
 
@@ -225,16 +208,6 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                                         <span className="text-[10px] font-black uppercase">M-Pesa</span>
                                     </button>
                                 )}
-                                {enabledGateways.includes('ncba') && (
-                                    <button
-                                        type="button"
-                                        onClick={() => { setProvider('ncba'); setNcbaQrData(null); }}
-                                        className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${provider === 'ncba' ? 'border-teal-600 bg-teal-50/50 dark:bg-teal-900/20' : 'border-slate-100 dark:border-slate-700'}`}
-                                    >
-                                        <div className="w-8 h-8 bg-teal-600 rounded-xl flex items-center justify-center text-white text-[10px] font-black shadow-lg">N</div>
-                                        <span className="text-[10px] font-black uppercase">NCBA Bank</span>
-                                    </button>
-                                )}
                                 {enabledGateways.includes('airtel') && (
                                     <button
                                         type="button"
@@ -271,49 +244,18 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                             />
                         </div>
 
-                        {provider === 'ncba' && (
-                            <div>
-                                <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-2.5 ml-1">NCBA Payment Method</label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => { setNcbaMode('stk'); setNcbaQrData(null); }}
-                                        className={`p-3 rounded-xl border-2 text-[10px] font-black uppercase transition-all ${ncbaMode === 'stk' ? 'border-teal-600 bg-teal-50' : 'border-slate-100'}`}
-                                    >
-                                        STK Push
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setNcbaMode('qr')}
-                                        className={`p-3 rounded-xl border-2 text-[10px] font-black uppercase transition-all ${ncbaMode === 'qr' ? 'border-teal-600 bg-teal-50' : 'border-slate-100'}`}
-                                    >
-                                        Scan QR
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {ncbaQrData ? (
-                            <div className="bg-white p-4 rounded-3xl border-2 border-teal-100 shadow-inner text-center animate-fade-in">
-                                <p className="text-[10px] font-black text-teal-600 uppercase mb-3">Scan to Pay via NCBA</p>
-                                <img src={ncbaQrData} alt="NCBA Payment QR" className="mx-auto w-48 h-48 rounded-xl" />
-                                <p className="mt-3 text-[9px] font-black text-slate-400 uppercase">Once scanned, the payment will reflect automatically.</p>
-                                <button type="button" onClick={() => setNcbaQrData(null)} className="mt-4 text-[9px] font-black text-rose-500 uppercase hover:underline">Regenerate / Back</button>
-                            </div>
-                        ) : (
-                            <div>
-                                <label htmlFor="phoneNumber" className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-1.5 ml-1">{provider === 'mpesa' ? 'M-Pesa' : provider === 'airtel' ? 'Airtel Money' : 'Customer'} Phone Number</label>
-                                <input
-                                    type="tel"
-                                    id="phoneNumber"
-                                    value={phoneNumber}
-                                    onChange={(e) => setPhoneNumber(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl px-4 py-3 text-sm font-bold focus:border-indigo-500 outline-none transition-all"
-                                    placeholder="254..."
-                                    required={ncbaMode === 'stk'}
-                                />
-                            </div>
-                        )}
+                        <div>
+                            <label htmlFor="phoneNumber" className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-1.5 ml-1">{provider === 'mpesa' ? 'M-Pesa' : provider === 'airtel' ? 'Airtel Money' : 'Customer'} Phone Number</label>
+                            <input
+                                type="tel"
+                                id="phoneNumber"
+                                value={phoneNumber}
+                                onChange={(e) => setPhoneNumber(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl px-4 py-3 text-sm font-bold focus:border-indigo-500 outline-none transition-all"
+                                placeholder="254..."
+                                required
+                            />
+                        </div>
 
                         {selectedPlan !== 'forced' && (
                             <div>
@@ -356,7 +298,6 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
             </form>
         );
     };
-
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4" onClick={handleClose}>

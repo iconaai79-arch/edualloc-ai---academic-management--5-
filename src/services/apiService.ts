@@ -777,11 +777,10 @@ export const apiService = {
     },
     async fetchInstitutions(institutionId?: string): Promise<Institution[]> { return apiService.fetchModuleRecords('institutions', institutionId); },
     async saveInstitution(inst: Institution): Promise<void> { 
-        const { countyId, ncbaConfig, moduleStates, ...rest } = inst as any;
+        const { countyId, moduleStates, ...rest } = inst as any;
         await apiService.saveModuleRecord('institutions', { 
             ...rest, 
-            county_id: countyId,
-            ncba_config: ncbaConfig 
+            county_id: countyId
         }); 
     },
     async fetchUsers(institutionId?: string): Promise<User[]> { return apiService.fetchModuleRecords('users', institutionId); },
@@ -1212,7 +1211,7 @@ export const apiService = {
         }
         return { success_count, fail_count };
     },
-    async initiatePayment(provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba', amount: number, phoneNumber: string, metadata?: any, config?: any) {
+    async initiatePayment(provider: 'mpesa' | 'airtel' | 'intasend', amount: number, phoneNumber: string, metadata?: any, config?: any) {
         const formattedPhone = formatPhoneNumber(phoneNumber);
         if (!_supabase) {
             return { success: false, message: "Database service (Supabase) not initialized. Live payments require an active backend." };
@@ -1223,7 +1222,6 @@ export const apiService = {
             let action = 'initiateStkPush';
             if (provider === 'airtel') action = 'initiateAirtelMoneyStk';
             if (provider === 'intasend') action = 'initiateIntasendPayment';
-            if (provider === 'ncba') action = 'ncbaInitiateStk';
 
             const response = await fetch('/api/integrations', {
                 method: 'POST',
@@ -1255,25 +1253,8 @@ export const apiService = {
             return { success: false, message: e.message || `${provider} gateway connection failed.` };
         }
     },
-    async generateNcbaQr(amount: number, institutionId?: string) {
-        if (!_supabase) return { success: false, message: "Database service not initialized." };
-        try {
-            const token = await apiService.getAuthToken();
-            const response = await fetch('/api/integrations', {
-                method: 'POST',
-                headers: {
-                    'Authorization': token ? `Bearer ${token}` : '',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ action: 'ncbaGenerateQr', amount, institutionId })
-            });
-            return await response.json();
-        } catch (e: any) {
-            console.error("NCBA QR Generation Failed:", e);
-            return { success: false, message: e.message };
-        }
-    },
-    async checkPaymentStatus(provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba', checkoutRequestId: string, config?: any) {
+
+    async checkPaymentStatus(provider: 'mpesa' | 'airtel' | 'intasend', checkoutRequestId: string, config?: any) {
         try {
             const token = await apiService.getAuthToken();
             const response = await fetch('/api/integrations', {
@@ -1444,15 +1425,14 @@ export const apiService = {
     async fetchFeeStructures(instId?: string): Promise<FeeStructure[]> { return apiService.fetchModuleRecords('fee_structures', instId); },
     async fetchFinancialPeriods(instId?: string): Promise<FinancialPeriod[]> { return apiService.fetchModuleRecords('financial_periods', instId); },
     async fetchTransactions(instId?: string): Promise<MpesaTransaction[]> { 
-        const [mpesa, ncba, airtel, intasend] = await Promise.all([
+        const [mpesa, airtel, intasend] = await Promise.all([
             apiService.fetchModuleRecords('mpesa_transactions', instId).catch(() => []),
-            apiService.fetchModuleRecords('ncba_transactions', instId).catch(() => []),
             apiService.fetchModuleRecords('airtel_transactions', instId).catch(() => []),
             apiService.fetchModuleRecords('intasend_transactions', instId).catch(() => [])
         ]);
         
         // Merge and ensure all have a valid timestamp property for the UI
-        const allTxns = [...mpesa, ...ncba, ...airtel, ...intasend].map(t => ({
+        const allTxns = [...mpesa, ...airtel, ...intasend].map(t => ({
             ...t,
             timestamp: t.timestamp || t.createdAt || t.created_at || new Date().toISOString()
         }));

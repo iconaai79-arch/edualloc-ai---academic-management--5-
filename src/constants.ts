@@ -49,8 +49,7 @@ export const INITIAL_COMPANY_DETAILS: CompanyDetails = {
     marketplaceConfig: {
         pricingAmount: 150,
         customUrl: "https://marketplace.eduai.co.ke"
-    },
-    ncbaConfig: { clientId: '', clientSecret: '', baseUrl: 'https://c2bapis.ncbagroup.com', accountNumber: '', environment: 'sandbox', queryStkUrl: '', isMock: false }
+    }
 };
 
 const generatePeriods = (count: number, duration: number, start: string): TimetablePeriod[] => {

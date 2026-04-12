@@ -789,7 +789,6 @@ export const App: React.FC = () => {
                     const provider = txn.provider;
                     return type === 'subscription' || 
                            type === 'sms' ||
-                           provider === 'ncba' ||
                            desc.includes('license') || 
                            desc.includes('renewal') || 
                            desc.includes('sms top-up') ||

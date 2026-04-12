@@ -537,7 +537,6 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                     mpesaConfig={institution.mpesaConfig || companyDetails.mpesaConfig!}
                     airtelMoneyConfig={institution.airtelMoneyConfig || (companyDetails as any).airtelMoneyConfig}
                     intasendConfig={institution.intasendConfig || (companyDetails as any).intasendConfig}
-                    ncbaConfig={institution.ncbaConfig || (companyDetails as any).ncbaConfig}
                 />
             )}
             {isBuySMSModalOpen && (
@@ -552,7 +551,6 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                     mpesaConfig={institution.mpesaConfig || companyDetails.mpesaConfig!}
                     airtelMoneyConfig={institution.airtelMoneyConfig || (companyDetails as any).airtelMoneyConfig}
                     intasendConfig={institution.intasendConfig || (companyDetails as any).intasendConfig}
-                    ncbaConfig={institution.ncbaConfig || (companyDetails as any).ncbaConfig}
                     institutionId={institution.id}
                     institutionCode={institution.institutionCode || 'SYSTEM'}
                     institutionName={institution.name}

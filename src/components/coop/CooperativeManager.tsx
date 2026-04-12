@@ -4897,7 +4897,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Reference / Account Number</label>
                                     <input 
                                         type="text"
-                                        placeholder={disbursementMethod === 'bank' ? "Enter recipient account number" : "e.g. BATCH-NCBA-001"}
+                                        placeholder={disbursementMethod === 'bank' ? "Enter recipient account number" : "e.g. BATCH-001"}
                                         value={disbursementAccount}
                                         onChange={e => setDisbursementAccount(e.target.value)}
                                         className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl py-4 px-6 text-sm font-black outline-none focus:border-indigo-500 dark:text-white"

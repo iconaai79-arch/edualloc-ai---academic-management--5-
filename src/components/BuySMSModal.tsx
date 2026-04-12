@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { MpesaIcon } from './icons/MpesaIcon';
-import type { User, Department, Course, Institution, MpesaConfig, SmsConfig, SmsLog, SmsOutbox, MpesaTransaction, TransactionStatus, InvoiceItem } from '../types';
+import type { MpesaConfig, TransactionStatus } from '../types';
 import { apiService } from '../services/apiService';
 
 interface BuySMSModalProps {
@@ -10,7 +10,6 @@ interface BuySMSModalProps {
     mpesaConfig?: MpesaConfig;
     airtelMoneyConfig?: any;
     intasendConfig?: any;
-    ncbaConfig?: any;
     institutionId: string;
     institutionCode: string;
     institutionName: string;
@@ -33,17 +32,16 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
     mpesaConfig,
     airtelMoneyConfig,
     intasendConfig,
-    ncbaConfig,
     institutionId,
     institutionCode,
     institutionName,
-    smsUnitPrice = 2, // Default if not provided
+    smsUnitPrice = 2,
     requesterId,
     minSmsUnits = 0
 }) => {
     const [phoneNumber, setPhoneNumber] = useState('254');
     const [units, setUnits] = useState<number>(SMS_PACKAGES[0].units);
-    const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend' | 'ncba'>('mpesa');
+    const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend'>('mpesa');
     const [enabledGateways, setEnabledGateways] = useState<string[]>(['mpesa']);
     const [isLoading, setIsLoading] = useState(false);
     const [finalStatus, setFinalStatus] = useState<TransactionStatus | null>(null);
@@ -92,9 +90,8 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                 provider
             };
 
-            const config = provider === 'mpesa' ? mpesaConfig : (provider === 'airtel' ? airtelMoneyConfig : (provider === 'intasend' ? intasendConfig : ncbaConfig));
+            const config = provider === 'mpesa' ? mpesaConfig : (provider === 'airtel' ? airtelMoneyConfig : intasendConfig);
             const result: any = await apiService.initiatePayment(provider, calculatedTotal, phoneNumber, metadata, config);
-            console.log("[Initiation Result]", result);
 
             if (result.success && (result.data?.CheckoutRequestID || result.checkoutRequestId || result.url)) {
                 if (result.url) {
@@ -113,11 +110,9 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                     attempts++;
                     const result = await apiService.checkPaymentStatus(provider, checkoutRequestId, 
                         provider === 'mpesa' ? mpesaConfig : 
-                        (provider === 'airtel' ? airtelMoneyConfig : 
-                        (provider === 'intasend' ? intasendConfig : ncbaConfig)));
+                        (provider === 'airtel' ? airtelMoneyConfig : intasendConfig));
 
                     const status = result?.status;
-                    console.log(`[Polling] Attempt ${attempts}/${maxAttempts} - Status: ${status}`, result);
 
                     if (status === 'completed' && !isCompletedRef.current) {
                         isCompletedRef.current = true;
@@ -229,16 +224,6 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                                     >
                                         <div className="w-6 h-6 mb-1 bg-emerald-600 rounded flex items-center justify-center text-white text-[8px] font-black">IS</div>
                                         <span className="text-[10px] font-black uppercase">IntaSend</span>
-                                    </button>
-                                )}
-                                {enabledGateways.includes('ncba') && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setProvider('ncba')}
-                                        className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${provider === 'ncba' ? 'border-teal-600 bg-teal-50/50 dark:bg-teal-900/20' : 'border-slate-100 dark:border-slate-700'}`}
-                                    >
-                                        <div className="w-6 h-6 mb-1 bg-teal-600 rounded flex items-center justify-center text-white text-[8px] font-black">NB</div>
-                                        <span className="text-[10px] font-black uppercase">NCBA</span>
                                     </button>
                                 )}
                             </div>
