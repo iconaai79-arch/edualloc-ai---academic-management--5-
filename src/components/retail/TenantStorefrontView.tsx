@@ -14,6 +14,9 @@ import { BuildingOfficeIcon } from '../icons/BuildingOfficeIcon';
 import { CheckBadgeIcon } from '../icons/CheckBadgeIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { ArrowRightIcon } from '../icons/ArrowRightIcon';
+import { ChevronRightIcon } from '../icons/ChevronRightIcon';
+import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
+import { GlobeAltIcon } from '../icons/GlobeAltIcon';
 
 interface TenantStorefrontViewProps {
     institutionId: string;
@@ -37,6 +40,8 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
     const [inquiryDate, setInquiryDate] = useState('');
     const [inquirySubmitting, setInquirySubmitting] = useState(false);
     const [inquirySuccess, setInquirySuccess] = useState(false);
+    const [currentSlide, setCurrentSlide] = useState(0);
+    const [isGeneralContact, setIsGeneralContact] = useState(false);
 
     useEffect(() => {
         const loadStorefront = async () => {
@@ -124,6 +129,16 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
         setInquiryPhone('');
         setInquiryDate('');
         setInquirySuccess(false);
+        setIsGeneralContact(false);
+    };
+
+    const openGeneralContact = () => {
+        setInquiryListing(null);
+        setInquiryProduct(null);
+        setIsGeneralContact(true);
+        setInquiryName('');
+        setInquiryPhone('');
+        setInquirySuccess(false);
     };
 
     const handleSubmitInquiry = async (e: React.FormEvent) => {
@@ -152,6 +167,17 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                     customerName: inquiryName,
                     phoneNumber: inquiryPhone,
                     productQuery: inquiryProduct.name,
+                    status: 'Open',
+                    createdAt: new Date().toISOString()
+                };
+                await apiService.saveModuleRecord('retail_wishlist', lead);
+            } else if (isGeneralContact) {
+                 const lead = {
+                    id: `wish_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                    institutionId: tenant.id,
+                    customerName: inquiryName,
+                    phoneNumber: inquiryPhone,
+                    productQuery: 'General Store Inquiry',
                     status: 'Open',
                     createdAt: new Date().toISOString()
                 };
@@ -203,6 +229,25 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
     const isAgrovet = tenant.institutionType === 'Agrovet' || tenant.category === 'Agrovet';
     const themeColor = tenant.themeColor || (isAgrovet ? '#10b981' : '#4f46e5');
 
+    const heroItems = [...retailProducts, ...listings].filter(i => (i as any).imageUrl || (i as any).images?.[0]).slice(0, 5);
+
+    useEffect(() => {
+        if (heroItems.length > 0) {
+            const timer = setInterval(() => {
+                setCurrentSlide(prev => (prev + 1) % heroItems.length);
+            }, 5000);
+            return () => clearInterval(timer);
+        }
+    }, [heroItems.length]);
+
+    const showTabs = retailProducts.length > 0 && listings.length > 0;
+    useEffect(() => {
+        if (!showTabs) {
+            if (retailProducts.length > 0) setActiveSection('retail');
+            else if (listings.length > 0) setActiveSection('properties');
+        }
+    }, [showTabs, retailProducts.length, listings.length]);
+
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-500 pb-20">
             {/* Branded Header */}
@@ -232,70 +277,145 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <button className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-transform">
+                        <button 
+                            onClick={openGeneralContact}
+                            className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-transform"
+                        >
                             <PhoneIcon className="w-4 h-4" /> Contact Vendor
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* Branded Hero */}
-            <div className="relative h-[40vh] flex items-center justify-center overflow-hidden">
-                <div className="absolute inset-0 z-0">
-                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-950/20 to-slate-50 dark:to-slate-950 z-[1]"></div>
-                    <div className="absolute inset-0 opacity-30 animate-mesh" style={{ color: themeColor }}></div>
-                    <div className="w-full h-full bg-slate-900 flex items-center justify-center">
-                         <div className="text-[20vw] font-black text-white/5 uppercase tracking-tighter italic select-none">
-                             {tenant.name.split(' ')[0]}
-                         </div>
+            {/* Hero Slider */}
+            <div className="relative h-[65vh] w-full overflow-hidden bg-slate-900 mt-4 mx-auto max-w-[98%] rounded-[4rem] shadow-2xl">
+                {heroItems.length > 0 ? (
+                    <div className="h-full w-full relative">
+                        {heroItems.map((item, index) => (
+                            <div 
+                                key={item.id}
+                                className={`absolute inset-0 transition-all duration-1000 ease-out transform ${index === currentSlide ? 'opacity-100 scale-100 translate-x-0' : 'opacity-0 scale-110 translate-x-full'}`}
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/40 to-transparent z-10"></div>
+                                <img 
+                                    src={(item as any).imageUrl || (item as any).images?.[0]} 
+                                    className="w-full h-full object-cover"
+                                    alt="Slide"
+                                />
+                                <div className="absolute inset-0 z-20 flex flex-col justify-center px-20">
+                                    <div className="max-w-2xl space-y-8">
+                                        <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-xl px-6 py-2.5 rounded-full border border-white/20">
+                                            <SparklesIcon className="w-4 h-4 text-amber-400" />
+                                            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">Featured Offering</span>
+                                        </div>
+                                        <h2 className="text-6xl md:text-8xl font-black text-white uppercase tracking-tighter italic leading-[0.9]">
+                                            {(item as any).name || (item as any).title}
+                                        </h2>
+                                        <p className="text-white/60 text-lg font-bold uppercase tracking-widest max-w-xl italic">
+                                            {(item as any).description?.slice(0, 120)}...
+                                        </p>
+                                        <div className="flex items-center gap-6 pt-6">
+                                            <button 
+                                                onClick={() => 'listingType' in item ? setSelectedListing(item as any) : setSelectedProduct(item as any)}
+                                                className="px-10 py-5 bg-white text-slate-950 rounded-[2rem] font-black uppercase tracking-widest text-xs hover:bg-indigo-500 hover:text-white transition-all shadow-2xl"
+                                            >
+                                                Explore Detail
+                                            </button>
+                                            <div className="text-3xl font-black text-white italic">
+                                                <span className="text-sm font-medium mr-2 text-white/40">KES</span>
+                                                {Number((item as any).srpPrice || (item as any).price || 0).toLocaleString()}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        {/* Slide Indicators */}
+                        <div className="absolute bottom-12 left-20 z-30 flex gap-3">
+                            {heroItems.map((_, i) => (
+                                <button 
+                                    key={i}
+                                    onClick={() => setCurrentSlide(i)}
+                                    className={`h-1.5 transition-all rounded-full ${i === currentSlide ? 'w-12 bg-white' : 'w-4 bg-white/30'}`}
+                                />
+                            ))}
+                        </div>
                     </div>
-                </div>
+                ) : (
+                    <div className="h-full flex items-center justify-center relative">
+                        <div className="absolute inset-0 bg-gradient-radial from-transparent to-slate-950/50"></div>
+                        <div className="relative text-center space-y-6">
+                            <h2 className="text-7xl font-black text-white uppercase tracking-tighter italic opacity-20 select-none">
+                                {tenant.name}
+                            </h2>
+                            <p className="text-white/40 font-black uppercase tracking-[0.5em] text-[10px]">Premium Storefront Identity</p>
+                        </div>
+                    </div>
+                )}
+            </div>
 
-                <div className="relative z-10 text-center px-6">
-                    <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-[0.3em] text-white/80 border border-white/10 mb-6 group">
-                        <div className="w-2 h-2 rounded-full animate-ping" style={{ backgroundColor: themeColor }}></div>
-                        Official Digital Storefront
+            {/* Branded Identity Footer of Hero */}
+            <div className="max-w-7xl mx-auto px-6 -mt-10 relative z-40">
+                <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-10 shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-8">
+                    <div className="flex items-center gap-6">
+                        <div className="w-20 h-20 rounded-[2rem] flex items-center justify-center text-white text-2xl font-black shadow-2xl rotate-3" style={{ backgroundColor: themeColor }}>
+                             {tenant.logoUrl ? <img src={tenant.logoUrl} className="w-full h-full object-contain p-2" /> : tenant.name.charAt(0)}
+                        </div>
+                        <div>
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">{tenant.name}</h3>
+                            <div className="flex items-center gap-4 mt-2">
+                                <span className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    <MapPinIcon className="w-3 h-3 text-indigo-500" /> {tenant.location?.latitude ? 'Verified HQ' : 'Digital Location'}
+                                </span>
+                                <div className="w-1.5 h-1.5 rounded-full bg-slate-200"></div>
+                                <span className="flex items-center gap-2 text-[10px] font-black text-emerald-500 uppercase tracking-widest">
+                                    <CheckBadgeIcon className="w-4 h-4" /> Secure Vendor
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                    <h2 className="text-5xl md:text-8xl font-black text-slate-950 dark:text-white uppercase tracking-tighter italic leading-none drop-shadow-2xl">
-                        {tenant.name}
-                    </h2>
-                    <p className="mt-6 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-[0.2em] text-xs max-w-lg mx-auto">
-                        {isAgrovet 
-                            ? `Providing premium agricultural inputs, veterinary services, and animal health solutions to the community.`
-                            : `Explore our curated selection of ${listings.length} properties and ${retailProducts.length} retail products.`
-                        }
-                    </p>
+                    
+                    <div className="w-full md:w-[400px] relative group">
+                        <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                        <input 
+                            type="text" 
+                            placeholder={`Search in ${tenant.name}...`} 
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-16 pr-8 py-6 bg-slate-50 dark:bg-slate-800 border-none rounded-[2rem] font-black text-[11px] uppercase tracking-widest outline-none ring-offset-4 ring-indigo-500/20 focus:ring-4 transition-all"
+                        />
+                    </div>
                 </div>
             </div>
 
             {/* Marketplace Section Switcher */}
-            <div className="max-w-7xl mx-auto px-6 mt-16">
+            <div className="max-w-7xl mx-auto px-6 mt-20">
                 <div className="flex items-center justify-between mb-12">
-                    <div className="flex bg-slate-200 dark:bg-slate-800 p-1 rounded-2xl">
+                   {showTabs && (
+                    <div className="flex bg-white dark:bg-slate-900 p-2 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm">
                         <button 
                             onClick={() => setActiveSection('retail')}
-                            className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSection === 'retail' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                            className={`px-10 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.2em] transition-all ${activeSection === 'retail' ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-400 hover:text-indigo-600'}`}
                         >
-                            Retail Products ({retailProducts.length})
+                            Catalog ({retailProducts.length})
                         </button>
                         <button 
                             onClick={() => setActiveSection('properties')}
-                            className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSection === 'properties' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                            className={`px-10 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.2em] transition-all ${activeSection === 'properties' ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-400 hover:text-indigo-600'}`}
                         >
                             Properties ({listings.length})
                         </button>
                     </div>
-
-                    <div className="relative group hidden md:block">
-                        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                        <input 
-                            type="text" 
-                            placeholder="Find in store..." 
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-12 pr-6 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs font-bold outline-none focus:ring-2 ring-indigo-500/50 w-64 transition-all"
-                        />
-                    </div>
+                   )}
+                   
+                   {!showTabs && (
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-px bg-slate-200"></div>
+                            <h3 className="text-xl font-black uppercase tracking-tighter italic text-slate-900 dark:text-white">
+                                All {activeSection === 'retail' ? 'Products' : 'Listings'}
+                            </h3>
+                        </div>
+                   )}
                 </div>
 
                 {/* Content Grid */}
@@ -397,6 +517,36 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                 )}
             </div>
 
+            {/* Store Trust Section */}
+            <div className="max-w-7xl mx-auto px-6 mt-32 grid grid-cols-1 md:grid-cols-3 gap-12 border-t border-slate-200 dark:border-slate-800 pt-32">
+                 <div className="space-y-6">
+                     <div className="w-16 h-16 bg-slate-900 dark:bg-white rounded-[1.5rem] flex items-center justify-center text-white dark:text-slate-900 shadow-xl">
+                        <ShieldCheckIcon className="w-8 h-8" />
+                     </div>
+                     <div>
+                        <h4 className="text-lg font-black uppercase italic text-slate-900">Verified Platform Vendor</h4>
+                        <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-2">All transactions and content on this storefront are secured via EduAI global multi-tenant architecture.</p>
+                     </div>
+                 </div>
+                 <div className="space-y-6">
+                     <div className="w-16 h-16 bg-slate-900 dark:bg-white rounded-[1.5rem] flex items-center justify-center text-white dark:text-slate-900 shadow-xl">
+                        <GlobeAltIcon className="w-8 h-8" />
+                     </div>
+                     <div>
+                        <h4 className="text-lg font-black uppercase italic text-slate-900">Direct Contact Hub</h4>
+                        <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-2">{tenant.email || 'Contact through portal'} • {tenant.phoneNumber || 'Official Line Verified'}</p>
+                     </div>
+                 </div>
+                 <div className="flex flex-col justify-center">
+                    <button 
+                         onClick={openGeneralContact}
+                         className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black uppercase text-[11px] tracking-[0.3em] hover:bg-black transition-colors shadow-2xl"
+                    >
+                        Contact Store Support
+                    </button>
+                 </div>
+            </div>
+
             {/* Inquiry/Buy Modals (Shared with Marketplace logic but themed) */}
             {/* Component Detail Panels - Keeping same logic for consistency */}
             {/* Same Panels as PropertyMarketplaceView but could be simplified or themed */}
@@ -471,14 +621,18 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
             )}
 
             {/* Inquiry Form Modal */}
-            {(inquiryListing || inquiryProduct) && (
+            {(inquiryListing || inquiryProduct || isGeneralContact) && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
-                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-xl" onClick={() => { if(!inquirySubmitting) { setInquiryListing(null); setInquiryProduct(null); } }}></div>
+                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-xl" onClick={() => { if(!inquirySubmitting) { setInquiryListing(null); setInquiryProduct(null); setIsGeneralContact(false); } }}></div>
                     <div className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
                         <div className="p-10 text-white relative h-48 flex flex-col justify-center" style={{ backgroundColor: themeColor }}>
                             <div className="relative z-10">
-                                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/60 mb-2">Official Inquiry</p>
-                                <h3 className="text-3xl font-black uppercase tracking-tighter italic leading-none truncate">{inquiryListing?.title || inquiryProduct?.name}</h3>
+                                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/60 mb-2">
+                                    {isGeneralContact ? 'General Store Inquiry' : 'Official Inquiry'}
+                                </p>
+                                <h3 className="text-3xl font-black uppercase tracking-tighter italic leading-none truncate">
+                                    {isGeneralContact ? tenant.name : (inquiryListing?.title || inquiryProduct?.name)}
+                                </h3>
                             </div>
                             <div className="absolute bottom-0 right-0 p-8 opacity-10">
                                 <SparklesIcon className="w-32 h-32" />
@@ -495,7 +649,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                                     <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-2">{tenant.name} will contact you shortly.</p>
                                 </div>
                                 <button 
-                                    onClick={() => { setInquiryListing(null); setInquiryProduct(null); }}
+                                    onClick={() => { setInquiryListing(null); setInquiryProduct(null); setIsGeneralContact(false); }}
                                     className="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black uppercase text-[10px] tracking-widest"
                                 >
                                     Close Storefront

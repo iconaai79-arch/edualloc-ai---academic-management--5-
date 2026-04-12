@@ -16,7 +16,8 @@ import type {
     CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome,
     LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction,
     LawAgreement, LawAgreementTemplate,
-    DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings
+    DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
+    CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry
 } from '../types';
 const UserManager = lazy(() => import('./UserManager').then(m => ({ default: m.UserManager })));
 const TimetableGenerator = lazy(() => import('./TimetableGenerator').then(m => ({ default: m.TimetableGenerator })));
@@ -42,7 +43,6 @@ const HospitalityManager = lazy(() => import('./HospitalityManager').then(m => (
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
-import { isSchoolInstitution, isEduInstitution } from '../utils/roleUtils';
 
 import { ClipboardListIcon } from './icons/ClipboardListIcon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
@@ -60,6 +60,7 @@ import { ShieldIcon } from './icons/ShieldIcon';
 import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
 import { PalmTreeIcon } from './icons/PalmTreeIcon';
 import { TruckIcon } from './icons/TruckIcon';
+import { CarIcon } from './icons/CarIcon';
 import { StoreIcon } from './icons/StoreIcon';
 import { ShoppingBagIcon } from './icons/ShoppingBagIcon';
 import { UserPlusIcon } from './icons/UserPlusIcon';
@@ -71,20 +72,13 @@ import { UserIcon } from './icons/UserIcon';
 import { XIcon } from './icons/XIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
-import { BeakerIcon } from './icons/BeakerIcon';
 import { PlusIcon } from './icons/PlusIcon';
 import { BedIcon } from './icons/BedIcon';
-import { CreditCardIcon } from './icons/CreditCardIcon';
-import { MapPinIcon } from './icons/MapPinIcon';
 import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
 import { ChevronRightIcon } from './icons/ChevronRightIcon';
 import { ArrowRightIcon } from './icons/ArrowRightIcon';
 import { HomeIcon } from './icons/HomeIcon';
-import { TruckIcon } from './icons/TruckIcon';
-import { UserPlusIcon } from './icons/UserPlusIcon';
 import { MagnifyingGlassIcon as SearchIcon } from './icons/MagnifyingGlassIcon';
-import { StoreIcon } from './icons/StoreIcon';
-import { ShoppingBagIcon } from './icons/ShoppingBagIcon';
 
 const DirectAssignModal = lazy(() => import('./DirectAssignModal').then(m => ({ default: m.DirectAssignModal })));
 const AcademicYearManager = lazy(() => import('./AcademicYearManager').then(m => ({ default: m.AcademicYearManager })));
@@ -96,7 +90,7 @@ const TransportManager = lazy(() => import('./TransportManager').then(m => ({ de
 import { apiService } from '../services/apiService';
 const RetailReportsDashboard = lazy(() => import('./retail/RetailReportsDashboard').then(m => ({ default: m.RetailReportsDashboard })));
 const ExternalModuleView = lazy(() => import('./ExternalModuleView').then(m => ({ default: m.ExternalModuleView })));
-import { isSchoolInstitution, isHigherEdInstitution } from '../utils/roleUtils';
+import { isSchoolInstitution, isHigherEdInstitution, isEduInstitution } from '../utils/roleUtils';
 
 export interface AdminViewProps {
     currentUser: User;
@@ -137,6 +131,7 @@ export interface AdminViewProps {
     emailConfig: EmailConfig;
     timetableConflicts: Conflict[];
     currentInstitution?: Institution | null;
+    institutions?: Institution[];
     counties: County[];
 
     onAddUser?: (userData: any) => Promise<void>;
@@ -346,7 +341,15 @@ export interface AdminViewProps {
     onAddDSLesson?: (data: any) => Promise<void>;
     onAddDSMastery?: (data: any) => Promise<void>;
     onUpdateDSSettings?: (data: any) => Promise<void>;
+
+    // Car Sales Props
+    carListings?: CarListing[];
+    carTestDrives?: TestDriveBooking[];
+    carAppraisals?: CarAppraisal[];
+    onAddCarListing?: (data: Partial<CarListing>) => Promise<void>;
+    onUpdateCarTestDriveStatus?: (id: string, status: any) => Promise<void>;
 }
+
 
 export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const { activeAcademicYear, activeSemester, requests = [] } = props;
@@ -369,7 +372,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace'>('dashboard');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects' | 'registry'>('wizard');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
@@ -423,6 +426,13 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const isHospitality = useMemo(() => {
         return institutionType === 'Hospitality';
     }, [institutionType]);
+
+    const isAutoMarket = useMemo(() => {
+        const cat = props.currentInstitution?.category;
+        const subType = props.currentInstitution?.businessSubType?.toLowerCase() || '';
+        const name = props.currentInstitution?.name?.toLowerCase() || '';
+        return cat === 'Automotive Marketplace' || subType.includes('vehicle sales') || subType.includes('car sales') || subType.includes('motors') || name.includes('motors') || name.includes('car sales');
+    }, [props.currentInstitution]);
 
     const isSchool = useMemo(() => {
         return isSchoolInstitution(props.currentInstitution);
@@ -482,6 +492,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 setActiveTab('alumni');
             } else if (isHospitality || role === 'hospitality_admin') {
                 setActiveTab('hospitality');
+            } else if (isAutoMarket) {
+                setActiveTab('auto_marketplace');
             }
             setHasSetDefaultTab(true);
         }
@@ -529,6 +541,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'community', label: isHeritage ? 'Family Council' : 'Community Hub', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
             { id: 'alumni', label: 'Alumni Network', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
             { id: 'hospitality', label: 'Hospitality Hub', icon: <PalmTreeIcon className="w-5 h-5 mr-2" /> },
+            { id: 'auto_marketplace', label: 'Car Sales', icon: <CarIcon className="w-5 h-5 mr-2" /> },
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         ];
 
@@ -600,6 +613,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             if (tab.id === 'community') return isCommunity || roleToUse === 'community_admin';
             if (tab.id === 'alumni') return isAlumni || roleToUse === 'alumni_admin';
             if (tab.id === 'hospitality') return isHospitality || roleToUse === 'hospitality_admin';
+            if (tab.id === 'auto_marketplace') return isAutoMarket;
 
             return true;
         });
@@ -1374,6 +1388,49 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         currentInstitution={props.currentInstitution!}
                         users={props.users || []}
                     />
+                )}
+
+                {activeTab === 'auto_marketplace' && (
+                    <div className="space-y-10 animate-fade-in-up">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                            <div>
+                                <h1 className="text-4xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">Car <span className="text-indigo-600 italic">Sales</span></h1>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2">
+                                    <SparklesIcon className="w-3 h-3 text-amber-500" /> Automotive Managed Inventory
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {[
+                                { label: 'Active Listings', count: props.carListings?.length || 0, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                                { label: 'Pending Test Drives', count: props.carTestDrives?.filter(t => t.status === 'pending').length || 0, color: 'text-amber-600', bg: 'bg-amber-50' },
+                                { label: 'Completed Appraisals', count: props.carAppraisals?.length || 0, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                            ].map((stat, i) => (
+                                <div key={i} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]">
+                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">{stat.label}</p>
+                                    <div className="flex items-center gap-4">
+                                        <span className={`text-4xl font-black italic ${stat.color}`}>{stat.count}</span>
+                                        <div className={`px-4 py-1.5 ${stat.bg} ${stat.color} rounded-full text-[9px] font-black uppercase tracking-widest`}>Sync Active</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 p-12 flex flex-col items-center justify-center text-center shadow-xl">
+                            <CarIcon className="w-20 h-20 text-indigo-600 mb-6 opacity-80" />
+                            <h2 className="text-2xl font-black uppercase tracking-tighter mb-4 text-slate-800 dark:text-white">Inventory Management Hub</h2>
+                            <p className="text-slate-500 max-w-lg mb-8 text-[13px] leading-relaxed">
+                                Manage your vehicle showroom, track booking requests for test drives, and oversee AI-powered vehicle appraisals. All automotive financial data is integrated directly into your institutional reports.
+                            </p>
+                            <button 
+                                onClick={props.onAddCarListing ? () => props.onAddCarListing?.({}) : undefined}
+                                className="px-10 py-5 bg-slate-900 text-white rounded-[2rem] font-black uppercase tracking-widest text-[10px] shadow-2xl transition-all hover:bg-indigo-600 active:scale-95"
+                            >
+                                <PlusIcon className="w-4 h-4 mr-2 inline" /> Add New Vehicle Listing
+                            </button>
+                        </div>
+                    </div>
                 )}
 
                 {activeTab === 'reports' && !isCoop && (

@@ -12,7 +12,9 @@ import type {
     SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome,
     RetailStore, RetailInventoryItem, Supplier, RetailExpense, TransportVehicle,
     TransportOnboarding, VehicleLog, AppNotification,
-    LawAgreement, LawAgreementTemplate, LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction
+    LawAgreement, LawAgreementTemplate, LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction,
+    DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
+    CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry
 } from '../types';
 import { TransactionsManager } from './TransactionsManager';
 import { DatabaseSettings } from './DatabaseSettings';
@@ -103,6 +105,9 @@ import { SchoolRegistryManager } from './superadmin/SchoolRegistryManager';
 import { MarketingLandingPage } from './public/MarketingLandingPage';
 import { DemoRequestManager } from './DemoRequestManager';
 import { DemoRequest } from '../types';
+import { CarIcon } from './icons/CarIcon';
+import { VehicleMarketplaceView } from './VehicleMarketplaceView';
+
 
 // Lazy-load major views to break circular dependencies and reduce initial chunk size
 const AdminView = React.lazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
@@ -257,6 +262,13 @@ export interface SuperAdminViewProps {
     enrollmentRequests?: EnrollmentRequest[];
     absenceRequests: AbsenceRequest[];
     studentAbsenceRequests: StudentAbsenceRequest[];
+    carListings?: CarListing[];
+    carTestDrives?: TestDriveBooking[];
+    carAppraisals?: CarAppraisal[];
+    onAddCarListing?: (data: Partial<CarListing>) => Promise<void>;
+    onUpdateCarTestDriveStatus?: (id: string, status: any) => Promise<void>;
+    onAddCarAppraisal?: (data: Partial<CarAppraisal>) => Promise<void>;
+
     onUpdateEnrollmentRequest?: (id: string, status: 'approved' | 'rejected') => void;
     onUpdateAbsenceRequest?: (id: string, status: 'approved' | 'rejected') => void;
     onUpdateStudentAbsenceRequestStatus?: (id: string, status: StudentAbsenceRequestStatus) => void;
@@ -370,6 +382,18 @@ export interface SuperAdminViewProps {
     onAddLawAgreementTemplate: (data: any) => Promise<void>;
     onGenerateLawAgreement: (data: any) => Promise<void>;
     onApproveLawAgreement: (id: string, notes: string) => Promise<void>;
+    dsInstructors: DSInstructor[];
+    dsVehicles: DSVehicle[];
+    dsStudents: DSStudent[];
+    dsLessons: DSLesson[];
+    dsMastery: DSSkillMastery[];
+    dsSettings?: DSSettings | null;
+    onAddDSInstructor: (data: any) => Promise<void>;
+    onAddDSVehicle: (data: any) => Promise<void>;
+    onAddDSStudent: (data: any) => Promise<void>;
+    onAddDSLesson: (data: any) => Promise<void>;
+    onAddDSMastery: (data: any) => Promise<void>;
+    onUpdateDSSettings: (data: any) => Promise<void>;
 }
 
 export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminViewProps) => {
@@ -463,10 +487,22 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         onUpdateLawMatter,
         onAddLawAgreementTemplate,
         onGenerateLawAgreement,
-        onApproveLawAgreement
+        onApproveLawAgreement,
+        dsInstructors = [],
+        dsVehicles = [],
+        dsStudents = [],
+        dsLessons = [],
+        dsMastery = [],
+        dsSettings,
+        onAddDSInstructor,
+        onAddDSVehicle,
+        onAddDSStudent,
+        onAddDSLesson,
+        onAddDSMastery,
+        onUpdateDSSettings
     } = props;
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'external_module' | 'interactions' | 'reports' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests'>('dashboard');
     const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry'>('list'); // Modified for Counties, Resellers, Business & Registry
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses'>('subjects');
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
@@ -1060,6 +1096,7 @@ Please change it after login.`;
         { key: 'dashboard', label: 'Dashboard', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
         { key: 'institutions', label: 'Institutions', icon: <BuildingOfficeIcon className="w-5 h-5 mr-2" /> },
         { key: 'hospitality', label: 'Hospitality Hub', icon: <Palmtree className="w-5 h-5 mr-2" /> },
+        { key: 'auto_marketplace', label: 'Auto Marketplace', icon: <CarIcon className="w-5 h-5 mr-2" /> },
         { key: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         { key: 'all_users', label: 'Global Users', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
         { key: 'communications', label: 'Communications', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
@@ -1068,6 +1105,8 @@ Please change it after login.`;
         { key: 'settings', label: 'Global Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
         { key: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
     ];
+
+
 
     const handleProcessWithdrawal = async (request: CommissionWithdrawalRequest, action: 'approve' | 'reject') => {
         setIsProcessingWithdrawal(true);
@@ -2369,8 +2408,79 @@ Please change it after login.`;
                     </div>
                 )}
 
+                {activeTab === 'auto_marketplace' && (
+                    <div className="space-y-10 animate-fade-in-up">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                            <div>
+                                <h1 className="text-4xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">Auto <span className="text-indigo-600 italic">Marketplace</span></h1>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2">
+                                    <SparklesIcon className="w-3 h-3 text-amber-500" /> Platform-Wide Automotive Ecosystem
+                                </p>
+                            </div>
+                            <div className="flex gap-4">
+                                <button className="px-8 py-4 bg-slate-900 text-white rounded-[2rem] font-black uppercase tracking-widest text-[9px] shadow-2xl transition-all flex items-center gap-3">
+                                    <PlusIcon className="w-4 h-4" /> Add Featured Listing
+                                </button>
+                                <button className="px-8 py-4 bg-indigo-600 text-white rounded-[2rem] font-black uppercase tracking-widest text-[9px] shadow-2xl transition-all flex items-center gap-3">
+                                    <ArrowTrendingUpIcon className="w-4 h-4" /> Market Reports
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Marketplace Stats */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {[
+                                { label: 'Active Listings', val: carListings?.length || 0, icon: <CarIcon className="w-6 h-6" />, color: 'bg-slate-900' },
+                                { label: 'Home Test Drives', val: carTestDrives?.filter(t => t.status === 'pending').length || 0, icon: <ClockIcon className="w-6 h-6" />, color: 'bg-indigo-600' },
+                                { label: 'AI Appraisals', val: carAppraisals?.length || 0, icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-amber-500' },
+                                { label: 'Network Value', val: 'KES 84M', icon: <BanknotesIcon className="w-6 h-6" />, color: 'bg-emerald-600' },
+                            ].map((stat, i) => (
+                                <div key={i} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col justify-between group hover:border-indigo-500/30 transition-all">
+                                    <div className={`w-14 h-14 ${stat.color} text-white rounded-2xl flex items-center justify-center mb-6 shadow-xl`}>
+                                        {stat.icon}
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">{stat.label}</p>
+                                        <h4 className="text-3xl font-black text-slate-800 dark:text-white group-hover:text-indigo-600 transition-colors uppercase italic">{stat.val}</h4>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Marketplace Preview Section */}
+                        <div className="bg-slate-50 rounded-[4rem] p-12 border border-slate-100 relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 p-12 opacity-5 rotate-12 group-hover:opacity-10 transition-opacity">
+                                <CarIcon className="w-96 h-96 text-indigo-400" />
+                            </div>
+                            <div className="relative z-10 space-y-12">
+                                <div className="max-w-xl space-y-4">
+                                    <h3 className="text-4xl font-black uppercase tracking-tighter text-slate-900 leading-none">
+                                        Marketplace <span className="text-indigo-600">Simulated View</span>
+                                    </h3>
+                                    <p className="text-slate-400 text-xs font-bold leading-relaxed uppercase tracking-wider italic">
+                                        Experience the high-end vehicle discovery portal as your users see it. Verified listings only.
+                                    </p>
+                                </div>
+                                <div className="bg-white rounded-[3rem] border border-slate-100 shadow-2xl overflow-hidden h-[800px] relative">
+                                    <div className="h-full overflow-y-auto scrollbar-none p-12">
+                                        <VehicleMarketplaceView 
+                                            listings={carListings || []}
+                                            currentInstitution={currentInstitution}
+                                            onBookTestDrive={() => {}}
+                                            onInquiry={() => {}}
+                                        />
+                                    </div>
+                                    {/* Mock Overlay to indicate it's a preview */}
+                                    <div className="absolute inset-0 bg-slate-950/5 pointer-events-none border-8 border-indigo-600/10 rounded-[3rem]" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {activeTab === 'hospitality' && (
                     <div className="space-y-10 animate-fade-in-up">
+
                         {/* Header & Quick Action */}
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                             <div>

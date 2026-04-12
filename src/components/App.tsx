@@ -78,7 +78,8 @@ import type {
     ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay, DemoRequest,
     InstitutionModuleState,
     LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction, LawAgreementTemplate, LawAgreement,
-    DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings
+    DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
+    CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry
 } from '../types';
 import { XIcon } from './icons/XIcon';
 import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
@@ -466,6 +467,21 @@ export const App: React.FC = () => {
     const [dsMastery, setDsMastery] = useState<DSSkillMastery[]>([]);
     const [dsSettings, setDsSettings] = useState<DSSettings | null>(null);
 
+    // Car Sales State
+    const [carListings, setCarListings] = useState<CarListing[]>([]);
+    const [carTestDrives, setCarTestDrives] = useState<TestDriveBooking[]>([]);
+    const [carAppraisals, setCarAppraisals] = useState<CarAppraisal[]>([]);
+
+    const [showCarSales, setShowCarSales] = useState(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('view') === 'cars' || params.get('view') === 'auto';
+        } catch (e) {
+            return false;
+        }
+    });
+
+
     const [isGeneratingDemoData, setIsGeneratingDemoData] = useState(false);
     const [demoDataGenerationProgress, setDemoDataGenerationProgress] = useState(0);
     const [demoDataGenerationMessage, setDemoDataGenerationMessage] = useState("");
@@ -786,6 +802,8 @@ export const App: React.FC = () => {
             let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [], sar: any[] = [], enr: any[] = [], abs: any[] = [], con: any[] = [], att: any[] = [], item: any[] = [], tt: any[] = [], et: any[] = [], asg: any[] = [], subm: any[] = [], rat: any[] = [], ta: any[] = [], asmt: any[] = [], asmtMarks: any[] = [], bks: any[] = [], ltx: any[] = [], apts: any[] = [], sups: any[] = [], stx: any[] = [], cinv: any[] = [], ccats: any[] = [], cstores: any[] = [], bApps: any[] = [], bFunds: any[] = [], lo: any[] = [], obs: any[] = [], vis: any[] = [], sec: any[] = [], reqRecords: any[] = [], retExp: any[] = [], rStores: any[] = [], rInv: any[] = [], tor: any[] = [], fBulletin: any[] = [], fDocs: any[] = [], fWatch: any[] = [], fMaint: any[] = [], fCheckIn: any[] = [], vhcls: any[] = [], tonb: any[] = [], vlogs: any[] = [], cafe: any[] = [], cOrders: any[] = [], rSales: any[] = [], cwJobs: any[] = [], cFarmers: any[] = [], cColls: any[] = [], cRiders: any[] = [], cAgroInv: any[] = [], cAgroSales: any[] = [], cSaccoAcc: any[] = [], cSaccoTx: any[] = [], cPayouts: any[] = [], cExps: any[] = [], cInc: any[] = [], lClients: any[] = [], lMatters: any[] = [], lDocs: any[] = [], lTime: any[] = [], lInvs: any[] = [], lTrust: any[] = [], lTemplates: any[] = [], lAgreements: any[] = [], dsInst: any[] = [], dsVeh: any[] = [], dsStud: any[] = [], dsLess: any[] = [], dsMast: any[] = [], dsSet: any[] = [];
             let ims: any[] = [];
             let demoLeads: any[] = [];
+            let csList: any[] = [], csTest: any[] = [], csAppr: any[] = [];
+
             
             if (currentUser) {
                 const activeInst = insts?.find(i => i.id === currentUser.institutionId);
@@ -797,7 +815,8 @@ export const App: React.FC = () => {
                     ? apiService.fetchDemoRequests().catch(() => []) 
                     : Promise.resolve([]);
 
-                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements, dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, ims, demoLeads] = await Promise.all([
+                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements, dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, csList, csTest, csAppr, ims, demoLeads] = await Promise.all([
+
                     apiService.fetchInvoices(effectiveInstId).catch(() => []),
                     apiService.fetchExtensionRequests(currentUser?.role === 'super_admin' ? 'ALL' : effectiveInstId).catch(() => []),
                     apiService.fetchVoteHeads(effectiveInstId).catch(() => []),
@@ -873,9 +892,13 @@ export const App: React.FC = () => {
                     apiService.fetchModuleRecords<DSLesson>('ds_lessons', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<DSSkillMastery>('ds_skill_mastery', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<DSSettings>('ds_settings', effectiveInstId).catch(() => []),
+                    apiService.fetchCarListings(effectiveInstId, 'all').catch(() => []),
+                    apiService.fetchCarTestDrives(effectiveInstId).catch(() => []),
+                    apiService.fetchCarAppraisals(effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', effectiveInstId).catch(() => []),
                     demoLeadsPromise
                 ]);
+
                 console.log("[Data Refresh] Hub Optimized");
 
                 if (insts && insts.length > 0) {
@@ -934,6 +957,10 @@ export const App: React.FC = () => {
             setDsLessons(dsLess || []);
             setDsMastery(dsMast || []);
             setDsSettings(dsSet && dsSet.length > 0 ? dsSet[0] : null);
+            setCarListings(csList || []);
+            setCarTestDrives(csTest || []);
+            setCarAppraisals(csAppr || []);
+
             setRetailExpenses(retExp || []);
             setRetailStores(rStores || []);
             setRetailInventory(rInv || []);
@@ -2446,7 +2473,7 @@ export const App: React.FC = () => {
 
 
     const commonLoginProps = {
-        users, institutions, courses, academicLevels, logoUrl: companyDetails.logoUrl, registrationProgress: null, registrationMessage: "",
+        users, institutions, courses, academicLevels, logoUrl: companyDetails.logoUrl, applicationTitle: companyDetails.applicationTitle, registrationProgress: null, registrationMessage: "",
         onOpenGuestPortal: () => setShowGuestPortal(true),
         onOpenGuestFeedback: () => setShowGuestFeedback(true),
         onOpenMarketplace: () => setShowMarketplace(true),
@@ -2834,6 +2861,22 @@ export const App: React.FC = () => {
                                     suppliers={suppliers}
                                     currentInstitution={activeInstitution}
                                     counties={counties}
+                                    carListings={carListings}
+                                    carTestDrives={carTestDrives}
+                                    carAppraisals={carAppraisals}
+                                    onAddCarListing={async (data: Partial<CarListing>) => {
+                                        const instId = activeInstitution?.id || currentUser.institutionId;
+                                        await apiService.saveCarListing({ ...data, id: `v_${Date.now()}`, institutionId: instId || '' });
+                                        await loadData();
+                                    }}
+                                    onUpdateCarTestDriveStatus={async (id: string, status: any) => {
+                                        const existing = carTestDrives.find(t => t.id === id);
+                                        if (existing) {
+                                            await apiService.saveCarTestDrive({ ...existing, status });
+                                            await loadData();
+                                        }
+                                    }}
+
                                     onAddUser={async (userData) => {
                                         try {
                                             const targetInstitutionId = currentUser?.institutionId;
@@ -3010,6 +3053,23 @@ export const App: React.FC = () => {
                                     lawTimeEntries={lawTimeEntries}
                                     lawInvoices={lawInvoices}
                                     lawTrustTransactions={lawTrustTransactions}
+                                    carListings={carListings}
+                                    carTestDrives={carTestDrives}
+                                    carAppraisals={carAppraisals}
+                                    onAddCarListing={async (data: Partial<CarListing>) => {
+                                        const instId = activeInstitution?.id || currentUser.institutionId;
+                                        await apiService.saveCarListing({ ...data, id: `v_${Date.now()}`, institutionId: instId || '' });
+                                        await loadData();
+                                    }}
+                                    onUpdateCarTestDriveStatus={async (id: string, status: any) => {
+                                        const existing = carTestDrives.find(t => t.id === id);
+                                        if (existing) {
+                                            await apiService.saveCarTestDrive({ ...existing, status });
+                                            await loadData();
+                                        }
+                                    }}
+
+
                                     onAddLawClient={handleAddLawClient}
                                     onAddLawMatter={handleAddLawMatter}
                                     onAddLawTimeEntry={handleAddLawTimeEntry}
@@ -3457,6 +3517,26 @@ export const App: React.FC = () => {
                                     onOffboardStudent={handleOffboardStudent}
                                     onConfirmReceipt={handleConfirmReceipt}
                                     onActivateModuleTrial={handleActivateModuleTrial}
+                                    carListings={carListings}
+                                    carTestDrives={carTestDrives}
+                                    carAppraisals={carAppraisals}
+                                    onAddCarListing={async (data: Partial<CarListing>) => {
+                                        const instId = activeInstitution?.id || currentUser.institutionId;
+                                        await apiService.saveCarListing({ ...data, id: `v_${Date.now()}`, institutionId: instId || '' });
+                                        await loadData();
+                                    }}
+                                    onUpdateCarTestDriveStatus={async (id: string, status: any) => {
+                                        const existing = carTestDrives.find(t => t.id === id);
+                                        if (existing) {
+                                            await apiService.saveCarTestDrive({ ...existing, status });
+                                            await loadData();
+                                        }
+                                    }}
+                                    onAddCarAppraisal={async (data: Partial<CarAppraisal>) => {
+                                        const instId = activeInstitution?.id || currentUser.institutionId;
+                                        await apiService.saveCarAppraisal({ ...data, id: `appr_${Date.now()}`, institutionId: instId || '' });
+                                        await loadData();
+                                    }}
                                 />
                             ) : activeRole === 'student' ? (
                                 <StudentView
@@ -4471,9 +4551,24 @@ export const App: React.FC = () => {
                                 onBackToPortal={() => {
                                     window.location.href = '/?view=community';
                                 }}
-                                onComplete={(data) => {
-                                    setShowAlumnaeActivation(true);
-                                    setShowAlumnaeRegister(false);
+                                onComplete={async (data) => {
+                                    try {
+                                        // Find the school in the registry to see if it's already claimed by an institution
+                                        const school = schoolRegistry.find(s => s.id === data.schoolId);
+                                        const registrationPayload = {
+                                            ...data,
+                                            id: `alumna_${Date.now()}`,
+                                            institutionId: school?.institutionId || null,
+                                            status: 'pending_verification'
+                                        };
+                                        
+                                        await apiService.saveModuleRecord('alumnae_members', registrationPayload);
+                                        setShowAlumnaeActivation(true);
+                                        setShowAlumnaeRegister(false);
+                                    } catch (error) {
+                                        console.error("Alumnae Registration Persistence Error:", error);
+                                        alert("Registration failed. Please check your connection and try again.");
+                                    }
                                 }}
                             />
                         ) : showGuestPortal ? (
@@ -4507,8 +4602,6 @@ export const App: React.FC = () => {
                             />
                         ) : (
                             <LoginView
-                            logoUrl={activeLetterheadConfig?.headerImageUrl || logoUrl}
-                            institutionName={activeInstitution?.name || companyDetails.name}
                             onLogin={async (e, p) => {
                                 // Discovery Phase: Search for user directly in DB if not in local cache
                                 let matchedUsers = (users || []).filter(u => u && (u.email?.toLowerCase() === e.toLowerCase() || u.phoneNumber === e) && (u.password === p || (!u.password && p === 'password123')));

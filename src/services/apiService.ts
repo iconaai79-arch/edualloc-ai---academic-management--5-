@@ -13,7 +13,8 @@ import type {
     Vehicle, TransportOnboarding, VehicleLog, TransportBill, SmsLog, AppNotification,
     CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, SecurityAlert,
     CoopExpense, CoopIncome, DemoRequest, InstitutionModuleState,
-    ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay
+    ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay,
+    CarListing, TestDriveBooking, CarAppraisal
 } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
@@ -2014,5 +2015,27 @@ export const apiService = {
             }
         }
         return allRecords;
+    },
+    async fetchCarListings(institutionId?: string, status: string = 'active'): Promise<CarListing[]> {
+        return apiService.fetchModuleRecords('car_sales_listings', institutionId, undefined, { 
+            filter: status !== 'all' ? { status } : undefined,
+            order: 'created_at.desc'
+        });
+    },
+    async saveCarListing(data: Partial<CarListing>): Promise<void> {
+        await apiService.saveModuleRecord('car_sales_listings', data);
+    },
+    async fetchCarTestDrives(institutionId?: string): Promise<TestDriveBooking[]> {
+        return apiService.fetchModuleRecords('car_test_drives', institutionId);
+    },
+    async saveCarTestDrive(data: Partial<TestDriveBooking>): Promise<void> {
+        await apiService.saveModuleRecord('car_test_drives', data);
+    },
+    async fetchCarAppraisals(institutionId?: string): Promise<CarAppraisal[]> {
+        return apiService.fetchModuleRecords('car_appraisals', institutionId);
+    },
+    async saveCarAppraisal(data: Partial<CarAppraisal>): Promise<void> {
+        await apiService.saveModuleRecord('car_appraisals', data);
     }
 };
+

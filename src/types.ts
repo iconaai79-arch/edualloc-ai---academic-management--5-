@@ -1,5 +1,5 @@
 
-export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'pharmacy_admin' | 'pharmacist' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'legal_admin' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor' | 'driving_instructor';
+export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'pharmacy_admin' | 'pharmacist' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'legal_admin' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor' | 'driving_instructor' | 'construction_admin' | 'community_admin' | 'family_admin' | 'hospitality_admin' | 'alumni_admin';
 
 export type RankingCriteria = 'points' | 'mean_points' | 'total_marks';
 
@@ -141,7 +141,7 @@ export interface Institution {
     name: string;
     email: string;
     phoneNumber: string;
-    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Logistics' | 'Community' | 'Hospitality';
+    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist';
     category?: string;
     businessSubType?: string; // Legacy field, eventually merge with category
     slug?: string;
@@ -3379,3 +3379,122 @@ export interface SchoolRegistry {
     createdAt: string;
     updatedAt: string;
 }
+
+// --- Family Heritage Module ---
+export interface HeritageMember {
+    id: string;
+    institutionId: string;
+    name: string;
+    branch: 'Paternal' | 'Maternal';
+    relation: string;
+    birthYear?: string;
+    deathYear?: string;
+    notes?: string;
+    profilePhotoUrl?: string;
+    createdAt?: string;
+}
+
+export interface HeritageStory {
+    id: string;
+    institutionId: string;
+    title: string;
+    storyDate?: string;
+    storyText: string;
+    authorName?: string;
+    imageUrl?: string;
+    createdAt?: string;
+}
+
+export interface HeritageGallery {
+    id: string;
+    institutionId: string;
+    title: string;
+    imageUrl: string;
+    category?: string;
+    capturedAt?: string;
+    createdAt?: string;
+}
+
+export interface HeritageAnnouncement {
+    id: string;
+    institutionId: string;
+    title: string;
+    type: 'CEREMONY' | 'ADMIN' | 'MEETING' | 'MEMORIAL';
+    announcementDate?: string;
+    detail?: string;
+    createdAt?: string;
+}
+
+export interface SchoolRegistry {
+    id: string;
+    name: string;
+    region?: string;
+    county?: string;
+    subCounty?: string;
+    uic?: string;
+    knecCode?: string;
+    cluster?: string;
+    specialNeedType?: string;
+    disabilityType?: string;
+    accommodationType?: string;
+    genderType?: string;
+    institutionId?: string;
+    slug?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface CarListing {
+    id: string;
+    institutionId: string;
+    sellerId?: string;
+    make: string;
+    model: string;
+    year: number;
+    trim?: string;
+    price: number;
+    mileage: number;
+    fuelType: 'Petrol' | 'Diesel' | 'Electric' | 'Hybrid';
+    transmission: 'Automatic' | 'Manual';
+    bodyType?: string;
+    engineSize?: string;
+    color?: string;
+    mainImageUrl?: string;
+    galleryUrls?: string[];
+    tour360Url?: string;
+    videoWalkthroughUrl?: string;
+    aiValuationStatus?: 'pending' | 'estimated' | 'verified';
+    estimatedMarketValue?: number;
+    inspectionScore?: number;
+    vinNumber?: string;
+    verifiedHistory?: boolean;
+    status: 'draft' | 'active' | 'sold' | 'archived';
+    viewCount: number;
+    inquiryCount: number;
+    createdAt?: string;
+}
+
+export interface TestDriveBooking {
+    id: string;
+    listingId: string;
+    buyerId?: string;
+    buyerName?: string;
+    buyerPhone?: string;
+    bookingDate: string;
+    deliveryAddress?: string;
+    status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+    notes?: string;
+    createdAt?: string;
+}
+
+export interface CarAppraisal {
+    id: string;
+    userId?: string;
+    institutionId?: string;
+    vehicleDetails: any;
+    images?: string[];
+    offeredAmount?: number;
+    status: 'pending' | 'approved' | 'declined';
+    createdAt?: string;
+}
+

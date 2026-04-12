@@ -22,14 +22,26 @@ import {
     TreePalm,
     CalendarDays as CalendarDaysIcon,
     ArrowRight,
-    Sparkles
+    Sparkles,
+    Loader2
 } from 'lucide-react';
-import type { Institution, User } from '../types';
+import type { 
+    Institution, User, 
+    HeritageMember, HeritageStory, HeritageGallery, HeritageAnnouncement 
+} from '../types';
+import { apiService } from '../services/apiService';
 
 interface CommunityManagerProps {
     currentInstitution: Institution;
     users: User[];
 }
+
+const RELATIONSHIP_OPTIONS = [
+    'Father', 'Mother', 'Son', 'Daughter', 'Brother', 'Sister', 
+    'Grandfather', 'Grandmother', 'Great Grandfather', 'Great Grandmother',
+    'Great-Great Grandfather', 'Great-Great Grandmother',
+    'Uncle', 'Aunt', 'Cousin', 'Nephew', 'Niece', 'Husband', 'Wife', 'Other'
+];
 
 export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInstitution, users }) => {
     const category = currentInstitution.category || 'NGO/Foundation';
@@ -49,23 +61,75 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     const [searchTerm, setSearchTerm] = useState('');
     const [heritageView, setHeritageView] = useState<'tree' | 'stories' | 'gallery' | 'announcements'>('tree');
     const [showAddMemberModal, setShowAddMemberModal] = useState(false);
-    const [treeMembers, setTreeMembers] = useState([
-        { id: '1', name: 'Samuel Mwangi Sr.', branch: 'Paternal', relation: 'Great Grandfather', birthYear: '1892', deathYear: '1968', notes: 'Founder of the family heritage' },
-        { id: '2', name: 'John Mwangi', branch: 'Paternal', relation: 'Grandfather', birthYear: '1920', deathYear: '', notes: '' },
-        { id: '3', name: 'Grace Wamboi', branch: 'Maternal', relation: 'Grandmother', birthYear: '1925', deathYear: '', notes: '' },
-    ]);
-    const [newMember, setNewMember] = useState({ name: '', branch: 'Paternal', relation: '', birthYear: '', deathYear: '', notes: '' });
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Heritage Data States
+    const [treeMembers, setTreeMembers] = useState<HeritageMember[]>([]);
+    const [heritageStories, setHeritageStories] = useState<HeritageStory[]>([]);
+    const [heritageGallery, setHeritageGallery] = useState<HeritageGallery[]>([]);
+    const [heritageAnnouncements, setHeritageAnnouncements] = useState<HeritageAnnouncement[]>([]);
+
+    const [newMember, setNewMember] = useState<Partial<HeritageMember>>({ 
+        name: '', 
+        branch: 'Paternal', 
+        relation: '', 
+        birthYear: '', 
+        deathYear: '', 
+        notes: '' 
+    });
     const [addMemberError, setAddMemberError] = useState('');
 
-    const handleAddMember = () => {
-        if (!newMember.name.trim() || !newMember.relation.trim()) {
+    // Fetch Heritage Data
+    React.useEffect(() => {
+        if (isHeritage) {
+            fetchHeritageData();
+        }
+    }, [isHeritage, currentInstitution.id]);
+
+    const fetchHeritageData = async () => {
+        setIsLoading(true);
+        try {
+            const [members, stories, gallery, announcements] = await Promise.all([
+                apiService.fetchModuleRecords<HeritageMember>('heritage_members', currentInstitution.id),
+                apiService.fetchModuleRecords<HeritageStory>('heritage_stories', currentInstitution.id),
+                apiService.fetchModuleRecords<HeritageGallery>('heritage_gallery', currentInstitution.id),
+                apiService.fetchModuleRecords<HeritageAnnouncement>('heritage_announcements', currentInstitution.id)
+            ]);
+            setTreeMembers(members);
+            setHeritageStories(stories);
+            setHeritageGallery(gallery);
+            setHeritageAnnouncements(announcements);
+        } catch (error) {
+            console.error('Error fetching heritage data:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleAddMember = async () => {
+        if (!newMember.name?.trim() || !newMember.relation?.trim()) {
             setAddMemberError('Full name and relationship are required.');
             return;
         }
-        setTreeMembers(prev => [...prev, { ...newMember, id: Date.now().toString() }]);
-        setNewMember({ name: '', branch: 'Paternal', relation: '', birthYear: '', deathYear: '', notes: '' });
-        setAddMemberError('');
-        setShowAddMemberModal(false);
+        
+        try {
+            const memberToSave = {
+                ...newMember,
+                id: `hm_${Date.now()}`,
+                institutionId: currentInstitution.id,
+                createdAt: new Date().toISOString()
+            } as HeritageMember;
+
+            const saved = await apiService.saveModuleRecord('heritage_members', memberToSave);
+            if (saved) {
+                setTreeMembers(prev => [...prev, saved]);
+                setNewMember({ name: '', branch: 'Paternal', relation: '', birthYear: '', deathYear: '', notes: '' });
+                setAddMemberError('');
+                setShowAddMemberModal(false);
+            }
+        } catch (error: any) {
+            setAddMemberError(`Failed to save: ${error.message}`);
+        }
     };
 
     const stats = isHeritage ? [
@@ -473,9 +537,17 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                 <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
                                     {treeMembers.map((m) => (
                                         <div key={m.id} className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-transparent hover:border-amber-100 transition-all">
-                                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs flex-shrink-0 ${m.branch === 'Paternal' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
-                                                {m.name.charAt(0)}
-                                            </div>
+                                            {m.profilePhotoUrl ? (
+                                                <img 
+                                                    src={m.profilePhotoUrl} 
+                                                    alt={m.name} 
+                                                    className="w-10 h-10 rounded-xl object-cover flex-shrink-0"
+                                                />
+                                            ) : (
+                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs flex-shrink-0 ${m.branch === 'Paternal' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
+                                                    {m.name.charAt(0)}
+                                                </div>
+                                            )}
                                             <div className="flex-1 min-w-0">
                                                 <p className="font-black text-slate-800 dark:text-slate-200 text-xs uppercase tracking-tight truncate">{m.name}</p>
                                                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{m.relation} · {m.branch}</p>
@@ -520,22 +592,30 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                 </button>
                             </div>
                             <div className="space-y-6">
-                                {[
-                                    { title: 'The Great Migration from Abyssinia', date: 'Circa 1780', text: 'Our elders tell of a journey through the mountains, carrying nothing but seeds and hope...', author: 'Mzee Mwangi' },
-                                    { title: 'The First Ancestral Farm', date: 'Jan 12, 1920', text: 'Samuel Sr. acquired the first 40 acres in the highlands, where the black soil yields gold...', author: 'Grace W.' }
-                                ].map((story, i) => (
-                                    <div key={i} className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-transparent hover:border-amber-100 transition-all cursor-pointer">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <h5 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm">{story.title}</h5>
-                                            <span className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">{story.date}</span>
-                                        </div>
-                                        <p className="text-slate-500 text-sm line-clamp-2 italic mb-4">"{story.text}"</p>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-[10px] font-black uppercase text-slate-400">Oral Historian: {story.author}</span>
-                                            <ArrowRight className="w-4 h-4 text-slate-300" />
-                                        </div>
+                                {isLoading ? (
+                                    <div className="flex flex-col items-center justify-center p-12 text-slate-400">
+                                        <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                                        <p className="text-[10px] font-black uppercase tracking-widest">Loading Stories...</p>
                                     </div>
-                                ))}
+                                ) : heritageStories.length === 0 ? (
+                                    <div className="text-center p-10 border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-3xl">
+                                        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">No oral histories documented yet.</p>
+                                    </div>
+                                ) : (
+                                    heritageStories.map((story, i) => (
+                                        <div key={story.id || i} className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-transparent hover:border-amber-100 transition-all cursor-pointer">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h5 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm">{story.title}</h5>
+                                                <span className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">{story.storyDate}</span>
+                                            </div>
+                                            <p className="text-slate-500 text-sm line-clamp-2 italic mb-4">"{story.storyText}"</p>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[10px] font-black uppercase text-slate-400">Oral Historian: {story.authorName || 'Elder'}</span>
+                                                <ArrowRight className="w-4 h-4 text-slate-300" />
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
                             </div>
                         </div>
 
@@ -564,17 +644,28 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                 </button>
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                                {[1,2,3,4].map(i => (
-                                    <div key={i} className="aspect-square bg-slate-100 dark:bg-slate-900 rounded-3xl overflow-hidden group relative cursor-pointer">
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                            <Sparkles className="w-8 h-8 text-white scale-0 group-hover:scale-100 transition-transform duration-500" />
-                                        </div>
-                                        <div className="w-full h-full bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 animate-pulse"></div>
-                                        <div className="absolute bottom-4 left-4">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-white/70">Heritage Milestone {i}</p>
-                                        </div>
+                                {isLoading ? (
+                                    <div className="col-span-full py-12 flex justify-center">
+                                        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
                                     </div>
-                                ))}
+                                ) : heritageGallery.length === 0 ? (
+                                    <div className="col-span-full py-20 text-center border-4 border-dashed border-slate-50 dark:border-slate-900 rounded-[3rem]">
+                                        <ImageIcon className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">The gallery is currently empty.</p>
+                                    </div>
+                                ) : (
+                                    heritageGallery.map((item, i) => (
+                                        <div key={item.id || i} className="aspect-square bg-slate-100 dark:bg-slate-900 rounded-3xl overflow-hidden group relative cursor-pointer">
+                                            <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                <Sparkles className="w-8 h-8 text-white scale-0 group-hover:scale-100 transition-transform duration-500" />
+                                            </div>
+                                            <div className="absolute bottom-4 left-4 right-4">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-white truncate">{item.title}</p>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
                             </div>
                         </div>
                     </div>
@@ -587,24 +678,35 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
                                 <h4 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white mb-8">Family Proclamations</h4>
                                 <div className="space-y-6">
-                                    {[
-                                        { title: 'Annual Family Reunion 2026', type: 'CEREMONY', date: 'Aug 15', detail: 'Hosted at the Ancestral Farm. All branches requested to RSVP.' },
-                                        { title: 'Heritage Portal Update', type: 'ADMIN', date: 'Today', detail: 'New migration maps for the Western branches added.' }
-                                    ].map((post, i) => (
-                                        <div key={i} className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-transparent hover:border-slate-100 transition-all flex gap-6">
-                                            <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-2xl flex flex-col items-center justify-center border border-slate-100 shadow-sm flex-shrink-0">
-                                                <span className="text-xs font-black text-amber-600 uppercase tracking-tighter">{post.date.split(' ')[0]}</span>
-                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{post.date.split(' ')[1] || ''}</span>
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="text-[8px] font-black bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full tracking-widest">{post.type}</span>
-                                                    <h5 className="font-black text-slate-800 dark:text-white text-sm uppercase tracking-tight">{post.title}</h5>
-                                                </div>
-                                                <p className="text-slate-500 text-xs leading-relaxed">{post.detail}</p>
-                                            </div>
+                                    {isLoading ? (
+                                        <div className="flex justify-center p-12">
+                                            <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
                                         </div>
-                                    ))}
+                                    ) : heritageAnnouncements.length === 0 ? (
+                                        <div className="text-center p-12 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border-2 border-dashed border-slate-100 dark:border-slate-800">
+                                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">No proclamations have been made.</p>
+                                        </div>
+                                    ) : (
+                                        heritageAnnouncements.map((post, i) => (
+                                            <div key={post.id || i} className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-transparent hover:border-slate-100 transition-all flex gap-6">
+                                                <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-2xl flex flex-col items-center justify-center border border-slate-100 shadow-sm flex-shrink-0">
+                                                    <span className="text-xs font-black text-amber-600 uppercase tracking-tighter">
+                                                        {post.announcementDate?.split(' ')[0] || 'TBD'}
+                                                    </span>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                        {post.announcementDate?.split(' ')[1] || ''}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-[8px] font-black bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full tracking-widest">{post.type}</span>
+                                                        <h5 className="font-black text-slate-800 dark:text-white text-sm uppercase tracking-tight">{post.title}</h5>
+                                                    </div>
+                                                    <p className="text-slate-500 text-xs leading-relaxed">{post.detail}</p>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -756,12 +858,44 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
 
                                 <div>
                                     <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Relationship *</label>
-                                    <input
+                                    <select
                                         value={newMember.relation}
                                         onChange={e => setNewMember(p => ({ ...p, relation: e.target.value }))}
-                                        placeholder="e.g. Son, Aunt, Cousin"
-                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white placeholder:text-slate-300 focus:outline-none focus:border-amber-400 transition-colors"
-                                    />
+                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-400 transition-colors"
+                                    >
+                                        <option value="">Select Relation</option>
+                                        {RELATIONSHIP_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                    </select>
+                                </div>
+
+                                <div className="col-span-2">
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Profile Picture</label>
+                                    <div className="flex items-center gap-4">
+                                        <div className="relative group overflow-hidden w-20 h-20 bg-slate-100 dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                                            {newMember.profilePhotoUrl ? (
+                                                <img 
+                                                    src={newMember.profilePhotoUrl} 
+                                                    alt="Preview" 
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <ImageIcon className="w-8 h-8 text-slate-300" />
+                                            )}
+                                            <input 
+                                                type="file" 
+                                                accept="image/*"
+                                                className="absolute inset-0 opacity-0 cursor-pointer"
+                                                onChange={async (e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) {
+                                                        const url = await apiService.uploadFile('heritage', `members/${Date.now()}_${file.name}`, file);
+                                                        if (url) setNewMember(p => ({ ...p, profilePhotoUrl: url }));
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 font-medium">Click box to upload legacy photo.</p>
+                                    </div>
                                 </div>
 
                                 <div>
