@@ -156,6 +156,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       <option value="Broadcaster">Media / Broadcaster</option>
                       <option value="Reseller">Reseller Agency</option>
                       <option value="Pharmacy">Pharmacy / Chemist</option>
+                      <option value="Community">Community & Politics</option>
                     </select>
                   </div>
                   {(formData.institutionType === 'Education') && (
@@ -212,8 +213,26 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       >
                         <option value="">-- Select Tradition --</option>
                         <option value="Catholic">Catholic (Sacramental/SCC)</option>
-                        <option value="Protestant">Protest Protestant (Evangelical/Cell Groups)</option>
+                        <option value="Protestant">Protestant (Evangelical/Cell Groups)</option>
                         <option value="Orthodox">Orthodox (Holy Mysteries/Fasting Calendar)</option>
+                      </select>
+                    </div>
+                  )}
+                  {formData.institutionType === 'Community' && (
+                    <div className="animate-fade-in-up">
+                      <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1">Community / Political Focus</label>
+                      <select
+                        value={formData.category}
+                        onChange={e => setFormData({ ...formData, category: e.target.value })}
+                        className="form-select border-2 border-indigo-200 font-bold"
+                        required
+                      >
+                        <option value="">-- Select Focus --</option>
+                        <option value="Chama/Savings Group">Self Help / Savings Group (Chama)</option>
+                        <option value="Estate/Neighborhood">Estate / Neighborhood Management</option>
+                        <option value="NGO/Foundation">NGO / Social Foundation</option>
+                        <option value="Political Campaign">Political Campaign Management</option>
+                        <option value="General">General Community</option>
                       </select>
                     </div>
                   )}

@@ -1661,6 +1661,7 @@ Please change it after login.`;
                                                         <option value="NGO/Foundation">NGO / Social Foundation</option>
                                                         <option value="Resource Center">Community Hub / Resource Center</option>
                                                         <option value="Relief/Social Work">Social Work / Welfare Relief</option>
+                                                        <option value="Political Campaign">Political Campaign Management</option>
                                                     </select>
                                                 </div>
                                             )}
