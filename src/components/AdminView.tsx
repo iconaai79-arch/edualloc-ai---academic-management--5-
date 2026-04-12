@@ -412,7 +412,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                cat?.includes('Chama') || 
                cat?.includes('Estate') || 
                cat?.includes('Heritage') || 
-               cat?.includes('Family');
+               cat?.includes('Family') ||
+               cat?.includes('Campaign') ||
+               cat?.includes('Political');
     }, [props.currentInstitution, institutionType]);
 
     const isAlumni = useMemo(() => {

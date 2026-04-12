@@ -1591,7 +1591,7 @@ Please change it after login.`;
                                                     <option value="SACCO">Financial / SACCO</option>
                                                      <option value="Law Firm">Legal / Law Firm</option>
                                                      <option value="Logistics">Transport & Logistics</option>
-                                                     <option value="Community">Community & Welfare</option>
+                                                     <option value="Community">Community & Politics</option>
                                                     <option value="Church">Religious / Church</option>
                                                     <option value="Broadcaster">Media / Broadcaster</option>
                                                     <option value="Hospitality">Tourism & Hospitality</option>

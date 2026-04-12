@@ -7,13 +7,17 @@ import {
 import { MarketingProspect } from '../types';
 import { apiService } from '../services/apiService';
 
-export const LeadScoutManager: React.FC = () => {
+interface LeadScoutManagerProps {
+    defaultNiche?: string;
+}
+
+export const LeadScoutManager: React.FC<LeadScoutManagerProps> = ({ defaultNiche = 'Education' }) => {
     const [prospects, setProspects] = useState<MarketingProspect[]>([]);
     const [loading, setLoading] = useState(false);
     const [scouting, setScouting] = useState(false);
     const [query, setQuery] = useState('');
     const [location, setLocation] = useState('Kenya');
-    const [niche, setNiche] = useState('Education');
+    const [niche, setNiche] = useState(defaultNiche);
     const [stats, setStats] = useState({ total: 0, qualified: 0, new: 0 });
 
     useEffect(() => {

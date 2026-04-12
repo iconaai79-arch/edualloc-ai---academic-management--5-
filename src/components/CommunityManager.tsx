@@ -30,6 +30,7 @@ import type {
     HeritageMember, HeritageStory, HeritageGallery, HeritageAnnouncement 
 } from '../types';
 import { apiService } from '../services/apiService';
+import { LeadScoutManager } from './LeadScoutManager';
 
 interface CommunityManagerProps {
     currentInstitution: Institution;
@@ -47,6 +48,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     const category = currentInstitution.category || 'NGO/Foundation';
     
     const isHeritage = category.includes('Family') || category.includes('Heritage');
+    const isCampaign = category.includes('Political') || category.includes('Campaign');
 
     // Determine initial view based on category
     const getInitialTab = () => {
@@ -54,6 +56,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
         if (category.includes('Estate')) return 'residences';
         if (category.includes('NGO')) return 'social';
         if (isHeritage) return 'heritage';
+        if (isCampaign) return 'campaign';
         return 'overview';
     };
 
@@ -784,6 +787,14 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                             Social Impact
                         </button>
                     )}
+                    {isCampaign && (
+                        <button
+                            onClick={() => setActiveTab('campaign')}
+                            className={`px-6 py-2.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all ${activeTab === 'campaign' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Campaign Intelligence
+                        </button>
+                    )}
                     {(category.includes('Family') || category.includes('Heritage')) && (
                         <button
                             onClick={() => setActiveTab('heritage')}
@@ -801,6 +812,28 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                 {activeTab === 'residences' && renderResidences()}
                 {activeTab === 'social' && renderSocial()}
                 {activeTab === 'heritage' && renderHeritage()}
+                {activeTab === 'campaign' && (
+                    <div className="space-y-8 animate-fade-in">
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
+                                <MapPin className="w-64 h-64" />
+                            </div>
+                            <div className="relative z-10">
+                                <h3 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-4">
+                                    <Sparkles className="w-10 h-10 text-indigo-600" />
+                                    Campaign Command Center
+                                </h3>
+                                <p className="text-slate-500 font-medium mt-2 max-w-2xl">
+                                    Strategic political mobilization hub. Use AI to discover prospects, manage voter outreach, and track campaign momentum across your constituency.
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <LeadScoutManager defaultNiche={category} />
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* ── Add Family Member Modal ── */}
