@@ -248,6 +248,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [userEnteredCode, setUserEnteredCode] = useState('');
     const [pendingApprovalIds, setPendingApprovalIds] = useState<string[]>([]);
     const [isUndoVerification, setIsUndoVerification] = useState(false);
+    const [farmerSearchQuery, setFarmerSearchQuery] = useState('');
+    const [isFarmerDropdownOpen, setIsFarmerDropdownOpen] = useState(false);
 
     // POS System States
     const [posBasket, setPosBasket] = useState<any[]>([]);
@@ -350,6 +352,17 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     }, [filteredCollections, currentPage, itemsPerPage]);
 
     const totalPages = Math.ceil(filteredCollections.length / itemsPerPage);
+    
+    const filteredFarmersForSelect = useMemo(() => {
+        if (!farmerSearchQuery) return farmers.slice(0, 10);
+        const query = farmerSearchQuery.toLowerCase();
+        return farmers.filter(f => 
+            f.name.toLowerCase().includes(query) || 
+            f.accountNumber.toLowerCase().includes(query) ||
+            f.memberId?.toLowerCase().includes(query) ||
+            f.phone.includes(query)
+        ).slice(0, 50);
+    }, [farmers, farmerSearchQuery]);
 
 
     const handleSubmitFarmer = async (e: React.FormEvent) => {
@@ -400,6 +413,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                 factoryConfirmed: false,
                 notified: false
             });
+            setFarmerSearchQuery('');
             if (onLogAction) await onLogAction(`Logged collection for farmer ${newCollection.farmerId}`);
         } catch (err) {
             console.error(err);
@@ -2135,17 +2149,53 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Farmer</label>
-                                                    <select 
-                                                        required
-                                                        value={newCollection.farmerId || ''}
-                                                        onChange={e => setNewCollection({...newCollection, farmerId: e.target.value})}
-                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
-                                                    >
-                                                        <option value="">Select Farmer</option>
-                                                        {farmers.map(f => (
-                                                            <option key={f.id} value={f.id}>{f.name} ({f.accountNumber})</option>
-                                                        ))}
-                                                    </select>
+                                                    <div className="relative group/farmer">
+                                                        <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all">
+                                                            <SearchIcon className="w-4 h-4 text-slate-400 mr-2" />
+                                                            <input 
+                                                                type="text"
+                                                                value={farmerSearchQuery}
+                                                                onChange={e => {
+                                                                    setFarmerSearchQuery(e.target.value);
+                                                                    setIsFarmerDropdownOpen(true);
+                                                                    if (!e.target.value) setNewCollection({...newCollection, farmerId: ''});
+                                                                }}
+                                                                onFocus={() => setIsFarmerDropdownOpen(true)}
+                                                                placeholder="Search by name or A/C..."
+                                                                className="w-full bg-transparent text-sm font-bold outline-none dark:text-white"
+                                                            />
+                                                        </div>
+                                                        
+                                                        {isFarmerDropdownOpen && (
+                                                            <div className="absolute z-[100] top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-2xl max-h-64 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+                                                                {filteredFarmersForSelect.length > 0 ? (
+                                                                    filteredFarmersForSelect.map(f => (
+                                                                        <button
+                                                                            key={f.id}
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setNewCollection({...newCollection, farmerId: f.id});
+                                                                                setFarmerSearchQuery(`${f.name} (${f.accountNumber})`);
+                                                                                setIsFarmerDropdownOpen(false);
+                                                                            }}
+                                                                            className="w-full text-left px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-b border-slate-50 dark:border-slate-800 last:border-none group"
+                                                                        >
+                                                                            <p className="text-sm font-black text-slate-900 dark:text-white group-hover:text-indigo-600 transition-colors">{f.name}</p>
+                                                                            <div className="flex items-center gap-3 mt-0.5">
+                                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">A/C: {f.accountNumber}</p>
+                                                                                <div className="w-1 h-1 rounded-full bg-slate-200" />
+                                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{f.phone}</p>
+                                                                            </div>
+                                                                        </button>
+                                                                    ))
+                                                                ) : (
+                                                                    <div className="p-8 text-center">
+                                                                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No farmers found</p>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Product Type</label>
@@ -2198,7 +2248,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             <div className="flex justify-end gap-4">
                                                 <button 
                                                     type="button"
-                                                    onClick={() => setIsLoggingCollection(false)}
+                                                    onClick={() => { setIsLoggingCollection(false); setFarmerSearchQuery(''); }}
                                                     className="px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-slate-100 transition-all"
                                                 >
                                                     Discard
