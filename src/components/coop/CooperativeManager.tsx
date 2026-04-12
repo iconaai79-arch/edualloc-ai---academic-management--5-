@@ -2065,6 +2065,21 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                         Last Month
                                                     </button>
                                                 </div>
+                                                <div className="flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl px-4 py-2 shadow-sm focus-within:ring-4 focus-within:ring-indigo-500/10 transition-all w-72 group">
+                                                    <SearchIcon className="w-4 h-4 text-slate-400 group-focus-within:text-indigo-500" />
+                                                    <input 
+                                                        type="text"
+                                                        value={searchTerm}
+                                                        onChange={e => setSearchTerm(e.target.value)}
+                                                        placeholder="Search farmer name, member ID..."
+                                                        className="bg-transparent border-none outline-none text-[10px] font-black uppercase tracking-widest w-full dark:text-white"
+                                                    />
+                                                    {searchTerm && (
+                                                        <button onClick={() => setSearchTerm('')} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400">
+                                                            <XIcon className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
