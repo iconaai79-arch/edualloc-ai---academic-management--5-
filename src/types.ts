@@ -1,5 +1,5 @@
 
-export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'pharmacy_admin' | 'pharmacist' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'legal_admin' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor' | 'driving_instructor' | 'construction_admin' | 'community_admin' | 'family_admin' | 'hospitality_admin' | 'alumni_admin';
+export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'pharmacy_admin' | 'pharmacist' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'legal_admin' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor' | 'driving_instructor' | 'construction_admin' | 'community_admin' | 'family_admin' | 'hospitality_admin' | 'alumni_admin' | 'campaign_admin' | 'campaign_agent';
 
 export type RankingCriteria = 'points' | 'mean_points' | 'total_marks';
 
@@ -37,6 +37,48 @@ export interface MarketingProspect {
     aiSummary?: string;
     status: 'new' | 'contacted' | 'qualified' | 'customer' | 'ignored';
     lastProcessedAt: string;
+    createdAt: string;
+}
+
+export interface CampaignProfile {
+    id: string;
+    institutionId: string;
+    candidateName: string;
+    position: 'MCA' | 'MP' | 'Senator' | 'Governor' | 'President' | 'Deputy';
+    partyName?: string;
+    constituencyWard?: string;
+    manifestoAiDraft?: string;
+    tagline?: string;
+    logoUrl?: string;
+    targetVoterCount: number;
+    createdAt: string;
+}
+
+export interface VoterOutreach {
+    id: string;
+    campaignId: string;
+    voterName?: string;
+    phoneNumber: string;
+    idNumber?: string;
+    votingCenter?: string;
+    ward?: string;
+    status: 'uncontacted' | 'supporter' | 'undecided' | 'opposed';
+    lastContactedAt?: string;
+    notes?: string;
+    createdAt: string;
+}
+
+export interface CampaignEvent {
+    id: string;
+    campaignId: string;
+    title: string;
+    description?: string;
+    location: string;
+    eventType: 'rally' | 'townhall' | 'strategy_meeting' | 'door_to_door' | 'fundraiser';
+    eventTime: string;
+    attendanceEstimate: number;
+    actualAttendance?: number;
+    aiSpeechNotes?: string;
     createdAt: string;
 }
 

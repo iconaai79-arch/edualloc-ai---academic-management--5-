@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
+import { LandingPage } from './LandingPage';
+import { CampaignCommandView } from './CampaignCommandView';
 import { LoginView } from './LoginView';
 import { Header } from './Header';
 import { ChatBot } from './ChatBot';
@@ -2826,6 +2828,8 @@ export const App: React.FC = () => {
                                              currentUser={currentUser!}
                                          />
                                     </div>
+                                ) : (activeRole === 'campaign_admin' || activeRole === 'campaign_agent') ? (
+                                    <CampaignCommandView user={currentUser!} />
                                 ) : ((activeRole === 'admin' || activeRole === 'head_teacher') && !['Property Management', 'Agrovet', 'Cooperative', 'SACCO', 'Church', 'HIS', 'Car Wash', 'Pharmacy'].includes(activeInstitution?.institutionType || '') && !activeInstitution?.businessSubType?.toLowerCase().includes('property management') && !activeInstitution?.businessSubType?.toLowerCase().includes('agrovet') && !activeInstitution?.businessSubType?.toLowerCase().includes('pharmacy')) ? (
                                 <AdminView
                                     currentUser={currentUser}

@@ -117,3 +117,5 @@ export * from './XCircleIcon';
 export * from './XIcon';
 export * from './ZapIcon';
 export * from './PalmTreeIcon';
+export * from './MegaphoneIcon';
+export * from './SpeakerWaveIcon';

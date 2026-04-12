@@ -27,6 +27,7 @@ export const getAdminRoleForInstitution = (institution: Partial<Institution>): R
     if (type === 'HIS') return 'his_admin';
 
     if (type === 'Church') return 'church_admin';
+    if (type === 'Community' || subType.includes('campaign') || subType.includes('politics')) return 'campaign_admin';
 
     // Default for Schools
     return 'head_teacher';
@@ -85,6 +86,11 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
     // Church System
     if (type === 'Church') {
         return ['church_admin', 'pastor', 'deacon', 'elder', 'treasurer', 'secretary', 'worker', 'member', 'visitor', 'security'];
+    }
+
+    // Political Campaign System
+    if (type === 'Community' || subType.includes('campaign') || subType.includes('politics')) {
+        return ['campaign_admin', 'campaign_agent', 'staff', 'member', 'visitor', 'security'];
     }
 
     return ['admin', 'staff', 'customer'] as any[];
