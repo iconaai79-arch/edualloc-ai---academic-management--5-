@@ -28,7 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (!topic) return res.status(400).json({ error: 'Topic is required' });
 
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
         // Intelligence Phase: AI Scout
         // In a production environment, you would use a Search API here (e.g. Serper, Tavily, Google Search)

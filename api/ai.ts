@@ -42,7 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const { model: modelName, contents, config, history, message } = req.body;
 
         // Use the requested model or default to flash
-        const model = genAI.getGenerativeModel({ model: modelName || 'gemini-1.5-flash' });
+        const model = genAI.getGenerativeModel({ model: modelName || 'gemini-flash-latest' });
 
         // Mode 1: Chat (Multi-turn)
         if (history && message) {

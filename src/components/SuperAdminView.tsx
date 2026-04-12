@@ -507,7 +507,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     } = props;
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout'>('dashboard');
-    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry'>('list'); // Modified for Counties, Resellers, Business & Registry
+    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry' | 'scouting'>('list'); // Modified for Counties, Resellers, Business & Registry
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses' | 'registry'>('subjects');
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
 
@@ -1544,6 +1544,12 @@ Please change it after login.`;
                             >
                                 School Registry
                             </button>
+                            <button
+                                onClick={() => setInstitutionsSubTab('scouting')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${institutionsSubTab === 'scouting' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                AI Scout
+                            </button>
                         </div>
 
                         {institutionsSubTab === 'list' && (
@@ -1600,26 +1606,26 @@ Please change it after login.`;
                                                         if (type === 'Business') category = 'Agrovet';
                                                         if (type === 'HIS') category = 'Medical Center';
                                                         if (type === 'Law Firm') category = 'Law Firm';
-                                                        if (type === 'Logistics') category = 'Cargo & Delivery';
-                                                        if (type === 'Community') category = 'Chama/Savings Group';
-                                                        if (type === 'Hospitality') category = 'Safari operator';
+                                                        if (type === 'Broadcaster') category = 'TV/Radio Station';
+                                                        if (type === 'Political Campaign') category = 'Political Campaign Management';
                                                         setNewInstData({ ...newInstData, institutionType: type, category: category });
                                                     }}
                                                     className="form-select font-black text-indigo-600 border-indigo-100"
-                                                >
-                                                    <option value="Education">Education Sector</option>
+                                                >                                                    <option value="Education">Education Sector</option>
                                                     <option value="HIS">Health Sector (HIS)</option>
                                                     <option value="Pharmacy">Pharmacy / Chemist</option>
                                                     <option value="Business">Business Ecosystem</option>
                                                     <option value="Cooperative">Agriculture / Cooperative</option>
                                                     <option value="SACCO">Financial / SACCO</option>
-                                                     <option value="Law Firm">Legal / Law Firm</option>
-                                                     <option value="Logistics">Transport & Logistics</option>
-                                                     <option value="Community">Community & Politics</option>
+                                                    <option value="Law Firm">Legal / Law Firm</option>
+                                                    <option value="Logistics">Transport & Logistics</option>
+                                                    <option value="Community">Community & Politics</option>
+                                                    <option value="Political Campaign">Political / Election Campaign Hub</option>
                                                     <option value="Church">Religious / Church</option>
                                                     <option value="Broadcaster">Media / Broadcaster</option>
                                                     <option value="Hospitality">Tourism & Hospitality</option>
                                                     <option value="Reseller">Reseller Agency</option>
+
                                                 </select>
                                             </div>
                                             <div>
@@ -2248,6 +2254,11 @@ Please change it after login.`;
                         {institutionsSubTab === 'registry' && (
                             <div className="animate-fade-in-up">
                                 <SchoolRegistryManager registry={schoolRegistry} onRefresh={fetchSchoolRegistry} />
+                            </div>
+                        )}
+                        {institutionsSubTab === 'scouting' && (
+                            <div className="animate-fade-in-up">
+                                <LeadScoutManager />
                             </div>
                         )}
                     </div>

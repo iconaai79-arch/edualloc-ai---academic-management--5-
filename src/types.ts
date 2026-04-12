@@ -198,7 +198,7 @@ export interface Institution {
     name: string;
     email: string;
     phoneNumber: string;
-    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist';
+    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist' | 'Political Campaign';
     category?: string;
     businessSubType?: string; // Legacy field, eventually merge with category
     slug?: string;

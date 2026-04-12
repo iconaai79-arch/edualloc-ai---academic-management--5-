@@ -47,8 +47,8 @@ const RELATIONSHIP_OPTIONS = [
 export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInstitution, users }) => {
     const category = currentInstitution.category || 'NGO/Foundation';
     
-    const isHeritage = category.includes('Family') || category.includes('Heritage');
-    const isCampaign = category.includes('Political') || category.includes('Campaign');
+    const isHeritage = category.includes('Family') || category.includes('Heritage') || currentInstitution.institutionType === 'Community' && category.includes('Heritage');
+    const isCampaign = category.includes('Political') || category.includes('Campaign') || currentInstitution.institutionType === 'Political Campaign';
 
     // Determine initial view based on category
     const getInitialTab = () => {

@@ -407,6 +407,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const isCommunity = useMemo(() => {
         const cat = props.currentInstitution?.category;
         return institutionType === 'Community' || 
+               institutionType === 'Political Campaign' ||
                cat === 'Community' || 
                cat?.includes('NGO') || 
                cat?.includes('Chama') || 
@@ -490,7 +491,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 setActiveTab('logistics');
             } else if (role === 'transport_assistant') {
                 setActiveTab('transport');
-            } else if (isCommunity || role === 'community_admin' || role === 'family_admin') {
+            } else if (isCommunity || institutionType === 'Political Campaign' || role === 'community_admin' || role === 'family_admin') {
                 setActiveTab('community');
             } else if (isAlumni || role === 'alumni_admin') {
                 setActiveTab('alumni');
