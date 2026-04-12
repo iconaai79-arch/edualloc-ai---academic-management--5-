@@ -11,7 +11,7 @@ interface CommunicationsManagerProps {
     departments: Department[];
     courses: Course[];
     institutions?: Institution[]; // Optional for super admin view
-    onSendSms: (recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<{ success: boolean; message: string }>;
+    onSendSms: (recipient: string | string[], message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<{ success: boolean; message: string }>;
     currentUser?: User;
     smsBalance?: number;
     currentInstitution?: Institution | null;
@@ -287,34 +287,26 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
             return;
         }
 
-        setStatus({ type: 'sending', message: 'Preparing to send...' });
-        let successCount = 0;
-        let failCount = 0;
-
-        for (let i = 0; i < validRecipients.length; i++) {
-            const user = validRecipients[i];
-            setStatus({ type: 'sending', message: `Sending ${i + 1} of ${validRecipients.length} to ${user.name}...` });
-            try {
-                const result = await onSendSms(user.phoneNumber, message, smsConfig, smsInfo.count, user.institutionId);
-                if (result.success) {
-                    successCount++;
-                } else {
-                    failCount++;
-                    console.warn(`Failed to send SMS to ${user.name} (${user.phoneNumber}): ${result.message}`);
-                }
-            } catch (e) {
-                failCount++;
-                console.error(`Error sending SMS to ${user.name} (${user.phoneNumber}):`, e);
+        setStatus({ type: 'sending', message: `Initializing bulk send to ${validRecipients.length} recipients...` });
+        
+        try {
+            const phoneNumbers = validRecipients.map(u => u.phoneNumber).filter(Boolean) as string[];
+            
+            // We pass the entire list to the backend which now handles batching efficiently
+            const result = await onSendSms(phoneNumbers, message, smsConfig, smsInfo.count, currentInstitution?.id);
+            
+            if (result.success) {
+                setStatus({ type: 'success', message: `Successfully dispatched message to ${validRecipients.length} recipients.` });
+                setMessage('');
+                if (onRefreshData) onRefreshData();
+            } else {
+                setStatus({ type: 'error', message: result.message || 'Bulk dispatch failed.' });
             }
+        } catch (e: any) {
+            console.error('Bulk SMS Error:', e);
+            setStatus({ type: 'error', message: `Critical error during bulk dispatch: ${e.message}` });
         }
 
-        let finalMessage = `Finished. Sent: ${successCount}. Failed: ${failCount}.`;
-        if (failCount > 0) {
-            finalMessage += ` Failures may be due to invalid numbers or service issues. Check console for details.`;
-        }
-        setStatus({ type: 'success', message: finalMessage });
-
-        setMessage('');
         setTimeout(() => setStatus({ type: 'idle', message: '' }), 5000);
     };
 

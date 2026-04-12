@@ -328,12 +328,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (!configError && institution && institution.sms_config) {
                     // Check balance for non-system messages
-                    if (user.id !== 'system' && !isSystemMessage && (institution.sms_balance || 0) < unitsToDeduct) {
+                    if (user.id !== 'system' && !isSystemMessage && (institution.sms_balance || 0) < totalUnitsToDeduct) {
                         return res.status(402).json({
                             success: false,
-                            message: `Insufficient SMS balance. This message requires ${unitsToDeduct} units, but your current balance is ${institution?.sms_balance || 0}.`,
+                            message: `Insufficient SMS balance. This request requires ${totalUnitsToDeduct} units, but your current balance is ${institution?.sms_balance || 0}.`,
                             balance: institution?.sms_balance || 0,
-                            required: unitsToDeduct,
+                            required: totalUnitsToDeduct,
                             buy_url: '/settings?tab=billing'
                         });
                     }
@@ -348,7 +348,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
 
-            console.log(`[SMS Gateway] Processing send for ${recipient}`);
+            // Extract recipients
+            const rawRecipients = paramsMap.recipients || paramsMap.recipient || recipient;
+            let recipientsList: string[] = [];
+            if (Array.isArray(rawRecipients)) {
+                recipientsList = rawRecipients;
+            } else if (typeof rawRecipients === 'string') {
+                recipientsList = rawRecipients.split(',').map(r => r.trim()).filter(r => r);
+            }
+            
+            if (recipientsList.length === 0) {
+                return res.status(400).json({ success: false, message: 'No recipients provided.' });
+            }
+
+            // Deduplicate and normalize
+            const normalizedRecipients = Array.from(new Set(recipientsList.map(r => normalizePhone(r)).filter(r => r.length >= 9)));
+            const recipientCount = normalizedRecipients.length;
+
+            if (recipientCount === 0) {
+                return res.status(400).json({ success: false, message: 'No valid phone numbers found.' });
+            }
+
+            const totalUnitsToDeduct = unitsToDeduct * recipientCount;
+
+            console.log(`[SMS Gateway] Processing send for ${recipientCount} recipients. Total Units: ${totalUnitsToDeduct}`);
             console.log(`[SMS Gateway] System Message: ${isSystemMessage}, User Role: ${user.role}`);
 
             // Validation: Ensure we have at least one valid key alias
@@ -381,161 +404,124 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 console.log(`[SMS Gateway] Provider: ${provider}, URL: ${baseUrl.replace(/\/\/.*@/, '//***@')}`);
 
-                const finalParams: Record<string, string> = {
-                    userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId || smsConfig.apikey || '',
-                    password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password || smsConfig.apisecret || '',
-                    mobile: phone,
-                    msg: message || '',
-                    senderid: smsConfig.fromNumber || provider,
-                    msgType: 'text',
-                    output: 'json'
-                };
+                // Batching Logic (Max 200 recipients per call for gateway stability)
+                const batchSize = 200;
+                let successBatchCount = 0;
+                let lastGatewayRes = null;
 
-                // Add custom parameters from config
-                if (Array.isArray(smsConfig.params)) {
-                    smsConfig.params.forEach((p: { name: string; value: string }) => {
-                        if (p.name) finalParams[p.name] = p.value;
+                for (let i = 0; i < normalizedRecipients.length; i += batchSize) {
+                    const batch = normalizedRecipients.slice(i, i + batchSize);
+                    const phoneString = batch.join(',');
+
+                    const finalParams: Record<string, string> = {
+                        userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId || smsConfig.apikey || '',
+                        password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password || smsConfig.apisecret || '',
+                        mobile: phoneString,
+                        msg: message || '',
+                        senderid: smsConfig.fromNumber || provider,
+                        msgType: 'text',
+                        output: 'json'
+                    };
+
+                    // Add custom parameters from config
+                    if (Array.isArray(smsConfig.params)) {
+                        smsConfig.params.forEach((p: { name: string; value: string }) => {
+                            if (p.name) finalParams[p.name] = p.value;
+                        });
+                    }
+
+                    const urlParams = new URLSearchParams(finalParams);
+                    const method = smsConfig.method || 'GET';
+                    const dispatchUrl = method === 'GET' ? `${baseUrl}?${urlParams.toString()}` : baseUrl;
+                    const maskedUrl = dispatchUrl.replace(/password=[^&]*/, 'password=********').replace(/userid=[^&]*/, 'userid=********');
+
+                    console.log(`[SMS Gateway] Batch ${Math.floor(i / batchSize) + 1}: Dispatching to ${batch.length} numbers. URL: ${maskedUrl}`);
+                    
+                    try {
+                        const customHeaders: Record<string, string> = {};
+                        if (Array.isArray(smsConfig.headers)) {
+                            smsConfig.headers.forEach((h: { name: string; value: string }) => {
+                                if (h.name && h.value) customHeaders[h.name] = h.value;
+                            });
+                        }
+
+                        const fetchOptions: any = {
+                            method,
+                            headers: {
+                                'Accept': 'application/json',
+                                ...customHeaders
+                            }
+                        };
+
+                        if (method === 'POST') {
+                            if (customHeaders['Content-Type'] === 'application/json') {
+                                fetchOptions.body = JSON.stringify(finalParams);
+                            } else {
+                                fetchOptions.body = urlParams.toString();
+                                if (!customHeaders['Content-Type']) {
+                                    fetchOptions.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+                                }
+                            }
+                        }
+
+                        const smsRes = await fetchWithTimeout(dispatchUrl, fetchOptions, 30000); // 30s timeout for bulk
+                        const smsRaw = await smsRes.text();
+                        lastGatewayRes = smsRaw;
+
+                        const isHtml = smsRaw.includes('<!DOCTYPE') || smsRaw.includes('<html') || (smsRes.headers.get('content-type')?.includes('text/html'));
+                        let smsDetail: any;
+                        try { smsDetail = JSON.parse(smsRaw); } catch (e) { smsDetail = { raw: smsRaw }; }
+
+                        const isError = !smsRes.ok || isHtml || (smsDetail.response && smsDetail.response.toLowerCase() === 'error') || (smsDetail.status && smsDetail.status.toLowerCase().includes('error'));
+
+                        if (!isError) {
+                            successBatchCount++;
+                        } else {
+                            console.error(`[SMS Gateway] Batch failed: ${smsRaw.substring(0, 100)}`);
+                        }
+                    } catch (e: any) {
+                        console.error(`[SMS Gateway] Batch exception: ${e.message}`);
+                    }
+                }
+
+                if (successBatchCount === 0 && normalizedRecipients.length > 0) {
+                    return res.status(502).json({
+                        success: false,
+                        message: `SMS gateway ${provider} failed for all batches.`,
+                        last_response: lastGatewayRes?.substring(0, 300)
                     });
                 }
 
-                const urlParams = new URLSearchParams(finalParams);
-                const method = smsConfig.method || 'GET';
-                const dispatchUrl = method === 'GET' ? `${baseUrl}?${urlParams.toString()}` : baseUrl;
-                const maskedUrl = dispatchUrl.replace(/password=[^&]*/, 'password=********').replace(/userid=[^&]*/, 'userid=********');
+                // Deduct balance and Log (simplified for bulk)
+                if (institutionId !== 'SYSTEM' && user.id !== 'system' && !isSystemMessage) {
+                    await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: totalUnitsToDeduct });
 
-                console.log(`[SMS Gateway] Attempted Gateway: ${provider}. Dispatching to ${phone}. Method: ${method}. URL: ${maskedUrl}`);
-                try {
-                    const customHeaders: Record<string, string> = {};
-                    if (Array.isArray(smsConfig.headers)) {
-                        smsConfig.headers.forEach((h: { name: string; value: string }) => {
-                            if (h.name && h.value) customHeaders[h.name] = h.value;
-                        });
+                    if (user.role === 'super_admin') {
+                        await supabase.rpc('increment_sms_balance', { inst_id: institutionId, amount: totalUnitsToDeduct });
                     }
 
-                    const fetchOptions: any = {
-                        method,
-                        headers: {
-                            'Accept': 'application/json',
-                            ...customHeaders
-                        }
-                    };
-
-                    if (method === 'POST') {
-                        // Use JSON if Content-Type is application/json, otherwise URL-encode
-                        if (customHeaders['Content-Type'] === 'application/json') {
-                            fetchOptions.body = JSON.stringify(finalParams);
-                        } else {
-                            fetchOptions.body = urlParams.toString();
-                            if (!customHeaders['Content-Type']) {
-                                fetchOptions.headers['Content-Type'] = 'application/x-www-form-urlencoded';
-                            }
-                        }
-                    }
-
-                    console.log(`[SMS Gateway] Dispatching to ${dispatchUrl}`);
-                    const smsRes = await fetchWithTimeout(dispatchUrl, fetchOptions);
-                    const smsRaw = await smsRes.text();
-
-                    console.log(`[SMS Gateway] HTTP Status: ${smsRes.status}`);
-                    console.log(`[SMS Gateway] Raw Response: ${smsRaw.substring(0, 300)}`);
-
-                    const isHtml = smsRaw.includes('<!DOCTYPE') || smsRaw.includes('<html') || (smsRes.headers.get('content-type')?.includes('text/html'));
-
-                    let smsDetail: any;
-                    let parseError = false;
                     try {
-                        smsDetail = JSON.parse(smsRaw);
-                    } catch (e) {
-                        smsDetail = { raw: smsRaw.length > 500 ? smsRaw.substring(0, 500) + '...' : smsRaw };
-                        parseError = true;
-                    }
-
-                    // Zettatel/ABMIS usually return a JSON with status or response field
-                    // Example success: {"response":"Success","msgid":"123"}
-                    // Example error: {"response":"Error","error":"Invalid Login"}
-                    // Improve error detection: don't just look for "error" in the raw text, 
-                    // as it could be part of the message text.
-                    const isError = !smsRes.ok ||
-                        isHtml ||
-                        (smsDetail.response && smsDetail.response.toLowerCase() === 'error') ||
-                        (smsDetail.status && smsDetail.status.toLowerCase().includes('error')) ||
-                        (parseError && (
-                            smsRaw.toLowerCase().includes('error') ||
-                            smsRaw.toLowerCase().includes('invalid login') ||
-                            smsRaw.toLowerCase().includes('access denied') ||
-                            smsRaw.toLowerCase().includes('authentication failed')
-                        ));
-
-                    if (isError) {
-                        let cleanMessage = `Gateway ${provider} reported an error (Status: ${smsRes.status}).`;
-                        if (isHtml) {
-                            cleanMessage += " The gateway returned an HTML error page instead of JSON. This often means the API endpoint is incorrect, or your IP/Account is blocked by a firewall.";
-                        } else if (parseError) {
-                            cleanMessage += " The gateway returned an invalid non-JSON response.";
-                        }
-
-                        const rawSnippet = smsRaw.substring(0, 500).replace(/<[^>]*>?/gm, ' ').trim();
-
-                        return res.status(502).json({
-                            success: false,
-                            message: `Gateway ${provider} returned an error. ${isHtml ? 'HTML page returned — check your SMS gateway URL or IP whitelist.' : parseError ? 'Invalid non-JSON response.' : smsRaw.substring(0, 200)}`,
-                            response_hint: rawSnippet,
-                            recipient: phone,
-                            provider,
-                            url: dispatchUrl.replace(/\/\/.*@/, '//***@')
+                        // Bulk log entry
+                        await supabase.from('sms_logs').insert({
+                            institution_id: institutionId,
+                            sender_id: (user.id === 'system' || !user.id) ? null : user.id,
+                            recipient: normalizedRecipients.length === 1 ? normalizedRecipients[0] : `${normalizedRecipients.length} recipients`,
+                            message: message,
+                            units: totalUnitsToDeduct,
+                            status: 'sent',
+                            provider: provider,
+                            gateway_response: { batch_count: Math.ceil(normalizedRecipients.length / batchSize), success_batches: successBatchCount }
                         });
+                    } catch (logErr) {
+                        console.error('[SMS Logging] Failed to record log:', logErr);
                     }
+                }
 
-                    // Check if it's explicitly success or at least doesn't look like an error
-                    const isExplicitSuccess = (smsRes.ok && !parseError) && (
-                        smsRaw.toLowerCase().includes('success') ||
-                        smsRaw.toLowerCase().includes('ok') ||
-                        (smsDetail.response && smsDetail.response.toLowerCase() === 'success') ||
-                        (smsDetail.msgid || smsDetail.msg_id || smsDetail.id) // If there's a message ID, it's usually success
-                    );
-
-                    if (!isExplicitSuccess && !isError && smsRes.ok) {
-                        // If it's not explicitly success but we have a 200 OK and no error detected, 
-                        // and it's not HTML, we'll treat it as success.
-                        console.log(`[SMS Gateway] Treating ambiguous but non-error response from ${provider} as success:`, smsRaw);
-                    }
-
-                        // Success! Decrement balance (except for generic system messages without institution)
-                        // OTPs and other system messages correctly bypass balance deduction
-                        if (institutionId !== 'SYSTEM' && user.id !== 'system' && !isSystemMessage) {
-                            await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: unitsToDeduct });
-
-                            // NEW: If super admin sent it, add it back immediately (deduct then add back)
-                            if (user.role === 'super_admin') {
-                                console.log(`[SMS Balance] Restoring ${unitsToDeduct} units for super_admin send.`);
-                                await supabase.rpc('increment_sms_balance', { inst_id: institutionId, amount: unitsToDeduct });
-                            }
-
-                            try {
-                                await supabase.from('sms_logs').insert({
-                                    institution_id: institutionId,
-                                    sender_id: (user.id === 'system' || !user.id) ? null : user.id,
-                                    recipient: phone,
-                                    message: message,
-                                    units: unitsToDeduct,
-                                    status: 'sent',
-                                    provider: provider,
-                                    gateway_response: smsDetail
-                                });
-                            } catch (logErr) {
-                                console.error('[SMS Logging] Failed to record log:', logErr);
-                            }
-                        }
-
-                        return res.status(200).json({
-                            success: true,
-                            message: 'SMS sent successfully.',
-                            detail: smsDetail,
-                            recipient: phone
-                        });
-                    } catch (e: any) {
-                        return res.status(504).json({ success: false, message: 'SMS gateway connection timeout.', error: e.message });
-                    }
+                return res.status(200).json({
+                    success: true,
+                    message: `Bulk SMS processing complete. Successfully dispatched ${successBatchCount} of ${Math.ceil(normalizedRecipients.length / batchSize)} batches.`,
+                    recipient_count: normalizedRecipients.length
+                });
             } else if (provider === 'Sematime') {
                 // Placeholder for Sematime implementation
                 return res.status(501).json({ success: false, message: 'Sematime integration is currently under maintenance. Please use ABMIS or Zettatel.' });

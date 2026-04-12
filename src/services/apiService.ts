@@ -988,8 +988,14 @@ export const apiService = {
         await apiService.saveModuleRecord('mpesa_transactions', transaction);
         return 'completed';
     },
-    async sendSms(recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string, authToken?: string): Promise<any> {
-        const formattedRecipient = formatPhoneNumber(recipient);
+    async sendSms(recipient: string | string[], message: string, config?: SmsConfig, units?: number, institutionId?: string, authToken?: string): Promise<any> {
+        let formattedRecipient: any;
+        if (Array.isArray(recipient)) {
+            formattedRecipient = recipient.map(r => formatPhoneNumber(r));
+        } else {
+            formattedRecipient = formatPhoneNumber(recipient);
+        }
+
         if (!_supabase) {
             return { success: false, message: "Database service (Supabase) not initialized. Live SMS requires an active backend." };
         }
@@ -1024,7 +1030,14 @@ export const apiService = {
             const response = await fetch('/api/integrations', {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ action: 'sendSms', recipient: formattedRecipient, message, config, units, institutionId })
+                body: JSON.stringify({ 
+                    action: 'sendSms', 
+                    [Array.isArray(formattedRecipient) ? 'recipients' : 'recipient']: formattedRecipient, 
+                    message, 
+                    config, 
+                    units, 
+                    institutionId 
+                })
             });
 
             let resData: any = {};

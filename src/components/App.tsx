@@ -3885,7 +3885,7 @@ export const App: React.FC = () => {
                                         letterheadConfig={activeLetterheadConfig}
                                         logoUrl={activeBranding.logoUrl}
                                         footerImageUrl={activeFooterImageUrl}
-                                        onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId || activeInstitution?.id); await handleLogAction(`Sent SMS to ${r}`); return res; }}
+                                        onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId || activeInstitution?.id); await handleLogAction(`Sent SMS to ${Array.isArray(r) ? r.length + ' recipients' : r}`); return res; }}
                                         companyDetails={companyDetails}
                                         onAddTransaction={apiService.onAddTransaction.bind(apiService)}
                                         onLogAction={handleLogAction}
@@ -3949,7 +3949,7 @@ export const App: React.FC = () => {
                                     letterheadConfig={activeLetterheadConfig}
                                     logoUrl={activeBranding.logoUrl}
                                     footerImageUrl={activeFooterImageUrl}
-                                    onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId); await handleLogAction(`Sent SMS to ${r}`); return res; }}
+                                    onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId); await handleLogAction(`Sent SMS to ${Array.isArray(r) ? r.length + ' recipients' : r}`); return res; }}
                                     onAddParent={async (sid, p) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => { handleLogAction(`Added parent for student ${sid}`); return { success: true, message: 'Parent added.' }; })}
                                     onDeleteParent={() => { }}
                                 />
@@ -3963,7 +3963,7 @@ export const App: React.FC = () => {
                                     onDataChange={loadData}
                                     onSendSms={async (r, m, config, units, instId) => {
                                         const res = await apiService.sendSms(r, m, config || activeInstitution?.smsConfig || companyDetails.smsConfig, units, instId || activeInstitution?.id);
-                                        await handleLogAction(`Sent SMS to ${r}`);
+                                        await handleLogAction(`Sent SMS to ${Array.isArray(r) ? r.length + ' recipients' : r}`);
                                         return res;
                                     }}
                                     onAddTransaction={apiService.onAddTransaction.bind(apiService)}
@@ -4205,7 +4205,7 @@ export const App: React.FC = () => {
                                         await handleLogAction(`Sent bulk credentials to ${res.success_count} users via ${method}`);
                                         return res;
                                     }}
-                                    onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId || activeInstitution?.id); await handleLogAction(`Sent SMS to ${r}`); return res; }}
+                                    onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId || activeInstitution?.id); await handleLogAction(`Sent SMS to ${Array.isArray(r) ? r.length + ' recipients' : r}`); return res; }}
                                     onSaveSmsConfig={async (config) => { await onUpdateInstitution(activeInstitution!.id, { smsConfig: config }); await handleLogAction(`Updated SMS configuration`); }}
                                     onUpdateRequest={async (id, data) => { await apiService.saveModuleRecord('allocation_requests', { id, ...data }); await handleLogAction(`Updated allocation request`); loadData(); }}
                                     onWithdrawRequest={async (id) => { await apiService.deleteModuleRecord('allocation_requests', id); await handleLogAction(`Withdrew allocation request`); loadData(); }}
