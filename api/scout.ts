@@ -61,14 +61,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             ]
         `;
 
-        const result = await model.generateContent(prompt);
+        const result = await model.generateContent(prompt).catch(e => {
+            console.error("Gemini API Error:", e);
+            throw new Error(`AI Engine Error: ${e.message}`);
+        });
+
+        // Handle potential safety blocks or empty responses
+        if (!result.response) throw new Error("AI returned an empty response. It might be blocked by safety filters.");
+        
         const responseText = result.response.text();
+        if (!responseText) throw new Error("AI returned an empty text response.");
         
         // Extract JSON from response (handling potential markdown formatting)
         const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-        if (!jsonMatch) throw new Error("Failed to parse AI scout results");
+        if (!jsonMatch) {
+            console.error("Raw AI Response (No JSON found):", responseText);
+            throw new Error("Failed to parse AI scout results. The engine returned invalid formatting.");
+        }
         
-        const prospects = JSON.parse(jsonMatch[0]);
+        let prospects: any[];
+        try {
+            prospects = JSON.parse(jsonMatch[0]);
+        } catch (e) {
+            console.error("JSON Parse Error:", e, "Text:", jsonMatch[0]);
+            throw new Error("AI scout result parsing error.");
+        }
 
         // Storage Phase - Generate consistent IDs for TEXT primary key
         const { data: savedData, error: dbError } = await supabase
@@ -88,6 +105,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (dbError) {
             console.error("Supabase Upsert Error:", dbError);
+            // Check for common permission/table missing errors
+            if (dbError.code === '42P01') throw new Error("Database table 'marketing_prospects' is missing. Please run migrations.");
             throw new Error(`Database Error: ${dbError.message}`);
         }
 
@@ -100,12 +119,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     } catch (error: any) {
         console.error("Lead Scout Error:", error);
-        // Ensure we always return a JSON error response even if parsing fails
         return res.status(500).json({ 
             success: false, 
             error: "Scouting Failed", 
             message: error.message,
-            debug: process.env.NODE_ENV === 'development' ? error : undefined
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 }
