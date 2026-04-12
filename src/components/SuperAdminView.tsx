@@ -14,7 +14,7 @@ import type {
     TransportOnboarding, VehicleLog, AppNotification,
     LawAgreement, LawAgreementTemplate, LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction,
     DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
-    CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry
+    CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry, MarketingProspect
 } from '../types';
 import { TransactionsManager } from './TransactionsManager';
 import { DatabaseSettings } from './DatabaseSettings';
@@ -98,6 +98,7 @@ import { SuspendedAccountView } from './SuspendedAccountView';
 import { MandatoryUpdateView } from './MandatoryUpdateView';
 import { TimetableWizard } from './TimetableWizard';
 import { ParentView } from './ParentView';
+import { LeadScoutManager } from './LeadScoutManager';
 import { CountyManager } from './CountyManager';
 import { PropertyMarketplaceView } from './PropertyMarketplaceView';
 import { ExternalModuleView } from './ExternalModuleView';
@@ -502,7 +503,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         onUpdateDSSettings
     } = props;
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout'>('dashboard');
     const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry'>('list'); // Modified for Counties, Resellers, Business & Registry
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses'>('subjects');
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
@@ -1049,6 +1050,7 @@ Please change it after login.`;
         { key: 'communications', label: 'Communications', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
         { key: 'user_activity', label: 'Audit Trail', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
         { key: 'demo_requests', label: 'Demo Leads', icon: <CalendarIcon className="w-5 h-5 mr-2" /> },
+        { key: 'lead_scout', label: 'AI Lead Scout', icon: <SparklesIcon className="w-5 h-5 mr-2 text-indigo-500" /> },
         { key: 'settings', label: 'Global Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
         { key: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
     ];
@@ -2617,6 +2619,12 @@ Please change it after login.`;
                             requests={demoRequests} 
                             onUpdateStatus={onUpdateDemoStatus} 
                         />
+                    </div>
+                )}
+
+                {activeTab === 'lead_scout' && (
+                    <div className="animate-fade-in-up">
+                        <LeadScoutManager />
                     </div>
                 )}
 

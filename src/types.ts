@@ -25,6 +25,21 @@ export interface DemoRequest {
     createdAt: string;
 }
 
+export interface MarketingProspect {
+    id: string;
+    businessName: string;
+    niche: string;
+    email: string;
+    phone?: string;
+    websiteUrl?: string;
+    location?: string;
+    leadScore: number;
+    aiSummary?: string;
+    status: 'new' | 'contacted' | 'qualified' | 'customer' | 'ignored';
+    lastProcessedAt: string;
+    createdAt: string;
+}
+
 
 export interface Unavailability {
     id: string;
