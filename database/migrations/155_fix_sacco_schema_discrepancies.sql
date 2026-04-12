@@ -6,6 +6,10 @@ ALTER TABLE sacco_accounts ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active'
 -- Ensure existing accounts have 'active' status
 UPDATE sacco_accounts SET status = 'active' WHERE status IS NULL;
 
+-- Fix account_type constraint to include 'shares' (Interface expects: 'savings', 'shares', 'loan')
+ALTER TABLE sacco_accounts DROP CONSTRAINT IF EXISTS sacco_accounts_account_type_check;
+ALTER TABLE sacco_accounts ADD CONSTRAINT sacco_accounts_account_type_check CHECK (account_type IN ('savings', 'shares', 'loan'));
+
 -- 2. Update sacco_transactions
 ALTER TABLE sacco_transactions ADD COLUMN IF NOT EXISTS transaction_date TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE sacco_transactions ADD COLUMN IF NOT EXISTS reference TEXT;

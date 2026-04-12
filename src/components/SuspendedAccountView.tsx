@@ -100,9 +100,9 @@ export const SuspendedAccountView: React.FC<SuspendedAccountViewProps> = ({ user
                             </div>
 
                             <div className="flex justify-center gap-4">
-                                <button onClick={onLogout} className="px-8 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 font-bold rounded-2xl hover:bg-slate-200 transition-all flex items-center gap-2">
+                                <button onClick={onLogout} className="px-3 sm:px-8 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 font-bold rounded-2xl hover:bg-slate-200 transition-all flex items-center gap-0 sm:gap-2">
                                     <ArrowRightOnRectangleIcon className="w-5 h-5" />
-                                    Return to Login
+                                    <span className="hidden sm:block">Return to Login</span>
                                 </button>
                             </div>
                         </div>

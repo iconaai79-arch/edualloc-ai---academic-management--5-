@@ -153,9 +153,9 @@ export const TrialExpiredView: React.FC<TrialExpiredViewProps> = ({
                                 </div>
                             )}
 
-                            <button onClick={onLogout} className="text-slate-500 hover:text-white text-sm font-bold transition-colors flex items-center gap-2 mx-auto py-2">
+                            <button onClick={onLogout} className="text-slate-500 hover:text-white text-sm font-bold transition-colors flex items-center gap-0 sm:gap-2 mx-auto py-2">
                                 <ArrowRightOnRectangleIcon className="w-4 h-4" />
-                                Return to Login
+                                <span className="hidden sm:block">Return to Login</span>
                             </button>
                         </div>
                     ) : (
@@ -166,9 +166,9 @@ export const TrialExpiredView: React.FC<TrialExpiredViewProps> = ({
                                 </p>
                             </div>
 
-                            <button onClick={onLogout} className="px-10 py-4 bg-slate-800 text-white font-bold rounded-[1.5rem] hover:bg-slate-700 transition-all flex items-center gap-3 mx-auto border border-white/10">
+                            <button onClick={onLogout} className="px-4 sm:px-10 py-4 bg-slate-800 text-white font-bold rounded-[1.5rem] hover:bg-slate-700 transition-all flex items-center gap-0 sm:gap-3 mx-auto border border-white/10">
                                 <ArrowRightOnRectangleIcon className="w-5 h-5 text-slate-400" />
-                                Log Out
+                                <span className="hidden sm:block">Log Out</span>
                             </button>
                         </div>
                     )}
