@@ -194,6 +194,33 @@ export interface Institution {
     disabilityType?: string;
     accommodationType?: 'Boarding' | 'Day' | 'Mixed';
     genderType?: 'Boys' | 'Girls' | 'Mixed';
+    motto?: string;
+    vision?: string;
+    mission?: string;
+    history?: string;
+    showcaseCpanelUrl?: string;
+    showcaseCpanelToken?: string;
+}
+
+export interface SchoolGallery {
+    id: string;
+    institutionId: string;
+    imageUrl: string;
+    caption?: string;
+    eventDate?: string;
+    sortOrder: number;
+    createdAt: string;
+}
+
+export interface SchoolAd {
+    id: string;
+    institutionId: string;
+    imageUrl: string;
+    linkUrl?: string;
+    title?: string;
+    isActive: boolean;
+    displayLocation: 'hero' | 'sidebar' | 'footer';
+    createdAt: string;
 }
 
 export interface NcbaConfig {

@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { Institution, BulletinItem, Course, AcademicLevel, User } from '../../types';
+import { Institution, BulletinItem, Course, AcademicLevel, User, SchoolGallery, SchoolAd } from '../../types';
 import { apiService } from '../../services/apiService';
 import { AcademicCapIcon } from '../icons/AcademicCapIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
@@ -12,6 +11,7 @@ import { XIcon } from '../icons/XIcon';
 import { PhoneIcon } from '../icons/PhoneIcon';
 import { MapPinIcon } from '../icons/MapPinIcon';
 import { CheckBadgeIcon } from '../icons/CheckBadgeIcon';
+import { ImageIcon } from '../icons/ImageIcon';
 
 interface SchoolStorefrontViewProps {
     institutionId: string;
@@ -23,10 +23,12 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
     const [news, setNews] = useState<BulletinItem[]>([]);
     const [courses, setCourses] = useState<Course[]>([]);
     const [levels, setLevels] = useState<AcademicLevel[]>([]);
+    const [gallery, setGallery] = useState<SchoolGallery[]>([]);
+    const [ads, setAds] = useState<SchoolAd[]>([]);
     const [teachersCount, setTeachersCount] = useState(0);
     const [studentsCount, setStudentsCount] = useState(0);
     const [loading, setLoading] = useState(true);
-    const [activeSection, setActiveSection] = useState<'overview' | 'academics' | 'news' | 'admissions'>('overview');
+    const [activeSection, setActiveSection] = useState<'overview' | 'academics' | 'news' | 'admissions' | 'gallery'>('overview');
 
     useEffect(() => {
         const loadSchoolData = async () => {
@@ -45,16 +47,20 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
 
                 if (resolvedSchool) {
                     setSchool(resolvedSchool);
-                    const [schoolNews, schoolCourses, schoolLevels, schoolUsers] = await Promise.all([
+                    const [schoolNews, schoolCourses, schoolLevels, schoolUsers, schoolGallery, schoolAds] = await Promise.all([
                         apiService.fetchModuleRecords<BulletinItem>('bulletin_items', resolvedSchool.id),
                         apiService.fetchCourses(resolvedSchool.id),
                         apiService.fetchAcademicLevels(resolvedSchool.id),
-                        apiService.fetchUsers(resolvedSchool.id)
+                        apiService.fetchUsers(resolvedSchool.id),
+                        apiService.fetchModuleRecords<SchoolGallery>('school_gallery', resolvedSchool.id),
+                        apiService.fetchModuleRecords<SchoolAd>('school_ads', resolvedSchool.id)
                     ]);
 
                     setNews((schoolNews || []).filter(n => n.status === 'Published').sort((a, b) => new Date(b.publishDate).getTime() - new Date(a.publishDate).getTime()));
                     setCourses(schoolCourses || []);
                     setLevels(schoolLevels || []);
+                    setGallery(schoolGallery || []);
+                    setAds((schoolAds || []).filter(a => a.isActive));
                     
                     const teachers = (schoolUsers || []).filter(u => u.role === 'teacher' || u.role === 'lecturer');
                     const students = (schoolUsers || []).filter(u => u.role === 'student');
@@ -124,7 +130,7 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
                     </div>
 
                     <div className="hidden md:flex items-center gap-2 bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700">
-                        {['overview', 'academics', 'news', 'admissions'].map((s) => (
+                        {['overview', 'academics', 'news', 'gallery', 'admissions'].map((s) => (
                             <button
                                 key={s}
                                 onClick={() => setActiveSection(s as any)}
@@ -170,11 +176,20 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
                         Pioneering Modern Education
                     </div>
                     <h2 className="text-7xl md:text-9xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none italic mb-8 drop-shadow-2xl animate-fade-in-up">
-                        Shape Your <br />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-500">Future Here.</span>
+                        {school.motto ? (
+                            <>
+                                {school.motto.split(' ').slice(0, -1).join(' ')} <br />
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-500">{school.motto.split(' ').slice(-1)}</span>
+                            </>
+                        ) : (
+                            <>
+                                Shape Your <br />
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-500">Future Here.</span>
+                            </>
+                        )}
                     </h2>
                     <p className="max-w-2xl mx-auto text-slate-500 dark:text-slate-400 font-medium text-lg leading-relaxed mb-12 animate-fade-in-up delay-100">
-                        {school.name} combines heritage with state-of-the-art innovation to nurture the next generation of leaders, creators, and innovators. Join a community built on excellence.
+                        {school.vision || `${school.name} combines heritage with state-of-the-art innovation to nurture the next generation of leaders, creators, and innovators. Join a community built on excellence.`}
                     </p>
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-6 animate-fade-in-up delay-200">
                         <button 
@@ -227,17 +242,17 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
                                 <div className="space-y-6">
                                     <h3 className="text-4xl md:text-6xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Our Institutional <span className="text-indigo-500">Core.</span></h3>
                                     <p className="text-slate-500 dark:text-slate-400 text-lg font-medium leading-relaxed">
-                                        Founded on the principles of integrity and forward-thinking, {school.name} provides an environment where curiosity is celebrated and potential is realized. We don't just teach; we inspire.
+                                        {school.history || `Founded on the principles of integrity and forward-thinking, ${school.name} provides an environment where curiosity is celebrated and potential is realized. We don't just teach; we inspire.`}
                                     </p>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div className="p-10 bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-xl">
-                                        <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase italic mb-4">Integrity</h4>
-                                        <p className="text-slate-500 text-sm font-medium">Building strong character through honest engagement and ethical leadership.</p>
+                                        <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase italic mb-4">Mission</h4>
+                                        <p className="text-slate-500 text-sm font-medium">{school.mission || 'Building strong character through honest engagement and ethical leadership.'}</p>
                                     </div>
                                     <div className="p-10 bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-xl">
-                                        <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase italic mb-4">Heritage</h4>
-                                        <p className="text-slate-500 text-sm font-medium">Honoring our traditions while embracing a technologically advanced future.</p>
+                                        <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase italic mb-4">Vision</h4>
+                                        <p className="text-slate-500 text-sm font-medium">{school.vision || 'Honoring our traditions while embracing a technologically advanced future.'}</p>
                                     </div>
                                 </div>
                             </div>
@@ -349,6 +364,32 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
                                     </button>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeSection === 'gallery' && (
+                    <div className="animate-fade-in">
+                        <div className="text-center mb-20 space-y-4">
+                            <h3 className="text-5xl md:text-7xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Visual Registry</h3>
+                            <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-[10px]">Moments of excellence captured through our lens</p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                            {gallery.length > 0 ? gallery.map((item) => (
+                                <div key={item.id} className="group relative aspect-[4/3] bg-white dark:bg-slate-900 rounded-[3rem] overflow-hidden border border-slate-100 dark:border-slate-800 shadow-xl">
+                                    <img src={item.imageUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={item.caption} />
+                                    <div className="absolute inset-x-0 bottom-0 p-8 bg-gradient-to-t from-slate-900/90 to-transparent translate-y-full group-hover:translate-y-0 transition-transform">
+                                        <p className="text-white text-[10px] font-black uppercase tracking-widest mb-2">{new Date(item.eventDate || '').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</p>
+                                        <h4 className="text-white text-xl font-bold italic truncate">{item.caption}</h4>
+                                    </div>
+                                </div>
+                            )) : (
+                                <div className="col-span-full py-32 text-center bg-white dark:bg-slate-900 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-800">
+                                    <ImageIcon className="w-16 h-16 text-slate-200 mx-auto mb-6" />
+                                    <h4 className="text-xl font-black text-slate-800 dark:text-white uppercase italic">Archive Empty</h4>
+                                    <p className="text-slate-400 text-[10px] font-black uppercase mt-2">Historical and event documentation is currently being curated.</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

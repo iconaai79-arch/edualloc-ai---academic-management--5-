@@ -40,6 +40,7 @@ const DrivingSchoolManager = lazy(() => import('./ds/DrivingSchoolManager').then
 const CommunityManager = lazy(() => import('./CommunityManager').then(m => ({ default: m.CommunityManager })));
 const AlumniManager = lazy(() => import('./AlumniManager').then(m => ({ default: m.AlumniManager })));
 const HospitalityManager = lazy(() => import('./HospitalityManager').then(m => ({ default: m.HospitalityManager })));
+const SchoolShowcaseManager = lazy(() => import('./SchoolShowcaseManager').then(m => ({ default: m.SchoolShowcaseManager })));
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
@@ -79,6 +80,7 @@ import { ChevronRightIcon } from './icons/ChevronRightIcon';
 import { ArrowRightIcon } from './icons/ArrowRightIcon';
 import { HomeIcon } from './icons/HomeIcon';
 import { MagnifyingGlassIcon as SearchIcon } from './icons/MagnifyingGlassIcon';
+import { GlobeAltIcon } from './icons/GlobeAltIcon';
 
 const DirectAssignModal = lazy(() => import('./DirectAssignModal').then(m => ({ default: m.DirectAssignModal })));
 const AcademicYearManager = lazy(() => import('./AcademicYearManager').then(m => ({ default: m.AcademicYearManager })));
@@ -542,6 +544,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'alumni', label: 'Alumni Network', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
             { id: 'hospitality', label: 'Hospitality Hub', icon: <PalmTreeIcon className="w-5 h-5 mr-2" /> },
             { id: 'auto_marketplace', label: 'Car Sales', icon: <CarIcon className="w-5 h-5 mr-2" /> },
+            { id: 'showcase', label: 'Digital Presence', icon: <GlobeAltIcon className="w-5 h-5 mr-2" /> },
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         ];
 
@@ -614,6 +617,10 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             if (tab.id === 'alumni') return isAlumni || roleToUse === 'alumni_admin';
             if (tab.id === 'hospitality') return isHospitality || roleToUse === 'hospitality_admin';
             if (tab.id === 'auto_marketplace') return isAutoMarket;
+
+            if (tab.id === 'showcase') {
+                return (isSchool || isEdu) && ['admin', 'head_teacher', 'dos', 'super_admin'].includes(roleToUse || '');
+            }
 
             return true;
         });
@@ -1432,6 +1439,13 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         </div>
                     </div>
                 )}
+
+                                        {activeTab === 'showcase' && props.currentInstitution && (
+                                            <SchoolShowcaseManager
+                                                school={props.currentInstitution}
+                                                onUpdate={props.onRefreshData!}
+                                            />
+                                        )}
 
                 {activeTab === 'reports' && !isCoop && (
                     <div className="animate-fade-in-up">
