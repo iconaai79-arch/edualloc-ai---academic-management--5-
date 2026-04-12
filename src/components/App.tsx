@@ -47,6 +47,7 @@ const RiderPortal = lazy(() => import('./coop/RiderPortal').then(m => ({ default
 const BoardingMasterView = lazy(() => import('./BoardingMasterView'));
 const ResellerDashboard = lazy(() => import('./ResellerDashboard'));
 const TenantStorefrontView = lazy(() => import('./retail/TenantStorefrontView').then(m => ({ default: m.TenantStorefrontView })));
+const SchoolStorefrontView = lazy(() => import('./public/SchoolStorefrontView').then(m => ({ default: m.SchoolStorefrontView })));
 const CommunityHubView = lazy(() => import('./public/CommunityHubView').then(m => ({ default: m.CommunityHubView })));
 const TransportHubView = lazy(() => import('./public/TransportHubView').then(m => ({ default: m.TransportHubView })));
 const HospitalityStorefront = lazy(() => import('./hospitality/HospitalityStorefront').then(m => ({ default: m.HospitalityStorefront })));
@@ -4510,10 +4511,12 @@ export const App: React.FC = () => {
                         {showTenantStore && activeStoreTenantId ? (
                             (() => {
                                 const targetInst = institutions.find(inst => inst.id === activeStoreTenantId || inst.slug === activeStoreTenantId);
-                                if (targetInst?.institutionType === 'Hospitality') {
+                                 if (targetInst?.institutionType === 'Hospitality') {
                                     return <HospitalityStorefront institutionId={activeStoreTenantId} />;
                                 } else if (targetInst?.institutionType === 'Construction') {
                                     return <ConstructionProjectView institutionId={activeStoreTenantId} />;
+                                } else if (targetInst?.institutionType === 'Education' || targetInst?.institutionType === 'Primary School' || targetInst?.institutionType === 'Secondary School') {
+                                    return <SchoolStorefrontView institutionId={activeStoreTenantId} onEnrollmentClick={() => setShowAlumnaeRegister(true)} />;
                                 }
                                 return <TenantStorefrontView institutionId={activeStoreTenantId} />;
                             })()
