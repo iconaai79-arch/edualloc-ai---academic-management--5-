@@ -163,7 +163,7 @@ const PerspectiveReturnButton: React.FC<{
     if (!role && !isImpersonatedSession && hasCurrentUser) return null;
     if (!hasCurrentUser && !isPublicView) return null;
     return (
-        <div className="fixed bottom-24 left-6 z-[200] animate-fade-in-up no-print flex flex-col gap-3">
+        <div className={`fixed ${isPublicView ? 'bottom-8 right-8 md:bottom-12 md:right-12' : 'bottom-24 left-6'} z-[200] animate-fade-in-up no-print flex flex-col gap-3`}>
             {(role || isImpersonatedSession) && (
                 <button
                     onClick={isImpersonatedSession ? onRestoreSession : onReturn}
@@ -4515,7 +4515,7 @@ export const App: React.FC = () => {
                                 onBack={() => setShowTransportHub(false)}
                             />
                          ) : showMarketplace ? (
-                            <PropertyMarketplaceView />
+                            <PropertyMarketplaceView carListings={carListings} />
                          ) : window.location.search.includes('view=travel') ? (
                             <HospitalityMarketplace 
                                 institutions={institutions}

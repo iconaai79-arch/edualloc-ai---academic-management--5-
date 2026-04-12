@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PMListing, PMListingStatus, PMListingType, Institution, RetailInventoryItem } from '../types';
+import { PMListing, PMListingStatus, PMListingType, Institution, RetailInventoryItem, CarListing } from '../types';
 import { apiService } from '../services/apiService';
 import { getInstitutionEmailConfig } from '../services/emailService';
 import { HomeIcon } from './icons/HomeIcon';
@@ -20,20 +20,24 @@ import { QrCodeIcon } from './icons/QrCodeIcon';
 import { CheckIcon } from './icons/CheckIcon';
 import { ClipboardListIcon } from './icons/ClipboardListIcon';
 import { TruckIcon } from './icons/TruckIcon';
+import { CarIcon } from './icons/CarIcon';
 import { CourierSignupModal } from './retail/CourierSignupModal';
+import { VehicleMarketplaceView } from './VehicleMarketplaceView';
 
 interface PropertyMarketplaceViewProps {
     onInquire?: (listing: PMListing) => void;
+    carListings?: CarListing[];
 }
 
-export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = ({ onInquire }) => {
+export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = ({ onInquire, carListings }) => {
     const [listings, setListings] = useState<PMListing[]>([]);
     const [retailProducts, setRetailProducts] = useState<RetailInventoryItem[]>([]);
+    const [vehicleListings, setVehicleListings] = useState<CarListing[]>([]);
     const [institutions, setInstitutions] = useState<Institution[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState<PMListingType | 'All'>('All');
-    const [activeSection, setActiveSection] = useState<'properties' | 'retail'>('properties');
+    const [activeSection, setActiveSection] = useState<'properties' | 'retail' | 'vehicles'>('properties');
     const [selectedListing, setSelectedListing] = useState<PMListing | null>(null);
     const [selectedProduct, setSelectedProduct] = useState<RetailInventoryItem | null>(null);
     const [inquiryListing, setInquiryListing] = useState<PMListing | null>(null);
@@ -334,18 +338,24 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 const allRetailItems = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', 'ALL');
                 const liveRetailItems = allRetailItems.filter(item => item.marketplaceEnabled === true);
 
+                // Fetch vehicle listings
+                const cars = carListings && carListings.length > 0 
+                    ? carListings 
+                    : await apiService.fetchCarListings('ALL', 'all');
+
                 // Fetch institution details to show seller info
                 const instList = await apiService.fetchModuleRecords<Institution>('institutions', 'ALL');
 
                 setListings(activeListings);
                 setRetailProducts(liveRetailItems);
+                setVehicleListings(cars);
                 setInstitutions(instList);
 
                 // SEO: Update page title and description
-                document.title = "Real Estate and Retail Marketplace | Eduai Automation";
+                document.title = "Unified Marketplace | Properties, Vehicles & Retail | Eduai Automation";
                 const metaDesc = document.querySelector('meta[name="description"]');
                 if (metaDesc) {
-                    metaDesc.setAttribute("content", `Discover ${activeListings.length} premium properties and ${liveRetailItems.length} retail products on our unified marketplace. Rent, buy, or lease across Kenya.`);
+                    metaDesc.setAttribute("content", `Explore our premium unified marketplace featuring ${activeListings.length} properties, ${cars.length} vehicles, and ${liveRetailItems.length} retail products.`);
                 }
             } catch (e) {
                 console.error("Marketplace Load Error:", e);
@@ -690,6 +700,15 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                             <ShoppingCartIcon className={`w-5 h-5 ${activeSection === 'retail' ? 'text-indigo-500' : ''}`} />
                             Retail
                         </button>
+                        <button
+                            onClick={() => setActiveSection('vehicles')}
+                            className={`flex items-center gap-3 px-10 py-5 rounded-[1.75rem] text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${activeSection === 'vehicles'
+                                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xl scale-105'
+                                : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
+                        >
+                            <CarIcon className={`w-5 h-5 ${activeSection === 'vehicles' ? 'text-emerald-500' : ''}`} />
+                            Vehicles
+                        </button>
                     </div>
 
                     <div className="h-px flex-1 bg-gradient-to-r from-slate-200 dark:from-slate-800 to-transparent"></div>
@@ -712,6 +731,13 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                     >
                         <ShoppingCartIcon className="w-5 h-5" />
                         <span className="text-[10px] font-black uppercase tracking-tighter">Retail</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveSection('vehicles')}
+                        className={`flex-1 flex flex-col items-center gap-1 py-3 rounded-[2rem] transition-all ${activeSection === 'vehicles' ? 'bg-white text-slate-900' : 'text-white/60'}`}
+                    >
+                        <CarIcon className="w-5 h-5" />
+                        <span className="text-[10px] font-black uppercase tracking-tighter">Vehicles</span>
                     </button>
                 </div>
             </div>
@@ -930,7 +956,6 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                         )}
                     </div>
 
-                    {/* Partner Section */}
                     <div className="mt-40 relative group overflow-hidden rounded-[4rem] bg-indigo-900 min-h-[400px] flex items-center p-12 md:p-20">
                         {/* Background Decoration */}
                         <div className="absolute top-0 right-0 w-1/2 h-full bg-indigo-800/30 -skew-x-12 translate-x-1/4"></div>
@@ -967,6 +992,24 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                             </div>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* ── Vehicle Listings Grid ── */}
+            {activeSection === 'vehicles' && (
+                <div className="max-w-[1600px] mx-auto px-8 pb-32 pt-20">
+                    <VehicleMarketplaceView 
+                        listings={vehicleListings}
+                        onBookTestDrive={(v) => {
+                             // Implement book test drive flow if needed
+                             alert(`Booking test drive for ${v.make} ${v.model}. Out of scope for this demo.`);
+                        }}
+                        onInquiry={(v) => {
+                             // Link to inquiry flow
+                             alert(`Enquiring about ${v.make} ${v.model}. Out of scope for this demo.`);
+                        }}
+                        currentInstitution={null}
+                    />
                 </div>
             )}
 
