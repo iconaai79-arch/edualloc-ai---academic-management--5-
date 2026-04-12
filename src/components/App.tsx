@@ -2523,6 +2523,16 @@ export const App: React.FC = () => {
                     }
                 }
 
+                // Send SMS notification
+                if (newAdmin.phoneNumber) {
+                    const smsMessage = `Welcome to EduAI Hub. ${newCounty.name} County Portal registration successful. Your Login: Email: ${newAdmin.email}, PIN: ${adminPassword}. Login at ${window.location.origin}`;
+                    try {
+                        await apiService.sendSms(newAdmin.phoneNumber, smsMessage);
+                    } catch (e) {
+                        console.error("SMS notification failed", e);
+                    }
+                }
+
                 return { success: true, message: 'County Portal registered successfully.', credentials: { email: newAdmin.email, password: adminPassword } };
             } catch (error: any) {
                 console.error("County Registration Error:", error);
@@ -2582,6 +2592,16 @@ export const App: React.FC = () => {
                         await sendEmailNotification(newAdmin.email, "Institution Registration - Account Details", emailBody, getInstitutionEmailConfig(newInstitution, companyDetails.emailConfig));
                     } catch (e) {
                         console.error("Email notification failed", e);
+                    }
+                }
+
+                // Send SMS notification
+                if (newAdmin.phoneNumber) {
+                    const smsMessage = `Welcome to EduAI Hub. ${newInstitution.name} registration successful. Your Login: Email: ${newAdmin.email}, PIN: ${generatedPassword}. Login at ${window.location.origin}`;
+                    try {
+                        await apiService.sendSms(newAdmin.phoneNumber, smsMessage);
+                    } catch (e) {
+                        console.error("SMS notification failed", e);
                     }
                 }
 

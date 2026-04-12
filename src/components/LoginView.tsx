@@ -862,6 +862,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                 <CheckCircleIcon className="w-12 h-12" />
                             </div>
                             <h2 className="text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tighter">Setup Complete</h2>
+                            <p className="text-sm text-slate-500 font-medium">Your login credentials have been sent to your registered phone number and email address. Please check your inbox and messages.</p>
                             <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 text-left space-y-4 shadow-inner">
                                 <div>
                                     <p className="text-[10px] font-bold uppercase text-slate-400 mb-1 tracking-widest">Login Username</p>
