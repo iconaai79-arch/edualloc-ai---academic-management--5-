@@ -37,7 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         const prompt = `
             Act as an Intelligent Lead Scout for EduAI Hub, a SaaS platform for Schools, SACCOs, Real Estate, and Automotive management.
-            Your task is to identify and research 5 high-potential business leads related to the topic: "${topic}" in "${location || 'Kenya'}".
+            Your task is to identify and research 3 high-potential business leads related to the topic: "${topic}" in "${location || 'Kenya'}".
             
             For each lead, provide:
             1. Business Name
