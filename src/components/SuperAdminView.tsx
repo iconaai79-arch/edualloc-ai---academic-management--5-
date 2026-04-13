@@ -1750,6 +1750,22 @@ Please change it after login.`;
                                                     </select>
                                                 </div>
                                             )}
+                                            {newInstData.institutionType === 'Political Campaign' && (
+                                                <div className="animate-fade-in-up">
+                                                    <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Campaign Strategy Focus</label>
+                                                    <select
+                                                        value={newInstData.category}
+                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value })}
+                                                        className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
+                                                        required
+                                                    >
+                                                        <option value="Political Campaign Management">Campaign Strategy Hub</option>
+                                                        <option value="Voter Outreach Hub">Voter Outreach & Field Hub</option>
+                                                        <option value="Lead Scouting AI">AI Prospect & Lead Scouting</option>
+                                                        <option value="Campaign Fundraising">Fundraising & Donor Hub</option>
+                                                    </select>
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700">
                                             <button type="submit" className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100">Create Tenant</button>

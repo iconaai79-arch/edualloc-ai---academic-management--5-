@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
 import { MpesaIcon } from './icons/MpesaIcon';
-import type { TransactionStatus, InvoiceItem, MpesaConfig } from '../types';
+import { NcbaIcon } from './icons/NcbaIcon';
+import type { TransactionStatus, InvoiceItem, MpesaConfig, NcbaConfig } from '../types';
 import { apiService } from '../services/apiService';
 
 interface PayNowModalProps {
@@ -15,6 +16,7 @@ interface PayNowModalProps {
     mpesaConfig: MpesaConfig;
     airtelMoneyConfig?: any;
     intasendConfig?: any;
+    ncbaConfig?: NcbaConfig;
     institutionId?: string;
     institutionCode?: string;
     institutionName?: string;
@@ -24,13 +26,13 @@ interface PayNowModalProps {
 
 export const PayNowModal: React.FC<PayNowModalProps> = ({
     isOpen = true, onClose, onPay, onSubmit, onSuccess, monthlyPrice = 0, yearlyPrice = 0,
-    mpesaConfig, airtelMoneyConfig, intasendConfig, institutionId, institutionCode, institutionName,
+    mpesaConfig, airtelMoneyConfig, intasendConfig, ncbaConfig, institutionId, institutionCode, institutionName,
     forceAmount, forcedItems
 }) => {
     const [phoneNumber, setPhoneNumber] = useState('254');
     const [payerName, setPayerName] = useState('');
     const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly' | 'forced'>(forceAmount !== undefined ? 'forced' : 'monthly');
-    const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend'>('mpesa');
+    const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend' | 'ncba'>('mpesa');
     const [enabledGateways, setEnabledGateways] = useState<string[]>(['mpesa']);
     const [isLoading, setIsLoading] = useState(false);
     const [finalStatus, setFinalStatus] = useState<TransactionStatus | null>(null);
@@ -79,6 +81,8 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                 initiateResult = await apiService.initiateMpesaPayment(amount, phoneNumber, metadata, mpesaConfig);
             } else if (provider === 'airtel') {
                 initiateResult = await apiService.initiatePayment('airtel', amount, phoneNumber, metadata, airtelMoneyConfig);
+            } else if (provider === 'ncba') {
+                initiateResult = await apiService.initiateNcbaPayment(amount, phoneNumber, metadata, ncbaConfig);
             } else {
                 initiateResult = await apiService.initiatePayment('intasend', amount, phoneNumber, metadata, intasendConfig);
             }
@@ -100,7 +104,8 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                     attempts++;
                     const { status } = await apiService.checkPaymentStatus(provider, checkoutRequestId, 
                         provider === 'mpesa' ? mpesaConfig : 
-                        (provider === 'airtel' ? airtelMoneyConfig : intasendConfig));
+                        (provider === 'airtel' ? airtelMoneyConfig : 
+                         provider === 'ncba' ? ncbaConfig : intasendConfig));
 
                     if (status === 'completed') {
                         clearInterval(pollInterval);
@@ -228,6 +233,16 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                                         <span className="text-[10px] font-black uppercase">IntaSend</span>
                                     </button>
                                 )}
+                                {enabledGateways.includes('ncba') && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setProvider('ncba')}
+                                        className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${provider === 'ncba' ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-900/20' : 'border-slate-100 dark:border-slate-700'}`}
+                                    >
+                                        <NcbaIcon className="w-6 h-6 text-blue-600" />
+                                        <span className="text-[10px] font-black uppercase">NCBA Bank</span>
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -245,7 +260,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                         </div>
 
                         <div>
-                            <label htmlFor="phoneNumber" className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-1.5 ml-1">{provider === 'mpesa' ? 'M-Pesa' : provider === 'airtel' ? 'Airtel Money' : 'Customer'} Phone Number</label>
+                            <label htmlFor="phoneNumber" className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-1.5 ml-1">{provider === 'mpesa' ? 'M-Pesa' : provider === 'airtel' ? 'Airtel Money' : provider === 'ncba' ? 'Linked Bank' : 'Customer'} Phone Number</label>
                             <input
                                 type="tel"
                                 id="phoneNumber"
@@ -285,6 +300,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                         {provider === 'mpesa' && <MpesaIcon className="w-5 h-5" />}
                         {provider === 'airtel' && <div className="w-5 h-5 bg-red-600 rounded-full flex items-center justify-center text-white text-[7px] font-black">A</div>}
                         {provider === 'intasend' && <div className="w-5 h-5 bg-emerald-600 rounded flex items-center justify-center text-white text-[7px] font-black">IS</div>}
+                        {provider === 'ncba' && <NcbaIcon className="w-5 h-5" />}
                         PAY KES {(selectedPlan === 'monthly' ? monthlyPrice : selectedPlan === 'yearly' ? yearlyPrice : forceAmount || 0).toLocaleString()}
                     </button>
                     <button

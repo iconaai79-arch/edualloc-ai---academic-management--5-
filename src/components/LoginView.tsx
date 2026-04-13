@@ -604,6 +604,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                     if (type === 'Law Firm') cat = 'Law Firm';
                                                     if (type === 'Logistics') cat = 'Cargo & Delivery';
                                                     if (type === 'Community') cat = 'Chama/Savings Group';
+                                                    if (type === 'Political Campaign') cat = 'Political Campaign Management';
                                                     setRegData({ ...regData, institutionType: type, category: cat, businessSubType: cat });
                                                 }}
                                             >
@@ -616,6 +617,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                 <option value="Law Firm">Legal / Law Firm</option>
                                                 <option value="Logistics">Transport & Logistics</option>
                                                 <option value="Community">Community & Welfare</option>
+                                                <option value="Political Campaign">Political / Election Campaign Hub</option>
                                                 <option value="Church">Religious / Church</option>
                                                 <option value="Broadcaster">Media / Broadcaster</option>
                                                 <option value="Reseller">Reseller Agency</option>
@@ -690,7 +692,27 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                         <option value="Estate/Neighborhood">Estate / Neighborhood Management</option>
                                                         <option value="NGO/Foundation">NGO / Social Foundation</option>
                                                         <option value="Resource Center">Community Hub / Resource Center</option>
-                                                        <option value="Relief/Social Work">Social Work / Welfare Relief</option>`r`n                                                         <option value="Family Heritage">Family & Heritage Preservation</option>
+                                                        <option value="Relief/Social Work">Social Work / Welfare Relief</option>
+                                                        <option value="Family Heritage">Family & Heritage Preservation</option>
+                                                        <option value="Political Strategy">Political & Campaign Strategy</option>
+                                                    </select>
+                                                </div>
+                                            )}
+
+                                            {regData.institutionType === 'Political Campaign' && (
+                                                <div className="mt-3 animate-fade-in">
+                                                    <label className={labelClasses}>Campaign Strategy Focus</label>
+                                                    <select
+                                                        className={inputClasses}
+                                                        value={regData.category || ''}
+                                                        onChange={e => setRegData({ ...regData, category: e.target.value, businessSubType: e.target.value })}
+                                                        required
+                                                    >
+                                                        <option value="">-- Select Campaign Focus --</option>
+                                                        <option value="Political Campaign Management">Campaign Strategy Hub</option>
+                                                        <option value="Voter Outreach Hub">Voter Outreach & Field Hub</option>
+                                                        <option value="Lead Scouting AI">AI Prospect & Lead Scouting</option>
+                                                        <option value="Campaign Fundraising">Fundraising & Donor Hub</option>
                                                     </select>
                                                 </div>
                                             )}

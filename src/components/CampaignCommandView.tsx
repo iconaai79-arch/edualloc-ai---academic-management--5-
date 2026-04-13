@@ -7,6 +7,7 @@ import {
 } from './icons';
 import { CampaignProfile, VoterOutreach, CampaignEvent, User } from '../types';
 import { apiService } from '../services/apiService';
+import { LeadScoutManager } from './LeadScoutManager';
 
 interface CampaignCommandViewProps {
     user: User;
@@ -237,6 +238,62 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                 <div className="text-center py-20">
                                     <DocumentTextIcon className="w-20 h-20 text-slate-100 dark:text-slate-800 mx-auto mb-4" />
                                     <p className="text-slate-400 font-bold uppercase text-xs">No manifesto draft yet. Use AI to generate one.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Voters View */}
+            {activeTab === 'voters' && (
+                <div className="space-y-8 animate-fade-in-up">
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 shadow-xl border border-slate-100 dark:border-slate-800">
+                        <h3 className="text-2xl font-black uppercase tracking-tighter mb-6 flex items-center gap-3">
+                            <UserGroupIcon className="w-8 h-8 text-indigo-600" />
+                            Voter Prospect Discovery (AI Lead Scout)
+                        </h3>
+                        <LeadScoutManager defaultNiche={profile.constituencyWard + " Political Campaign"} />
+                    </div>
+                </div>
+            )}
+
+            {/* Events View */}
+            {activeTab === 'events' && (
+                <div className="space-y-8 animate-fade-in-up">
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 shadow-xl border border-slate-100 dark:border-slate-800">
+                        <div className="flex justify-between items-center mb-8">
+                            <h3 className="text-2xl font-black uppercase tracking-tighter flex items-center gap-3">
+                                <CalendarDaysIcon className="w-8 h-8 text-orange-600" />
+                                Campaign Schedule & Rallies
+                            </h3>
+                            <button className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg">Schedule Event</button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {events.length > 0 ? events.map(event => (
+                                <div key={event.id} className="p-6 bg-slate-50 dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 group hover:border-indigo-500 transition-all">
+                                    <div className="flex items-center gap-4 mb-4">
+                                        <div className="w-12 h-12 bg-white dark:bg-slate-900 rounded-2xl flex items-center justify-center font-black text-indigo-600 shadow-sm text-xs">
+                                            {new Date(event.eventTime).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                                        </div>
+                                        <div>
+                                            <h4 className="font-black text-slate-900 dark:text-white uppercase text-lg">{event.title}</h4>
+                                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">{event.location}</p>
+                                        </div>
+                                    </div>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{event.description}</p>
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex -space-x-3">
+                                            {[1,2,3].map(i => <div key={i} className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-800 bg-slate-200"></div>)}
+                                            <div className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-800 bg-indigo-100 flex items-center justify-center text-[10px] font-black text-indigo-600">+12</div>
+                                        </div>
+                                        <span className="text-[10px] font-black uppercase text-indigo-600">Details & Map</span>
+                                    </div>
+                                </div>
+                            )) : (
+                                <div className="col-span-2 py-20 text-center">
+                                    <CalendarDaysIcon className="w-20 h-20 text-slate-100 dark:text-slate-800 mx-auto mb-4" />
+                                    <p className="text-slate-400 font-bold uppercase text-xs">No campaign events scheduled yet.</p>
                                 </div>
                             )}
                         </div>

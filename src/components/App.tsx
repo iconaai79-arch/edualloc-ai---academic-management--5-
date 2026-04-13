@@ -2825,12 +2825,14 @@ export const App: React.FC = () => {
                                     <div className="p-8 bg-slate-950 min-h-[80vh] rounded-[3rem] overflow-hidden shadow-2xl">
                                         <ModernPharmacyManager 
                                              institutionId={activeInstitution?.id || currentUser?.institutionId || ''} 
+                                ) : (isPharmacySystemOpen) ? (
+                                    <div className="p-8 bg-slate-950 min-h-[80vh] rounded-[3rem] overflow-hidden shadow-2xl">
+                                        <ModernPharmacyManager 
+                                             institutionId={activeInstitution?.id || currentUser?.institutionId || ''} 
                                              currentUser={currentUser!}
                                          />
                                     </div>
-                                ) : (activeRole === 'campaign_admin' || activeRole === 'campaign_agent') ? (
-                                    <CampaignCommandView user={currentUser!} />
-                                ) : ((activeRole === 'admin' || activeRole === 'head_teacher') && !['Property Management', 'Agrovet', 'Cooperative', 'SACCO', 'Church', 'HIS', 'Car Wash', 'Pharmacy'].includes(activeInstitution?.institutionType || '') && !activeInstitution?.businessSubType?.toLowerCase().includes('property management') && !activeInstitution?.businessSubType?.toLowerCase().includes('agrovet') && !activeInstitution?.businessSubType?.toLowerCase().includes('pharmacy')) ? (
+                                ) : ((activeRole === 'admin' || activeRole === 'head_teacher' || activeRole === 'campaign_admin' || activeRole === 'campaign_agent') && !['Property Management', 'Agrovet', 'Cooperative', 'SACCO', 'Church', 'HIS', 'Car Wash', 'Pharmacy'].includes(activeInstitution?.institutionType || '') && !activeInstitution?.businessSubType?.toLowerCase().includes('property management') && !activeInstitution?.businessSubType?.toLowerCase().includes('agrovet') && !activeInstitution?.businessSubType?.toLowerCase().includes('pharmacy')) ? (
                                 <AdminView
                                     currentUser={currentUser}
                                     notifications={notifications}

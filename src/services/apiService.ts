@@ -1253,7 +1253,7 @@ export const apiService = {
         }
         return { success_count, fail_count };
     },
-    async initiatePayment(provider: 'mpesa' | 'airtel' | 'intasend', amount: number, phoneNumber: string, metadata?: any, config?: any) {
+    async initiatePayment(provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba', amount: number, phoneNumber: string, metadata?: any, config?: any) {
         const formattedPhone = formatPhoneNumber(phoneNumber);
         if (!_supabase) {
             return { success: false, message: "Database service (Supabase) not initialized. Live payments require an active backend." };
@@ -1264,6 +1264,7 @@ export const apiService = {
             let action = 'initiateStkPush';
             if (provider === 'airtel') action = 'initiateAirtelMoneyStk';
             if (provider === 'intasend') action = 'initiateIntasendPayment';
+            if (provider === 'ncba') action = 'ncbaInitiateStk';
 
             const response = await fetch('/api/integrations', {
                 method: 'POST',
@@ -1305,7 +1306,7 @@ export const apiService = {
         }
     },
 
-    async checkPaymentStatus(provider: 'mpesa' | 'airtel' | 'intasend', checkoutRequestId: string, config?: any) {
+    async checkPaymentStatus(provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba', checkoutRequestId: string, config?: any) {
         try {
             const token = await apiService.getAuthToken();
             const response = await fetch('/api/integrations', {
@@ -1315,7 +1316,7 @@ export const apiService = {
                     'Content-Type': 'application/json' 
                 },
                 body: JSON.stringify({
-                    action: 'queryPaymentStatus',
+                    action: provider === 'ncba' ? 'ncbaQueryStk' : 'queryPaymentStatus',
                     provider,
                     checkoutRequestId,
                     config
@@ -1398,36 +1399,51 @@ export const apiService = {
                     config
                 })
             });
-            const contentType = response.headers.get('content-type');
-            let result: any;
-            if (contentType && contentType.includes('application/json')) {
-                result = await response.json();
-            } else {
-                const text = await response.text();
-                console.warn("[apiService] Non-JSON response in checkMpesaStatus:", text.substring(0, 200));
-                throw new Error("Invalid response format from status query");
-            }
-            if (!response.ok || result.success === false) {
-                console.error("M-Pesa status query rejected by backend:", result);
-                // If it's a transient error, we can return pending, but if it's a configuration error, we should know.
-                // For now, let's fallback to DB check for safety.
-                throw new Error(result.message || "Backend error during status check");
-            }
-            return { status: result.status || 'pending' };
+            if (!response.ok) throw new Error('Network response was not ok');
+            return response.json();
         } catch (e) {
-            console.error("Status Check Query Error:", e);
-            // Fallback to database check in case API fails
-            try {
-                const data = await apiService.fetchModuleRecords<any>('mpesa_transactions', undefined, undefined, {
-                    select: 'status',
-                    filter: { checkout_request_id: checkoutRequestId },
-                    limit: 1
-                });
-                return { status: data && data.length > 0 ? data[0].status : 'pending' };
-            } catch (e) { 
-                console.error("Mpesa Status Fallback Error:", e);
-                return { status: 'pending' }; 
-            }
+            console.error("Mpesa Status Check Error:", e);
+            return { status: 'pending' };
+        }
+    },
+    async initiateNcbaPayment(amount: number, phoneNumber: string, metadata?: any, config?: any) {
+        return apiService.initiatePayment('ncba', amount, phoneNumber, metadata, config);
+    },
+    async checkNcbaStatus(checkoutRequestId: string, config?: any) {
+        return apiService.checkPaymentStatus('ncba', checkoutRequestId, config);
+    },
+    async generateNcbaQr(amount: number, reference: string, config?: any) {
+        try {
+            const token = await apiService.getAuthToken();
+            const response = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: { 
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({ action: 'ncbaGenerateQr', amount, reference, config })
+            });
+            return response.json();
+        } catch (e) {
+            console.error("NCBA QR Generation Failed:", e);
+            return { success: false, message: "QR Gateway Connection Failed" };
+        }
+    },
+    async testNcbaAuth(config?: any) {
+        try {
+            const token = await apiService.getAuthToken();
+            const response = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: { 
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({ action: 'testNcbaAuth', config })
+            });
+            return response.json();
+        } catch (e) {
+            console.error("NCBA Auth Test Failed:", e);
+            return { success: false, message: "Auth Handshake Failed" };
         }
     },
     async initiateKcbStkPush(tenantId: string, amount: number, paymentType: string): Promise<{ success: boolean; message: string; requestId?: string }> {

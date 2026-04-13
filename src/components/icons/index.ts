@@ -119,3 +119,4 @@ export * from './ZapIcon';
 export * from './PalmTreeIcon';
 export * from './MegaphoneIcon';
 export * from './SpeakerWaveIcon';
+export * from './NcbaIcon';

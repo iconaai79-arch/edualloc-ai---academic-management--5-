@@ -41,6 +41,7 @@ const CommunityManager = lazy(() => import('./CommunityManager').then(m => ({ de
 const AlumniManager = lazy(() => import('./AlumniManager').then(m => ({ default: m.AlumniManager })));
 const HospitalityManager = lazy(() => import('./HospitalityManager').then(m => ({ default: m.HospitalityManager })));
 const SchoolShowcaseManager = lazy(() => import('./SchoolShowcaseManager').then(m => ({ default: m.SchoolShowcaseManager })));
+const CampaignCommandView = lazy(() => import('./CampaignCommandView').then(m => ({ default: m.CampaignCommandView })));
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
@@ -408,7 +409,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         const cat = props.currentInstitution?.category;
         return institutionType === 'Community' || 
                institutionType === 'Political Campaign' ||
-               cat === 'Community' || 
+               (cat as string) === 'Community' || 
                cat?.includes('NGO') || 
                cat?.includes('Chama') || 
                cat?.includes('Estate') || 
@@ -416,6 +417,10 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                cat?.includes('Family') ||
                cat?.includes('Campaign') ||
                cat?.includes('Political');
+    }, [props.currentInstitution, institutionType]);
+
+    const isCampaign = useMemo(() => {
+        return institutionType === 'Political Campaign' || props.currentInstitution?.category?.includes('Campaign') || props.currentInstitution?.category?.includes('Political');
     }, [props.currentInstitution, institutionType]);
 
     const isAlumni = useMemo(() => {
@@ -543,7 +548,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'church', label: 'Church System', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
             { id: 'law', label: 'Legal Module', icon: <ShieldIcon className="w-5 h-5 mr-2" /> },
             { id: 'driving_school', label: 'Driving School', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
-            { id: 'community', label: isHeritage ? 'Family Council' : 'Community Hub', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
+            { id: 'community', label: isHeritage ? 'Family Council' : isCampaign ? 'Campaign Strategy' : 'Community Hub', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
             { id: 'alumni', label: 'Alumni Network', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
             { id: 'hospitality', label: 'Hospitality Hub', icon: <PalmTreeIcon className="w-5 h-5 mr-2" /> },
             { id: 'auto_marketplace', label: 'Car Sales', icon: <CarIcon className="w-5 h-5 mr-2" /> },
@@ -733,7 +738,13 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 }>
                 {activeTab === 'dashboard' && !isCoop && (
                     <div className="space-y-6">
-                        {isEdu && stats.totalActionable > 0 && (
+                        {isCampaign ? (
+                            <div className="animate-fade-in">
+                                <CampaignCommandView user={props.currentUser} />
+                            </div>
+                        ) : (
+                            <>
+                                {isEdu && stats.totalActionable > 0 && (
                             <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 p-6 rounded-[2rem] flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in-up">
                                 <div className="flex items-center gap-4 text-center sm:text-left">
                                     <div className="p-3 bg-amber-100 dark:bg-amber-900 rounded-2xl">
@@ -867,10 +878,12 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 {(!props.activityLog || props.activityLog.length === 0) && (
                                     <p className="text-center py-10 text-slate-400 text-sm font-bold uppercase tracking-widest">No activity recorded</p>
                                 )}
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                )}
+                        </>
+                    )}
+                </div>
+            )}
 
                 {activeTab === 'timetable' && (
                     <div className="space-y-6">

@@ -238,6 +238,7 @@ export interface Institution {
     listingQuota?: number;
     airtelMoneyConfig?: AirtelMoneyConfig;
     intasendConfig?: IntasendConfig;
+    ncbaConfig?: NcbaConfig;
     farmerSmsBillingEnabled?: boolean;
     moduleStates?: InstitutionModuleState[];
     coopSettings?: CoopSettings;
@@ -598,6 +599,21 @@ export interface MpesaConfig {
     environment?: 'sandbox' | 'production';
 }
 
+export interface NcbaConfig {
+    clientId: string;
+    clientSecret: string;
+    consumerKey?: string;
+    consumerSecret?: string;
+    baseUrl: string;
+    stkPushBaseUrl?: string;
+    queryStkUrl?: string;
+    paybill?: string;
+    accountNumber?: string;
+    authMethod?: 'bearer' | 'basic';
+    isMock?: boolean;
+    environment?: 'sandbox' | 'production';
+}
+
 export interface AirtelMoneyConfig {
     businessId: string;
     apiKey: string;
@@ -646,6 +662,7 @@ export interface CompanyDetails {
     mpesaConfig: MpesaConfig;
     airtelMoneyConfig?: AirtelMoneyConfig;
     intasendConfig?: IntasendConfig;
+    ncbaConfig?: NcbaConfig;
     emailConfig: EmailConfig;
     smsConfig: SmsConfig;
     letterheadConfig: LetterheadConfig;
@@ -968,8 +985,8 @@ export interface MpesaTransaction {
     status: TransactionStatus;
     metadata?: any;
     checkoutRequestId?: string;
-    provider: 'mpesa' | 'airtel' | 'intasend';
-    paymentMethod: 'stk_push' | 'paybill' | 'till' | 'wallet' | 'direct_debit';
+    provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba';
+    paymentMethod: 'stk_push' | 'paybill' | 'till' | 'wallet' | 'direct_debit' | 'bank_transfer' | 'qr_code';
     referenceId?: string;
 }
 

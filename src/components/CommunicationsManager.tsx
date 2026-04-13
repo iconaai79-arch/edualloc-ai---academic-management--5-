@@ -899,6 +899,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                     mpesaConfig={mpesaConfig}
                     airtelMoneyConfig={currentInstitution?.airtelMoneyConfig || companyDetails?.airtelMoneyConfig}
                     intasendConfig={currentInstitution?.intasendConfig || companyDetails?.intasendConfig}
+                    ncbaConfig={currentInstitution?.ncbaConfig || companyDetails?.ncbaConfig}
                     institutionId={currentInstitution?.id || 'SYSTEM'}
                     institutionCode={currentInstitution?.institutionCode || 'SYSTEM'}
                     institutionName={currentInstitution?.name || 'Education AI Portal'}

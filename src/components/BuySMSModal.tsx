@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
 import { MpesaIcon } from './icons/MpesaIcon';
-import type { MpesaConfig, TransactionStatus } from '../types';
+import { NcbaIcon } from './icons/NcbaIcon';
+import type { MpesaConfig, TransactionStatus, NcbaConfig } from '../types';
 import { apiService } from '../services/apiService';
 
 interface BuySMSModalProps {
@@ -10,6 +10,7 @@ interface BuySMSModalProps {
     mpesaConfig?: MpesaConfig;
     airtelMoneyConfig?: any;
     intasendConfig?: any;
+    ncbaConfig?: NcbaConfig;
     institutionId: string;
     institutionCode: string;
     institutionName: string;
@@ -41,7 +42,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
 }) => {
     const [phoneNumber, setPhoneNumber] = useState('254');
     const [units, setUnits] = useState<number>(SMS_PACKAGES[0].units);
-    const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend'>('mpesa');
+    const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend' | 'ncba'>('mpesa');
     const [enabledGateways, setEnabledGateways] = useState<string[]>(['mpesa']);
     const [isLoading, setIsLoading] = useState(false);
     const [finalStatus, setFinalStatus] = useState<TransactionStatus | null>(null);
@@ -90,7 +91,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                 provider
             };
 
-            const config = provider === 'mpesa' ? mpesaConfig : (provider === 'airtel' ? airtelMoneyConfig : intasendConfig);
+            const config = provider === 'mpesa' ? mpesaConfig : (provider === 'airtel' ? airtelMoneyConfig : (provider === 'ncba' ? ncbaConfig : intasendConfig));
             const result: any = await apiService.initiatePayment(provider, calculatedTotal, phoneNumber, metadata, config);
 
             if (result.success && (result.data?.CheckoutRequestID || result.checkoutRequestId || result.url)) {
@@ -110,7 +111,8 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                     attempts++;
                     const result = await apiService.checkPaymentStatus(provider, checkoutRequestId, 
                         provider === 'mpesa' ? mpesaConfig : 
-                        (provider === 'airtel' ? airtelMoneyConfig : intasendConfig));
+                        (provider === 'airtel' ? airtelMoneyConfig : 
+                         provider === 'ncba' ? ncbaConfig : intasendConfig));
 
                     const status = result?.status;
 
@@ -226,6 +228,16 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                                         <span className="text-[10px] font-black uppercase">IntaSend</span>
                                     </button>
                                 )}
+                                {enabledGateways.includes('ncba') && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setProvider('ncba')}
+                                        className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${provider === 'ncba' ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-900/20' : 'border-slate-100 dark:border-slate-700'}`}
+                                    >
+                                        <NcbaIcon className="w-6 h-6 mb-1 text-blue-600" />
+                                        <span className="text-[10px] font-black uppercase">NCBA</span>
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -283,7 +295,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                             </div>
 
                             <div className="bg-slate-50/50 dark:bg-slate-900/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
-                                <label htmlFor="phoneNumber" className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-1.5 ml-1">{provider === 'intasend' ? 'Payer Contact' : (provider === 'airtel' ? 'Airtel Number' : 'M-Pesa Number')}</label>
+                                <label htmlFor="phoneNumber" className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-1.5 ml-1">{provider === 'intasend' ? 'Payer Contact' : (provider === 'airtel' ? 'Airtel Number' : (provider === 'ncba' ? 'Bank Account Phone' : 'M-Pesa Number'))}</label>
                                 <div className="relative">
                                     <input
                                         type="tel"
