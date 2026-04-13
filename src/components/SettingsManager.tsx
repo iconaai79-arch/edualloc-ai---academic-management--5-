@@ -299,6 +299,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [saveInstGatewaysStatus, setSaveInstGatewaysStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
     const [isTestingStk, setIsTestingStk] = useState(false);
+    const [isTestingNcba, setIsTestingNcba] = useState(false);
 
     useEffect(() => {
         setLocalInstSmsConfig(props.currentInstitution?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -1360,6 +1361,28 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 <p className="text-xs text-blue-700/70 leading-relaxed">NCBA Bank integration utilizes OAuth2 authentication. Ensure the Client ID and Secret match your registered application in the NCBA Developer Portal.</p>
                                             </div>
                                             <button onClick={handleSaveGlobalConfigs} className="btn-primary w-full h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Save NCBA Configuration</button>
+                                            
+                                            <button 
+                                                onClick={async () => {
+                                                    setIsTestingNcba(true);
+                                                    try {
+                                                        const res = await apiService.testNcbaAuth(localNcbaConfig);
+                                                        if (res.success) {
+                                                            alert(`Integration Success: ${res.message || 'Authentication successful'}`);
+                                                        } else {
+                                                            alert(`Integration Failed: ${res.message || 'Check your credentials'}`);
+                                                        }
+                                                    } catch(err: any) {
+                                                        alert(`Connection Error: ${err.message}`);
+                                                    } finally {
+                                                        setIsTestingNcba(false);
+                                                    }
+                                                }}
+                                                disabled={isTestingNcba}
+                                                className="w-full h-12 border-2 border-slate-200 dark:border-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                                            >
+                                                {isTestingNcba ? 'Verifying...' : 'Test Global Connection'}
+                                            </button>
                                         </div>
                                     </div>
                                 )}
@@ -1815,6 +1838,30 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">API Password</label>
                                             <input type="password" value={localInstNcbaConfig.password || ''} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, password: e.target.value })} className="form-input" />
                                         </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-4 mt-6">
+                                        <button 
+                                            onClick={async () => {
+                                                setIsTestingNcba(true);
+                                                try {
+                                                    const res = await apiService.testNcbaAuth(localInstNcbaConfig);
+                                                    if (res.success) {
+                                                        alert(`Integration Success: ${res.message || 'Authentication successful'}`);
+                                                    } else {
+                                                        alert(`Integration Failed: ${res.message || 'Check your credentials'}`);
+                                                    }
+                                                } catch(err: any) {
+                                                    alert(`Connection Error: ${err.message}`);
+                                                } finally {
+                                                    setIsTestingNcba(false);
+                                                }
+                                            }}
+                                            disabled={isTestingNcba}
+                                            className="h-12 px-6 border-2 border-slate-200 dark:border-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            {isTestingNcba ? 'Verifying...' : 'Test NCBA Integration'}
+                                        </button>
                                     </div>
 
 
