@@ -602,6 +602,8 @@ export interface MpesaConfig {
 export interface NcbaConfig {
     clientId: string;
     clientSecret: string;
+    username?: string;
+    password?: string;
     consumerKey?: string;
     consumerSecret?: string;
     baseUrl: string;
