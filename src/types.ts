@@ -3507,24 +3507,6 @@ export interface HeritageAnnouncement {
     createdAt?: string;
 }
 
-export interface SchoolRegistry {
-    id: string;
-    name: string;
-    region?: string;
-    county?: string;
-    subCounty?: string;
-    uic?: string;
-    knecCode?: string;
-    cluster?: string;
-    specialNeedType?: string;
-    disabilityType?: string;
-    accommodationType?: string;
-    genderType?: string;
-    institutionId?: string;
-    slug?: string;
-    createdAt?: string;
-    updatedAt?: string;
-}
 
 export interface CarListing {
     id: string;
