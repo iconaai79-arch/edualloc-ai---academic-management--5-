@@ -2825,10 +2825,6 @@ export const App: React.FC = () => {
                                     <div className="p-8 bg-slate-950 min-h-[80vh] rounded-[3rem] overflow-hidden shadow-2xl">
                                         <ModernPharmacyManager 
                                              institutionId={activeInstitution?.id || currentUser?.institutionId || ''} 
-                                ) : (isPharmacySystemOpen) ? (
-                                    <div className="p-8 bg-slate-950 min-h-[80vh] rounded-[3rem] overflow-hidden shadow-2xl">
-                                        <ModernPharmacyManager 
-                                             institutionId={activeInstitution?.id || currentUser?.institutionId || ''} 
                                              currentUser={currentUser!}
                                          />
                                     </div>
