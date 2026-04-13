@@ -1438,6 +1438,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     const filtered = ['profile', 'location', 'branding'];
                                     if (props.currentUser.role === 'admin' || isCoop) {
                                         filtered.push('billing');
+                                        filtered.push('gateways');
                                         filtered.push('sms');
                                         if (isCoop) filtered.push('farmer_billing');
     
@@ -1445,7 +1446,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     return filtered;
                                 }
                                 const subs = ['profile', 'academic_settings', 'grading', 'security_policy', 'location', 'branding'];
-                                if (props.currentUser.role === 'admin') { subs.push('billing'); subs.push('sms'); }
+                                if (props.currentUser.role === 'admin') { 
+                                    subs.push('billing'); 
+                                    subs.push('gateways');
+                                    subs.push('sms'); 
+                                }
                                 return subs;
                             })().map((sub: string) => (
                                 <button key={sub} onClick={() => setGeneralSubTab(sub as any)} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${generalSubTab === sub ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
@@ -1456,6 +1461,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     {sub === 'location' && <MapPinIcon className="w-4 h-4 text-emerald-500" />}
                                     {sub === 'branding' && <SparklesIcon className="w-4 h-4 text-purple-500" />}
                                     {sub === 'billing' && <CreditCardIcon className="w-4 h-4 text-blue-500" />}
+                                    {sub === 'gateways' && <CommandLineIcon className="w-4 h-4 text-slate-500" />}
                                     {sub === 'sms' && <PaperAirplaneIcon className="w-4 h-4 text-sky-500" />}
 
                                     {sub.replace('_', ' ')}
