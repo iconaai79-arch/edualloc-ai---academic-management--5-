@@ -207,6 +207,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_settings' | 'security_policy' | 'location' | 'branding' | 'grading' | 'billing' | 'integrations' | 'sms' | 'email' | 'farmer_billing'>('profile');
     const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'integrations' | 'showcase'>('profile');
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'ncba'>('mpesa');
+    const [instIntegrationTab, setInstIntegrationTab] = useState<'mpesa' | 'ncba'>('mpesa');
     const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>('departments');
     const [showPaperPreview, setShowPaperPreview] = useState(false);
 
@@ -762,7 +763,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                             <button onClick={() => setGlobalSubTab('sms')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'sms' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><PaperAirplaneIcon className="w-4 h-4" /> SMS Gateway</button>
                             <button onClick={() => setGlobalSubTab('email')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'email' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><EnvelopeIcon className="w-4 h-4" /> Email Relay</button>
                             <button onClick={() => setGlobalSubTab('billing')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'billing' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><CreditCardIcon className="w-4 h-4" /> Platform Billing</button>
-                            <button onClick={() => setGlobalSubTab('integrations')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'integrations' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ArrowsRightLeftIcon className="w-4 h-4" /> Integrations</button>
+                            <button onClick={() => setGlobalSubTab('integrations')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'integrations' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ArrowsRightLeftIcon className="w-4 h-4" /> Billing Map</button>
                             <button onClick={() => setGlobalSubTab('showcase')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'showcase' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><SparklesIcon className="w-4 h-4" /> Showcase</button>
                         </nav>
                     </div>
@@ -1509,7 +1510,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     {sub === 'integrations' && <ArrowsRightLeftIcon className="w-4 h-4 text-slate-500" />}
                                     {sub === 'sms' && <PaperAirplaneIcon className="w-4 h-4 text-sky-500" />}
 
-                                    {sub.replace('_', ' ')}
+                                    {sub === 'integrations' ? 'Billing Map' : sub.replace('_', ' ')}
                                 </button>
                             ))}
                         </div>
@@ -1761,7 +1762,24 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     External System Integrations
                                 </h3>
 
+                                 <div className="flex bg-slate-100 dark:bg-slate-700 p-1.5 rounded-2xl shadow-inner inline-flex mb-8">
+                                    <button
+                                        onClick={() => setInstIntegrationTab('mpesa')}
+                                        className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${instIntegrationTab === 'mpesa' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        M-Pesa
+                                    </button>
+                                    <button
+                                        onClick={() => setInstIntegrationTab('ncba')}
+                                        className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${instIntegrationTab === 'ncba' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        NCBA Bank
+                                    </button>
+                                </div>
+
                                 <div className="space-y-8">
+                                    {instIntegrationTab === 'mpesa' && (
+                                        <div className="animate-fade-in space-y-8">
                                     <div className="flex items-center gap-3">
                                         <div className="p-3 bg-green-50 dark:bg-green-900/30 rounded-2xl text-green-600">
                                             <MpesaIcon className="w-6 h-6" />
@@ -1831,15 +1849,20 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center gap-3 mt-10">
-                                        <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-2xl text-blue-600">
-                                            <NcbaIcon className="w-6 h-6" />
                                         </div>
-                                        <div>
-                                            <h3 className="text-xl font-black uppercase tracking-tight">NCBA Bank Integration</h3>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase">Configuring NCBA Gateway for this Institution</p>
-                                        </div>
-                                    </div>
+                                    )}
+
+                                    {instIntegrationTab === 'ncba' && (
+                                        <div className="animate-fade-in space-y-8">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-2xl text-blue-600">
+                                                    <NcbaIcon className="w-6 h-6" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-xl font-black uppercase tracking-tight">NCBA Bank Integration</h3>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Configuring NCBA Gateway for this Institution</p>
+                                                </div>
+                                            </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem]">
                                         <div>
@@ -1898,6 +1921,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             {isTestingNcba ? 'Verifying...' : 'Test NCBA Integration'}
                                         </button>
                                     </div>
+                                )}
+                            </div>
 
 
 
