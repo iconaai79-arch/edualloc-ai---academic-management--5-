@@ -1469,6 +1469,23 @@ export const apiService = {
             return { success: false, message: "Auth Handshake Failed" };
         }
     },
+    async testFtpConnection(config?: any) {
+        try {
+            const token = await apiService.getAuthToken();
+            const response = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: { 
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({ action: 'testFtp', config })
+            });
+            return response.json();
+        } catch (e) {
+            console.error("FTP Connection Test Failed:", e);
+            return { success: false, message: "Handshake sequence failed at network level." };
+        }
+    },
     async initiateKcbStkPush(tenantId: string, amount: number, paymentType: string): Promise<{ success: boolean; message: string; requestId?: string }> {
         // Mock KCB Buni STK Push Integration
         // Initiating KCB STK Push

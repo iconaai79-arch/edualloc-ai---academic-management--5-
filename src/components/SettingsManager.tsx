@@ -301,6 +301,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
     const [isTestingStk, setIsTestingStk] = useState(false);
     const [isTestingNcba, setIsTestingNcba] = useState(false);
+    const [isTestingFtp, setIsTestingFtp] = useState(false);
 
     useEffect(() => {
         setLocalInstSmsConfig(props.currentInstitution?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -1323,10 +1324,25 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
                                 <div className="mt-10 pt-8 border-t border-slate-50 dark:border-slate-800 flex justify-end gap-4">
                                     <button 
-                                        onClick={() => alert("Verification sequence initiated. Checking FTP handshake...")}
+                                        onClick={async () => {
+                                            setIsTestingFtp(true);
+                                            try {
+                                                const res = await apiService.testFtpConnection(localFtpConfig);
+                                                if (res.success) {
+                                                    alert(`FTP Verification Successful!\n\nHost: ${res.details?.host}\nPort: ${res.details?.port}\nFiles visible: ${res.details?.filesFound}`);
+                                                } else {
+                                                    alert(`FTP Verification Failed:\n${res.message}\n${res.details || ''}`);
+                                                }
+                                            } catch (e: any) {
+                                                alert(`FTP handshake error: ${e.message}`);
+                                            } finally {
+                                                setIsTestingFtp(false);
+                                            }
+                                        }}
+                                        disabled={isTestingFtp}
                                         className="btn-secondary px-8 h-12 uppercase tracking-widest text-[10px]"
                                     >
-                                        Test Connection
+                                        {isTestingFtp ? 'Testing...' : 'Test Connection'}
                                     </button>
                                     <button 
                                         onClick={handleSaveGlobalConfigs} 

@@ -2251,6 +2251,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({ success: true, message: 'Internal reconciliation triggered' });
         }
 
+        if (action === 'testFtp') {
+            const ftpConfig = bodyConfig || settings.ftpConfig || settings.ftp_config || {};
+            const host = ftpConfig.host;
+            const userFtp = ftpConfig.user || ftpConfig.username;
+            const passwordFtp = ftpConfig.password;
+            const port = Number(ftpConfig.port || 21);
+            const secure = ftpConfig.secure ?? false;
+
+            if (!host || !userFtp || !passwordFtp) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'FTP configuration is incomplete. Host, user, and password are required.' 
+                });
+            }
+
+            const client = new ftp.Client();
+            client.ftp.verbose = false;
+
+            try {
+                await client.access({
+                    host,
+                    port,
+                    user: userFtp,
+                    password: passwordFtp,
+                    secure
+                });
+
+                // Try to list the root directory to verify permissions
+                const list = await client.list();
+                
+                return res.status(200).json({ 
+                    success: true, 
+                    message: 'FTP connection established successfully.',
+                    details: {
+                        host,
+                        port,
+                        secure,
+                        filesFound: list.length
+                    }
+                });
+            } catch (err: any) {
+                console.error("FTP Test error:", err);
+                return res.status(200).json({ 
+                    success: false, 
+                    message: 'FTP Connection failed.', 
+                    details: err.message 
+                });
+            } finally {
+                client.close();
+            }
+        }
+
         if (action === 'campaign-upload') {
             const { file, fileName, type, campaignId } = paramsMap;
             if (!file || !fileName) return res.status(400).json({ success: false, message: 'Missing file data.' });
