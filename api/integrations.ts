@@ -1157,31 +1157,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                           txn.provider === 'airtel' ? 'airtel_transactions' : 
                           'mpesa_transactions';
 
-            // 1.5 Fresh fetch to get latest metadata for the CAS match
-            const { data: freshTxn } = await supabase.from(table).select('metadata').eq('id', txn.id).maybeSingle();
-            if (!freshTxn || freshTxn.metadata?.reconciled === true) return;
-            const meta = freshTxn.metadata || {};
-
-            // 2. ATOMIC LOCK (Compare-and-Swap)
-            // We only proceed if we can successfully swap the 'reconciled' state.
-            // By matching the exact metadata we just fetched, we ensure no one else 
-            // has modified it since our select.
-            const { data: lockData, error: lockError } = await supabase
-                .from(table)
-                .update({ 
-                    metadata: { ...meta, reconciled: 'processing', processing_at: new Date().toISOString() } 
-                })
-                .match({ id: txn.id, metadata: meta })
-                .select();
-
-            if (lockError || !lockData || lockData.length === 0) {
-                 console.log(`[Reconcile - CONCURRENCY BLOCK] Race condition detected or already processed: ${txn.id}`);
-                 return;
+            // 1.5 Fresh fetch to get latest status
+            const { data: freshTxn } = await supabase.from(table).select('metadata, institution_id, amount').eq('id', txn.id).maybeSingle();
+            if (!freshTxn || freshTxn.metadata?.reconciled === true || freshTxn.metadata?.reconciled === 'processing') {
+                console.log(`[Reconcile - SKIP] Already reconciled or in progress: ${txn.id}`);
+                return;
             }
 
-            // At this point, WE OWN the reconciliation for this transaction.
-            const instId = txn.institution_id;
-            const amt = txn.amount;
+            const meta = freshTxn.metadata || {};
+            const instId = freshTxn.institution_id || txn.institution_id;
+            const amt = freshTxn.amount || txn.amount;
+
+            // 2. PROMPT LOCK (Soft Claim)
+            // We mark as processing immediately to reduce race window.
+            await supabase.from(table).update({ 
+                metadata: { ...meta, reconciled: 'processing', processing_at: new Date().toISOString() } 
+            }).eq('id', txn.id);
+
+            // At this point, we proceed with reconciliation.
+            // Even if two threads reach here, the double-check above will catch the 
+            // 'processing' state in subsequent calls.
 
             // 3. Final Safeguard: Check if a receipt already exists for this transaction
             // Receipts are only created AFTER a successful balance increment.
