@@ -100,6 +100,8 @@ import { MandatoryUpdateView } from './MandatoryUpdateView';
 import { TimetableWizard } from './TimetableWizard';
 import { ParentView } from './ParentView';
 import { LeadScoutManager } from './LeadScoutManager';
+import { analyzePoliticalRegistrySpreadsheet } from '../services/geminiService';
+import * as XLSX from 'xlsx';
 import { CountyManager } from './CountyManager';
 import { PropertyMarketplaceView } from './PropertyMarketplaceView';
 import { ExternalModuleView } from './ExternalModuleView';
@@ -4829,6 +4831,7 @@ const PoliticalMetadataManager: React.FC = () => {
     const [newAcronym, setNewAcronym] = useState('');
     const [selectedCounty, setSelectedCounty] = useState('');
     const [selectedConstituency, setSelectedConstituency] = useState('');
+    const [isImporterOpen, setIsImporterOpen] = useState(false);
 
     useEffect(() => {
         loadData();
@@ -4915,19 +4918,35 @@ const PoliticalMetadataManager: React.FC = () => {
                 ))}
             </div>
 
+            {isImporterOpen && (
+                <SmartPoliticalRegistryImporterModal 
+                    onClose={() => setIsImporterOpen(false)} 
+                    onRefresh={loadData} 
+                />
+            )}
+
             <div className="bg-white dark:bg-slate-800 p-12 rounded-[3.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
                 <div className="flex justify-between items-center mb-12">
                     <div>
                         <h3 className="text-3xl font-black uppercase tracking-tighter">Political Registry</h3>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Manage global {tab} for all campaigns</p>
                     </div>
-                    <button 
-                        onClick={() => setShowAdd(!showAdd)}
-                        className="btn-primary h-12 px-8 flex items-center gap-2"
-                    >
-                        {showAdd ? <XIcon className="w-4 h-4" /> : <PlusIcon className="w-4 h-4" />}
-                        Add {tab.slice(0, -1)}
-                    </button>
+                    <div className="flex gap-4">
+                        <button 
+                            onClick={() => setIsImporterOpen(true)}
+                            className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-6 h-12 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-2 border border-slate-200/50 dark:border-slate-700/50 shadow-sm"
+                        >
+                            <ArrowUpTrayIcon className="w-4 h-4" />
+                            Import Registry
+                        </button>
+                        <button 
+                            onClick={() => setShowAdd(!showAdd)}
+                            className="btn-primary h-12 px-8 flex items-center gap-2"
+                        >
+                            {showAdd ? <XIcon className="w-4 h-4" /> : <PlusIcon className="w-4 h-4" />}
+                            Add {tab.slice(0, -1)}
+                        </button>
+                    </div>
                 </div>
 
                 {showAdd && (
@@ -5008,6 +5027,198 @@ const PoliticalMetadataManager: React.FC = () => {
                             <h5 className="font-black text-slate-900 dark:text-white uppercase text-base">{w.name}</h5>
                         </div>
                     ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+interface PoliticalMappingField {
+    countyCode: string | null;
+    countyName: string | null;
+    constituencyCode: string | null;
+    constituencyName: string | null;
+    wardCode: string | null;
+    wardName: string | null;
+}
+
+interface SmartPoliticalRegistryImporterModalProps {
+    onClose: () => void;
+    onRefresh: () => void;
+}
+
+const SmartPoliticalRegistryImporterModal: React.FC<SmartPoliticalRegistryImporterModalProps> = ({ onClose, onRefresh }) => {
+    const [step, setStep] = useState<'upload' | 'mapping' | 'importing' | 'success' | 'error'>('upload');
+    const [fileHeaders, setFileHeaders] = useState<string[]>([]);
+    const [mapping, setMapping] = useState<PoliticalMappingField>({
+        countyCode: null, countyName: null, constituencyCode: null, 
+        constituencyName: null, wardCode: null, wardName: null
+    });
+    const [rawData, setRawData] = useState<any[]>([]);
+    const [errorMessage, setErrorMessage] = useState('');
+    const [progress, setProgress] = useState(0);
+
+    const handleFileSelect = (file: File) => {
+        setStep('importing');
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonHeaders: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                
+                if (jsonHeaders.length < 1) throw new Error("Spreadsheet is empty.");
+                const headers = jsonHeaders[0].filter((h: any) => h != null && h !== '');
+                setFileHeaders(headers);
+                setRawData(XLSX.utils.sheet_to_json(worksheet));
+
+                const aiMapping = await analyzePoliticalRegistrySpreadsheet(headers);
+                setMapping(aiMapping as any);
+                setStep('mapping');
+            } catch (err: any) {
+                setErrorMessage(err.message);
+                setStep('error');
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    };
+
+    const handleImport = async () => {
+        setStep('importing');
+        setProgress(0);
+        try {
+            // Processing hierarchy: County -> Constituency -> Ward
+            const countyMap = new Map<string, string>(); // Name -> ID
+            const constituencyMap = new Map<string, string>(); // Name -> ID
+
+            for (let i = 0; i < rawData.length; i++) {
+                const row = rawData[i];
+                const cName = row[mapping.countyName!];
+                const cCode = row[mapping.countyCode!];
+                const conName = row[mapping.constituencyName!];
+                const conCode = row[mapping.constituencyCode!];
+                const wName = row[mapping.wardName!];
+                const wCode = row[mapping.wardCode!];
+
+                if (!cName || !conName || !wName) continue;
+
+                // 1. Ensure County
+                let countyId = countyMap.get(cName);
+                if (!countyId) {
+                    countyId = `cty_${Date.now()}_${i}`;
+                    await apiService.saveModuleRecord('counties', {
+                        id: countyId,
+                        name: cName,
+                        code: String(cCode || ''),
+                        status: 'active',
+                        createdAt: new Date().toISOString()
+                    });
+                    countyMap.set(cName, countyId);
+                }
+
+                // 2. Ensure Constituency
+                const conKey = `${countyId}_${conName}`;
+                let conId = constituencyMap.get(conKey);
+                if (!conId) {
+                    conId = `con_${Date.now()}_${i}`;
+                    await apiService.saveModuleRecord('constituencies', {
+                        id: conId,
+                        countyId: countyId,
+                        name: conName,
+                        code: String(conCode || ''),
+                        createdAt: new Date().toISOString()
+                    });
+                    constituencyMap.set(conKey, conId);
+                }
+
+                // 3. Save Ward
+                await apiService.saveModuleRecord('wards', {
+                    id: `ward_${Date.now()}_${i}`,
+                    constituency_id: conId,
+                    name: wName,
+                    code: String(wCode || ''),
+                    createdAt: new Date().toISOString()
+                });
+
+                setProgress(Math.round(((i + 1) / rawData.length) * 100));
+            }
+            onRefresh();
+            setStep('success');
+        } catch (err: any) {
+            setErrorMessage(err.message);
+            setStep('error');
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6 animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[3rem] shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                    <div>
+                        <h3 className="text-2xl font-black uppercase tracking-tighter">AI Political Importer</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Bulk sync official IEBC registry</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all">
+                        <XIcon className="w-5 h-5 text-slate-400" />
+                    </button>
+                </div>
+
+                <div className="p-8">
+                    {step === 'upload' && (
+                        <div className="text-center py-12 border-4 border-dashed border-slate-100 dark:border-slate-800 rounded-[2.5rem] bg-slate-50/30 dark:bg-slate-900/30">
+                            <ArrowUpTrayIcon className="w-16 h-16 text-indigo-400 mx-auto mb-4" />
+                            <h4 className="text-lg font-black uppercase tracking-tighter mb-2">Drop Official Registry</h4>
+                            <p className="text-xs text-slate-400 font-bold uppercase mb-8">IEBC Counties, Constituencies & Wards (.xlsx or .csv)</p>
+                            <input type="file" onChange={e => e.target.files && handleFileSelect(e.target.files[0])} accept=".xlsx, .xls, .csv" className="hidden" id="registry-upload" />
+                            <label htmlFor="registry-upload" className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest cursor-pointer hover:bg-slate-900 transition-all shadow-xl shadow-indigo-100 dark:shadow-none">Select File</label>
+                        </div>
+                    )}
+
+                    {step === 'mapping' && (
+                        <div className="space-y-6">
+                            <div className="bg-indigo-50 dark:bg-indigo-900/20 p-6 rounded-3xl border border-indigo-100 dark:border-indigo-800 flex items-center gap-4">
+                                <SparklesIcon className="w-6 h-6 text-indigo-600" />
+                                <p className="text-xs font-bold text-indigo-900 dark:text-indigo-100 uppercase leading-relaxed">AI has mapped your columns. Please verify before processing the hierarchical import.</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                {Object.keys(mapping).map(field => (
+                                    <div key={field} className="space-y-1.5">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">{field.replace(/([A-Z])/g, ' $1')}</label>
+                                        <select 
+                                            value={(mapping as any)[field] || ''} 
+                                            onChange={e => setMapping(prev => ({ ...prev, [field]: e.target.value }))}
+                                            className="form-select"
+                                        >
+                                            <option value="">-- Manual Selection --</option>
+                                            {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                                        </select>
+                                    </div>
+                                ))}
+                            </div>
+                            <button onClick={handleImport} className="w-full py-5 bg-indigo-600 text-white rounded-[1.5rem] font-black uppercase tracking-widest text-xs shadow-xl hover:bg-slate-900 transition-all">Initialize Bulk Sync</button>
+                        </div>
+                    )}
+
+                    {step === 'importing' && (
+                        <div className="text-center py-12">
+                            <div className="w-full bg-slate-100 dark:bg-slate-800 h-4 rounded-full overflow-hidden mb-4">
+                                <div className="bg-indigo-600 h-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
+                            </div>
+                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Synchronizing Political Matrix... {progress}%</p>
+                        </div>
+                    )}
+
+                    {step === 'success' && (
+                        <div className="text-center py-12">
+                            <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <CheckCircleIcon className="w-12 h-12" />
+                            </div>
+                            <h4 className="text-2xl font-black uppercase tracking-tighter mb-2">Sync Successful</h4>
+                            <p className="text-xs text-slate-400 font-bold uppercase mb-8">Registry updated with hierarchical location data.</p>
+                            <button onClick={onClose} className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest">Return to Manager</button>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
