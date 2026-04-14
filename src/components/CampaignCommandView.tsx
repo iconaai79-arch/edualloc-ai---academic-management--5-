@@ -21,6 +21,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
     const [generatingManifesto, setGeneratingManifesto] = useState(false);
     const [activeTab, setActiveTab] = useState<'dashboard' | 'voters' | 'events' | 'manifesto' | 'ai_pulse' | 'branding' | 'settings'>('dashboard');
     const [showProfileModal, setShowProfileModal] = useState(false);
+    const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
     const [editProfile, setEditProfile] = useState<Partial<CampaignProfile>>({});
 
     useEffect(() => {
