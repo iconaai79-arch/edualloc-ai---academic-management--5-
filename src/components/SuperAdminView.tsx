@@ -14,7 +14,8 @@ import type {
     TransportOnboarding, VehicleLog, AppNotification,
     LawAgreement, LawAgreementTemplate, LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction,
     DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
-    CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry, MarketingProspect
+    CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry, MarketingProspect,
+    PoliticalParty, Constituency, Ward
 } from '../types';
 import { TransactionsManager } from './TransactionsManager';
 import { DatabaseSettings } from './DatabaseSettings';
@@ -507,7 +508,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     } = props;
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout'>('dashboard');
-    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry' | 'scouting'>('list'); // Modified for Counties, Resellers, Business & Registry
+    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry' | 'scouting' | 'branding' | 'political'>('list'); // Modified for Counties, Resellers, Business, Registry, Branding & Political Data
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses' | 'registry'>('subjects');
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
 
