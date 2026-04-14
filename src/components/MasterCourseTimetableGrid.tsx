@@ -60,7 +60,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
 
     const workloadData = useMemo(() => {
         return relevantCourses.map(course => {
-            const courseSubjects = subjects.filter(s => course.levels.some(l => l.subjectIds.includes(s.id)));
+            const courseSubjects = subjects.filter(s => s && (course.levels || []).some(l => l && (l.subjectIds || []).includes(s.id)));
             const subjectCount = courseSubjects.length;
             const totalPeriods = courseSubjects.reduce((sum, s) => {
                 const structurePeriods = s.lessonStructure?.reduce((pSum, ls) => pSum + (ls.count * ls.periods), 0) || 0;
@@ -86,8 +86,9 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
     }, [workloadData]);
 
     const getCellEntries = (level: CourseLevel, day: string, period: any) => {
+        if (!level) return [];
         return generatedTimetable.filter(e =>
-            e.day === day &&
+            e && e.day === day &&
             (level.subjectIds || []).includes(e.subjectId) &&
             timeToMinutes(e.startTime) === timeToMinutes(period.startTime)
         );
@@ -97,7 +98,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
         <div className="space-y-12 animate-fade-in no-break">
             {relevantCourses.map((course) => {
                 const courseEntries = generatedTimetable.filter(e =>
-                    course.levels.some(l => (l.subjectIds || []).includes(e.subjectId))
+                    e && (course.levels || []).some(l => l && (l.subjectIds || []).includes(e.subjectId))
                 );
 
                 return (
@@ -185,9 +186,10 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                                         // Count entries per level
                                                                         const levelCounts: Record<string, number> = {};
                                                                         slotEntries.forEach(e => {
+                                                                            if (!e) return;
                                                                             // Find which level this entry belongs to (it might belong to multiple subjectIds in different levels)
-                                                                            course.levels.forEach(l => {
-                                                                                if ((l.subjectIds || []).includes(e.subjectId)) {
+                                                                            (course.levels || []).forEach(l => {
+                                                                                if (l && (l.subjectIds || []).includes(e.subjectId)) {
                                                                                     levelCounts[l.id] = (levelCounts[l.id] || 0) + 1;
                                                                                 }
                                                                             });
@@ -201,8 +203,9 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                                         // Actually, if the user sees "Maths, English" for Level 1 in the same cell, that's what they want to see as "BLOCK".
 
                                                                         return slotEntries.map((entry, idx) => {
-                                                                            const levelEntryCount = course.levels.find(l => (l.subjectIds || []).includes(entry.subjectId)) ?
-                                                                                course.levels.filter(l => (l.subjectIds || []).includes(entry.subjectId))
+                                                                            if (!entry) return null;
+                                                                            const levelEntryCount = (course.levels || []).find(l => l && (l.subjectIds || []).includes(entry.subjectId)) ?
+                                                                                (course.levels || []).filter(l => l && (l.subjectIds || []).includes(entry.subjectId))
                                                                                     .reduce((max, l) => Math.max(max, levelCounts[l.id] || 0), 0) : 0;
 
                                                                             const isBlockPart = levelEntryCount > 1;
@@ -215,7 +218,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                                                 c.conflictingEntries.some(ce => ce.id === entry.id)
                                                                             );
 
-                                                                            if (isBlockPart && idx === slotEntries.findIndex(e => course.levels.some(l => (l.subjectIds || []).includes(e.subjectId) && (l.subjectIds || []).includes(entry.subjectId)))) {
+                                                                            if (isBlockPart && idx === slotEntries.findIndex(e => e && (course.levels || []).some(l => l && (l.subjectIds || []).includes(e.subjectId) && (l.subjectIds || []).includes(entry.subjectId)))) {
                                                                                 // Only show BLOCK once per level group if needed?
                                                                                 // This is getting messy. Let's just follow the vertical layout pattern:
                                                                                 // If entries.length > 1 for the SAME group, it's a block.
@@ -261,7 +264,9 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                     </h3>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 print:block">
-                        {course.levels.map(level => (
+                        {(course.levels || []).map(level => {
+                            if (!level) return null;
+                            return (
                             <div key={level.id} className="bg-white dark:bg-slate-800 shadow-sm rounded-[2rem] overflow-hidden border border-slate-100 dark:border-slate-700 print:shadow-none print:border-2 print:border-slate-200 print:mb-8 print:break-inside-avoid">
                                 <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 print:bg-gray-50 print:py-2">
                                     <h4 className="text-lg font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest print:text-black">

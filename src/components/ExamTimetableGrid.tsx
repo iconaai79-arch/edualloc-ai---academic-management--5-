@@ -65,10 +65,10 @@ export const ExamTimetableGrid: React.FC<ExamTimetableGridProps> = ({ entries, g
                                     const subject = getSubjectById(entry.subjectId);
                                     const room = getRoomById(entry.roomId);
                                     const invigilator = getLecturerById(entry.invigilatorId);
-                                    const building = room ? buildings.find(b => b.id === room.buildingId) : undefined;
+                                    const building = room ? (buildings || []).find(b => b && b.id === room.buildingId) : undefined;
                                     const roomText = room ? `${building?.name || ''} - ${room.name}` : 'N/A';
-                                    const course = courses.find(c => c.id === entry.courseId);
-                                    const level = course?.levels.find(l => l.id === entry.courseLevelId);
+                                    const course = (courses || []).find(c => c && c.id === entry.courseId);
+                                    const level = course?.levels?.find(l => l && l.id === entry.courseLevelId);
                                     const courseText = course ? `${course.name} (${level?.name || 'N/A'})` : 'N/A';
                                     
                                     return (
