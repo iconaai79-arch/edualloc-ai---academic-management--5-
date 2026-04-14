@@ -1093,9 +1093,10 @@ const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({
     const [selectedConstituency, setSelectedConstituency] = useState(profile?.constituency || '');
     const [selectedWard, setSelectedWard] = useState(profile?.ward || '');
 
-    const [target, setTarget] = useState(profile?.targetVoterCount || 50000);
     const [agendas, setAgendas] = useState<string[]>(profile?.agendas || ['', '', '']);
+    const [slug, setSlug] = useState(profile?.inviteSlug || name.toLowerCase().replace(/\s+/g, '-'));
     const [saving, setSaving] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     // Derived lists
     const filteredConstituencies = useMemo(() => {
@@ -1125,7 +1126,7 @@ const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({
                 constituencyWard: `${selectedConstituency}${selectedWard ? ' - ' + selectedWard : ''}`,
                 targetVoterCount: target,
                 agendas: agendas.filter(a => a.trim() !== ''),
-                inviteSlug: profile?.inviteSlug || name.toLowerCase().replace(/\s+/g, '-'),
+                inviteSlug: slug || name.toLowerCase().replace(/\s+/g, '-'),
                 brandingStatus: profile?.brandingStatus || 'none',
                 createdAt: profile?.createdAt || new Date().toISOString()
             };
@@ -1226,6 +1227,32 @@ const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({
                                     <option value="">{selectedConstituency ? 'Choose Ward...' : 'Select Constituency first'}</option>
                                     {filteredWards.map(w => <option key={w.id} value={w.name}>{w.name}</option>)}
                                 </select>
+                            </div>
+                            <div className="space-y-1.5 p-4 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100/50 dark:border-indigo-800/30">
+                                <label className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-widest ml-1">Custom Public Link Slug</label>
+                                <div className="flex gap-2">
+                                    <div className="flex-1 relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">/join/</span>
+                                        <input 
+                                            value={slug} 
+                                            onChange={e => setSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))} 
+                                            className="form-input pl-14 text-indigo-600 font-bold" 
+                                            placeholder="eg. votemisoi"
+                                        />
+                                    </div>
+                                    <button 
+                                        onClick={() => {
+                                            const url = `https://portal.eduai.co.ke/?view=join-campaign&id=${slug}`;
+                                            navigator.clipboard.writeText(url);
+                                            setCopied(true);
+                                            setTimeout(() => setCopied(false), 2000);
+                                        }}
+                                        className="px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all"
+                                    >
+                                        {copied ? 'Copied!' : 'Copy Link'}
+                                    </button>
+                                </div>
+                                <p className="text-[9px] text-slate-400 font-medium ml-1">Share this link to recruit supporters publicly</p>
                             </div>
                         </div>
                     </div>
