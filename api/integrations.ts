@@ -1066,7 +1066,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     'Content-Type': 'application/json'
                 }, ncbaConfig.headers),
                 body: JSON.stringify(mergeParams({
-                    TransactionID: checkoutRequestId
+                    TransactionID: checkoutRequestId,
+                    CheckoutRequestID: checkoutRequestId,
+                    ReferenceID: checkoutRequestId,
+                    MerchantRequestID: checkoutRequestId
                 }, ncbaConfig.params))
             });
 
@@ -1534,6 +1537,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                           statusData.ResultCode === '1' || statusData.StatusCode === '1' || statusData.ResponseCode === '1';
 
                         if (statusData.success === true || statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED' || 
+                            statusData.status === 'SUCCESSFUL' || statusData.status === 'verified' ||
                             statusData.ResultCode === '0' || statusData.ResponseCode === '0' || statusData.StatusCode === '0' || 
                             statusData.ResponseCode === '00' || statusData.ResultCode === '00') {
                             finalStatus = 'completed';
