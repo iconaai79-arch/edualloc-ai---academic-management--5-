@@ -3,7 +3,8 @@ import {
     UserGroupIcon, CalendarDaysIcon, ChartBarIcon, 
     SparklesIcon, MapPinIcon, ChatBubbleLeftRightIcon,
     SpeakerWaveIcon, DocumentTextIcon, ArrowPathIcon,
-    HeartIcon, ShieldCheckIcon, MegaphoneIcon
+    HeartIcon, ShieldCheckIcon, MegaphoneIcon,
+    PhotoIcon, PlusIcon, XIcon, VideoCameraIcon, CameraIcon, DevicePhoneMobileIcon
 } from './icons';
 import { CampaignProfile, VoterOutreach, CampaignEvent, User, PoliticalParty, Constituency, Ward } from '../types';
 import { apiService } from '../services/apiService';
@@ -18,6 +19,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
     const [profile, setProfile] = useState<CampaignProfile | null>(null);
     const [voters, setVoters] = useState<VoterOutreach[]>([]);
     const [events, setEvents] = useState<CampaignEvent[]>([]);
+    const [uploading, setUploading] = useState(false);
     const [loading, setLoading] = useState(true);
     const [generatingManifesto, setGeneratingManifesto] = useState(false);
     const [activeTab, setActiveTab] = useState<'dashboard' | 'voters' | 'events' | 'manifesto' | 'ai_pulse' | 'branding' | 'settings'>('dashboard');
@@ -90,6 +92,43 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
         } finally {
             setGeneratingManifesto(false);
         }
+    };
+
+    const handleAssetUpload = async (file: File, type: 'profile' | 'poster') => {
+        if (!profile) return;
+        setUploading(true);
+        
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const base64 = (e.target?.result as string).split(',')[1];
+            try {
+                const response = await apiService.invokeIntegration({
+                    action: 'campaign-upload',
+                    file: base64,
+                    fileName: file.name,
+                    type,
+                    campaignId: profile.id
+                });
+                
+                if (response.success && response.url) {
+                    const updatedProfile = { ...profile };
+                    if (type === 'profile') {
+                        updatedProfile.profilePicture = response.url;
+                    } else {
+                        updatedProfile.campaignPosters = [...(updatedProfile.campaignPosters || []), response.url];
+                    }
+                    
+                    await apiService.saveModuleRecord('campaign_profiles', updatedProfile);
+                    setProfile(updatedProfile);
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Upload failed. Verify FTP credentials in System Settings.");
+            } finally {
+                setUploading(false);
+            }
+        };
+        reader.readAsDataURL(file);
     };
 
     if (loading) return <div className="flex h-screen items-center justify-center"><ArrowPathIcon className="w-10 h-10 animate-spin text-indigo-500" /></div>;
@@ -168,54 +207,140 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                 </div>
             </div>
 
-            {/* Branding View */}
+            {/* Branding & Media View */}
             {activeTab === 'branding' && (
-                <div className="space-y-8 animate-fade-in">
-                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-12 shadow-2xl border border-slate-100 dark:border-slate-800 text-center max-w-3xl mx-auto">
-                        <SparklesIcon className="w-20 h-20 text-indigo-600 mx-auto mb-6" />
-                        <h2 className="text-4xl font-black tracking-tighter uppercase mb-4">Elite Branding Package</h2>
-                        <p className="text-slate-500 font-medium mb-8">
-                            Stand out from the crowd with a professional identity, verified candidate logo, and custom branded SMS sender ID for all your outreach.
-                        </p>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                            <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-transparent hover:border-indigo-100 transition-all">
-                                <DocumentTextIcon className="w-8 h-8 text-indigo-600 mx-auto mb-3" />
-                                <h4 className="text-[10px] font-black uppercase tracking-widest">Branded SMS</h4>
-                                <p className="text-[9px] text-slate-400 mt-2 font-bold uppercase">Send texts with your name (e.g., TEAM-RAILA)</p>
+                <div className="space-y-8 animate-fade-in-up">
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 shadow-xl border border-slate-100 dark:border-slate-800">
+                        <div className="flex justify-between items-center mb-10">
+                            <div>
+                                <h3 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
+                                    <PhotoIcon className="w-8 h-8 text-indigo-600" />
+                                    Branding & Media Hub
+                                </h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 ml-11">Manage official digital campaign assets</p>
                             </div>
-                            <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-transparent hover:border-indigo-100 transition-all">
-                                <ShieldCheckIcon className="w-8 h-8 text-indigo-600 mx-auto mb-3" />
-                                <h4 className="text-[10px] font-black uppercase tracking-widest">Verified Badge</h4>
-                                <p className="text-[9px] text-slate-400 mt-2 font-bold uppercase">Blue checkmark on your public comparison profile</p>
+                            {uploading && (
+                                <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl">
+                                    <ArrowPathIcon className="w-4 h-4 animate-spin text-indigo-600" />
+                                    <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest">Uploading to cPanel...</span>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {/* Portrait Section */}
+                            <div className="p-8 bg-slate-50 dark:bg-slate-800/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
+                                <div className="flex items-center justify-between mb-8">
+                                    <h4 className="font-black text-xs uppercase tracking-widest text-indigo-600">Official Portrait</h4>
+                                    <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-600 rounded-full text-[8px] font-black uppercase tracking-tighter">Live Asset</span>
+                                </div>
+                                
+                                <div className="flex flex-col items-center gap-6">
+                                    <div className="w-48 h-48 rounded-[3rem] bg-white dark:bg-slate-900 border-4 border-white dark:border-slate-800 shadow-2xl overflow-hidden relative group">
+                                        <img 
+                                            src={profile.profilePicture || 'https://images.unsplash.com/photo-1540910419892-f013c773998b?q=80&w=300&h=300&auto=format&fit=crop'} 
+                                            alt="Candidate" 
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center backdrop-blur-sm">
+                                            <input 
+                                                type="file" 
+                                                id="profile-upload" 
+                                                className="hidden" 
+                                                accept="image/*"
+                                                onChange={(e) => e.target.files && handleAssetUpload(e.target.files[0], 'profile')}
+                                            />
+                                            <label htmlFor="profile-upload" className="cursor-pointer text-white font-black text-[10px] uppercase tracking-widest bg-indigo-600 px-5 py-3 rounded-2xl shadow-xl hover:scale-110 active:scale-95 transition-all">Update Photo</label>
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase text-center leading-relaxed max-w-[200px]">High resolution profile photo used for official voting materials.</p>
+                                </div>
                             </div>
-                            <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-transparent hover:border-indigo-100 transition-all">
-                                <MegaphoneIcon className="w-8 h-8 text-indigo-600 mx-auto mb-3" />
-                                <h4 className="text-[10px] font-black uppercase tracking-widest">AI Video Suite</h4>
-                                <p className="text-[9px] text-slate-400 mt-2 font-bold uppercase">Generate high-quality campaign clips for TikTok</p>
+
+                            {/* Posters Section */}
+                            <div className="p-8 bg-slate-50 dark:bg-slate-800/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
+                                <h4 className="font-black text-xs uppercase tracking-widest text-indigo-600 mb-8">Campaign Posters Gallery</h4>
+                                
+                                <div className="grid grid-cols-2 gap-4">
+                                    {(profile.campaignPosters || []).map((p: string, i: number) => (
+                                        <div key={i} className="aspect-[3/4] rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden group relative">
+                                            <img src={p} className="w-full h-full object-cover" />
+                                            <button 
+                                                onClick={async () => {
+                                                    const updated = { ...profile, campaignPosters: profile.campaignPosters?.filter((_: string, idx: number) => idx !== i) };
+                                                    await apiService.saveModuleRecord('campaign_profiles', updated);
+                                                    setProfile(updated);
+                                                }}
+                                                className="absolute top-2 right-2 p-1.5 bg-white/90 text-red-600 rounded-lg opacity-0 group-hover:opacity-100 transition-all shadow-lg backdrop-blur-sm"
+                                            >
+                                                <XIcon className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    
+                                    <div className="aspect-[3/4] rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center gap-3 hover:bg-slate-100 dark:hover:bg-slate-900 transition-all cursor-pointer relative overflow-hidden group">
+                                        <input 
+                                            type="file" 
+                                            className="absolute inset-0 opacity-0 cursor-pointer" 
+                                            accept="image/*"
+                                            onChange={(e) => e.target.files && handleAssetUpload(e.target.files[0], 'poster')}
+                                        />
+                                        <PlusIcon className="w-8 h-8 text-slate-300 group-hover:text-indigo-400 group-hover:scale-110 transition-all" />
+                                        <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">Add Poster</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        {profile.brandingStatus === 'active' ? (
-                            <div className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 p-8 rounded-[2.5rem] font-black uppercase tracking-widest text-sm border-2 border-emerald-500/20 flex items-center justify-center gap-4">
-                                <ShieldCheckIcon className="w-6 h-6" /> Branding Plan Active
-                            </div>
-                        ) : profile.brandingStatus === 'pending' ? (
-                            <div className="bg-orange-50 dark:bg-orange-900/20 text-orange-600 p-8 rounded-[2.5rem] font-black uppercase tracking-widest text-sm border-2 border-orange-500/20">
-                                Application Processing...
-                            </div>
-                        ) : (
-                            <button 
-                                onClick={async () => {
-                                    const updated = { ...profile, brandingStatus: 'pending' as const };
-                                    await apiService.saveModuleRecord('campaign_profiles', updated);
-                                    setProfile(updated);
-                                }}
-                                className="bg-indigo-600 text-white px-12 py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-2xl shadow-indigo-200 dark:shadow-none hover:scale-105 transition-all"
-                            >
-                                Apply & Upgrade Now
-                            </button>
-                        )}
+                        {/* Branding Package Info */}
+                        <div className="mt-12 pt-12 border-t border-slate-100 dark:border-slate-800">
+                             <div className="bg-slate-900 text-white rounded-[2.5rem] p-12 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl"></div>
+                                <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
+                                    <div className="shrink-0">
+                                        <SparklesIcon className="w-20 h-20 text-indigo-400" />
+                                    </div>
+                                    <div className="flex-1 text-center md:text-left">
+                                        <h4 className="text-3xl font-black uppercase tracking-tighter mb-2">Elite Branding Package</h4>
+                                        <p className="text-slate-400 font-medium mb-6 max-w-xl">Stand out with a verified identity, custom branded SMS sender ID, and AI-driven video content for TikTok.</p>
+                                        
+                                        <div className="flex flex-wrap gap-4 justify-center md:justify-start">
+                                            {[
+                                                { icon: <DocumentTextIcon className="w-4 h-4"/>, label: 'Custom SMS Sender ID' },
+                                                { icon: <ShieldCheckIcon className="w-4 h-4"/>, label: 'Profile Verification' },
+                                                { icon: <MegaphoneIcon className="w-4 h-4"/>, label: 'Social Media Toolkit' }
+                                            ].map((f, i) => (
+                                                <div key={i} className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-widest">
+                                                    {f.icon} {f.label}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="shrink-0">
+                                        {profile.brandingStatus === 'active' ? (
+                                            <div className="bg-emerald-500/20 text-emerald-400 px-8 py-4 rounded-2xl border border-emerald-500/30 font-black uppercase text-xs tracking-widest flex items-center gap-2">
+                                                <ShieldCheckIcon className="w-5 h-5" /> Status: Active
+                                            </div>
+                                        ) : profile.brandingStatus === 'pending' ? (
+                                            <div className="bg-orange-500/20 text-orange-400 px-8 py-4 rounded-2xl border border-orange-500/30 font-black uppercase text-xs tracking-widest">
+                                                Review Pending...
+                                            </div>
+                                        ) : (
+                                            <button 
+                                                onClick={async () => {
+                                                    const updated = { ...profile, brandingStatus: 'pending' as const };
+                                                    await apiService.saveModuleRecord('campaign_profiles', updated);
+                                                    setProfile(updated);
+                                                }}
+                                                className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-indigo-500/20"
+                                            >
+                                                Apply Now
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                             </div>
+                        </div>
                     </div>
                 </div>
             )}
@@ -481,59 +606,118 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
 
             {/* AI Pulse View */}
             {activeTab === 'ai_pulse' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-fade-in">
-                     <div className="bg-slate-900 text-white rounded-[3rem] p-12 shadow-2xl relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl"></div>
-                        <h3 className="text-3xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3">
-                            <SparklesIcon className="w-8 h-8 text-emerald-400" /> Sentiment Analysis
-                        </h3>
-                        <div className="space-y-8">
-                            <div>
-                                <div className="flex justify-between mb-2">
-                                    <span className="font-black text-[10px] uppercase tracking-widest">Public Favorability</span>
-                                    <span className="text-emerald-400 font-black">78%</span>
+                <div className="space-y-8 animate-fade-in">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="bg-slate-900 text-white rounded-[3rem] p-12 shadow-2xl relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl"></div>
+                            <h3 className="text-3xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3">
+                                <SparklesIcon className="w-8 h-8 text-emerald-400" /> Sentiment Analysis
+                            </h3>
+                            <div className="space-y-8">
+                                <div>
+                                    <div className="flex justify-between mb-2">
+                                        <span className="font-black text-[10px] uppercase tracking-widest">Public Favorability</span>
+                                        <span className="text-emerald-400 font-black">78%</span>
+                                    </div>
+                                    <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden">
+                                        <div className="bg-emerald-400 h-full" style={{ width: '78%' }}></div>
+                                    </div>
                                 </div>
-                                <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden">
-                                    <div className="bg-emerald-400 h-full" style={{ width: '78%' }}></div>
+                                <div>
+                                    <div className="flex justify-between mb-2">
+                                        <span className="font-black text-[10px] uppercase tracking-widest">Digital Engagement</span>
+                                        <span className="text-indigo-400 font-black">92%</span>
+                                    </div>
+                                    <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden">
+                                        <div className="bg-indigo-400 h-full" style={{ width: '92%' }}></div>
+                                    </div>
                                 </div>
-                            </div>
-                            <div>
-                                <div className="flex justify-between mb-2">
-                                    <span className="font-black text-[10px] uppercase tracking-widest">Digital Engagement</span>
-                                    <span className="text-indigo-400 font-black">92%</span>
+                                <div className="pt-8 border-t border-white/10">
+                                    <p className="text-sm font-medium text-slate-400 italic">
+                                        "Voters are responding positively to your stance on digital literacy in primary schools. The sentiment spike matches your recent radio interview."
+                                    </p>
                                 </div>
-                                <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden">
-                                    <div className="bg-indigo-400 h-full" style={{ width: '92%' }}></div>
-                                </div>
-                            </div>
-                            <div className="pt-8 border-t border-white/10">
-                                <p className="text-sm font-medium text-slate-400 italic">
-                                    "Voters are responding positively to your stance on digital literacy in primary schools. The sentiment spike matches your recent radio interview."
-                                </p>
                             </div>
                         </div>
-                     </div>
 
-                     <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-12 shadow-2xl border border-slate-100 dark:border-slate-800">
-                        <h3 className="text-3xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3">
-                            <ShieldCheckIcon className="w-8 h-8 text-indigo-600" /> Strategic Recommendations
-                        </h3>
-                        <div className="space-y-6">
+                        <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-12 shadow-2xl border border-slate-100 dark:border-slate-800">
+                            <h3 className="text-3xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3">
+                                <ShieldCheckIcon className="w-8 h-8 text-indigo-600" /> Strategic Recommendations
+                            </h3>
+                            <div className="space-y-6">
+                                {[
+                                    { title: 'Differentiate', text: 'Rival candidate Z is focusing on roads. Shift your focus to "Internet for Every Home" to capture the Gen-Z vote.' },
+                                    { title: 'Town Hall Strategy', text: 'Schedule a meeting in Outer Ward B. Your support there has dipped by 4% in favor of undecided voters.' },
+                                    { title: 'Media Spend', text: 'Increase TikTok budget by 20% over the weekend. Traffic from that platform is converting to newsletter signups at a record rate.' }
+                                ].map((rec, i) => (
+                                    <div key={i} className="flex gap-4 p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl group hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all cursor-default">
+                                        <div className="w-8 h-8 shrink-0 bg-white dark:bg-slate-900 rounded-xl flex items-center justify-center font-black text-indigo-600 shadow-sm">{i+1}</div>
+                                        <div>
+                                            <h4 className="font-black text-[10px] uppercase tracking-widest text-indigo-600 mb-1">{rec.title}</h4>
+                                            <p className="text-sm text-slate-600 dark:text-slate-400 font-medium leading-relaxed">{rec.text}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-12 shadow-2xl border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-indigo-500/20 transition-all"></div>
+                        
+                        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 mb-12">
+                            <div>
+                                <div className="flex items-center gap-3 mb-2">
+                                    <VideoCameraIcon className="w-10 h-10 text-indigo-600" />
+                                    <h3 className="text-4xl font-black uppercase tracking-tighter">AI Video Suite</h3>
+                                    <span className="px-4 py-1.5 bg-indigo-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse shadow-lg shadow-indigo-100">Pro Feature</span>
+                                </div>
+                                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest ml-14">Transform your manifesto into viral TikTok & Reels clips</p>
+                            </div>
+                            
+                            <div className="flex gap-4">
+                                <button className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all flex items-center gap-3 shadow-xl">
+                                    <PlusIcon className="w-4 h-4" /> Generate New Clip
+                                </button>
+                                <button className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-700 transition-all">
+                                    Studio Mode
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {[
-                                { title: 'Differentiate', text: 'Rival candidate Z is focusing on roads. Shift your focus to "Internet for Every Home" to capture the Gen-Z vote.' },
-                                { title: 'Town Hall Strategy', text: 'Schedule a meeting in Outer Ward B. Your support there has dipped by 4% in favor of undecided voters.' },
-                                { title: 'Media Spend', text: 'Increase TikTok budget by 20% over the weekend. Traffic from that platform is converting to newsletter signups at a record rate.' }
-                            ].map((rec, i) => (
-                                <div key={i} className="flex gap-4 p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl group hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all cursor-default">
-                                    <div className="w-8 h-8 shrink-0 bg-white dark:bg-slate-900 rounded-xl flex items-center justify-center font-black text-indigo-600 shadow-sm">{i+1}</div>
-                                    <div>
-                                        <h4 className="font-black text-[10px] uppercase tracking-widest text-indigo-600 mb-1">{rec.title}</h4>
-                                        <p className="text-sm text-slate-600 dark:text-slate-400 font-medium leading-relaxed">{rec.text}</p>
+                                { title: 'Viral Manifesto', style: 'High-Impact Kinetic Typography', color: 'indigo', icon: SparklesIcon },
+                                { title: 'Townhall Highlight', style: 'Candid Event Recap with AI B-Roll', color: 'emerald', icon: CameraIcon },
+                                { title: 'Policy Breakdown', style: 'Educational Infographic Animation', color: 'orange', icon: ChartBarIcon }
+                            ].map((v, i) => (
+                                <div key={i} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 group/item hover:border-indigo-500 transition-all cursor-pointer">
+                                    <div className={`w-12 h-12 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center mb-6`}>
+                                        <v.icon className={`w-6 h-6 text-indigo-600`} />
+                                    </div>
+                                    <h4 className="font-black text-xl text-slate-900 dark:text-white uppercase mb-2 group-hover/item:text-indigo-600 transition-colors">{v.title}</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed mb-6">{v.style}</p>
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex -space-x-2">
+                                            {[1,2].map(j => <div key={j} className="w-5 h-5 rounded-full bg-slate-200 border border-white"></div>)}
+                                        </div>
+                                        <span className="text-[8px] font-black text-slate-400 uppercase">Used 244 times</span>
                                     </div>
                                 </div>
                             ))}
                         </div>
-                     </div>
+
+                        <div className="mt-10 p-6 bg-indigo-50 dark:bg-indigo-900/20 rounded-[2rem] border border-indigo-100 dark:border-indigo-800/50 flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <DevicePhoneMobileIcon className="w-8 h-8 text-indigo-600" />
+                                <div>
+                                    <h5 className="font-black text-xs uppercase tracking-widest text-indigo-900 dark:text-indigo-100">Live TikTok Feed Integration</h5>
+                                    <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-tighter">Your clips are optimized for vertical viewing and 9:16 aspect ratios.</p>
+                                </div>
+                            </div>
+                            <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest cursor-pointer hover:underline">Verify Account</span>
+                        </div>
+                    </div>
                 </div>
             )}
             {isSetupModalOpen && (

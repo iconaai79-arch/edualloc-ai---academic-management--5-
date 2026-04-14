@@ -53,6 +53,8 @@ export interface CampaignProfile {
     logoUrl?: string;
     targetVoterCount: number;
     inviteSlug?: string;
+    profilePicture?: string;
+    campaignPosters?: string[];
     brandingStatus?: 'none' | 'pending' | 'paid' | 'active';
     brandingConfig?: {
         logoVerified?: boolean;

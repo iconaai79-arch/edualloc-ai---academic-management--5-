@@ -14,7 +14,7 @@ import type {
     CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, SecurityAlert,
     CoopExpense, CoopIncome, DemoRequest, InstitutionModuleState,
     ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay,
-    CarListing, TestDriveBooking, CarAppraisal
+    CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry
 } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
@@ -162,6 +162,28 @@ export const apiService = {
         // Since getAuthToken is async, this one will just return the session ID as a fallback
         const session = apiService.getSession();
         return session?.id || '';
+    },
+    async invokeIntegration(payload: { action: string; [key: string]: any }): Promise<any> {
+        try {
+            const token = await apiService.getAuthToken();
+            const response = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: { 
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify(payload)
+            });
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                return await response.json();
+            }
+            const text = await response.text();
+            throw new Error(`Server error (${response.status}): ${text.substring(0, 100)}`);
+        } catch (e: any) {
+            console.error(`[apiService] invokeIntegration [${payload.action}] failed:`, e);
+            throw e;
+        }
     },
     async uploadBlob(path: string, blob: Blob, contentType?: string): Promise<string> {
         if (!_supabase) {

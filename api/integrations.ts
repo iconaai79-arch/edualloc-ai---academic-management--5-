@@ -2,6 +2,8 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
 import { randomBytes } from 'crypto';
+import { Readable } from 'stream';
+import * as ftp from "basic-ftp";
 
 // Self-contained Supabase service client factory to avoid external lib crashes
 const getSupabase = () => {
@@ -317,6 +319,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 console.log(`[SMS Gateway] Using provided body configuration (Super Admin override)`);
             }
 
+            // Extract recipients and calculate total units early for balance check
+            const rawRecipients = paramsMap.recipients || paramsMap.recipient || recipient;
+            let recipientsList: string[] = [];
+            if (Array.isArray(rawRecipients)) {
+                recipientsList = rawRecipients;
+            } else if (typeof rawRecipients === 'string') {
+                recipientsList = rawRecipients.split(',').map(r => r.trim()).filter(r => r);
+            }
+            const normalizedRecipients = Array.from(new Set(recipientsList.map(r => normalizePhone(r)).filter(r => r.length >= 9)));
+            const recipientCount = normalizedRecipients.length;
+            const totalUnitsToDeduct = unitsToDeduct * recipientCount;
+
             // Load institution-specific config if available
             // We allow this even for 'system' user (unauthenticated OTPs) if institutionId is set
             if (institutionId !== 'SYSTEM') {
@@ -348,28 +362,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
 
-            // Extract recipients
-            const rawRecipients = paramsMap.recipients || paramsMap.recipient || recipient;
-            let recipientsList: string[] = [];
-            if (Array.isArray(rawRecipients)) {
-                recipientsList = rawRecipients;
-            } else if (typeof rawRecipients === 'string') {
-                recipientsList = rawRecipients.split(',').map(r => r.trim()).filter(r => r);
-            }
-            
-            if (recipientsList.length === 0) {
-                return res.status(400).json({ success: false, message: 'No recipients provided.' });
-            }
-
-            // Deduplicate and normalize
-            const normalizedRecipients = Array.from(new Set(recipientsList.map(r => normalizePhone(r)).filter(r => r.length >= 9)));
-            const recipientCount = normalizedRecipients.length;
-
             if (recipientCount === 0) {
                 return res.status(400).json({ success: false, message: 'No valid phone numbers found.' });
             }
-
-            const totalUnitsToDeduct = unitsToDeduct * recipientCount;
 
             console.log(`[SMS Gateway] Processing send for ${recipientCount} recipients. Total Units: ${totalUnitsToDeduct}`);
             console.log(`[SMS Gateway] System Message: ${isSystemMessage}, User Role: ${user.role}`);
@@ -2148,6 +2143,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // Self-Healing Reconciliation: 
                 // If bank status is success, ensure local transaction is marked as completed 
                 // and trigger balance update if not already reconciled.
+                const finalStatus = result.success ? 'completed' : 
+                                   (['FAILED', 'REJECTED', 'CANCELLED', 'EXPIRED'].includes(String(result.status || '').toUpperCase()) ? 'failed' : 'pending');
+
                 if (result.success) {
                     const { data: txn } = await supabase.from('ncba_transactions')
                         .update({ 
@@ -2170,9 +2168,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                     }
                 }
-
-                const finalStatus = result.success ? 'completed' : 
-                                   (['FAILED', 'REJECTED', 'CANCELLED', 'EXPIRED'].includes(String(result.status || '').toUpperCase()) ? 'failed' : 'pending');
 
                 return res.status(200).json({ 
                     success: true, 
@@ -2254,6 +2249,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!txnData) return res.status(400).json({ success: false, message: 'Missing transaction data' });
             await reconcilePayment(txnData);
             return res.status(200).json({ success: true, message: 'Internal reconciliation triggered' });
+        }
+
+        if (action === 'campaign-upload') {
+            const { file, fileName, type, campaignId } = paramsMap;
+            if (!file || !fileName) return res.status(400).json({ success: false, message: 'Missing file data.' });
+
+            const client = new ftp.Client();
+            // client.ftp.verbose = true;
+
+            const host = settings.ftp_host || "da12.host-ww.net";
+            const userFtp = settings.ftp_user || "eduaico1";
+            const passwordFtp = settings.ftp_pass || "A]i7s4v[5qZP5S";
+
+            try {
+                await client.access({
+                    host: host,
+                    user: userFtp,
+                    password: passwordFtp,
+                    secure: false
+                });
+
+                let remoteDir = "/public_html/campaigns";
+                if (type === 'poster') remoteDir += "/posters";
+                else if (type === 'profile') remoteDir += "/profiles";
+                
+                await client.ensureDir(remoteDir);
+                
+                // Convert base64 to stream
+                const buffer = Buffer.from(file, 'base64');
+                const stream = Readable.from(buffer);
+                
+                const finalFileName = `${campaignId?.replace(/[^a-z0-9]/gi, '_') || 'anon'}_${Date.now()}_${fileName.replace(/[^a-z0-9.]/gi, '_')}`;
+                await client.uploadFrom(stream, finalFileName);
+                
+                // Construct public URL - using the host mapping from eduaico1 to eduaico1.iconaai.com
+                const publicUrl = `https://eduaico1.iconaai.com/campaigns/${type === 'poster' ? 'posters' : 'profiles'}/${finalFileName}`;
+                
+                return res.status(200).json({ 
+                    success: true, 
+                    url: publicUrl,
+                    fileName: finalFileName
+                });
+            } catch (err: any) {
+                console.error("FTP Upload error:", err);
+                return res.status(500).json({ success: false, message: 'FTP Upload failed.', details: err.message });
+            } finally {
+                client.close();
+            }
         }
 
         return res.status(400).json({ success: false, message: 'Action not supported.' });
