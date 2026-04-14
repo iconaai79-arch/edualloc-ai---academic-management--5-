@@ -202,6 +202,29 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
         (p.category || '').toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    const isAgrovet = tenant?.institutionType === 'Agrovet' || tenant?.category === 'Agrovet';
+    const themeColor = tenant?.themeColor || (isAgrovet ? '#10b981' : '#4f46e5');
+
+    const heroItems = [...retailProducts, ...listings].filter(i => (i as any).imageUrl || (i as any).images?.[0]).slice(0, 5);
+
+    useEffect(() => {
+        if (heroItems.length > 0) {
+            const timer = setInterval(() => {
+                setCurrentSlide(prev => (prev + 1) % heroItems.length);
+            }, 5000);
+            return () => clearInterval(timer);
+        }
+    }, [heroItems.length]);
+
+    const showTabs = retailProducts.length > 0 && listings.length > 0;
+    
+    useEffect(() => {
+        if (!showTabs) {
+            if (retailProducts.length > 0) setActiveSection('retail');
+            else if (listings.length > 0) setActiveSection('properties');
+        }
+    }, [showTabs, retailProducts.length, listings.length]);
+
     if (loading) {
         return (
             <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center relative overflow-hidden">
@@ -225,28 +248,6 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
             </div>
         );
     }
-
-    const isAgrovet = tenant.institutionType === 'Agrovet' || tenant.category === 'Agrovet';
-    const themeColor = tenant.themeColor || (isAgrovet ? '#10b981' : '#4f46e5');
-
-    const heroItems = [...retailProducts, ...listings].filter(i => (i as any).imageUrl || (i as any).images?.[0]).slice(0, 5);
-
-    useEffect(() => {
-        if (heroItems.length > 0) {
-            const timer = setInterval(() => {
-                setCurrentSlide(prev => (prev + 1) % heroItems.length);
-            }, 5000);
-            return () => clearInterval(timer);
-        }
-    }, [heroItems.length]);
-
-    const showTabs = retailProducts.length > 0 && listings.length > 0;
-    useEffect(() => {
-        if (!showTabs) {
-            if (retailProducts.length > 0) setActiveSection('retail');
-            else if (listings.length > 0) setActiveSection('properties');
-        }
-    }, [showTabs, retailProducts.length, listings.length]);
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-500 pb-20">
