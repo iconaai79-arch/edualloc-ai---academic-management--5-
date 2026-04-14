@@ -1093,6 +1093,7 @@ const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({
     const [selectedConstituency, setSelectedConstituency] = useState(profile?.constituency || '');
     const [selectedWard, setSelectedWard] = useState(profile?.ward || '');
 
+    const [target, setTarget] = useState(profile?.targetVoterCount || 50000);
     const [agendas, setAgendas] = useState<string[]>(profile?.agendas || ['', '', '']);
     const [slug, setSlug] = useState(profile?.inviteSlug || name.toLowerCase().replace(/\s+/g, '-'));
     const [saving, setSaving] = useState(false);
@@ -1180,6 +1181,10 @@ const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({
                                     <option value="Independent">Independent</option>
                                     {parties.map(p => <option key={p.id} value={p.name}>{p.name} ({p.acronym})</option>)}
                                 </select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Target Votes</label>
+                                <input type="number" value={target} onChange={e => setTarget(Number(e.target.value))} className="form-input" />
                             </div>
                         </div>
 
