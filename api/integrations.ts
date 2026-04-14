@@ -1150,13 +1150,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // Internal Helper for Reconciliation
         async function reconcilePayment(txn: any) {
-            if (!txn || txn.metadata?.reconciled) return;
+            if (!txn) return;
+            
+            // 1. Determine table name immediately
+            const table = txn.provider === 'ncba' ? 'ncba_transactions' : 
+                          txn.provider === 'airtel' ? 'airtel_transactions' : 
+                          'mpesa_transactions';
 
-            const meta = txn.metadata || {};
+            // 1.5 Fresh fetch to get latest metadata for the CAS match
+            const { data: freshTxn } = await supabase.from(table).select('metadata').eq('id', txn.id).maybeSingle();
+            if (!freshTxn || freshTxn.metadata?.reconciled === true) return;
+            const meta = freshTxn.metadata || {};
+
+            // 2. ATOMIC LOCK (Compare-and-Swap)
+            // We only proceed if we can successfully swap the 'reconciled' state.
+            // By matching the exact metadata we just fetched, we ensure no one else 
+            // has modified it since our select.
+            const { data: lockData, error: lockError } = await supabase
+                .from(table)
+                .update({ 
+                    metadata: { ...meta, reconciled: 'processing', processing_at: new Date().toISOString() } 
+                })
+                .match({ id: txn.id, metadata: meta })
+                .select();
+
+            if (lockError || !lockData || lockData.length === 0) {
+                 console.log(`[Reconcile - CONCURRENCY BLOCK] Race condition detected or already processed: ${txn.id}`);
+                 return;
+            }
+
+            // At this point, WE OWN the reconciliation for this transaction.
             const instId = txn.institution_id;
             const amt = txn.amount;
 
-            console.log(`[Reconcile - START] TXN: ${txn.id || txn.transaction_id} | Inst: ${instId} | Amt: ${amt} | Type: ${meta.type}`);
+            // 3. Final Safeguard: Check if a receipt already exists for this transaction
+            // Receipts are only created AFTER a successful balance increment.
+            const { data: existingReceipt } = await supabase
+                .from('receipts')
+                .select('id')
+                .eq('related_transaction_id', txn.id)
+                .maybeSingle();
+
+            if (existingReceipt) {
+                console.log(`[Reconcile - SKIP] Receipt already exists for TXN: ${txn.id}. Blocking duplicate increment.`);
+                return;
+            }
+
+            console.log(`[Reconcile - PROCEED] TXN: ${txn.id || txn.transaction_id} | Inst: ${instId} | Amt: ${amt} | Type: ${meta.type}`);
 
             // 1. Fetch System Settings for fallback price
             let settings: any = {};
@@ -1290,11 +1330,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
-            // 6. Mark Transaction as Reconciled
-            const table = txn.provider === 'ncba' ? 'ncba_transactions' : 
-                          txn.provider === 'airtel' ? 'airtel_transactions' : 
-                          'mpesa_transactions';
-
+            // 6. Mark Transaction as Reconciled (Final Step)
             await supabase.from(table).update({
                 metadata: { ...meta, reconciled: true, reconciled_at: new Date().toISOString() }
             }).eq('id', txn.id);
@@ -2093,7 +2129,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                     if (txn && !txn.metadata?.reconciled) {
                         console.log(`[NCBA Query Self-Heal] Triggering reconciliation for ${checkoutRequestId}`);
-                        await reconcilePayment({ ...txn, provider: 'ncba' });
+                        if (finalStatus === 'completed') {
+                            // reconciliation will be handled by the generic queryPaymentStatus 
+                            // if called via modal, but we keep this as a secondary check.
+                            // reconcilePayment is now idempotent so this is safe.
+                            await reconcilePayment({ ...txn, provider: 'ncba' });
+                        }
                     }
                 }
 
