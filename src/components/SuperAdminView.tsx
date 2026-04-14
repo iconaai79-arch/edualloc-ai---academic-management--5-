@@ -1578,7 +1578,6 @@ Please change it after login.`;
                                                 className="w-full p-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl font-black text-indigo-600 text-2xl"
                                                 onBlur={async (e) => {
                                                     await apiService.saveModuleRecord('branding_price_settings', { id: 'global', base_price: Number(e.target.value) });
-                                                    alert("Base price updated.");
                                                 }}
                                             />
                                         </div>
@@ -1590,7 +1589,6 @@ Please change it after login.`;
                                                 className="w-full p-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl font-black text-slate-600 text-2xl"
                                                 onBlur={async (e) => {
                                                     await apiService.saveModuleRecord('branding_price_settings', { id: 'global', renew_price: Number(e.target.value) });
-                                                    alert("Renewal price updated.");
                                                 }}
                                             />
                                         </div>
