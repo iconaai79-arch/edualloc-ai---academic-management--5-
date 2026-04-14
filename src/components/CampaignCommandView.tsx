@@ -74,7 +74,12 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
             <MegaphoneIcon className="w-20 h-20 text-slate-200" />
             <h1 className="text-2xl font-black uppercase tracking-tighter">Campaign War Room</h1>
             <p className="text-slate-400 font-bold uppercase text-xs">No active campaign profile found for this institution.</p>
-            <button className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl">Setup Campaign Now</button>
+            <button 
+                onClick={() => setIsSetupModalOpen(true)}
+                className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-slate-900 transition-all active:scale-95"
+            >
+                Setup Campaign Now
+            </button>
         </div>
     );
 
@@ -473,7 +478,131 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                         </div>
                      </div>
                 </div>
+            {isSetupModalOpen && (
+                <CampaignProfileModal 
+                    profile={profile} 
+                    user={user} 
+                    onClose={() => setIsSetupModalOpen(false)} 
+                    onSave={(p) => {
+                        setProfile(p);
+                        setIsSetupModalOpen(false);
+                    }} 
+                />
             )}
+        </div>
+    );
+};
+
+interface CampaignProfileModalProps {
+    profile: CampaignProfile | null;
+    user: User;
+    onClose: () => void;
+    onSave: (profile: CampaignProfile) => void;
+}
+
+const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({ profile, user, onClose, onSave }) => {
+    const [name, setName] = useState(profile?.candidateName || user.name);
+    const [position, setPosition] = useState<CampaignProfile['position']>(profile?.position || 'MCA');
+    const [party, setParty] = useState(profile?.partyName || '');
+    const [ward, setWard] = useState(profile?.constituencyWard || '');
+    const [target, setTarget] = useState(profile?.targetVoterCount || 50000);
+    const [agendas, setAgendas] = useState<string[]>(profile?.agendas || ['', '', '']);
+    const [saving, setSaving] = useState(false);
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const newProfile: CampaignProfile = {
+                id: profile?.id || `cp_${Date.now()}`,
+                institutionId: user.institutionId,
+                candidateName: name,
+                position,
+                partyName: party,
+                constituencyWard: ward,
+                targetVoterCount: target,
+                agendas: agendas.filter(a => a.trim() !== ''),
+                inviteSlug: profile?.inviteSlug || name.toLowerCase().replace(/\s+/g, '-'),
+                brandingStatus: profile?.brandingStatus || 'none',
+                createdAt: profile?.createdAt || new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('campaign_profiles', newProfile);
+            onSave(newProfile);
+        } catch (e) {
+            console.error(e);
+            alert("Failed to save profile.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[3rem] shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="p-10 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50">
+                    <div>
+                        <h3 className="text-3xl font-black uppercase tracking-tighter">Profile Configuration</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Identity & Strategic Targets</p>
+                    </div>
+                    <button onClick={onClose} className="p-3 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-2xl transition-all">
+                        <ArrowPathIcon className="w-6 h-6 text-slate-400 rotate-45" />
+                    </button>
+                </div>
+
+                <div className="p-10 overflow-y-auto space-y-8 no-scrollbar">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Candidate Name</label>
+                            <input value={name} onChange={e => setName(e.target.value)} className="form-input" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Target Office</label>
+                            <select value={position} onChange={e => setPosition(e.target.value as any)} className="form-select">
+                                <option value="MCA">MCA (County Assembly)</option>
+                                <option value="MP">MP (National Assembly)</option>
+                                <option value="Senator">Senator</option>
+                                <option value="Governor">Governor</option>
+                                <option value="President">President</option>
+                            </select>
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Political Party</label>
+                            <input value={party} onChange={e => setParty(e.target.value)} placeholder="e.g. Independent, ODM, UDA" className="form-input" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Constituency / Ward</label>
+                            <input value={ward} onChange={e => setWard(e.target.value)} className="form-input" />
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <h4 className="text-[10px] font-black uppercase text-indigo-600 tracking-[0.2em]">Priority Agendas (Publicly Visible)</h4>
+                        {agendas.map((a, i) => (
+                            <input 
+                                key={i}
+                                value={a}
+                                onChange={e => {
+                                    const next = [...agendas];
+                                    next[i] = e.target.value;
+                                    setAgendas(next);
+                                }}
+                                placeholder={`Agenda Item #${i+1}`}
+                                className="form-input"
+                            />
+                        ))}
+                    </div>
+                </div>
+
+                <div className="p-10 border-t border-slate-50 dark:border-slate-800 bg-slate-50/50 flex gap-4">
+                    <button onClick={onClose} className="flex-1 py-4 font-black uppercase text-[10px] tracking-widest text-slate-500 hover:bg-slate-100 rounded-2xl transition-all">Discard</button>
+                    <button 
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="flex-[2] py-4 bg-indigo-600 text-white font-black uppercase text-[10px] tracking-widest rounded-2xl shadow-xl shadow-indigo-100 active:scale-95 transition-all disabled:opacity-50"
+                    >
+                        {saving ? 'Synchronizing...' : (profile ? 'Update Strategy' : 'Initialize Campaign')}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };
