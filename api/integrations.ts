@@ -1351,6 +1351,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     ? `Success! Your payment of KES ${amt} for ${units.toLocaleString()} SMS units for ${inst?.name || 'your account'} has been verified.${newBalanceStr} Ref: ${txn.id || txn.transaction_id}`
                     : `Dear Admin, your payment of KES ${amt} for ${inst?.name || 'your account'} subscription (${meta.plan || 'License'}) has been verified. Account active until ${inst?.subscription_ends_at ? new Date(inst.subscription_ends_at).toLocaleDateString() : 'N/A'}. Ref: ${txn.id || txn.transaction_id}`;
 
+                // SMS Notification to Payer
+                const smsRecipient = txn.phone_number || txn.phoneNumber;
+                if (isSms && smsRecipient) {
+                    const smsConfig = settings?.sms_config || settings?.smsConfig;
+                    const provider = smsConfig?.provider || 'Zettatel';
+                    const apiKey = smsConfig?.apiKey || smsConfig?.api_key || smsConfig?.userId;
+                    const username = smsConfig?.username;
+                    const senderId = smsConfig?.senderId || smsConfig?.sender_id || 'INFO';
+                    
+                    const p = normalizePhone(smsRecipient);
+                    if (p && apiKey) {
+                        console.log(`[Reconcile - NOTIFY] Dispatching SMS to ${p} via ${provider}`);
+                        const params = new URLSearchParams();
+                        params.append('userid', String(username || apiKey));
+                        params.append('password', String(apiKey));
+                        params.append('mobile', p);
+                        params.append('msg', notifyMessage);
+                        params.append('senderid', senderId);
+                        params.append('msgType', 'text');
+                        params.append('duplicate', 'true');
+                        params.append('output', 'json');
+
+                        const baseUrl = provider === 'Zettatel' ? 'https://sms.zettatel.com/smsapi/send' : 'https://sms.abmis.co.ke/SMSApi/send';
+                        fetch(`${baseUrl}?${params.toString()}`).catch(e => console.error('[Reconcile - SMS Error]', e));
+                    }
+                }
+
                 // Email Notification
                 const emailConfig = settings?.email_config || settings?.emailConfig;
                 if (emailConfig && inst?.email) {
