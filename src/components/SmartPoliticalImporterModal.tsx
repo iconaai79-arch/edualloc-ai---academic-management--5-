@@ -104,6 +104,7 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
         const wardsToSave: any[] = [];
         
         const uniqueCounties = new Set<string>();
+        const uniqueCountyCodes = new Set<string>();
         const uniqueConstituencies = new Set<string>(); // key: countyName_constituencyName
         const uniqueWards = new Set<string>(); // key: constituencyName_wardName
 
@@ -113,34 +114,40 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
             const cName = row[mapping.countyName];
             const conName = row[mapping.constituencyName];
             const wName = row[mapping.wardName];
+            const cCode = row[mapping.countyCode!] ? String(row[mapping.countyCode!]) : null;
 
             if (!cName || !conName || !wName) continue;
 
             // County
             if (!uniqueCounties.has(cName)) {
+                // If code is provided and already seen in this batch, skip the code for this county or handle correctly
+                const finalCode = (cCode && !uniqueCountyCodes.has(cCode)) ? cCode : null;
+                
                 const cId = `cty_${Date.now()}_${uniqueCounties.size}`;
                 const safeName = cName.toLowerCase().replace(/\s+/g, '');
                 countiesToSave.push({
                     id: cId,
                     name: cName,
-                    code: String(row[mapping.countyCode!] || ''),
+                    code: finalCode,
                     email: row[mapping.email!] || `info@${safeName}.go.ke`,
                     phoneNumber: row[mapping.phoneNumber!] || '0700000000',
                     status: 'active',
                     createdAt: new Date().toISOString()
                 });
                 uniqueCounties.add(cName);
+                if (finalCode) uniqueCountyCodes.add(finalCode);
             }
 
             // Constituency
             const conKey = `${cName}_${conName}`;
             if (!uniqueConstituencies.has(conKey)) {
                 const conId = `con_${Date.now()}_${uniqueConstituencies.size}`;
+                countiesToSave.find(c => c.name === cName);
                 constituenciesToSave.push({
                     id: conId,
                     countyId: countiesToSave.find(c => c.name === cName)?.id,
                     name: conName,
-                    code: String(row[mapping.constituencyCode!] || ''),
+                    code: row[mapping.constituencyCode!] ? String(row[mapping.constituencyCode!]) : null,
                     createdAt: new Date().toISOString()
                 });
                 uniqueConstituencies.add(conKey);
@@ -153,7 +160,7 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
                     id: `ward_${Date.now()}_${uniqueWards.size}`,
                     constituencyId: constituenciesToSave.find(con => con.name === conName && countiesToSave.find(c => c.id === con.countyId)?.name === cName)?.id,
                     name: wName,
-                    code: String(row[mapping.wardCode!] || ''),
+                    code: row[mapping.wardCode!] ? String(row[mapping.wardCode!]) : null,
                     createdAt: new Date().toISOString()
                 });
                 uniqueWards.add(wardKey);
