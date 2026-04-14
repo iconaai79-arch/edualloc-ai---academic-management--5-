@@ -93,6 +93,8 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
         }
     };
 
+    const slugify = (text: string) => text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '_').trim();
+
     const importRegistry = async () => {
         // Validation: Required fields check
         if (!mapping.countyName || !mapping.constituencyName || !mapping.wardName) {
@@ -106,30 +108,32 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
         const uniqueCounties = new Set<string>();
         const uniqueCountyCodes = new Set<string>();
         const uniqueConstituencies = new Set<string>(); // key: countyName_constituencyName
-        const uniqueWards = new Set<string>(); // key: constituencyName_wardName
+        const uniqueWards = new Set<string>(); // key: constituencyName_wardName_countyName
 
         // Pass 1: Collect unique entities
         for (let i = 0; i < rawData.length; i++) {
             const row = rawData[i];
-            const cName = row[mapping.countyName];
-            const conName = row[mapping.constituencyName];
-            const wName = row[mapping.wardName];
+            const cName = String(row[mapping.countyName] || '').trim();
+            const conName = String(row[mapping.constituencyName] || '').trim();
+            const wName = String(row[mapping.wardName] || '').trim();
             const cCode = row[mapping.countyCode!] ? String(row[mapping.countyCode!]) : null;
 
             if (!cName || !conName || !wName) continue;
 
+            const cSlug = slugify(cName);
+            const conSlug = slugify(conName);
+            const wSlug = slugify(wName);
+
             // County
             if (!uniqueCounties.has(cName)) {
-                // If code is provided and already seen in this batch, skip the code for this county or handle correctly
                 const finalCode = (cCode && !uniqueCountyCodes.has(cCode)) ? cCode : null;
+                const cId = `county_${cSlug}`;
                 
-                const cId = `cty_${Date.now()}_${uniqueCounties.size}`;
-                const safeName = cName.toLowerCase().replace(/\s+/g, '');
                 countiesToSave.push({
                     id: cId,
                     name: cName,
                     code: finalCode,
-                    email: row[mapping.email!] || `info@${safeName}.go.ke`,
+                    email: row[mapping.email!] || `info@${cSlug}.go.ke`,
                     phoneNumber: row[mapping.phoneNumber!] || '0700000000',
                     status: 'active',
                     createdAt: new Date().toISOString()
@@ -141,11 +145,10 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
             // Constituency
             const conKey = `${cName}_${conName}`;
             if (!uniqueConstituencies.has(conKey)) {
-                const conId = `con_${Date.now()}_${uniqueConstituencies.size}`;
-                countiesToSave.find(c => c.name === cName);
+                const conId = `con_${cSlug}_${conSlug}`;
                 constituenciesToSave.push({
                     id: conId,
-                    countyId: countiesToSave.find(c => c.name === cName)?.id,
+                    countyId: `county_${cSlug}`,
                     name: conName,
                     code: row[mapping.constituencyCode!] ? String(row[mapping.constituencyCode!]) : null,
                     createdAt: new Date().toISOString()
@@ -154,11 +157,11 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
             }
 
             // Ward
-            const wardKey = `${conName}_${wName}`;
+            const wardKey = `${cName}_${conName}_${wName}`;
             if (!uniqueWards.has(wardKey)) {
                 wardsToSave.push({
-                    id: `ward_${Date.now()}_${uniqueWards.size}`,
-                    constituencyId: constituenciesToSave.find(con => con.name === conName && countiesToSave.find(c => c.id === con.countyId)?.name === cName)?.id,
+                    id: `ward_${cSlug}_${conSlug}_${wSlug}`,
+                    constituencyId: `con_${cSlug}_${conSlug}`,
                     name: wName,
                     code: row[mapping.wardCode!] ? String(row[mapping.wardCode!]) : null,
                     createdAt: new Date().toISOString()
