@@ -43,7 +43,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
     minSmsUnits = 0
 }) => {
     const [phoneNumber, setPhoneNumber] = useState('254');
-    const [units, setUnits] = useState<number>(SMS_PACKAGES[0].units);
+    const [units, setUnits] = useState<number>(Math.max(SMS_PACKAGES[0].units, minSmsUnits || 0));
     const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend' | 'ncba'>('mpesa');
     const [enabledGateways, setEnabledGateways] = useState<string[]>(['mpesa']);
     const [isLoading, setIsLoading] = useState(false);
@@ -280,7 +280,12 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                                 <div className="bg-slate-50/50 dark:bg-slate-900/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
                                     <div className="flex justify-between items-end mb-1.5 ml-1">
                                         <label htmlFor="customUnits" className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em]">Custom Count</label>
-                                        <span className="text-[9px] text-slate-400 font-bold uppercase">KES {smsUnitPrice}/Unit</span>
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-[9px] text-slate-400 font-bold uppercase">KES {smsUnitPrice}/Unit</span>
+                                            {minSmsUnits > 0 && (
+                                                <span className="text-[9px] text-indigo-500 font-black uppercase tracking-tighter">Min: {minSmsUnits.toLocaleString()} Units</span>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="relative">
                                         <input
@@ -291,7 +296,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                                             value={units}
                                             onChange={(e) => setUnits(parseInt(e.target.value) || 0)}
                                             className="w-full bg-white dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500 rounded-xl py-2.5 px-4 font-black text-slate-900 dark:text-white shadow-sm transition-all text-base outline-none"
-                                            placeholder="Enter amount..."
+                                            placeholder={`Min. ${minSmsUnits || 1} units`}
                                         />
                                         <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase text-slate-400"> Units </div>
                                     </div>
