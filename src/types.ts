@@ -91,6 +91,16 @@ export interface VoterOutreach {
     createdAt: string;
 }
 
+export interface CampaignVote {
+    id: string;
+    voterId: string;
+    campaignId: string;
+    position: string;
+    rating: number;
+    comment?: string;
+    createdAt: string;
+}
+
 export interface CampaignEvent {
     id: string;
     campaignId: string;

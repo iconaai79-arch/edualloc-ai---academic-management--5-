@@ -23,11 +23,15 @@ import {
     CalendarDays as CalendarDaysIcon,
     ArrowRight,
     Sparkles,
-    Loader2
+    Loader2,
+    Star,
+    Vote,
+    CheckCircle
 } from 'lucide-react';
 import type { 
     Institution, User, 
-    HeritageMember, HeritageStory, HeritageGallery, HeritageAnnouncement 
+    HeritageMember, HeritageStory, HeritageGallery, HeritageAnnouncement,
+    CampaignProfile, CampaignVote
 } from '../types';
 import { apiService } from '../services/apiService';
 import { LeadScoutManager } from './LeadScoutManager';
@@ -71,6 +75,11 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     const [heritageStories, setHeritageStories] = useState<HeritageStory[]>([]);
     const [heritageGallery, setHeritageGallery] = useState<HeritageGallery[]>([]);
     const [heritageAnnouncements, setHeritageAnnouncements] = useState<HeritageAnnouncement[]>([]);
+    
+    // Campaign Voting States
+    const [allCampaigns, setAllCampaigns] = useState<CampaignProfile[]>([]);
+    const [myVotes, setMyVotes] = useState<CampaignVote[]>([]);
+    const [isVoting, setIsVoting] = useState(false);
 
     const [newMember, setNewMember] = useState<Partial<HeritageMember>>({ 
         name: '', 
@@ -82,30 +91,57 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     });
     const [addMemberError, setAddMemberError] = useState('');
 
-    // Fetch Heritage Data
+    // Fetch Metadata
     React.useEffect(() => {
-        if (isHeritage) {
-            fetchHeritageData();
-        }
-    }, [isHeritage, currentInstitution.id]);
+        if (isHeritage) fetchHeritageData();
+        if (isCampaign) fetchCampaignVotingData();
+    }, [isHeritage, isCampaign, currentInstitution.id]);
 
     const fetchHeritageData = async () => {
+        // ... previous code for heritage ...
+    };
+
+    const fetchCampaignVotingData = async () => {
         setIsLoading(true);
         try {
-            const [members, stories, gallery, announcements] = await Promise.all([
-                apiService.fetchModuleRecords<HeritageMember>('heritage_members', currentInstitution.id),
-                apiService.fetchModuleRecords<HeritageStory>('heritage_stories', currentInstitution.id),
-                apiService.fetchModuleRecords<HeritageGallery>('heritage_gallery', currentInstitution.id),
-                apiService.fetchModuleRecords<HeritageAnnouncement>('heritage_announcements', currentInstitution.id)
+            const [profiles, votes] = await Promise.all([
+                apiService.fetchModuleRecords<CampaignProfile>('campaign_profiles'),
+                apiService.fetchModuleRecords<CampaignVote>('campaign_votes')
             ]);
-            setTreeMembers(members);
-            setHeritageStories(stories);
-            setHeritageGallery(gallery);
-            setHeritageAnnouncements(announcements);
+            setAllCampaigns(profiles);
+            setMyVotes(votes);
         } catch (error) {
-            console.error('Error fetching heritage data:', error);
+            console.error('Error fetching campaign data:', error);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleCastVote = async (campaignId: string, position: string, rating: number) => {
+        setIsVoting(true);
+        try {
+            // Check if already voted for this category
+            const existing = myVotes.find(v => v.position === position);
+            
+            const voteToSave = {
+                id: existing?.id || `vote_${Date.now()}`,
+                voterId: 'CURRENT_USER', // In a real app, this would be auth.uid()
+                campaignId,
+                position,
+                rating,
+                createdAt: new Date().toISOString()
+            } as CampaignVote;
+
+            const saved = await apiService.saveModuleRecord('campaign_votes', voteToSave);
+            if (saved) {
+                setMyVotes(prev => [...prev.filter(v => v.position !== position), saved]);
+                alert(`Successfully cast your voice for the ${position} category!`);
+            }
+        } catch (error: any) {
+            console.error(error);
+            alert("Unable to cast vote. You may only vote once per category.");
+        } finally {
+            setIsVoting(false);
         }
     };
 
@@ -901,7 +937,93 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                 <h3 className="text-4xl font-black uppercase tracking-tighter">Voter Intelligence Hub</h3>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-2">Powered by Antigravity AI</p>
                             </div>
-                            <LeadScoutManager defaultNiche={category + " Voters " + (currentInstitution.location || "")} />
+                        <LeadScoutManager defaultNiche={category + " Voters " + (currentInstitution.location || "")} />
+
+                        {/* ── Public Mock Election & Ballot ── */}
+                        <div className="bg-slate-50 dark:bg-slate-900/50 rounded-[4rem] p-12 border border-slate-100 dark:border-slate-800 mt-12">
+                             <div className="mb-12 flex flex-col md:flex-row justify-between items-center gap-6">
+                                <div className="text-center md:text-left">
+                                    <h3 className="text-4xl font-black uppercase tracking-tighter">Mock Election Ballot</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-2 italic">Official Community Opinion Poll • One Choice Per Category</p>
+                                </div>
+                                <div className="flex gap-4">
+                                    <div className="bg-white dark:bg-slate-800 px-6 py-4 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 text-center">
+                                        <p className="text-2xl font-black text-indigo-600">{allCampaigns.length}</p>
+                                        <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest">Candidates</p>
+                                    </div>
+                                    <div className="bg-indigo-600 px-6 py-4 rounded-3xl shadow-xl shadow-indigo-100 text-center text-white">
+                                        <p className="text-2xl font-black">{myVotes.length}</p>
+                                        <p className="text-[8px] font-black uppercase opacity-60 tracking-widest">My Choices</p>
+                                    </div>
+                                </div>
+                             </div>
+
+                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                {allCampaigns.length > 0 ? allCampaigns.map((candidate) => {
+                                    const userVote = myVotes.find(v => v.position === candidate.position);
+                                    const isVotedForThis = userVote?.campaignId === candidate.id;
+                                    const isLockedByCategory = userVote && !isVotedForThis;
+
+                                    return (
+                                        <div key={candidate.id} className={`bg-white dark:bg-slate-800 p-8 rounded-[3rem] border-2 transition-all group relative overflow-hidden ${isVotedForThis ? 'border-emerald-500 shadow-2xl' : 'border-slate-100 dark:border-slate-700 hover:border-indigo-500 shadow-sm'}`}>
+                                            {isVotedForThis && (
+                                                <div className="absolute top-0 right-0 p-4">
+                                                    <div className="bg-emerald-500 text-white p-2 rounded-full shadow-lg">
+                                                        <CheckCircle className="w-4 h-4" />
+                                                    </div>
+                                                </div>
+                                            )}
+                                            
+                                            <div className="flex flex-col items-center text-center space-y-5">
+                                                <div className="w-24 h-24 rounded-[2.5rem] bg-slate-100 dark:bg-slate-900 border-4 border-white dark:border-slate-800 shadow-xl overflow-hidden">
+                                                    <img 
+                                                        src={candidate.profilePicture || 'https://images.unsplash.com/photo-1540910419892-f013c773998b?q=80&w=200&h=200&auto=format&fit=crop'} 
+                                                        className="w-full h-full object-cover"
+                                                        alt={candidate.candidateName}
+                                                    />
+                                                </div>
+                                                
+                                                <div>
+                                                    <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500">{candidate.position}</span>
+                                                    <h4 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white mt-1">{candidate.candidateName}</h4>
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">{candidate.partyName || 'Independent'}</p>
+                                                </div>
+
+                                                <div className="flex gap-1.5 justify-center py-2">
+                                                    {[1,2,3,4,5].map(star => (
+                                                        <button 
+                                                            key={star}
+                                                            disabled={isLockedByCategory || isVoting}
+                                                            onClick={(e) => { e.stopPropagation(); handleCastVote(candidate.id, candidate.position, star); }}
+                                                            className={`transition-all hover:scale-125 active:scale-95 ${star <= (isVotedForThis ? (userVote?.rating || 0) : 0) ? 'text-amber-400' : 'text-slate-200 dark:text-slate-700'} ${isLockedByCategory ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}`}
+                                                        >
+                                                            <Star className={`w-8 h-8 ${star <= (isVotedForThis ? (userVote?.rating || 0) : 0) ? 'fill-amber-400' : ''}`} />
+                                                        </button>
+                                                    ))}
+                                                </div>
+
+                                                <button 
+                                                    disabled={isLockedByCategory || isVotedForThis || isVoting}
+                                                    onClick={() => handleCastVote(candidate.id, candidate.position, 5)}
+                                                    className={`w-full py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all ${isVotedForThis ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : isLockedByCategory ? 'bg-slate-50 text-slate-300 cursor-not-allowed' : 'bg-slate-900 dark:bg-slate-700 text-white hover:bg-indigo-600 shadow-lg'}`}
+                                                >
+                                                    {isVotedForThis ? 'Ballot Cast' : isLockedByCategory ? 'Choice Locked' : 'Vote Candidate'}
+                                                </button>
+                                                
+                                                {isLockedByCategory && (
+                                                    <p className="text-[7px] font-black uppercase text-slate-400 tracking-[0.2em] animate-pulse">Category Already Voted</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                }) : (
+                                    <div className="col-span-full py-20 text-center bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-800">
+                                        <Vote className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+                                        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">No active candidates listed for this community yet.</p>
+                                    </div>
+                                )}
+                             </div>
+                        </div>
                         </div>
                     </div>
                 )}
