@@ -237,11 +237,11 @@ export const generateTimetable = async (
             }))
         })))}
             - Operating Parameters: ${JSON.stringify({ start: settings.startTime, end: settings.endTime, days: settings.operatingDays })}
-            - Curriculum Schedule Profiles: ${JSON.stringify(profiles.map(p => ({ id: p.id, name: p.name, slots: p.slots })))}
+            - Curriculum Schedule Profiles: ${JSON.stringify(profiles.map(p => ({ id: p.id, name: p.name, periods: p.periods || [] })))}
             - Global Institutional Breaks: ${JSON.stringify(settings.breaks)}
             - Subject Association Constraints: ${JSON.stringify((settings.constraints || []).map(c => ({ subjects: c.subjectIds, type: c.type })))}
             - Faculty Governance Rules (Teacher Logic): ${JSON.stringify(settings.teacherRules)}
-            - Faculty Time-Off Redlines: ${JSON.stringify((timeOffRequests || []).filter(r => r.status === 'approved').map(r => ({ lecturerId: r.userId, start: r.startDate, end: r.endDate })))}
+            - Faculty Time-Off Redlines: ${JSON.stringify((timeOffRequests || []).filter(r => r.status === 'approved').map(r => ({ lecturerId: r.lecturerId, start: r.startDate, end: r.endDate })))}
             
             NON-NEGOTIABLE HEURISTICS - YOU MUST STRICTLY ENFORCE THESE RULES:
 
@@ -563,8 +563,8 @@ export const generateAIContent = async (prompt: string): Promise<string> => {
     }
 };
 
-export const analyzePoliticalRegistrySpreadsheet = async (headers: string[], type: 'registry' | 'voter' = 'registry'): Promise<Record<string, string | null>> => {
-    const defaultMapping = type === 'registry' ? {
+export const analyzePoliticalRegistrySpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
+    const defaultMapping = {
         countyCode: null,
         countyName: null,
         constituencyCode: null,
@@ -572,6 +572,12 @@ export const analyzePoliticalRegistrySpreadsheet = async (headers: string[], typ
         wardCode: null,
         wardName: null,
         registeredVoters: null
+    };
+
+    try {
+        checkAiAvailable();
+        const prompt = `
+            Act as a Data Integrator. Map these spreadsheet headers to the IEBC Political Registry structure.
             
             Target Fields:
             - countyCode: The numeric or short code for the county (e.g. 047)
