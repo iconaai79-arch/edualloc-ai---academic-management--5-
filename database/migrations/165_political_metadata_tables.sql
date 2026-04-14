@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS constituencies (
     id TEXT PRIMARY KEY,
     county_id TEXT REFERENCES counties(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
+    code TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -31,6 +32,7 @@ CREATE TABLE IF NOT EXISTS wards (
     id TEXT PRIMARY KEY,
     constituency_id TEXT REFERENCES constituencies(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
+    code TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
