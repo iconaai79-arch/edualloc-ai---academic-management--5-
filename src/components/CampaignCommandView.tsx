@@ -23,6 +23,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
     const [activeTab, setActiveTab] = useState<'dashboard' | 'voters' | 'events' | 'manifesto' | 'ai_pulse' | 'branding' | 'settings'>('dashboard');
     const [showProfileModal, setShowProfileModal] = useState(false);
     const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
+    const [isEventModalOpen, setIsEventModalOpen] = useState(false);
     const [editProfile, setEditProfile] = useState<Partial<CampaignProfile>>({});
     
     const [politicalParties, setPoliticalParties] = useState<PoliticalParty[]>([]);
@@ -439,7 +440,12 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                 <CalendarDaysIcon className="w-8 h-8 text-orange-600" />
                                 Campaign Schedule & Rallies
                             </h3>
-                            <button className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg">Schedule Event</button>
+                            <button 
+                                onClick={() => setIsEventModalOpen(true)}
+                                className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:scale-105 transition-all"
+                            >
+                                Schedule Event
+                            </button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {events.length > 0 ? events.map(event => (
@@ -544,6 +550,121 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     }} 
                 />
             )}
+            {isEventModalOpen && (
+                <CampaignEventModal 
+                    profile={profile!} 
+                    onClose={() => setIsEventModalOpen(false)} 
+                    onSave={(newEvent) => {
+                        setEvents([...events, newEvent]);
+                        setIsEventModalOpen(false);
+                    }} 
+                />
+            )}
+        </div>
+    );
+};
+
+interface CampaignEventModalProps {
+    profile: CampaignProfile;
+    onClose: () => void;
+    onSave: (event: CampaignEvent) => void;
+}
+
+const CampaignEventModal: React.FC<CampaignEventModalProps> = ({ profile, onClose, onSave }) => {
+    const [title, setTitle] = useState('');
+    const [description, setDescription] = useState('');
+    const [location, setLocation] = useState('');
+    const [type, setType] = useState<CampaignEvent['eventType']>('rally');
+    const [time, setTime] = useState('');
+    const [target, setTarget] = useState(100);
+    const [saving, setSaving] = useState(false);
+
+    const handleSave = async () => {
+        if (!title || !time || !location) return;
+        setSaving(true);
+        try {
+            const newEvent: CampaignEvent = {
+                id: `evt_${Date.now()}`,
+                campaignId: profile.id,
+                title,
+                description,
+                location,
+                eventType: type,
+                eventTime: time,
+                attendanceEstimate: target,
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('campaign_events', newEvent);
+            onSave(newEvent);
+        } catch (e) {
+            console.error(e);
+            alert("Error scheduling event.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3rem] shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
+                    <div>
+                        <h3 className="text-2xl font-black uppercase tracking-tighter">Event Logistics</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Schedule Rallies & Meetings</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all">
+                        <ArrowPathIcon className="w-5 h-5 text-slate-400 rotate-45" />
+                    </button>
+                </div>
+
+                <div className="p-8 space-y-6">
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Event Title</label>
+                        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Major Rally at City Square" className="form-input" />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Event Type</label>
+                            <select value={type} onChange={e => setType(e.target.value as any)} className="form-select">
+                                <option value="rally">Political Rally</option>
+                                <option value="townhall">Town Hall Meeting</option>
+                                <option value="strategy_meeting">Strategy Session</option>
+                                <option value="fundraiser">Fundraiser</option>
+                                <option value="door_to_door">Door to Door</option>
+                            </select>
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Target Attendance</label>
+                            <input type="number" value={target} onChange={e => setTarget(Number(e.target.value))} className="form-input" />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Location / Venue</label>
+                            <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Venue Name" className="form-input" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Date & Time</label>
+                            <input type="datetime-local" value={time} onChange={e => setTime(e.target.value)} className="form-input" />
+                        </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Agenda / Description</label>
+                        <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className="form-input resize-none" placeholder="Key objectives and speaking points..." />
+                    </div>
+
+                    <button 
+                        onClick={handleSave}
+                        disabled={saving || !title || !time || !location}
+                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-100 dark:shadow-none hover:bg-slate-900 transition-all disabled:opacity-50"
+                    >
+                        {saving ? 'Processing...' : 'Deploy Event to Schedule'}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };

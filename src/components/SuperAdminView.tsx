@@ -4814,7 +4814,7 @@ Please change it after login.`;
 };
 
 const PoliticalMetadataManager: React.FC = () => {
-    const [tab, setTab] = useState<'parties' | 'constituencies' | 'wards'>('parties');
+    const [tab, setTab] = useState<'parties' | 'counties' | 'constituencies' | 'wards'>('parties');
     const [counties, setCounties] = useState<County[]>([]);
     const [parties, setParties] = useState<PoliticalParty[]>([]);
     const [constituencies, setConstituencies] = useState<Constituency[]>([]);
@@ -4863,6 +4863,14 @@ const PoliticalMetadataManager: React.FC = () => {
                     acronym: newAcronym,
                     createdAt: new Date().toISOString()
                 });
+            } else if (tab === 'counties') {
+                await apiService.saveModuleRecord('counties', {
+                    id: `county_${Date.now()}`,
+                    name: newName,
+                    code: newAcronym || `C${Math.floor(Math.random() * 1000)}`,
+                    status: 'active',
+                    createdAt: new Date().toISOString()
+                });
             } else if (tab === 'constituencies') {
                 if (!selectedCounty) return;
                 await apiService.saveModuleRecord('constituencies', {
@@ -4895,7 +4903,7 @@ const PoliticalMetadataManager: React.FC = () => {
     return (
         <div className="space-y-8 animate-fade-in">
             <div className="flex bg-slate-100 dark:bg-slate-930 p-2 rounded-2xl w-fit">
-                {['parties', 'constituencies', 'wards'].map(t => (
+                {['parties', 'counties', 'constituencies', 'wards'].map(t => (
                     <button 
                         key={t}
                         onClick={() => setTab(t as any)}
@@ -4944,12 +4952,12 @@ const PoliticalMetadataManager: React.FC = () => {
                             )}
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">{tab.slice(0, -1)} Name</label>
-                                <input value={newName} onChange={e => setNewName(e.target.value)} className="form-input" placeholder="e.g. Jubilee Party, Westlands, etc." />
+                                <input value={newName} onChange={e => setNewName(e.target.value)} className="form-input" placeholder={tab === 'counties' ? 'e.g. Nairobi, Mombasa' : 'e.g. Jubilee Party, Westlands, etc.'} />
                             </div>
-                            {tab === 'parties' && (
+                            {(tab === 'parties' || tab === 'counties') && (
                                 <div>
-                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Acronym</label>
-                                    <input value={newAcronym} onChange={e => setNewAcronym(e.target.value)} className="form-input" placeholder="e.g. JP, ODM, UDA" />
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">{tab === 'counties' ? 'County Code' : 'Acronym'}</label>
+                                    <input value={newAcronym} onChange={e => setNewAcronym(e.target.value)} className="form-input" placeholder={tab === 'counties' ? 'e.g. 047' : 'e.g. JP, ODM, UDA'} />
                                 </div>
                             )}
                         </div>
@@ -4966,6 +4974,18 @@ const PoliticalMetadataManager: React.FC = () => {
                             </div>
                             <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center font-black text-indigo-600 border border-slate-100 dark:border-slate-700 shadow-sm">
                                 {p.acronym?.slice(0, 2) || p.name.slice(0, 2)}
+                            </div>
+                        </div>
+                    ))}
+
+                    {tab === 'counties' && counties.map(c => (
+                        <div key={c.id} className="p-6 bg-slate-50 dark:bg-slate-930 rounded-3xl flex justify-between items-center group">
+                            <div>
+                                <h5 className="font-black text-slate-900 dark:text-white uppercase text-base">{c.name}</h5>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Code: {c.code || 'N/A'}</span>
+                            </div>
+                            <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center font-black text-indigo-600 border border-slate-100 dark:border-slate-700 shadow-sm uppercase">
+                                {c.code?.slice(0, 3) || c.name.slice(0, 2)}
                             </div>
                         </div>
                     ))}
