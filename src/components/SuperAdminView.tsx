@@ -5070,18 +5070,30 @@ const PoliticalMetadataManager: React.FC = () => {
                                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Select County</label>
                                     <select value={selectedCounty} onChange={e => setSelectedCounty(e.target.value)} className="form-select">
                                         <option value="">Choose County...</option>
-                                        {counties.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        {counties.map(c => <option key={String(c.id)} value={String(c.id)}>{c.name}</option>)}
                                     </select>
                                 </div>
                             )}
                             {tab === 'wards' && (
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Select Constituency</label>
-                                    <select value={selectedConstituency} onChange={e => setSelectedConstituency(e.target.value)} className="form-select">
-                                        <option value="">Choose Constituency...</option>
-                                        {constituencies.map(c => <option key={c.id} value={c.id}>{c.name} ({counties.find(co => co.id === c.countyId)?.name})</option>)}
-                                    </select>
-                                </div>
+                                <>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Select County First</label>
+                                        <select value={selectedCounty} onChange={e => setSelectedCounty(e.target.value)} className="form-select">
+                                            <option value="">Choose County...</option>
+                                            {counties.map(c => <option key={String(c.id)} value={String(c.id)}>{c.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Select Constituency</label>
+                                        <select value={selectedConstituency} onChange={e => setSelectedConstituency(e.target.value)} className="form-select" disabled={!selectedCounty}>
+                                            <option value="">Choose Constituency...</option>
+                                            {constituencies
+                                                .filter(c => !selectedCounty || String(c.countyId) === String(selectedCounty))
+                                                .map(c => <option key={String(c.id)} value={String(c.id)}>{c.name}</option>)
+                                            }
+                                        </select>
+                                    </div>
+                                </>
                             )}
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">{tab.slice(0, -1)} Name</label>
@@ -5124,18 +5136,18 @@ const PoliticalMetadataManager: React.FC = () => {
                     ))}
 
                     {tab === 'constituencies' && constituencies.map(c => (
-                        <div key={c.id} className="p-6 bg-slate-50 dark:bg-slate-930 rounded-3xl group">
+                        <div key={String(c.id)} className="p-6 bg-slate-50 dark:bg-slate-930 rounded-3xl group">
                             <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1 block">
-                                {counties.find(co => co.id === c.countyId)?.name || 'Unknown County'}
+                                {counties.find(co => String(co.id) === String(c.countyId))?.name || 'Unknown County'}
                             </span>
                             <h5 className="font-black text-slate-900 dark:text-white uppercase text-base">{c.name}</h5>
                         </div>
                     ))}
 
                     {tab === 'wards' && wards.map(w => (
-                        <div key={w.id} className="p-6 bg-slate-50 dark:bg-slate-930 rounded-3xl group">
+                        <div key={String(w.id)} className="p-6 bg-slate-50 dark:bg-slate-930 rounded-3xl group">
                             <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1 block">
-                                {constituencies.find(con => con.id === (w as any).constituency_id)?.name || 'Unknown Constituency'}
+                                {constituencies.find(con => String(con.id) === String(w.constituencyId))?.name || 'Unknown Constituency'}
                             </span>
                             <h5 className="font-black text-slate-900 dark:text-white uppercase text-base">{w.name}</h5>
                         </div>
