@@ -4975,9 +4975,9 @@ const PoliticalMetadataManager: React.FC = () => {
             .reduce((sum, w) => sum + (Number((w as any).registeredVoters) || 0), 0);
     };
 
-    const getSelectedCountyVoters = () => {
-        if (!selectedCounty) return 0;
-        const countyCons = constituencies.filter(c => String(c.countyId) === String(selectedCounty)).map(c => String(c.id));
+    const getCountyVoters = (countyId: string) => {
+        if (!countyId) return 0;
+        const countyCons = constituencies.filter(c => String(c.countyId) === String(countyId)).map(c => String(c.id));
         return wards
             .filter(w => countyCons.includes(String(w.constituencyId)))
             .reduce((sum, w) => sum + (Number((w as any).registeredVoters) || 0), 0);
@@ -5079,7 +5079,7 @@ const PoliticalMetadataManager: React.FC = () => {
                                 <div className="bg-indigo-50 dark:bg-indigo-950/30 px-6 py-3 rounded-2xl border border-indigo-100 dark:border-indigo-900/50">
                                     <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest block mb-0.5">County Total</span>
                                     <span className="text-lg font-black text-indigo-600 dark:text-indigo-400 leading-none">
-                                        {getSelectedCountyVoters().toLocaleString()}
+                                        {getCountyVoters(selectedCounty).toLocaleString()}
                                     </span>
                                 </div>
                             )}
@@ -5154,13 +5154,16 @@ const PoliticalMetadataManager: React.FC = () => {
                     ))}
 
                     {tab === 'counties' && counties.map(c => (
-                        <div key={String(c.id)} className="p-6 bg-slate-50 dark:bg-slate-930 rounded-3xl flex justify-between items-center group border border-transparent shadow-sm">
+                        <div key={String(c.id)} className="p-6 bg-slate-50 dark:bg-slate-930 rounded-3xl flex justify-between items-end group border border-transparent shadow-sm">
                             <div>
-                                <h5 className="font-black text-slate-900 dark:text-white uppercase text-base">{c.name}</h5>
+                                <h5 className="font-black text-slate-900 dark:text-white uppercase text-base leading-tight mb-1">{c.name}</h5>
                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Code: {c.code || 'N/A'}</span>
                             </div>
-                            <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center font-black text-indigo-600 border border-slate-100 dark:border-slate-700 shadow-sm uppercase transition-transform group-hover:rotate-6">
-                                {c.code?.slice(0, 3) || c.name.slice(0, 2)}
+                            <div className="text-right">
+                                <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest block mb-1">Total Voters</span>
+                                <span className="bg-white dark:bg-slate-800 px-3 py-1 rounded-full text-[10px] font-black text-indigo-600 border border-slate-100 dark:border-slate-700 shadow-sm leading-none inline-block">
+                                    {getCountyVoters(c.id).toLocaleString()}
+                                </span>
                             </div>
                         </div>
                     ))}
