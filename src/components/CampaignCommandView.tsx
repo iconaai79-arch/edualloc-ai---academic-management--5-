@@ -23,6 +23,28 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
     const [showProfileModal, setShowProfileModal] = useState(false);
     const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
     const [editProfile, setEditProfile] = useState<Partial<CampaignProfile>>({});
+    
+    const [politicalParties, setPoliticalParties] = useState<PoliticalParty[]>([]);
+    const [politicalConstituencies, setPoliticalConstituencies] = useState<Constituency[]>([]);
+    const [politicalWards, setPoliticalWards] = useState<Ward[]>([]);
+
+    useEffect(() => {
+        const loadMetaData = async () => {
+            try {
+                const [pData, cData, wData] = await Promise.all([
+                    apiService.fetchModuleRecords<PoliticalParty>('political_parties'),
+                    apiService.fetchModuleRecords<Constituency>('constituencies'),
+                    apiService.fetchModuleRecords<Ward>('wards')
+                ]);
+                setPoliticalParties(pData);
+                setPoliticalConstituencies(cData);
+                setPoliticalWards(wData);
+            } catch (e) {
+                console.error(e);
+            }
+        };
+        loadMetaData();
+    }, []);
 
     useEffect(() => {
         const loadData = async () => {
@@ -86,6 +108,9 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                 <CampaignProfileModal 
                     profile={null} 
                     user={user} 
+                    parties={politicalParties}
+                    constituencies={politicalConstituencies}
+                    wards={politicalWards}
                     onClose={() => setIsSetupModalOpen(false)} 
                     onSave={(p) => {
                         setProfile(p);
@@ -295,20 +320,32 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                             
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Political Party</label>
-                                <input 
+                                <select 
                                     value={editProfile.partyName} 
                                     onChange={e => setEditProfile({...editProfile, partyName: e.target.value})}
                                     className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold uppercase text-xs"
-                                />
+                                >
+                                    <option value="">Choose Party...</option>
+                                    <option value="Independent">Independent</option>
+                                    {politicalParties.map(p => <option key={p.id} value={p.name}>{p.name} ({p.acronym})</option>)}
+                                </select>
                             </div>
 
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Constituency / Ward</label>
-                                <input 
+                                <select 
                                     value={editProfile.constituencyWard} 
                                     onChange={e => setEditProfile({...editProfile, constituencyWard: e.target.value})}
                                     className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold uppercase text-xs"
-                                />
+                                >
+                                    <option value="">Choose Location...</option>
+                                    <optgroup label="Constituencies">
+                                        {politicalConstituencies.map(c => <option key={c.id} value={c.name}>{c.name} (Constituency)</option>)}
+                                    </optgroup>
+                                    <optgroup label="Wards">
+                                        {politicalWards.map(w => <option key={w.id} value={w.name}>{w.name} (Ward)</option>)}
+                                    </optgroup>
+                                </select>
                             </div>
 
                             <div>
@@ -496,6 +533,9 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                 <CampaignProfileModal 
                     profile={profile} 
                     user={user} 
+                    parties={politicalParties}
+                    constituencies={politicalConstituencies}
+                    wards={politicalWards}
                     onClose={() => setIsSetupModalOpen(false)} 
                     onSave={(p) => {
                         setProfile(p);
@@ -510,11 +550,16 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
 interface CampaignProfileModalProps {
     profile: CampaignProfile | null;
     user: User;
+    parties: PoliticalParty[];
+    constituencies: Constituency[];
+    wards: Ward[];
     onClose: () => void;
     onSave: (profile: CampaignProfile) => void;
 }
 
-const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({ profile, user, onClose, onSave }) => {
+const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({ 
+    profile, user, parties, constituencies, wards, onClose, onSave 
+}) => {
     const [name, setName] = useState(profile?.candidateName || user.name);
     const [position, setPosition] = useState<CampaignProfile['position']>(profile?.position || 'MCA');
     const [party, setParty] = useState(profile?.partyName || '');
@@ -580,11 +625,23 @@ const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({ profile, us
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Political Party</label>
-                            <input value={party} onChange={e => setParty(e.target.value)} placeholder="e.g. Independent, ODM, UDA" className="form-input" />
+                            <select value={party} onChange={e => setParty(e.target.value)} className="form-select">
+                                <option value="">Choose Party...</option>
+                                <option value="Independent">Independent</option>
+                                {parties.map(p => <option key={p.id} value={p.name}>{p.name} ({p.acronym})</option>)}
+                            </select>
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Constituency / Ward</label>
-                            <input value={ward} onChange={e => setWard(e.target.value)} className="form-input" />
+                            <select value={ward} onChange={e => setWard(e.target.value)} className="form-select">
+                                <option value="">Choose Location...</option>
+                                <optgroup label="Constituencies">
+                                    {constituencies.map(c => <option key={c.id} value={c.name}>{c.name} (Constituency)</option>)}
+                                </optgroup>
+                                <optgroup label="Wards">
+                                    {wards.map(w => <option key={w.id} value={w.name}>{w.name} (Ward)</option>)}
+                                </optgroup>
+                            </select>
                         </div>
                     </div>
 
