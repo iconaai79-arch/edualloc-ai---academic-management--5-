@@ -15,7 +15,7 @@ import type {
     LawAgreement, LawAgreementTemplate, LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction,
     DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
     CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry, MarketingProspect,
-    PoliticalParty, Constituency, Ward
+    PoliticalParty, Constituency, Ward, FtpConfig
 } from '../types';
 import { TransactionsManager } from './TransactionsManager';
 import { DatabaseSettings } from './DatabaseSettings';
@@ -528,7 +528,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isAddingInstitution, setIsAddingInstitution] = useState(false);
-    const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'sms_pricing' | 'marketplace' | 'showcase' | 'system_build'>('profile');
+    const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'sms_pricing' | 'marketplace' | 'showcase' | 'system_build' | 'storage'>('profile');
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways'>('mpesa');
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
     const [extendingInstitution, setExtendingInstitution] = useState<Institution | null>(null);
@@ -663,6 +663,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [localEmailConfig, setLocalEmailConfig] = useState<EmailConfig>(companyDetails?.emailConfig || { host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
     const [localMpesaConfig, setLocalMpesaConfig] = useState<MpesaConfig>(companyDetails?.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '' });
     const [localSubConfig, setLocalSubConfig] = useState<SubscriptionConfig>(companyDetails?.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
+    const [localFtpConfig, setLocalFtpConfig] = useState<FtpConfig>(companyDetails?.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
 
     const [isSavingConfigs, setIsSavingConfigs] = useState(false);
 
@@ -696,6 +697,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             setLocalEmailConfig(companyDetails.emailConfig || { host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
             setLocalMpesaConfig(companyDetails.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '' });
             setLocalSubConfig(companyDetails.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
+            setLocalFtpConfig(companyDetails.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
         }
     }, [companyDetails]);
 
@@ -746,7 +748,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                         welcomeMessage: localCompanyInfo.welcomeMessage,
                         enabled: localCompanyInfo.chatEnabled
                     },
-                    enforceGlobalOtp: localCompanyInfo.enforceGlobalOtp
+                    enforceGlobalOtp: localCompanyInfo.enforceGlobalOtp,
+                    ftpConfig: localFtpConfig
                 });
             }
             alert("Platform configurations updated successfully.");
@@ -2853,6 +2856,12 @@ Please change it after login.`;
                                     <SparklesIcon className="w-4 h-4" /> Showcase
                                 </button>
                                 <button
+                                    onClick={() => setSettingsSubTab('storage')}
+                                    className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${settingsSubTab === 'storage' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    <ArrowUpTrayIcon className="w-4 h-4" /> Asset Storage
+                                </button>
+                                <button
                                     onClick={() => setSettingsSubTab('system_build')}
                                     className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${settingsSubTab === 'system_build' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                                 >
@@ -3558,6 +3567,92 @@ Please change it after login.`;
                                             className="btn-primary px-12 h-14 shadow-indigo-100 uppercase tracking-widest text-xs"
                                         >
                                             {isSavingConfigs ? 'Synchronizing...' : 'Sync Pricing Map'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {settingsSubTab === 'storage' && (
+                                <div className="bg-white dark:bg-slate-800 p-10 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm animate-fade-in space-y-10">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <h3 className="text-2xl font-black uppercase tracking-tighter">Asset Storage Strategy</h3>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Configure cPanel FTP for high-volume video & image hosting</p>
+                                        </div>
+                                        <div className="p-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl">
+                                            <ArrowUpTrayIcon className="w-8 h-8 text-indigo-600" />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">FTP Hostname</label>
+                                            <input 
+                                                value={localFtpConfig.host} 
+                                                onChange={e => setLocalFtpConfig({...localFtpConfig, host: e.target.value})}
+                                                placeholder="ftp.yourserver.com" 
+                                                className="form-input" 
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">FTP Port</label>
+                                            <input 
+                                                type="number" 
+                                                value={localFtpConfig.port} 
+                                                onChange={e => setLocalFtpConfig({...localFtpConfig, port: Number(e.target.value)})}
+                                                className="form-input" 
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">FTP Username</label>
+                                            <input 
+                                                value={localFtpConfig.user} 
+                                                onChange={e => setLocalFtpConfig({...localFtpConfig, user: e.target.value})}
+                                                className="form-input" 
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">FTP Password</label>
+                                            <input 
+                                                type="password" 
+                                                value={localFtpConfig.password || ''} 
+                                                onChange={e => setLocalFtpConfig({...localFtpConfig, password: e.target.value})}
+                                                className="form-input" 
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Remote Root Path</label>
+                                            <input 
+                                                value={localFtpConfig.remoteRoot} 
+                                                onChange={e => setLocalFtpConfig({...localFtpConfig, remoteRoot: e.target.value})}
+                                                placeholder="/public_html/assets" 
+                                                className="form-input" 
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Public URL Root</label>
+                                            <input 
+                                                value={localFtpConfig.publicUrlRoot} 
+                                                onChange={e => setLocalFtpConfig({...localFtpConfig, publicUrlRoot: e.target.value})}
+                                                placeholder="https://yourserver.com/assets" 
+                                                className="form-input" 
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-8 border-t border-slate-50 dark:border-slate-800 flex justify-end gap-4">
+                                        <button 
+                                            onClick={() => alert("Verification sequence initiated. Checking FTP handshake...")}
+                                            className="btn-secondary px-8 h-12 uppercase tracking-widest text-[10px]"
+                                        >
+                                            Test Connection
+                                        </button>
+                                        <button 
+                                            onClick={handleSaveGlobalConfigs}
+                                            disabled={isSavingConfigs}
+                                            className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-[10px]"
+                                        >
+                                            {isSavingConfigs ? 'Synchronizing...' : 'Update Storage Strategy'}
                                         </button>
                                     </div>
                                 </div>

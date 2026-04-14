@@ -40,13 +40,26 @@ export interface MarketingProspect {
     createdAt: string;
 }
 
+export interface FtpConfig {
+    host: string;
+    port: number;
+    user: string;
+    password?: string;
+    secure?: boolean;
+    remoteRoot?: string;
+    publicUrlRoot?: string;
+}
+
 export interface CampaignProfile {
     id: string;
     institutionId: string;
     candidateName: string;
     position: 'MCA' | 'MP' | 'Senator' | 'Governor' | 'President' | 'Deputy';
     partyName?: string;
-    constituencyWard?: string;
+    county?: string;
+    constituency?: string;
+    ward?: string;
+    constituencyWard?: string; // Legacy/Display
     manifestoAiDraft?: string;
     agendas?: string[]; // Structured list of key agendas
     tagline?: string;
@@ -702,6 +715,7 @@ export interface CompanyDetails {
     smsConfig: SmsConfig;
     letterheadConfig: LetterheadConfig;
     databaseConfig: DatabaseConfig;
+    ftpConfig?: FtpConfig;
     chatAssistantConfig?: {
         enabled: boolean;
         welcomeMessage?: string;

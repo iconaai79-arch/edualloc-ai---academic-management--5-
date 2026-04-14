@@ -2258,19 +2258,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const client = new ftp.Client();
             // client.ftp.verbose = true;
 
-            const host = settings.ftp_host || "da12.host-ww.net";
-            const userFtp = settings.ftp_user || "eduaico1";
-            const passwordFtp = settings.ftp_pass || "A]i7s4v[5qZP5S";
+            const ftpConfig = settings.ftpConfig || settings.ftp_config || {};
+            const host = ftpConfig.host || "da12.host-ww.net";
+            const userFtp = ftpConfig.user || "eduaico1";
+            const passwordFtp = ftpConfig.password || "A]i7s4v[5qZP5S";
+            const port = ftpConfig.port || 21;
+            const secure = ftpConfig.secure ?? false;
+            const remoteRoot = ftpConfig.remoteRoot || "/public_html/campaigns";
+            const publicUrlRoot = ftpConfig.publicUrlRoot || "https://eduaico1.iconaai.com/campaigns";
 
             try {
                 await client.access({
-                    host: host,
+                    host,
+                    port,
                     user: userFtp,
                     password: passwordFtp,
-                    secure: false
+                    secure
                 });
 
-                let remoteDir = "/public_html/campaigns";
+                let remoteDir = remoteRoot;
                 if (type === 'poster') remoteDir += "/posters";
                 else if (type === 'profile') remoteDir += "/profiles";
                 
@@ -2283,8 +2289,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const finalFileName = `${campaignId?.replace(/[^a-z0-9]/gi, '_') || 'anon'}_${Date.now()}_${fileName.replace(/[^a-z0-9.]/gi, '_')}`;
                 await client.uploadFrom(stream, finalFileName);
                 
-                // Construct public URL - using the host mapping from eduaico1 to eduaico1.iconaai.com
-                const publicUrl = `https://eduaico1.iconaai.com/campaigns/${type === 'poster' ? 'posters' : 'profiles'}/${finalFileName}`;
+                // Construct public URL dynamically
+                let baseUrl = publicUrlRoot.endsWith('/') ? publicUrlRoot.slice(0, -1) : publicUrlRoot;
+                const publicUrl = `${baseUrl}/${type === 'poster' ? 'posters' : 'profiles'}/${finalFileName}`;
                 
                 return res.status(200).json({ 
                     success: true, 
