@@ -79,7 +79,9 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
     // Campaign Voting States
     const [allCampaigns, setAllCampaigns] = useState<CampaignProfile[]>([]);
     const [myVotes, setMyVotes] = useState<CampaignVote[]>([]);
+    const [voteCounts, setVoteCounts] = useState<Record<string, number>>({});
     const [isVoting, setIsVoting] = useState(false);
+    const [showResults, setShowResults] = useState(false);
 
     const [newMember, setNewMember] = useState<Partial<HeritageMember>>({ 
         name: '', 
@@ -110,6 +112,13 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
             ]);
             setAllCampaigns(profiles);
             setMyVotes(votes);
+            
+            // Calculate pseudo-live counts (in a real app, this would be an aggregation query)
+            const counts: Record<string, number> = {};
+            votes.forEach(v => {
+                counts[v.campaignId] = (counts[v.campaignId] || 0) + 1;
+            });
+            setVoteCounts(counts);
         } catch (error) {
             console.error('Error fetching campaign data:', error);
         } finally {
@@ -947,19 +956,66 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-2 italic">Official Community Opinion Poll • One Choice Per Category</p>
                                 </div>
                                 <div className="flex gap-4">
-                                    <div className="bg-white dark:bg-slate-800 px-6 py-4 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 text-center">
+                                    <button 
+                                        onClick={() => setShowResults(!showResults)}
+                                        className={`px-6 py-4 rounded-3xl font-black text-[10px] uppercase tracking-widest transition-all ${showResults ? 'bg-indigo-600 text-white shadow-xl' : 'bg-white dark:bg-slate-800 text-slate-400 border border-slate-100 dark:border-slate-700'}`}
+                                    >
+                                        {showResults ? 'View Ballot' : 'Live Trends'}
+                                    </button>
+                                    <div className="bg-white dark:bg-slate-800 px-6 py-4 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 text-center hidden sm:block">
                                         <p className="text-2xl font-black text-indigo-600">{allCampaigns.length}</p>
                                         <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest">Candidates</p>
                                     </div>
-                                    <div className="bg-indigo-600 px-6 py-4 rounded-3xl shadow-xl shadow-indigo-100 text-center text-white">
+                                    <div className="bg-indigo-600 px-6 py-4 rounded-3xl shadow-xl shadow-indigo-100 text-center text-white hidden sm:block">
                                         <p className="text-2xl font-black">{myVotes.length}</p>
                                         <p className="text-[8px] font-black uppercase opacity-60 tracking-widest">My Choices</p>
                                     </div>
                                 </div>
                              </div>
 
-                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                                {allCampaigns.length > 0 ? allCampaigns.map((candidate) => {
+                             {showResults ? (
+                                <div className="space-y-8 animate-fade-in">
+                                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                        <h4 className="text-xl font-black uppercase tracking-tight mb-8">Electoral Heatmap (Projected)</h4>
+                                        <div className="space-y-6">
+                                            {['President', 'Governor', 'Senator', 'Women Rep', 'MP', 'MCA'].map(pos => {
+                                                const candidates = allCampaigns.filter(c => c.position === pos);
+                                                if (candidates.length === 0) return null;
+                                                
+                                                const totalPosVotes = candidates.reduce((acc, c) => acc + (voteCounts[c.id] || 0), 0);
+                                                
+                                                return (
+                                                    <div key={pos} className="space-y-4">
+                                                        <div className="flex justify-between items-end">
+                                                            <h5 className="font-black text-indigo-600 uppercase text-xs tracking-widest">{pos} Category</h5>
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase">{totalPosVotes} Total Voices</span>
+                                                        </div>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                            {candidates.map(c => {
+                                                                const count = voteCounts[c.id] || 0;
+                                                                const percent = totalPosVotes > 0 ? Math.round((count / totalPosVotes) * 100) : 0;
+                                                                return (
+                                                                    <div key={c.id} className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-transparent hover:border-indigo-100 transition-all">
+                                                                        <div className="flex justify-between items-center mb-2">
+                                                                            <p className="font-bold text-slate-800 dark:text-slate-200 text-sm uppercase">{c.candidateName}</p>
+                                                                            <span className="font-black text-indigo-600 text-xs">{percent}%</span>
+                                                                        </div>
+                                                                        <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                                            <div className="h-full bg-indigo-600 transition-all duration-1000" style={{ width: `${percent}%` }}></div>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                             ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                   {allCampaigns.length > 0 ? allCampaigns.map((candidate) => {
                                     const userVote = myVotes.find(v => v.position === candidate.position);
                                     const isVotedForThis = userVote?.campaignId === candidate.id;
                                     const isLockedByCategory = userVote && !isVotedForThis;

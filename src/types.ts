@@ -54,7 +54,7 @@ export interface CampaignProfile {
     id: string;
     institutionId: string;
     candidateName: string;
-    position: 'MCA' | 'MP' | 'Senator' | 'Governor' | 'President' | 'Deputy';
+    position: 'MCA' | 'MP' | 'Women Rep' | 'Senator' | 'Governor' | 'President' | 'Deputy';
     partyName?: string;
     county?: string;
     constituency?: string;

@@ -40,10 +40,10 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
         const loadMetaData = async () => {
             try {
                 const [pData, couData, cData, wData] = await Promise.all([
-                    apiService.fetchModuleRecords<PoliticalParty>('political_parties'),
-                    apiService.fetchModuleRecords<County>('counties'),
-                    apiService.fetchModuleRecords<Constituency>('constituencies'),
-                    apiService.fetchModuleRecords<Ward>('wards')
+                    apiService.fetchModuleRecords<PoliticalParty>('political_parties', undefined, undefined, { limit: 1000 }),
+                    apiService.fetchModuleRecords<County>('counties', undefined, undefined, { limit: 1000 }),
+                    apiService.fetchModuleRecords<Constituency>('constituencies', undefined, undefined, { limit: 1000 }),
+                    apiService.fetchModuleRecords<Ward>('wards', undefined, undefined, { limit: 5000 })
                 ]);
                 setPoliticalParties(pData);
                 setPoliticalCounties(couData);
@@ -185,7 +185,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
         if (profile) {
             if (profile.position === 'President' || profile.position === 'Deputy') {
                 totalElectorate = politicalWards.reduce((acc, w) => acc + (w.registered_voters || 0), 0);
-            } else if (profile.position === 'Governor' || profile.position === 'Senator') {
+            } else if (profile.position === 'Governor' || profile.position === 'Senator' || profile.position === 'Women Rep') {
                 const county = politicalCounties.find(c => c.name === profile.county);
                 if (county) {
                     // Find constituencies in this county
@@ -629,7 +629,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                         onChange={e => setEditProfile({...editProfile, position: e.target.value as any})}
                                         className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold uppercase text-xs"
                                     >
-                                        {['MCA', 'MP', 'Senator', 'Governor', 'President', 'Deputy'].map(p => (
+                                        {['MCA', 'MP', 'Women Rep', 'Senator', 'Governor', 'President', 'Deputy'].map(p => (
                                             <option key={p} value={p}>{p}</option>
                                         ))}
                                     </select>
@@ -1165,6 +1165,7 @@ const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({
                                 <select value={position} onChange={e => setPosition(e.target.value as any)} className="form-select">
                                     <option value="MCA">MCA (County Assembly)</option>
                                     <option value="MP">MP (National Assembly)</option>
+                                    <option value="Women Rep">Women Representative</option>
                                     <option value="Senator">Senator</option>
                                     <option value="Governor">Governor</option>
                                     <option value="President">President</option>
