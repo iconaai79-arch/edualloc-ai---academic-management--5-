@@ -204,8 +204,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
     const [activeTab, setActiveTab] = useState<SettingsTab>((isSuperAdmin && !isCoop) ? 'global_config' : 'general');
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
-    const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_settings' | 'security_policy' | 'location' | 'branding' | 'grading' | 'billing' | 'gateways' | 'sms' | 'email' | 'farmer_billing'>('profile');
-    const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'showcase'>('profile');
+    const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_settings' | 'security_policy' | 'location' | 'branding' | 'grading' | 'billing' | 'integrations' | 'sms' | 'email' | 'farmer_billing'>('profile');
+    const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'integrations' | 'showcase'>('profile');
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'ncba'>('mpesa');
     const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>('departments');
     const [showPaperPreview, setShowPaperPreview] = useState(false);
@@ -533,7 +533,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [localEmailConfig, setLocalEmailConfig] = useState<EmailConfig>(props.companyDetails?.emailConfig || { provider: 'smtp', host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
     const [localMpesaConfig, setLocalMpesaConfig] = useState<MpesaConfig>(props.companyDetails?.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' });
     const [localNcbaConfig, setLocalNcbaConfig] = useState<NcbaConfig>(
-        props.companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', username: '', password: '', baseUrl: 'https://sandbox.ncbagroup.com', environment: 'sandbox' }
+        props.companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', username: '', password: '', baseUrl: 'https://c2bapis.ncbagroup.com', environment: 'production' }
     );
     const [localSubConfig, setLocalSubConfig] = useState<SubscriptionConfig>(props.companyDetails?.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
 
@@ -563,7 +563,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             setLocalSmsConfig(props.companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
             setLocalEmailConfig(props.companyDetails.emailConfig || { host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
             setLocalMpesaConfig(props.companyDetails.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' });
-            setLocalNcbaConfig(props.companyDetails.ncbaConfig || { clientId: '', clientSecret: '', username: '', password: '', baseUrl: 'https://sandbox.ncbagroup.com', environment: 'sandbox' });
+            setLocalNcbaConfig(props.companyDetails.ncbaConfig || { clientId: '', clientSecret: '', username: '', password: '', baseUrl: 'https://c2bapis.ncbagroup.com', environment: 'production' });
             setLocalSubConfig(props.companyDetails.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
         }
     }, [props.companyDetails]);
@@ -574,13 +574,22 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         if (!props.onUpdateCompanyDetails || !props.companyDetails) return;
         setIsSavingConfigs(true);
         try {
+            // Sanitize NCBA Credentials before saving to prevent invisible character 401s
+            const sanitizedNcba = {
+                ...localNcbaConfig,
+                clientId: (localNcbaConfig.clientId || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                clientSecret: (localNcbaConfig.clientSecret || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                username: (localNcbaConfig.username || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                password: (localNcbaConfig.password || '').replace(/[^\x20-\x7E]/g, '').trim()
+            };
+
             await props.onUpdateCompanyDetails({
                 ...props.companyDetails,
                 ...localCompanyInfo,
                 smsConfig: localSmsConfig,
                 emailConfig: localEmailConfig,
                 mpesaConfig: localMpesaConfig,
-                ncbaConfig: localNcbaConfig,
+                ncbaConfig: sanitizedNcba,
                 subscriptionConfig: localSubConfig,
                 enforceGlobalOtp: localCompanyInfo.enforceGlobalOtp,
                 chatAssistantConfig: {
@@ -753,6 +762,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                             <button onClick={() => setGlobalSubTab('sms')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'sms' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><PaperAirplaneIcon className="w-4 h-4" /> SMS Gateway</button>
                             <button onClick={() => setGlobalSubTab('email')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'email' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><EnvelopeIcon className="w-4 h-4" /> Email Relay</button>
                             <button onClick={() => setGlobalSubTab('billing')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'billing' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><CreditCardIcon className="w-4 h-4" /> Platform Billing</button>
+                            <button onClick={() => setGlobalSubTab('integrations')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'integrations' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ArrowsRightLeftIcon className="w-4 h-4" /> Integrations</button>
                             <button onClick={() => setGlobalSubTab('showcase')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'showcase' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><SparklesIcon className="w-4 h-4" /> Showcase</button>
                         </nav>
                     </div>
@@ -1243,14 +1253,33 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
                         {globalSubTab === 'billing' && (
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-8 animate-fade-in">
-                                <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-                                    <div className="flex items-center gap-3">
+                                 <h3 className="text-xl font-black uppercase tracking-tight">Platform Financials</h3>
+                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                                    <div className="space-y-6">
+                                        <h4 className="text-sm font-bold uppercase text-slate-500 border-b pb-1">Standard Subscription Pricing</h4>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Monthly License (KES)</label><input type="number" value={localSubConfig.defaultMonthlyPrice} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSubConfig({ ...localSubConfig, defaultMonthlyPrice: Number(e.target.value) })} className="form-input font-bold" /></div>
+                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Yearly License (KES)</label><input type="number" value={localSubConfig.defaultYearlyPrice} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSubConfig({ ...localSubConfig, defaultYearlyPrice: Number(e.target.value) })} className="form-input font-bold" /></div>
+                                        </div>
+                                        <div><label className="block text-[10px] font-black uppercase text-indigo-600 mb-1.5 ml-1">Base Cost Per Additional Student (KES)</label><input type="number" value={localSubConfig.baseCostPerStudent || 0} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSubConfig({ ...localSubConfig, baseCostPerStudent: Number(e.target.value) })} className="form-input font-bold border-indigo-200 focus:ring-indigo-500" /></div>
+                                    </div>
+                                    <div className="pt-4">
+                                        <button onClick={handleSaveGlobalConfigs} className="btn-primary w-full h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Save Financial Configuration</button>
+                                    </div>
+                                 </div>
+                            </div>
+                        )}
+
+                        {globalSubTab === 'integrations' && (
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-8 animate-fade-in">
+                                <div className="flex items-center justify-between gap-6 border-b border-slate-100 dark:border-slate-800 pb-6">
+                                    <div className="flex items-center gap-4">
                                         <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl text-indigo-600">
-                                            <CreditCardIcon className="w-6 h-6" />
+                                            <ArrowsRightLeftIcon className="w-6 h-6" />
                                         </div>
                                         <div>
-                                            <h3 className="text-xl font-black uppercase tracking-tight">Platform Billing Map</h3>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Configure Global Payment Gateways & Licensing</p>
+                                            <h3 className="text-xl font-black uppercase tracking-tight">System Integrations Map</h3>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Configure Global Payment Gateways & External Services</p>
                                         </div>
                                     </div>
 
@@ -1273,7 +1302,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             onClick={() => setBillingSubTab('gateways')}
                                             className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${billingSubTab === 'gateways' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
                                         >
-                                            Gateways
+                                            Control
                                         </button>
                                     </div>
                                 </div>
@@ -1305,13 +1334,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         </div>
 
                                         <div className="space-y-6">
-                                            <h4 className="text-sm font-bold uppercase text-slate-500 border-b pb-1">Standard Subscription Pricing</h4>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Monthly License (KES)</label><input type="number" value={localSubConfig.defaultMonthlyPrice} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSubConfig({ ...localSubConfig, defaultMonthlyPrice: Number(e.target.value) })} className="form-input font-bold" /></div>
-                                                <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Yearly License (KES)</label><input type="number" value={localSubConfig.defaultYearlyPrice} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSubConfig({ ...localSubConfig, defaultYearlyPrice: Number(e.target.value) })} className="form-input font-bold" /></div>
-                                            </div>
-                                            <div><label className="block text-[10px] font-black uppercase text-indigo-600 mb-1.5 ml-1">Base Cost Per Additional Student (KES)</label><input type="number" value={localSubConfig.baseCostPerStudent || 0} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSubConfig({ ...localSubConfig, baseCostPerStudent: Number(e.target.value) })} className="form-input font-bold border-indigo-200 focus:ring-indigo-500" /></div>
-                                            
                                             <div className="p-6 bg-slate-50 dark:bg-slate-900 rounded-[2rem] border border-slate-200">
                                                 <div className="flex items-center gap-2 mb-2">
                                                     <InformationCircleIcon className="w-5 h-5 text-indigo-500" />
@@ -1320,7 +1342,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 <p className="text-xs text-slate-500 leading-relaxed">Incoming payments are validated against the Paybill and Account Reference (Institution Code). Subscriptions are automatically extended upon successful callback.</p>
                                             </div>
                                             <div className="pt-4">
-                                                <button onClick={handleSaveGlobalConfigs} className="btn-primary w-full h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Save Billing Map</button>
+                                                <button onClick={handleSaveGlobalConfigs} className="btn-primary w-full h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Save M-Pesa Config</button>
                                             </div>
                                         </div>
                                     </div>
@@ -1338,17 +1360,24 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <div>
                                                 <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Environment</label>
                                                 <select
-                                                    value={localNcbaConfig.environment || 'sandbox'}
-                                                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setLocalNcbaConfig({ ...localNcbaConfig, environment: e.target.value as any })}
+                                                    value={localNcbaConfig.environment || 'production'}
+                                                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                                        const env = e.target.value as any;
+                                                        setLocalNcbaConfig({ 
+                                                            ...localNcbaConfig, 
+                                                            environment: env,
+                                                            baseUrl: env === 'sandbox' ? 'https://sandbox.ncbagroup.com' : 'https://c2bapis.ncbagroup.com'
+                                                        });
+                                                    }}
                                                     className="form-select w-full"
                                                 >
                                                     <option value="sandbox">Sandbox (Test)</option>
                                                     <option value="production">Production (Live)</option>
                                                 </select>
                                             </div>
-                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Base URL</label><input type="text" value={localNcbaConfig.baseUrl} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, baseUrl: e.target.value })} className="form-input font-mono text-xs" placeholder="https://sandbox.ncbagroup.com" /></div>
-                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Client ID</label><input type="text" value={localNcbaConfig.clientId} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, clientId: e.target.value })} className="form-input" /></div>
-                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Client Secret</label><input type="password" value={localNcbaConfig.clientSecret} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, clientSecret: e.target.value })} className="form-input" /></div>
+                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Base URL</label><input type="text" value={localNcbaConfig.baseUrl} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, baseUrl: e.target.value })} className="form-input font-mono text-xs" placeholder="https://c2bapis.ncbagroup.com" /></div>
+                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Client ID</label><input type="text" value={localNcbaConfig.clientId} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, clientId: e.target.value })} className="form-input" placeholder="10 characters" /></div>
+                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Client Secret</label><input type="password" value={localNcbaConfig.clientSecret} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, clientSecret: e.target.value })} className="form-input" placeholder="32 characters" /></div>
                                             <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">API Username</label><input type="text" value={localNcbaConfig.username || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, username: e.target.value })} className="form-input" /></div>
                                             <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">API Password</label><input type="password" value={localNcbaConfig.password || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, password: e.target.value })} className="form-input" /></div>
                                         </div>
@@ -1432,22 +1461,14 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 </div>
                                             ))}
                                         </div>
-                                        <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100">
-                                            <p className="text-xs text-amber-700 leading-relaxed font-bold">
-                                                Note: Disabled gateways will be hidden from the "Buy SMS" and "Subscription Renewal" screens for all tenants.
-                                            </p>
-                                        </div>
-                                        <div className="pt-4">
-                                            <button onClick={handleSaveGlobalConfigs} className="btn-primary w-full h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Update Gateway Visibility</button>
+                                        <div className="flex justify-end p-4">
+                                            <button onClick={handleSaveGlobalConfigs} className="btn-primary h-12 px-10">Save Global Integration Map</button>
                                         </div>
                                     </div>
                                 )}
                             </div>
-                        )}
-
-                    </div>
-                </div>
-            )
+                        </div>
+                    )
             }
 
             {/* General Tab */}
@@ -1461,7 +1482,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     const filtered = ['profile', 'location', 'branding'];
                                     if (props.currentUser.role === 'admin' || isCoop) {
                                         filtered.push('billing');
-                                        filtered.push('gateways');
+                                        filtered.push('integrations');
                                         filtered.push('sms');
                                         if (isCoop) filtered.push('farmer_billing');
     
@@ -1469,9 +1490,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     return filtered;
                                 }
                                 const subs = ['profile', 'academic_settings', 'grading', 'security_policy', 'location', 'branding'];
-                                if (props.currentUser.role === 'admin') { 
+                                 if (props.currentUser.role === 'admin') { 
                                     subs.push('billing'); 
-                                    subs.push('gateways');
+                                    subs.push('integrations');
                                     subs.push('sms'); 
                                 }
                                 return subs;
@@ -1484,7 +1505,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     {sub === 'location' && <MapPinIcon className="w-4 h-4 text-emerald-500" />}
                                     {sub === 'branding' && <SparklesIcon className="w-4 h-4 text-purple-500" />}
                                     {sub === 'billing' && <CreditCardIcon className="w-4 h-4 text-blue-500" />}
-                                    {sub === 'gateways' && <CommandLineIcon className="w-4 h-4 text-slate-500" />}
+                                    {sub === 'integrations' && <ArrowsRightLeftIcon className="w-4 h-4 text-slate-500" />}
                                     {sub === 'sms' && <PaperAirplaneIcon className="w-4 h-4 text-sky-500" />}
 
                                     {sub.replace('_', ' ')}
@@ -1732,9 +1753,14 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 />
                             </div>
                         )}
-                        {generalSubTab === 'gateways' && (
+                        {generalSubTab === 'integrations' && (
                             <div className="space-y-8 animate-fade-in">
+                                <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
+                                    <ArrowsRightLeftIcon className="w-6 h-6 text-indigo-500" />
+                                    External System Integrations
+                                </h3>
 
+                                <div className="space-y-8">
                                     <div className="flex items-center gap-3">
                                         <div className="p-3 bg-green-50 dark:bg-green-900/30 rounded-2xl text-green-600">
                                             <MpesaIcon className="w-6 h-6" />
@@ -1752,8 +1778,16 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 type="text" 
                                                 value={localInstMpesaConfig.paybillNumber || ''} 
                                                 onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, paybillNumber: e.target.value })}
-                                                className="form-input font-mono" 
-                                                placeholder="7-digit code"
+                                                className="form-input" 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Account Number (Reference)</label>
+                                            <input 
+                                                type="text" 
+                                                value={localInstMpesaConfig.accountNumber || ''} 
+                                                onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, accountNumber: e.target.value })}
+                                                className="form-input" 
                                             />
                                         </div>
                                         <div>
@@ -1870,7 +1904,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         {saveInstGatewaysStatus === 'success' && (
                                             <div className="flex items-center gap-2 text-green-600 animate-scale-in">
                                                 <CheckCircleIcon className="w-5 h-5" />
-                                                <span className="text-[10px] font-black uppercase tracking-wider">Gateway Map Secured</span>
+                                                <span className="text-[10px] font-black uppercase tracking-wider">Integrations Map Secured</span>
                                             </div>
                                         )}
                                         {saveInstGatewaysStatus === 'error' && (
@@ -1912,7 +1946,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         </button>
                                     </div>
                                 </div>
-                            )}
+                            </div>
+                        )}
 
                         {generalSubTab === 'sms' && props.currentUser.role === 'admin' && (
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6 animate-fade-in">

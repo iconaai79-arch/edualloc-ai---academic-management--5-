@@ -1,3 +1,4 @@
+import React, { useState, useRef } from 'react';
 import { MpesaIcon } from './icons/MpesaIcon';
 import { NcbaIcon } from './icons/NcbaIcon';
 import type { MpesaConfig, TransactionStatus, NcbaConfig } from '../types';
@@ -33,6 +34,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
     mpesaConfig,
     airtelMoneyConfig,
     intasendConfig,
+    ncbaConfig,
     institutionId,
     institutionCode,
     institutionName,

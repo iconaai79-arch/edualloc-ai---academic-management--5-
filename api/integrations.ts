@@ -816,9 +816,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             // If authMethod is 'basic', we skip fetching a token as we'll use Basic Auth directly on the request
             if (ncbaConfig.authMethod === 'basic') {
-                console.log('[NCBA Auth] Direct Basic Auth requested. Skipping token generation.');
+                console.log(`[NCBA Auth Service] Direct Basic Auth strategy requested for ${cId}. Skipping token generation.`);
                 return null; 
             }
+            
+            console.log(`[NCBA Auth Service] Fetching OAuth2 token for ${cId} at ${ncbaConfig.baseUrl || 'default-base'}`);
             
             const tokenBase = normalizeNcbaUrl(ncbaConfig.baseUrl || ncbaConfig.base_url);
             // Updated Path (2024 spec requirement): /payments/api/v1/auth/token
@@ -881,8 +883,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (!tokenRes.ok) {
                 const finalErrData = await safeParseJson(tokenRes).catch(() => null) as any;
-                const finalMsg = finalErrData?.message || finalErrData?.error_description || 'Unknown Bank Error';
-                console.error(`[NCBA Auth] Permanent Failure: ${tokenRes.status} - ${finalMsg}`);
+                const finalMsg = finalErrData?.message || finalErrData?.error_description || finalErrData?.StatusDescription || 'Unknown Bank Error';
+                console.error(`[NCBA Auth Service] PERMANENT FAILURE [Status ${tokenRes.status}]: ${finalMsg}. Full Response: ${JSON.stringify(finalErrData)}`);
                 
                 let hint = `Actually using ${fingerprint}.`;
                 if (tokenRes.status === 401) {
@@ -991,10 +993,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             } catch (fetchErr: any) {
                 if (fetchErr.message.includes('Redirect')) throw fetchErr;
                 const isAbort = fetchErr?.name === 'AbortError';
+                const logMsg = isAbort
+                    ? `NCBA STK Push TIMEOUT (25s) at ${fullUrl}. Gateway did not respond.`
+                    : `NCBA STK NETWORK ERROR: ${fetchErr.message}. Target: ${fullUrl}.`;
+                
+                console.error(`[NCBA STK Fatal] ${logMsg}`);
                 throw new Error(
                     isAbort
-                        ? `NCBA STK Push timed out (25s). The gateway at ${fullUrl} did not respond. Check the STK Push Base URL.`
-                        : `NCBA STK network error: ${fetchErr.message}. Could not reach ${fullUrl}. Verify the STK Push Base URL.`
+                        ? `NCBA STK Push timed out (25s). The gateway at ${fullUrl} did not respond. Check the STK Push Base URL and firewall rules.`
+                        : `NCBA STK network error: ${fetchErr.message}. Could not reach ${fullUrl}. Verify the STK Push Base URL and ensure the gateway is up.`
                 );
             }
 

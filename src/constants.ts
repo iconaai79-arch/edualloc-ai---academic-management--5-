@@ -15,7 +15,7 @@ export const INITIAL_COMPANY_DETAILS: CompanyDetails = {
         defaultYearlyPrice: 50000
     },
     mpesaConfig: { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '' },
-    ncbaConfig: { clientId: '', clientSecret: '', baseUrl: 'https://c2bapis.ncbagroup.com' },
+    ncbaConfig: { clientId: '', clientSecret: '', baseUrl: 'https://c2bapis.ncbagroup.com', environment: 'production' },
     emailConfig: {
         provider: 'smtp',
         host: 'mail.eduai.co.ke',

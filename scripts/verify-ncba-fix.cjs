@@ -1,7 +1,7 @@
 const https = require('https');
 
 const host = 'c2bapis.ncbagroup.com';
-const tokenPath = '/payments/oauth/v1/generate';
+const tokenPath = '/payments/api/v1/auth/token';
 const stkPath = '/payments/api/v1/stk-push/initiate';
 
 async function testEndpoint(path, name) {
