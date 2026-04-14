@@ -118,14 +118,19 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
             throw new Error("County, Constituency, and Ward names must be mapped to proceed.");
         }
 
+        setProgress(5);
+        // Pass 0: Fetch existing data to avoid conflicts
+        const existingCounties = await apiService.fetchModuleRecords('counties');
+        const existingConstituencies = await apiService.fetchModuleRecords('constituencies');
+        const existingWards = await apiService.fetchModuleRecords('wards');
+
         const countiesToSave: any[] = [];
         const constituenciesToSave: any[] = [];
         const wardsToSave: any[] = [];
         
         const uniqueCounties = new Set<string>();
-        const uniqueCountyCodes = new Set<string>();
-        const uniqueConstituencies = new Set<string>(); // key: countyName_constituencyName
-        const uniqueWards = new Set<string>(); // key: constituencyName_wardName_countyName
+        const uniqueConstituencies = new Set<string>();
+        const uniqueWards = new Set<string>();
 
         // Pass 1: Collect unique entities
         for (let i = 0; i < rawData.length; i++) {
@@ -133,7 +138,6 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
             const cName = String(row[mapping.countyName] || '').trim();
             const conName = String(row[mapping.constituencyName] || '').trim();
             const wName = String(row[mapping.wardName] || '').trim();
-            const cCode = row[mapping.countyCode!] ? String(row[mapping.countyCode!]) : null;
 
             if (!cName || !conName || !wName) continue;
 
@@ -141,44 +145,59 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
             const conSlug = slugify(conName);
             const wSlug = slugify(wName);
 
-            // County
-            if (!uniqueCounties.has(cName)) {
-                const finalCode = (cCode && !uniqueCountyCodes.has(cCode)) ? cCode : null;
-                const cId = `county_${cSlug}`;
-                
+            // 1. County Lookup/Creation
+            let county = existingCounties.find(ex => ex.name.toLowerCase() === cName.toLowerCase());
+            let countyId = county?.id;
+
+            if (!countyId && !uniqueCounties.has(cName)) {
+                countyId = `county_${cSlug}`;
                 countiesToSave.push({
-                    id: cId,
+                    id: countyId,
                     name: cName,
-                    code: finalCode,
+                    code: row[mapping.countyCode!] ? String(row[mapping.countyCode!]) : null,
                     email: row[mapping.email!] || `info@${cSlug}.go.ke`,
                     phoneNumber: row[mapping.phoneNumber!] || '0700000000',
                     status: 'active',
                     createdAt: new Date().toISOString()
                 });
                 uniqueCounties.add(cName);
-                if (finalCode) uniqueCountyCodes.add(finalCode);
+            } else if (countyId) {
+                uniqueCounties.add(cName); // Mark as processed
             }
 
-            // Constituency
-            const conKey = `${cName}_${conName}`;
-            if (!uniqueConstituencies.has(conKey)) {
-                const conId = `con_${cSlug}_${conSlug}`;
+            // 2. Constituency Lookup/Creation
+            const conKey = `${cName.toLowerCase()}_${conName.toLowerCase()}`;
+            let constituency = existingConstituencies.find(ex => 
+                ex.name.toLowerCase() === conName.toLowerCase() && 
+                (ex.countyId === countyId || existingCounties.find(ec => ec.id === ex.countyId)?.name.toLowerCase() === cName.toLowerCase())
+            );
+            let conId = constituency?.id;
+
+            if (!conId && !uniqueConstituencies.has(conKey)) {
+                conId = `con_${cSlug}_${conSlug}`;
                 constituenciesToSave.push({
                     id: conId,
-                    countyId: `county_${cSlug}`,
+                    countyId: countyId,
                     name: conName,
                     code: row[mapping.constituencyCode!] ? String(row[mapping.constituencyCode!]) : null,
                     createdAt: new Date().toISOString()
                 });
                 uniqueConstituencies.add(conKey);
+            } else if (conId) {
+                uniqueConstituencies.add(conKey);
             }
 
-            // Ward
-            const wardKey = `${cName}_${conName}_${wName}`;
-            if (!uniqueWards.has(wardKey)) {
+            // 3. Ward Lookup/Creation
+            const wardKey = `${cName.toLowerCase()}_${conName.toLowerCase()}_${wName.toLowerCase()}`;
+            let ward = existingWards.find(ex => 
+                ex.name.toLowerCase() === wName.toLowerCase() && 
+                (ex.constituencyId === conId || existingConstituencies.find(ec => ec.id === ex.constituencyId)?.name.toLowerCase() === conName.toLowerCase())
+            );
+
+            if (!ward && !uniqueWards.has(wardKey)) {
                 wardsToSave.push({
                     id: `ward_${cSlug}_${conSlug}_${wSlug}`,
-                    constituencyId: `con_${cSlug}_${conSlug}`,
+                    constituencyId: conId,
                     name: wName,
                     code: row[mapping.wardCode!] ? String(row[mapping.wardCode!]) : null,
                     createdAt: new Date().toISOString()
