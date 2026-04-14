@@ -564,13 +564,71 @@ export const generateAIContent = async (prompt: string): Promise<string> => {
 };
 
 export const analyzePoliticalRegistrySpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
+    const defaultMapping = {
+        countyCode: null,
+        countyName: null,
+        constituencyCode: null,
+        constituencyName: null,
+        wardCode: null,
+        wardName: null
+    };
+
     try {
         checkAiAvailable();
-        const prompt = `Map these spreadsheet headers to political registry fields: countyCode, countyName, constituencyCode, constituencyName, wardCode, wardName. Headers: ${JSON.stringify(headers)}. Return ONLY a JSON object mapping fields to the corresponding spreadsheet headers. Use null for missing fields.`;
+        const prompt = `
+            Act as a Data Integrator. Map these spreadsheet headers to the IEBC Political Registry structure.
+            
+            Target Fields:
+            - countyCode: The numeric or short code for the county (e.g. 047)
+            - countyName: The full name of the county
+            - constituencyCode: The code for the constituency
+            - constituencyName: The name of the electoral constituency
+            - wardCode: The unique code for the ward
+            - wardName: The name of the ward
+            
+            Spreadsheet Headers: ${JSON.stringify(headers)}
+            
+            Return ONLY a JSON object mapping these 6 Target Fields to the corresponding original Spreadsheet Headers. If a field is not found, use null as the value.
+        `;
+
         const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
-        return sanitizeAndParseJson(response.text || "{}");
+        const aiMapping = sanitizeAndParseJson(response.text || "{}");
+        
+        // Merge with defaults to ensure all keys are present
+        return { ...defaultMapping, ...aiMapping };
+    }
+};
+
+export const analyzeVoterSpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
+    const defaultMapping = {
+        voterName: null,
+        phoneNumber: null,
+        idNumber: null,
+        votingCenter: null,
+        ward: null,
+        status: null
+    };
+
+    try {
+        checkAiAvailable();
+        const prompt = `
+            Act as a Campaign Data Analyst. Map these headers to voter contact fields:
+            - voterName: Full name of the voter
+            - phoneNumber: Contact number
+            - idNumber: ID or Passport number
+            - votingCenter: The specific polling station
+            - ward: The electoral ward
+            - status: Supporter status (Supporter, Undecided, etc.)
+            
+            Spreadsheet Headers: ${JSON.stringify(headers)}
+            
+            Return ONLY a JSON object mapping these 6 fields to the original headers. Use null if not found.
+        `;
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
+        const aiMapping = sanitizeAndParseJson(response.text || "{}");
+        return { ...defaultMapping, ...aiMapping };
     } catch (error) {
-        console.error("AI political registry map error:", error);
-        return {};
+        console.error("AI voter map error:", error);
+        return defaultMapping;
     }
 };

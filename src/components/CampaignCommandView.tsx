@@ -4,8 +4,10 @@ import {
     SparklesIcon, MapPinIcon, ChatBubbleLeftRightIcon,
     SpeakerWaveIcon, DocumentTextIcon, ArrowPathIcon,
     HeartIcon, ShieldCheckIcon, MegaphoneIcon,
-    PhotoIcon, PlusIcon, XIcon, VideoCameraIcon, CameraIcon, DevicePhoneMobileIcon
+    PhotoIcon, PlusIcon, XIcon, VideoCameraIcon, CameraIcon, DevicePhoneMobileIcon,
+    ArrowUpTrayIcon
 } from './icons';
+import { SmartPoliticalImporterModal } from './SmartPoliticalImporterModal';
 import { CampaignProfile, VoterOutreach, CampaignEvent, User, PoliticalParty, County, Constituency, Ward } from '../types';
 import { apiService } from '../services/apiService';
 import { generateAIContent } from '../services/geminiService';
@@ -24,6 +26,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
     const [generatingManifesto, setGeneratingManifesto] = useState(false);
     const [activeTab, setActiveTab] = useState<'dashboard' | 'voters' | 'events' | 'manifesto' | 'ai_pulse' | 'branding' | 'settings'>('dashboard');
     const [showProfileModal, setShowProfileModal] = useState(false);
+    const [showVoterImportModal, setShowVoterImportModal] = useState(false);
     const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
     const [isEventModalOpen, setIsEventModalOpen] = useState(false);
     const [editProfile, setEditProfile] = useState<Partial<CampaignProfile>>({});
@@ -94,6 +97,15 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
             console.error(e);
         } finally {
             setGeneratingManifesto(false);
+        }
+    };
+
+    const fetchVoters = async (campaignId: string) => {
+        try {
+            const vData = await apiService.fetchModuleRecords<VoterOutreach>('voter_outreach', 'campaignId', campaignId);
+            setVoters(vData);
+        } catch (e) {
+            console.error(e);
         }
     };
 
@@ -551,12 +563,36 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
             {activeTab === 'voters' && (
                 <div className="space-y-8 animate-fade-in-up">
                     <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 shadow-xl border border-slate-100 dark:border-slate-800">
-                        <h3 className="text-2xl font-black uppercase tracking-tighter mb-6 flex items-center gap-3">
-                            <UserGroupIcon className="w-8 h-8 text-indigo-600" />
-                            Voter Prospect Discovery (AI Lead Scout)
-                        </h3>
-                        <LeadScoutManager defaultNiche={profile.constituencyWard + " Political Campaign"} />
+                        <div className="flex justify-between items-center mb-10">
+                            <div>
+                                <h3 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
+                                    <UserGroupIcon className="w-8 h-8 text-indigo-600" />
+                                    Voter Network
+                                </h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 ml-11">Manage and track your official campaign supporters</p>
+                            </div>
+                            <button 
+                                onClick={() => setShowVoterImportModal(true)}
+                                className="bg-slate-100 dark:bg-slate-800 text-indigo-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2 border border-slate-200 dark:border-slate-700 shadow-sm"
+                            >
+                                <ArrowUpTrayIcon className="w-4 h-4" />
+                                Import Excel
+                            </button>
+                        </div>
+                        
+                        <div className="mb-12">
+                            <LeadScoutManager defaultNiche={profile?.constituencyWard + " Political Campaign"} />
+                        </div>
                     </div>
+
+                    {showVoterImportModal && profile && (
+                        <SmartPoliticalImporterModal 
+                            type="voters"
+                            campaignId={profile.id}
+                            onClose={() => setShowVoterImportModal(false)}
+                            onRefresh={() => fetchVoters(profile.id)}
+                        />
+                    )}
                 </div>
             )}
 
