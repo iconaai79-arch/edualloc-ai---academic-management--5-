@@ -1509,6 +1509,12 @@ Please change it after login.`;
                                 Counties
                             </button>
                             <button
+                                onClick={() => setInstitutionsSubTab('political')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${institutionsSubTab === 'political' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Political Data
+                            </button>
+                            <button
                                 onClick={() => setInstitutionsSubTab('resellers')}
                                 className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${institutionsSubTab === 'resellers' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
                             >
@@ -1610,6 +1616,10 @@ Please change it after login.`;
                                     </div>
                                 </div>
                             </div>
+                        )}
+
+                        {institutionsSubTab === 'political' && (
+                            <PoliticalMetadataManager />
                         )}
 
                         {institutionsSubTab === 'list' && (
@@ -4799,6 +4809,186 @@ Please change it after login.`;
                     </div>
                 </div>
             )}
+        </div>
+    );
+};
+
+const PoliticalMetadataManager: React.FC = () => {
+    const [tab, setTab] = useState<'parties' | 'constituencies' | 'wards'>('parties');
+    const [counties, setCounties] = useState<County[]>([]);
+    const [parties, setParties] = useState<PoliticalParty[]>([]);
+    const [constituencies, setConstituencies] = useState<Constituency[]>([]);
+    const [wards, setWards] = useState<Ward[]>([]);
+    
+    const [loading, setLoading] = useState(true);
+    const [showAdd, setShowAdd] = useState(false);
+    
+    // Form states
+    const [newName, setNewName] = useState('');
+    const [newAcronym, setNewAcronym] = useState('');
+    const [selectedCounty, setSelectedCounty] = useState('');
+    const [selectedConstituency, setSelectedConstituency] = useState('');
+
+    useEffect(() => {
+        loadData();
+    }, []);
+
+    const loadData = async () => {
+        setLoading(true);
+        try {
+            const [cData, pData, conData, wData] = await Promise.all([
+                apiService.fetchModuleRecords<County>('counties'),
+                apiService.fetchModuleRecords<PoliticalParty>('political_parties'),
+                apiService.fetchModuleRecords<Constituency>('constituencies'),
+                apiService.fetchModuleRecords<Ward>('wards')
+            ]);
+            setCounties(cData);
+            setParties(pData);
+            setConstituencies(conData);
+            setWards(wData);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleAddItem = async () => {
+        if (!newName) return;
+        try {
+            if (tab === 'parties') {
+                await apiService.saveModuleRecord('political_parties', {
+                    id: `party_${Date.now()}`,
+                    name: newName,
+                    acronym: newAcronym,
+                    createdAt: new Date().toISOString()
+                });
+            } else if (tab === 'constituencies') {
+                if (!selectedCounty) return;
+                await apiService.saveModuleRecord('constituencies', {
+                    id: `con_${Date.now()}`,
+                    countyId: selectedCounty,
+                    name: newName,
+                    createdAt: new Date().toISOString()
+                });
+            } else if (tab === 'wards') {
+                if (!selectedConstituency) return;
+                await apiService.saveModuleRecord('wards', {
+                    id: `ward_${Date.now()}`,
+                    constituency_id: selectedConstituency,
+                    name: newName,
+                    createdAt: new Date().toISOString()
+                });
+            }
+            setShowAdd(false);
+            setNewName('');
+            setNewAcronym('');
+            loadData();
+        } catch (e) {
+            console.error(e);
+            alert("Error adding metadata.");
+        }
+    };
+
+    if (loading) return <ArrowPathIcon className="w-10 h-10 animate-spin text-indigo-500 mx-auto" />;
+
+    return (
+        <div className="space-y-8 animate-fade-in">
+            <div className="flex bg-slate-100 dark:bg-slate-930 p-2 rounded-2xl w-fit">
+                {['parties', 'constituencies', 'wards'].map(t => (
+                    <button 
+                        key={t}
+                        onClick={() => setTab(t as any)}
+                        className={`px-8 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${tab === t ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                        {t}
+                    </button>
+                ))}
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 p-12 rounded-[3.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                <div className="flex justify-between items-center mb-12">
+                    <div>
+                        <h3 className="text-3xl font-black uppercase tracking-tighter">Political Registry</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Manage global {tab} for all campaigns</p>
+                    </div>
+                    <button 
+                        onClick={() => setShowAdd(!showAdd)}
+                        className="btn-primary h-12 px-8 flex items-center gap-2"
+                    >
+                        {showAdd ? <XIcon className="w-4 h-4" /> : <PlusIcon className="w-4 h-4" />}
+                        Add {tab.slice(0, -1)}
+                    </button>
+                </div>
+
+                {showAdd && (
+                    <div className="mb-12 p-8 bg-slate-50 dark:bg-slate-930 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {tab === 'constituencies' && (
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Select County</label>
+                                    <select value={selectedCounty} onChange={e => setSelectedCounty(e.target.value)} className="form-select">
+                                        <option value="">Choose County...</option>
+                                        {counties.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                </div>
+                            )}
+                            {tab === 'wards' && (
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Select Constituency</label>
+                                    <select value={selectedConstituency} onChange={e => setSelectedConstituency(e.target.value)} className="form-select">
+                                        <option value="">Choose Constituency...</option>
+                                        {constituencies.map(c => <option key={c.id} value={c.id}>{c.name} ({counties.find(co => co.id === c.countyId)?.name})</option>)}
+                                    </select>
+                                </div>
+                            )}
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">{tab.slice(0, -1)} Name</label>
+                                <input value={newName} onChange={e => setNewName(e.target.value)} className="form-input" placeholder="e.g. Jubilee Party, Westlands, etc." />
+                            </div>
+                            {tab === 'parties' && (
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Acronym</label>
+                                    <input value={newAcronym} onChange={e => setNewAcronym(e.target.value)} className="form-input" placeholder="e.g. JP, ODM, UDA" />
+                                </div>
+                            )}
+                        </div>
+                        <button onClick={handleAddItem} className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest">Register {tab.slice(0, -1)}</button>
+                    </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {tab === 'parties' && parties.map(p => (
+                        <div key={p.id} className="p-6 bg-slate-50 dark:bg-slate-930 rounded-3xl flex justify-between items-center group">
+                            <div>
+                                <h5 className="font-black text-slate-900 dark:text-white uppercase text-base">{p.name}</h5>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{p.acronym || 'No Acronym'}</span>
+                            </div>
+                            <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center font-black text-indigo-600 border border-slate-100 dark:border-slate-700 shadow-sm">
+                                {p.acronym?.slice(0, 2) || p.name.slice(0, 2)}
+                            </div>
+                        </div>
+                    ))}
+
+                    {tab === 'constituencies' && constituencies.map(c => (
+                        <div key={c.id} className="p-6 bg-slate-50 dark:bg-slate-930 rounded-3xl group">
+                            <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1 block">
+                                {counties.find(co => co.id === c.countyId)?.name || 'Unknown County'}
+                            </span>
+                            <h5 className="font-black text-slate-900 dark:text-white uppercase text-base">{c.name}</h5>
+                        </div>
+                    ))}
+
+                    {tab === 'wards' && wards.map(w => (
+                        <div key={w.id} className="p-6 bg-slate-50 dark:bg-slate-930 rounded-3xl group">
+                            <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1 block">
+                                {constituencies.find(con => con.id === (w as any).constituency_id)?.name || 'Unknown Constituency'}
+                            </span>
+                            <h5 className="font-black text-slate-900 dark:text-white uppercase text-base">{w.name}</h5>
+                        </div>
+                    ))}
+                </div>
+            </div>
         </div>
     );
 };

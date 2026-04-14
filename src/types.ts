@@ -190,6 +190,29 @@ export interface County {
     website?: string;
 }
 
+export interface PoliticalParty {
+    id: string;
+    name: string;
+    acronym?: string;
+    logoUrl?: string;
+    description?: string;
+    createdAt?: string;
+}
+
+export interface Constituency {
+    id: string;
+    countyId: string;
+    name: string;
+    createdAt?: string;
+}
+
+export interface Ward {
+    id: string;
+    constituencyId: string;
+    name: string;
+    createdAt?: string;
+}
+
 export interface CoopSettings {
     payoutRate?: number;
     milkPrice?: number;
