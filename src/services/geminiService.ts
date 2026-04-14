@@ -226,11 +226,11 @@ export const generateTimetable = async (
             }))
         })))}
             - Operating Parameters: ${JSON.stringify({ start: settings.startTime, end: settings.endTime, days: settings.operatingDays })}
-            - Curriculum Schedule Profiles: ${JSON.stringify(profiles)}
+            - Curriculum Schedule Profiles: ${JSON.stringify(profiles.map(p => ({ id: p.id, name: p.name, slots: p.slots })))}
             - Global Institutional Breaks: ${JSON.stringify(settings.breaks)}
-            - Subject Association Constraints: ${JSON.stringify(settings.constraints)}
+            - Subject Association Constraints: ${JSON.stringify((settings.constraints || []).map(c => ({ subjects: c.subjectIds, type: c.type })))}
             - Faculty Governance Rules (Teacher Logic): ${JSON.stringify(settings.teacherRules)}
-            - Faculty Time-Off Redlines: ${JSON.stringify(timeOffRequests)}
+            - Faculty Time-Off Redlines: ${JSON.stringify((timeOffRequests || []).filter(r => r.status === 'approved').map(r => ({ lecturerId: r.userId, start: r.startDate, end: r.endDate })))}
             
             NON-NEGOTIABLE HEURISTICS - YOU MUST STRICTLY ENFORCE THESE RULES:
 

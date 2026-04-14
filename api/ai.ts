@@ -13,6 +13,10 @@ const getSafeKey = () => {
 const apiKey = getSafeKey();
 const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
+export const config = {
+    maxDuration: 60
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // CORS headers
     res.setHeader('Access-Control-Allow-Credentials', 'true');
