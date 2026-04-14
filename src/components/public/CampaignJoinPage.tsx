@@ -12,7 +12,7 @@ import {
     CheckCircle2
 } from 'lucide-react';
 import { apiService } from '../../services/apiService';
-import { CampaignProfile } from '../types';
+import { CampaignProfile } from '../../types';
 
 interface CampaignJoinPageProps {
     campaignId: string;

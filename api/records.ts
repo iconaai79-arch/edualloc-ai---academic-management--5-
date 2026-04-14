@@ -77,7 +77,7 @@ async function getAuthUser(supabase: any, authHeader?: string) {
   return null;
 }
 
-const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings', 'pm_listings', 'retail_inventory_items', 'school_registry', 'car_sales_listings'];
+const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings', 'pm_listings', 'retail_inventory_items', 'school_registry', 'car_sales_listings', 'campaign_profiles'];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -101,7 +101,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const user = await getAuthUser(supabase, authHeader);
         const isPublicModule = PUBLIC_MODULES.includes(moduleName);
         const isPublicGet = req.method === 'GET' && isPublicModule;
-        const isRegistration = req.method === 'POST' && (['users', 'institutions', 'counties', 'demo_requests', 'pm_inquiries', 'retail_wishlist', 'app_notifications'].includes(moduleName));
+        const isRegistration = req.method === 'POST' && (['users', 'institutions', 'counties', 'demo_requests', 'pm_inquiries', 'retail_wishlist', 'app_notifications', 'voter_outreach'].includes(moduleName));
         
         if (!user && !isPublicGet && !isRegistration) {
             const tokenSnippet = authHeader ? `${authHeader.substring(0, 15)}... (len: ${authHeader.length})` : 'NONE';
