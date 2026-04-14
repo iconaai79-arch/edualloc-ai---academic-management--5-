@@ -32,7 +32,7 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
 
     const getTargetFields = () => {
         if (type === 'registry') {
-            return ['countyCode', 'countyName', 'constituencyCode', 'constituencyName', 'wardCode', 'wardName'];
+            return ['countyCode', 'countyName', 'constituencyCode', 'constituencyName', 'wardCode', 'wardName', 'email', 'phoneNumber'];
         }
         return ['voterName', 'phoneNumber', 'idNumber', 'votingCenter', 'ward', 'status'];
     };
@@ -119,10 +119,13 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
             // County
             if (!uniqueCounties.has(cName)) {
                 const cId = `cty_${Date.now()}_${uniqueCounties.size}`;
+                const safeName = cName.toLowerCase().replace(/\s+/g, '');
                 countiesToSave.push({
                     id: cId,
                     name: cName,
                     code: String(row[mapping.countyCode!] || ''),
+                    email: row[mapping.email!] || `info@${safeName}.go.ke`,
+                    phoneNumber: row[mapping.phoneNumber!] || '0700000000',
                     status: 'active',
                     createdAt: new Date().toISOString()
                 });
