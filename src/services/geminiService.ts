@@ -563,20 +563,15 @@ export const generateAIContent = async (prompt: string): Promise<string> => {
     }
 };
 
-export const analyzePoliticalRegistrySpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
-    const defaultMapping = {
+export const analyzePoliticalRegistrySpreadsheet = async (headers: string[], type: 'registry' | 'voter' = 'registry'): Promise<Record<string, string | null>> => {
+    const defaultMapping = type === 'registry' ? {
         countyCode: null,
         countyName: null,
         constituencyCode: null,
         constituencyName: null,
         wardCode: null,
-        wardName: null
-    };
-
-    try {
-        checkAiAvailable();
-        const prompt = `
-            Act as a Data Integrator. Map these spreadsheet headers to the IEBC Political Registry structure.
+        wardName: null,
+        registeredVoters: null
             
             Target Fields:
             - countyCode: The numeric or short code for the county (e.g. 047)
@@ -585,10 +580,11 @@ export const analyzePoliticalRegistrySpreadsheet = async (headers: string[]): Pr
             - constituencyName: The name of the electoral constituency
             - wardCode: The unique code for the ward
             - wardName: The name of the ward
+            - registeredVoters: The total number of registered voters in the ward (integer)
             
             Spreadsheet Headers: ${JSON.stringify(headers)}
             
-            Return ONLY a JSON object mapping these 6 Target Fields to the corresponding original Spreadsheet Headers. If a field is not found, use null as the value.
+            Return ONLY a JSON object mapping these 7 Target Fields to the corresponding original Spreadsheet Headers. If a field is not found, use null as the value.
         `;
 
         const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });

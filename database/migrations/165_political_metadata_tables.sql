@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS wards (
     constituency_id TEXT REFERENCES constituencies(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     code TEXT,
+    registered_voters INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

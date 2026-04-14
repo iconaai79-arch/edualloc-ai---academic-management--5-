@@ -5167,11 +5167,19 @@ const PoliticalMetadataManager: React.FC = () => {
                                 return true;
                             })
                             .map(w => (
-                                <div key={String(w.id)} className="p-8 bg-slate-50 dark:bg-slate-930 rounded-[2.5rem] group border border-transparent hover:border-indigo-100 dark:hover:border-indigo-900 transition-all shadow-sm">
-                                    <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1 block">
-                                        {constituencies.find(con => String(con.id) === String(w.constituencyId))?.name || 'Unknown Constituency'}
-                                    </span>
-                                    <h5 className="font-black text-slate-900 dark:text-white uppercase text-base leading-tight">{w.name}</h5>
+                                <div key={String(w.id)} className="p-8 bg-slate-50 dark:bg-slate-930 rounded-[2.5rem] group border border-transparent hover:border-indigo-100 dark:hover:border-indigo-900 transition-all shadow-sm flex justify-between items-end">
+                                    <div>
+                                        <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1 block">
+                                            {constituencies.find(con => String(con.id) === String(w.constituencyId))?.name || 'Unknown Constituency'}
+                                        </span>
+                                        <h5 className="font-black text-slate-900 dark:text-white uppercase text-base leading-tight">{w.name}</h5>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Registered Voters</span>
+                                        <span className="bg-white dark:bg-slate-800 px-3 py-1 rounded-full text-[10px] font-black text-indigo-600 border border-slate-100 dark:border-slate-700 shadow-sm">
+                                            {(w as any).registeredVoters?.toLocaleString() || '0'}
+                                        </span>
+                                    </div>
                                 </div>
                             ))
                     )}
