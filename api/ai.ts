@@ -14,7 +14,12 @@ const apiKey = getSafeKey();
 const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
 export const config = {
-    maxDuration: 60
+    maxDuration: 60,
+    api: {
+        bodyParser: {
+            sizeLimit: '10mb'
+        }
+    }
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

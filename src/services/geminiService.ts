@@ -57,8 +57,13 @@ const safeGenerateContent = async (prompt: string, config: any = {}, preferredMo
         });
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.message || errorData.error || `AI Service Error: ${response.status}`);
+            let errorText = '';
+            const errorData = await response.json().catch(async () => {
+                errorText = await response.text().catch(() => 'Unable to read error text');
+                console.error("[System Debug] Server returned Non-JSON Error Response:", errorText.substring(0, 500));
+                return {};
+            });
+            throw new Error(errorData.message || errorData.error || `AI Service Error: ${response.status} - ${errorText.substring(0, 50)}`);
         }
 
         const contentType = response.headers.get('content-type');
