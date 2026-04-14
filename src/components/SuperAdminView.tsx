@@ -4969,6 +4969,20 @@ const PoliticalMetadataManager: React.FC = () => {
         }
     };
 
+    const getConstituencyVoters = (conId: string) => {
+        return wards
+            .filter(w => String(w.constituencyId) === String(conId))
+            .reduce((sum, w) => sum + (Number((w as any).registeredVoters) || 0), 0);
+    };
+
+    const getSelectedCountyVoters = () => {
+        if (!selectedCounty) return 0;
+        const countyCons = constituencies.filter(c => String(c.countyId) === String(selectedCounty)).map(c => String(c.id));
+        return wards
+            .filter(w => countyCons.includes(String(w.constituencyId)))
+            .reduce((sum, w) => sum + (Number((w as any).registeredVoters) || 0), 0);
+    };
+
     const handleAddItem = async () => {
         if (!newName) return;
         try {
@@ -5046,19 +5060,29 @@ const PoliticalMetadataManager: React.FC = () => {
                     </div>
 
                     {(tab === 'constituencies' || tab === 'wards') && (
-                        <div className="w-full md:w-64">
-                            <label className="text-[8px] font-black uppercase text-indigo-500 tracking-[0.2em] block mb-2 ml-1">Filter by County</label>
-                            <select 
-                                value={selectedCounty} 
-                                onChange={e => {
-                                    setSelectedCounty(e.target.value);
-                                    setSelectedConstituency(''); // Reset child when parent changes
-                                }} 
-                                className="form-select bg-slate-50 dark:bg-slate-900 border-none rounded-2xl h-12 text-[10px] font-bold uppercase tracking-widest"
-                            >
-                                <option value="">All Counties</option>
-                                {counties.map(c => <option key={String(c.id)} value={String(c.id)}>{c.name}</option>)}
-                            </select>
+                        <div className="flex flex-col md:flex-row items-center gap-6 w-full md:w-auto">
+                            <div className="w-full md:w-64">
+                                <label className="text-[8px] font-black uppercase text-indigo-500 tracking-[0.2em] block mb-2 ml-1">Filter by County</label>
+                                <select 
+                                    value={selectedCounty} 
+                                    onChange={e => {
+                                        setSelectedCounty(e.target.value);
+                                        setSelectedConstituency(''); 
+                                    }} 
+                                    className="form-select bg-slate-50 dark:bg-slate-900 border-none rounded-2xl h-12 w-full text-[10px] font-bold uppercase tracking-widest"
+                                >
+                                    <option value="">All Counties</option>
+                                    {counties.map(c => <option key={String(c.id)} value={String(c.id)}>{c.name}</option>)}
+                                </select>
+                            </div>
+                            {selectedCounty && (
+                                <div className="bg-indigo-50 dark:bg-indigo-950/30 px-6 py-3 rounded-2xl border border-indigo-100 dark:border-indigo-900/50">
+                                    <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest block mb-0.5">County Total</span>
+                                    <span className="text-lg font-black text-indigo-600 dark:text-indigo-400 leading-none">
+                                        {getSelectedCountyVoters().toLocaleString()}
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -5145,11 +5169,19 @@ const PoliticalMetadataManager: React.FC = () => {
                         constituencies
                             .filter(c => !selectedCounty || String(c.countyId) === String(selectedCounty))
                             .map(c => (
-                                <div key={String(c.id)} className="p-8 bg-slate-50 dark:bg-slate-930 rounded-[2.5rem] group border border-transparent hover:border-indigo-100 dark:hover:border-indigo-900 transition-all shadow-sm">
-                                    <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1 block">
-                                        {counties.find(co => String(co.id) === String(c.countyId))?.name || 'Unknown County'}
-                                    </span>
-                                    <h5 className="font-black text-slate-900 dark:text-white uppercase text-base leading-tight">{c.name}</h5>
+                                <div key={String(c.id)} className="p-8 bg-slate-50 dark:bg-slate-930 rounded-[2.5rem] group border border-transparent hover:border-indigo-100 dark:hover:border-indigo-900 transition-all shadow-sm flex justify-between items-end">
+                                    <div>
+                                        <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1 block">
+                                            {counties.find(co => String(co.id) === String(c.countyId))?.name || 'Unknown County'}
+                                        </span>
+                                        <h5 className="font-black text-slate-900 dark:text-white uppercase text-base leading-tight">{c.name}</h5>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Total Voters</span>
+                                        <span className="bg-white dark:bg-slate-800 px-3 py-1 rounded-full text-[10px] font-black text-indigo-600 border border-slate-100 dark:border-slate-700 shadow-sm">
+                                            {getConstituencyVoters(c.id).toLocaleString()}
+                                        </span>
+                                    </div>
                                 </div>
                             ))
                     )}
