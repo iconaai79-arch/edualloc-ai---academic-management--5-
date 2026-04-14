@@ -5039,12 +5039,30 @@ const PoliticalMetadataManager: React.FC = () => {
             )}
 
             <div className="bg-white dark:bg-slate-800 p-12 rounded-[3.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                <div className="flex justify-between items-center mb-12">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
                     <div>
                         <h3 className="text-3xl font-black uppercase tracking-tighter">Political Registry</h3>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Manage global {tab} for all campaigns</p>
                     </div>
-                    <div className="flex gap-4">
+
+                    {(tab === 'constituencies' || tab === 'wards') && (
+                        <div className="w-full md:w-64">
+                            <label className="text-[8px] font-black uppercase text-indigo-500 tracking-[0.2em] block mb-2 ml-1">Filter by County</label>
+                            <select 
+                                value={selectedCounty} 
+                                onChange={e => {
+                                    setSelectedCounty(e.target.value);
+                                    setSelectedConstituency(''); // Reset child when parent changes
+                                }} 
+                                className="form-select bg-slate-50 dark:bg-slate-900 border-none rounded-2xl h-12 text-[10px] font-bold uppercase tracking-widest"
+                            >
+                                <option value="">All Counties</option>
+                                {counties.map(c => <option key={String(c.id)} value={String(c.id)}>{c.name}</option>)}
+                            </select>
+                        </div>
+                    )}
+
+                    <div className="flex gap-4 w-full md:w-auto">
                         <button 
                             onClick={() => setIsImporterOpen(true)}
                             className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-6 h-12 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-2 border border-slate-200/50 dark:border-slate-700/50 shadow-sm"
@@ -5065,35 +5083,23 @@ const PoliticalMetadataManager: React.FC = () => {
                 {showAdd && (
                     <div className="mb-12 p-8 bg-slate-50 dark:bg-slate-930 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {tab === 'constituencies' && (
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Select County</label>
-                                    <select value={selectedCounty} onChange={e => setSelectedCounty(e.target.value)} className="form-select">
-                                        <option value="">Choose County...</option>
-                                        {counties.map(c => <option key={String(c.id)} value={String(c.id)}>{c.name}</option>)}
-                                    </select>
-                                </div>
-                            )}
                             {tab === 'wards' && (
-                                <>
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Select County First</label>
-                                        <select value={selectedCounty} onChange={e => setSelectedCounty(e.target.value)} className="form-select">
-                                            <option value="">Choose County...</option>
-                                            {counties.map(c => <option key={String(c.id)} value={String(c.id)}>{c.name}</option>)}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Select Constituency</label>
-                                        <select value={selectedConstituency} onChange={e => setSelectedConstituency(e.target.value)} className="form-select" disabled={!selectedCounty}>
-                                            <option value="">Choose Constituency...</option>
-                                            {constituencies
-                                                .filter(c => !selectedCounty || String(c.countyId) === String(selectedCounty))
-                                                .map(c => <option key={String(c.id)} value={String(c.id)}>{c.name}</option>)
-                                            }
-                                        </select>
-                                    </div>
-                                </>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Select Constituency</label>
+                                    <select 
+                                        value={selectedConstituency} 
+                                        onChange={e => setSelectedConstituency(e.target.value)} 
+                                        className="form-select"
+                                        disabled={!selectedCounty}
+                                    >
+                                        <option value="">Choose Constituency...</option>
+                                        {constituencies
+                                            .filter(c => !selectedCounty || String(c.countyId) === String(selectedCounty))
+                                            .map(c => <option key={String(c.id)} value={String(c.id)}>{c.name}</option>)
+                                        }
+                                    </select>
+                                    {!selectedCounty && <p className="text-[9px] text-amber-600 mt-2 font-bold italic">Please select a county above first</p>}
+                                </div>
                             )}
                             <div>
                                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">{tab.slice(0, -1)} Name</label>
@@ -5106,52 +5112,69 @@ const PoliticalMetadataManager: React.FC = () => {
                                 </div>
                             )}
                         </div>
-                        <button onClick={handleAddItem} className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest">Register {tab.slice(0, -1)}</button>
+                        <button onClick={handleAddItem} className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-indigo-100 dark:shadow-none hover:scale-105 active:scale-95 transition-all">Register {tab.slice(0, -1)}</button>
                     </div>
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {tab === 'parties' && parties.map(p => (
-                        <div key={p.id} className="p-6 bg-slate-50 dark:bg-slate-930 rounded-3xl flex justify-between items-center group">
+                        <div key={String(p.id)} className="p-6 bg-slate-50 dark:bg-slate-930 rounded-3xl flex justify-between items-center group border border-transparent shadow-sm">
                             <div>
                                 <h5 className="font-black text-slate-900 dark:text-white uppercase text-base">{p.name}</h5>
                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{p.acronym || 'No Acronym'}</span>
                             </div>
-                            <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center font-black text-indigo-600 border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center font-black text-indigo-600 border border-slate-100 dark:border-slate-700 shadow-sm transition-transform group-hover:rotate-12">
                                 {p.acronym?.slice(0, 2) || p.name.slice(0, 2)}
                             </div>
                         </div>
                     ))}
 
                     {tab === 'counties' && counties.map(c => (
-                        <div key={c.id} className="p-6 bg-slate-50 dark:bg-slate-930 rounded-3xl flex justify-between items-center group">
+                        <div key={String(c.id)} className="p-6 bg-slate-50 dark:bg-slate-930 rounded-3xl flex justify-between items-center group border border-transparent shadow-sm">
                             <div>
                                 <h5 className="font-black text-slate-900 dark:text-white uppercase text-base">{c.name}</h5>
                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Code: {c.code || 'N/A'}</span>
                             </div>
-                            <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center font-black text-indigo-600 border border-slate-100 dark:border-slate-700 shadow-sm uppercase">
+                            <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center font-black text-indigo-600 border border-slate-100 dark:border-slate-700 shadow-sm uppercase transition-transform group-hover:rotate-6">
                                 {c.code?.slice(0, 3) || c.name.slice(0, 2)}
                             </div>
                         </div>
                     ))}
 
-                    {tab === 'constituencies' && constituencies.map(c => (
-                        <div key={String(c.id)} className="p-6 bg-slate-50 dark:bg-slate-930 rounded-3xl group">
-                            <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1 block">
-                                {counties.find(co => String(co.id) === String(c.countyId))?.name || 'Unknown County'}
-                            </span>
-                            <h5 className="font-black text-slate-900 dark:text-white uppercase text-base">{c.name}</h5>
-                        </div>
-                    ))}
+                    {tab === 'constituencies' && (
+                        constituencies
+                            .filter(c => !selectedCounty || String(c.countyId) === String(selectedCounty))
+                            .map(c => (
+                                <div key={String(c.id)} className="p-8 bg-slate-50 dark:bg-slate-930 rounded-[2.5rem] group border border-transparent hover:border-indigo-100 dark:hover:border-indigo-900 transition-all shadow-sm">
+                                    <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1 block">
+                                        {counties.find(co => String(co.id) === String(c.countyId))?.name || 'Unknown County'}
+                                    </span>
+                                    <h5 className="font-black text-slate-900 dark:text-white uppercase text-base leading-tight">{c.name}</h5>
+                                </div>
+                            ))
+                    )}
 
-                    {tab === 'wards' && wards.map(w => (
-                        <div key={String(w.id)} className="p-6 bg-slate-50 dark:bg-slate-930 rounded-3xl group">
-                            <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1 block">
-                                {constituencies.find(con => String(con.id) === String(w.constituencyId))?.name || 'Unknown Constituency'}
-                            </span>
-                            <h5 className="font-black text-slate-900 dark:text-white uppercase text-base">{w.name}</h5>
-                        </div>
-                    ))}
+                    {tab === 'wards' && (
+                        wards
+                            .filter(w => {
+                                if (!selectedCounty && !selectedConstituency) return true;
+                                if (selectedConstituency) return String(w.constituencyId) === String(selectedConstituency);
+                                // If only county selected, find if ward's constituency belongs to that county
+                                if (selectedCounty) {
+                                    const con = constituencies.find(c => String(c.id) === String(w.constituencyId));
+                                    return con && String(con.countyId) === String(selectedCounty);
+                                }
+                                return true;
+                            })
+                            .map(w => (
+                                <div key={String(w.id)} className="p-8 bg-slate-50 dark:bg-slate-930 rounded-[2.5rem] group border border-transparent hover:border-indigo-100 dark:hover:border-indigo-900 transition-all shadow-sm">
+                                    <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1 block">
+                                        {constituencies.find(con => String(con.id) === String(w.constituencyId))?.name || 'Unknown Constituency'}
+                                    </span>
+                                    <h5 className="font-black text-slate-900 dark:text-white uppercase text-base leading-tight">{w.name}</h5>
+                                </div>
+                            ))
+                    )}
                 </div>
             </div>
         </div>
