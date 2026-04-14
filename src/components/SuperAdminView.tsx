@@ -5175,7 +5175,9 @@ const PoliticalMetadataManager: React.FC = () => {
                                         <h5 className="font-black text-slate-900 dark:text-white uppercase text-base leading-tight">{w.name}</h5>
                                     </div>
                                     <div className="text-right">
-                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Registered Voters</span>
+                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">
+                                            { (w as any).electionYear ? `Voters (${(w as any).electionYear})` : 'Registered Voters' }
+                                        </span>
                                         <span className="bg-white dark:bg-slate-800 px-3 py-1 rounded-full text-[10px] font-black text-indigo-600 border border-slate-100 dark:border-slate-700 shadow-sm">
                                             {(w as any).registeredVoters?.toLocaleString() || '0'}
                                         </span>

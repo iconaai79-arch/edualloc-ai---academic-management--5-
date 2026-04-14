@@ -34,7 +34,7 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
 
     const getTargetFields = () => {
         if (type === 'registry') {
-            return ['countyCode', 'countyName', 'constituencyCode', 'constituencyName', 'wardCode', 'wardName', 'email', 'phoneNumber'];
+            return ['countyCode', 'countyName', 'constituencyCode', 'constituencyName', 'wardCode', 'wardName', 'email', 'phoneNumber', 'registeredVoters', 'electionYear'];
         }
         return ['voterName', 'phoneNumber', 'idNumber', 'votingCenter', 'ward', 'status'];
     };
@@ -197,6 +197,7 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
                     name: wName,
                     code: row[mapping.wardCode!] ? String(row[mapping.wardCode!]) : (ward?.code || null),
                     registeredVoters: row[mapping.registeredVoters!] ? parseInt(String(row[mapping.registeredVoters!]).replace(/[^\d]/g, ''), 10) || 0 : (ward?.registeredVoters || 0),
+                    electionYear: row[mapping.electionYear!] ? parseInt(String(row[mapping.electionYear!]).replace(/[^\d]/g, ''), 10) || (ward?.electionYear || null) : (ward?.electionYear || null),
                     createdAt: ward?.createdAt || new Date().toISOString()
                 });
                 uniqueWards.add(wardKey);

@@ -571,7 +571,8 @@ export const analyzePoliticalRegistrySpreadsheet = async (headers: string[]): Pr
         constituencyName: null,
         wardCode: null,
         wardName: null,
-        registeredVoters: null
+        registeredVoters: null,
+        electionYear: null
     };
 
     try {
@@ -587,10 +588,11 @@ export const analyzePoliticalRegistrySpreadsheet = async (headers: string[]): Pr
             - wardCode: The unique code for the ward
             - wardName: The name of the ward
             - registeredVoters: The total number of registered voters in the ward (integer)
+            - electionYear: The year of the election the voter count belongs to (e.g. 2022, 2027)
             
             Spreadsheet Headers: ${JSON.stringify(headers)}
             
-            Return ONLY a JSON object mapping these 7 Target Fields to the corresponding original Spreadsheet Headers. If a field is not found, use null as the value.
+            Return ONLY a JSON object mapping these 8 Target Fields to the corresponding original Spreadsheet Headers. If a field is not found, use null as the value.
         `;
 
         const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });

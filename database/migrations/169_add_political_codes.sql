@@ -1,8 +1,6 @@
 -- 169_add_political_codes.sql
--- Add missing code columns to constituencies and wards if they don't exist
-
+-- Add missing code and voter demographic columns to political tables
 ALTER TABLE IF EXISTS public.constituencies ADD COLUMN IF NOT EXISTS code TEXT;
 ALTER TABLE IF EXISTS public.wards ADD COLUMN IF NOT EXISTS code TEXT;
-
--- Refresh schema cache reminder:
--- If you are using PostgREST/Supabase, you may need to reload the schema cache.
+ALTER TABLE IF EXISTS public.wards ADD COLUMN IF NOT EXISTS registered_voters INTEGER DEFAULT 0;
+ALTER TABLE IF EXISTS public.wards ADD COLUMN IF NOT EXISTS election_year INTEGER;

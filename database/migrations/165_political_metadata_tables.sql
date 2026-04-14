@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS wards (
     name TEXT NOT NULL,
     code TEXT,
     registered_voters INTEGER DEFAULT 0,
+    election_year INTEGER,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
