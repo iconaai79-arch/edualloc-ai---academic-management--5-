@@ -87,92 +87,129 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
             onRefresh();
             setStep('success');
         } catch (err: any) {
-            setErrorMessage(err.message);
+            console.error("Historical Import Error:", err);
+            setErrorMessage(err.message || "An unexpected error occurred during import.");
             setStep('error');
         }
     };
 
     const importRegistry = async () => {
-        const countyMap = new Map<string, string>();
-        const constituencyMap = new Map<string, string>();
+        // Validation: Required fields check
+        if (!mapping.countyName || !mapping.constituencyName || !mapping.wardName) {
+            throw new Error("County, Constituency, and Ward names must be mapped to proceed.");
+        }
 
+        const countiesToSave: any[] = [];
+        const constituenciesToSave: any[] = [];
+        const wardsToSave: any[] = [];
+        
+        const uniqueCounties = new Set<string>();
+        const uniqueConstituencies = new Set<string>(); // key: countyName_constituencyName
+        const uniqueWards = new Set<string>(); // key: constituencyName_wardName
+
+        // Pass 1: Collect unique entities
         for (let i = 0; i < rawData.length; i++) {
             const row = rawData[i];
-            const cName = row[mapping.countyName!];
-            const cCode = row[mapping.countyCode!];
-            const conName = row[mapping.constituencyName!];
-            const conCode = row[mapping.constituencyCode!];
-            const wName = row[mapping.wardName!];
-            const wCode = row[mapping.wardCode!];
+            const cName = row[mapping.countyName];
+            const conName = row[mapping.constituencyName];
+            const wName = row[mapping.wardName];
 
             if (!cName || !conName || !wName) continue;
 
-            let countyId = countyMap.get(cName);
-            if (!countyId) {
-                countyId = `cty_${Date.now()}_${i}`;
-                await apiService.saveModuleRecord('counties', {
-                    id: countyId,
+            // County
+            if (!uniqueCounties.has(cName)) {
+                const cId = `cty_${Date.now()}_${uniqueCounties.size}`;
+                countiesToSave.push({
+                    id: cId,
                     name: cName,
-                    code: String(cCode || ''),
+                    code: String(row[mapping.countyCode!] || ''),
                     status: 'active',
                     createdAt: new Date().toISOString()
                 });
-                countyMap.set(cName, countyId);
+                uniqueCounties.add(cName);
             }
 
-            const conKey = `${countyId}_${conName}`;
-            let conId = constituencyMap.get(conKey);
-            if (!conId) {
-                conId = `con_${Date.now()}_${i}`;
-                await apiService.saveModuleRecord('constituencies', {
+            // Constituency
+            const conKey = `${cName}_${conName}`;
+            if (!uniqueConstituencies.has(conKey)) {
+                const conId = `con_${Date.now()}_${uniqueConstituencies.size}`;
+                constituenciesToSave.push({
                     id: conId,
-                    countyId: countyId,
+                    countyId: countiesToSave.find(c => c.name === cName)?.id,
                     name: conName,
-                    code: String(conCode || ''),
+                    code: String(row[mapping.constituencyCode!] || ''),
                     createdAt: new Date().toISOString()
                 });
-                constituencyMap.set(conKey, conId);
+                uniqueConstituencies.add(conKey);
             }
 
-            await apiService.saveModuleRecord('wards', {
-                id: `ward_${Date.now()}_${i}`,
-                constituency_id: conId,
-                name: wName,
-                code: String(wCode || ''),
-                createdAt: new Date().toISOString()
-            });
-
-            setProgress(Math.round(((i + 1) / rawData.length) * 100));
+            // Ward
+            const wardKey = `${conName}_${wName}`;
+            if (!uniqueWards.has(wardKey)) {
+                wardsToSave.push({
+                    id: `ward_${Date.now()}_${uniqueWards.size}`,
+                    constituencyId: constituenciesToSave.find(con => con.name === conName && countiesToSave.find(c => c.id === con.countyId)?.name === cName)?.id,
+                    name: wName,
+                    code: String(row[mapping.wardCode!] || ''),
+                    createdAt: new Date().toISOString()
+                });
+                uniqueWards.add(wardKey);
+            }
         }
+
+        // Pass 2: Save in hierarchy
+        if (countiesToSave.length > 0) {
+            setProgress(10);
+            await apiService.saveModuleRecords('counties', countiesToSave);
+        }
+        
+        if (constituenciesToSave.length > 0) {
+            setProgress(40);
+            await apiService.saveModuleRecords('constituencies', constituenciesToSave);
+        }
+        
+        if (wardsToSave.length > 0) {
+            setProgress(70);
+            await apiService.saveModuleRecords('wards', wardsToSave);
+        }
+        
+        setProgress(100);
     };
 
     const importVoters = async () => {
         if (!campaignId) throw new Error("Missing Campaign ID context.");
+        if (!mapping.phoneNumber) throw new Error("Phone Number must be mapped to import voters.");
+
+        const batchSize = 100;
+        const votersToSave: any[] = [];
 
         for (let i = 0; i < rawData.length; i++) {
             const row = rawData[i];
-            const voterName = row[mapping.voterName!];
-            const phoneNumber = String(row[mapping.phoneNumber!] || '');
-            const idNumber = String(row[mapping.idNumber!] || '');
-            const votingCenter = row[mapping.votingCenter!];
-            const ward = row[mapping.ward!];
-            const status = (row[mapping.status!] || 'uncontacted').toLowerCase();
+            const phoneNumber = String(row[mapping.phoneNumber] || '');
+            if (!phoneNumber || phoneNumber.length < 5) continue;
 
-            if (!phoneNumber) continue;
-
-            await apiService.saveModuleRecord('voter_outreach', {
+            votersToSave.push({
                 id: `voter_${Date.now()}_${i}`,
                 campaignId: campaignId,
-                voterName: voterName,
+                voterName: row[mapping.voterName!] || 'Anonymous Voter',
                 phoneNumber: phoneNumber,
-                idNumber: idNumber,
-                votingCenter: votingCenter,
-                ward: ward,
-                status: ['supporter', 'undecided', 'opposed', 'uncontacted'].includes(status) ? status : 'uncontacted',
+                idNumber: String(row[mapping.idNumber!] || ''),
+                votingCenter: row[mapping.votingCenter!] || '',
+                ward: row[mapping.ward!] || '',
+                status: (row[mapping.status!] || 'uncontacted').toLowerCase(),
                 createdAt: new Date().toISOString()
             });
 
-            setProgress(Math.round(((i + 1) / rawData.length) * 100));
+            if (votersToSave.length >= batchSize) {
+                await apiService.saveModuleRecords('voter_outreach', votersToSave);
+                votersToSave.length = 0;
+                setProgress(Math.round(((i + 1) / rawData.length) * 100));
+            }
+        }
+
+        if (votersToSave.length > 0) {
+            await apiService.saveModuleRecords('voter_outreach', votersToSave);
+            setProgress(100);
         }
     };
 
