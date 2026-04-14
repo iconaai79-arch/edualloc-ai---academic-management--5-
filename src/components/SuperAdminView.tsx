@@ -1489,12 +1489,18 @@ Please change it after login.`;
 
                 {activeTab === 'institutions' && (
                     <div className="space-y-6 animate-fade-in-up">
-                        <div className="flex bg-slate-100 dark:bg-slate-700 p-1.5 rounded-2xl w-fit mb-6">
+                        <div className="flex bg-slate-100 dark:bg-slate-700 p-1.5 rounded-2xl w-fit mb-6 overflow-x-auto max-w-full no-scrollbar">
                             <button
                                 onClick={() => setInstitutionsSubTab('list')}
-                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${institutionsSubTab === 'list' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${institutionsSubTab === 'list' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Tenant Registry
+                            </button>
+                            <button
+                                onClick={() => setInstitutionsSubTab('branding')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${institutionsSubTab === 'branding' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Branding Prices
                             </button>
                             <button
                                 onClick={() => setInstitutionsSubTab('counties')}
@@ -1551,6 +1557,62 @@ Please change it after login.`;
                                 AI Scout
                             </button>
                         </div>
+
+                        {institutionsSubTab === 'branding' && (
+                            <div className="bg-white dark:bg-slate-800 p-12 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in">
+                                <div className="flex justify-between items-center mb-12">
+                                    <div>
+                                        <h3 className="text-3xl font-black uppercase tracking-tighter">Branding Economics</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Manage global prices for candidate branding packages</p>
+                                    </div>
+                                    <SparklesIcon className="w-12 h-12 text-indigo-600" />
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                                    <div className="space-y-6">
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1.5 ml-1">Base Branding Price (KES)</label>
+                                            <input 
+                                                type="number" 
+                                                defaultValue={5000}
+                                                className="w-full p-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl font-black text-indigo-600 text-2xl"
+                                                onBlur={async (e) => {
+                                                    await apiService.saveModuleRecord('branding_price_settings', { id: 'global', base_price: Number(e.target.value) });
+                                                    alert("Base price updated.");
+                                                }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1.5 ml-1">Renewal Price (KES)</label>
+                                            <input 
+                                                type="number" 
+                                                defaultValue={2500}
+                                                className="w-full p-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl font-black text-slate-600 text-2xl"
+                                                onBlur={async (e) => {
+                                                    await apiService.saveModuleRecord('branding_price_settings', { id: 'global', renew_price: Number(e.target.value) });
+                                                    alert("Renewal price updated.");
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-slate-50 dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
+                                        <h4 className="text-xs font-black uppercase tracking-widest mb-4">Included Features</h4>
+                                        <div className="space-y-3">
+                                            {['Branded SMS Sender ID', 'AI Poster Generator', 'Priority Support'].map(f => (
+                                                <div key={f} className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-50 dark:border-slate-700">
+                                                    <CheckCircleIcon className="w-4 h-4 text-emerald-500" />
+                                                    <span className="text-[10px] font-black uppercase text-slate-600 dark:text-slate-300">{f}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <button className="w-full mt-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100">
+                                            Update Feature List
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {institutionsSubTab === 'list' && (
                             <>

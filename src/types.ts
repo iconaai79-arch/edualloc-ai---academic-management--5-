@@ -48,9 +48,17 @@ export interface CampaignProfile {
     partyName?: string;
     constituencyWard?: string;
     manifestoAiDraft?: string;
+    agendas?: string[]; // Structured list of key agendas
     tagline?: string;
     logoUrl?: string;
     targetVoterCount: number;
+    inviteSlug?: string;
+    brandingStatus?: 'none' | 'pending' | 'paid' | 'active';
+    brandingConfig?: {
+        logoVerified?: boolean;
+        brandedSmsEnabled?: boolean;
+        posterStyle?: string;
+    };
     createdAt: string;
 }
 

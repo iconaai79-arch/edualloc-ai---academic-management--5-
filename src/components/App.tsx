@@ -54,6 +54,7 @@ const CommunityHubView = lazy(() => import('./public/CommunityHubView').then(m =
 const TransportHubView = lazy(() => import('./public/TransportHubView').then(m => ({ default: m.TransportHubView })));
 const HospitalityStorefront = lazy(() => import('./hospitality/HospitalityStorefront').then(m => ({ default: m.HospitalityStorefront })));
 const HospitalityMarketplace = lazy(() => import('./hospitality/HospitalityMarketplace').then(m => ({ default: m.HospitalityMarketplace })));
+const CampaignJoinPage = lazy(() => import('./public/CampaignJoinPage').then(m => ({ default: m.CampaignJoinPage })));
 
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { getAdminRoleForInstitution } from '../utils/roleUtils';
@@ -4544,6 +4545,11 @@ export const App: React.FC = () => {
                             />
                          ) : showMarketplace ? (
                             <PropertyMarketplaceView carListings={carListings} />
+                         ) : window.location.search.includes('view=join-campaign') ? (
+                            <CampaignJoinPage 
+                                campaignId={new URLSearchParams(window.location.search).get('id') || ''} 
+                                onBack={() => window.location.href = '/?view=community'}
+                            />
                          ) : window.location.search.includes('view=travel') ? (
                             <HospitalityMarketplace 
                                 institutions={institutions}
