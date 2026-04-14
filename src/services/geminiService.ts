@@ -535,3 +535,13 @@ export const analyzePharmacyInventorySpreadsheet = async (headers: string[]): Pr
         return {};
     }
 };
+
+export const generateAIContent = async (prompt: string): Promise<string> => {
+    try {
+        const response = await safeGenerateContent(prompt);
+        return response.text || "";
+    } catch (error) {
+        console.error("Gemini AI error:", error);
+        return "";
+    }
+};

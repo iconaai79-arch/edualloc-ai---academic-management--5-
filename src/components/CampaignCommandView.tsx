@@ -5,8 +5,9 @@ import {
     SpeakerWaveIcon, DocumentTextIcon, ArrowPathIcon,
     HeartIcon, ShieldCheckIcon, MegaphoneIcon
 } from './icons';
-import { CampaignProfile, VoterOutreach, CampaignEvent, User } from '../types';
+import { CampaignProfile, VoterOutreach, CampaignEvent, User, PoliticalParty, Constituency, Ward } from '../types';
 import { apiService } from '../services/apiService';
+import { generateAIContent } from '../services/geminiService';
 import { LeadScoutManager } from './LeadScoutManager';
 
 interface CampaignCommandViewProps {
@@ -56,10 +57,10 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     setProfile(profiles[0]);
                     
                     // Load related data
-                    const voterData = await apiService.fetchModuleRecords<VoterOutreach>('voter_outreach', 'ALL', undefined, { campaign_id: profiles[0].id });
+                    const voterData = await apiService.fetchModuleRecords<VoterOutreach>('voter_outreach', 'ALL', undefined, { filter: { campaign_id: profiles[0].id } });
                     setVoters(voterData);
                     
-                    const eventData = await apiService.fetchModuleRecords<CampaignEvent>('campaign_events', 'ALL', undefined, { campaign_id: profiles[0].id });
+                    const eventData = await apiService.fetchModuleRecords<CampaignEvent>('campaign_events', 'ALL', undefined, { filter: { campaign_id: profiles[0].id } });
                     setEvents(eventData);
                 }
             } catch (e) {
@@ -79,7 +80,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
             Focus on key Kenyan issues: youth employment, healthcare, infrastructure, and transparency. 
             Format with bold sections and a catchy 2027 campaign tagline.`;
             
-            const response = await apiService.generateAIContent(prompt);
+            const response = await generateAIContent(prompt);
             const updatedProfile = { ...profile, manifestoAiDraft: response };
             await apiService.saveModuleRecord('campaign_profiles', updatedProfile);
             setProfile(updatedProfile);
