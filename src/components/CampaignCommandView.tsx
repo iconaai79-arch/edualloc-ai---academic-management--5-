@@ -178,12 +178,52 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
         </div>
     );
 
-    const stats = {
-        totalVoters: voters.length,
-        supporters: voters.filter(v => v.status === 'supporter').length,
-        reachPercent: Math.round((voters.length / (profile.targetVoterCount || 1)) * 100),
-        upcomingEvents: events.filter(e => new Date(e.eventTime) > new Date()).length
-    };
+    const stats = useMemo(() => {
+        // Calculate total electorate based on position from geographical metadata
+        let totalElectorate = profile?.targetVoterCount || 0;
+        
+        if (profile) {
+            if (profile.position === 'President' || profile.position === 'Deputy') {
+                totalElectorate = politicalWards.reduce((acc, w) => acc + (w.registered_voters || 0), 0);
+            } else if (profile.position === 'Governor' || profile.position === 'Senator') {
+                const county = politicalCounties.find(c => c.name === profile.county);
+                if (county) {
+                    // Find constituencies in this county
+                    const cIds = politicalConstituencies.filter(c => c.countyId === county.id).map(c => c.id);
+                    totalElectorate = politicalWards
+                        .filter(w => cIds.includes(w.constituencyId))
+                        .reduce((acc, w) => acc + (w.registered_voters || 0), 0);
+                }
+            } else if (profile.position === 'MP') {
+                const constituency = politicalConstituencies.find(c => c.name === profile.constituency);
+                if (constituency) {
+                    totalElectorate = politicalWards
+                        .filter(w => w.constituencyId === constituency.id)
+                        .reduce((acc, w) => acc + (w.registered_voters || 0), 0);
+                }
+            } else if (profile.position === 'MCA') {
+                const ward = politicalWards.find(w => w.name === profile.ward);
+                totalElectorate = ward?.registered_voters || 0;
+            }
+        }
+
+        // Use profile target if DB metadata is empty
+        if (totalElectorate === 0) totalElectorate = profile?.targetVoterCount || 1000;
+
+        const reached = voters.length;
+        const supporters = voters.filter(v => v.status === 'supporter').length;
+        const undecided = voters.filter(v => v.status === 'undecided').length;
+
+        return {
+            totalReached: reached,
+            supporters,
+            undecided,
+            reachPercent: Math.min(Math.round((reached / totalElectorate) * 100), 100),
+            supportPercent: Math.min(Math.round((supporters / (reached || 1)) * 100), 100),
+            upcomingEvents: events.filter(e => new Date(e.eventTime) > new Date()).length,
+            totalElectorate
+        };
+    }, [voters, events, profile, politicalWards, politicalConstituencies, politicalCounties]);
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-930 p-6 space-y-8 animate-fade-in">
@@ -205,7 +245,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                         </div>
                         <h1 className="text-4xl font-black tracking-tighter text-slate-900 dark:text-white uppercase">{profile.candidateName}</h1>
                         <p className="text-slate-400 font-bold text-xs uppercase flex items-center gap-1 mt-1">
-                            <MapPinIcon className="w-4 h-4" /> {profile.constituencyWard} Constituency / Ward
+                            <MapPinIcon className="w-4 h-4" /> {profile.constituencyWard}
                         </p>
                     </div>
                 </div>
@@ -222,6 +262,141 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     ))}
                 </div>
             </div>
+
+            {/* ── Dashboard (War Room Intelligence) ── */}
+            {activeTab === 'dashboard' && (
+                <div className="space-y-8 animate-fade-in-up">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* Electorate Reach Progress */}
+                        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-[3rem] p-10 shadow-xl border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
+                           <div className="flex items-center justify-between mb-10">
+                                <div>
+                                    <h3 className="text-2xl font-black uppercase tracking-tighter">Onboarding Progress</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Institutional reach vs Electorate Size</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-3xl font-black text-indigo-600 tracking-tighter">{stats.totalReached.toLocaleString()}</p>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Onboarded</p>
+                                </div>
+                           </div>
+
+                           <div className="flex flex-col md:flex-row items-center gap-12">
+                                {/* Large SVG Progress Circle */}
+                                <div className="relative w-48 h-48 shrink-0">
+                                    <svg className="w-full h-full -rotate-90">
+                                        <circle cx="96" cy="96" r="80" fill="none" stroke="currentColor" strokeWidth="16" className="text-slate-100 dark:text-slate-800" />
+                                        <circle 
+                                            cx="96" cy="96" r="80" 
+                                            fill="none" stroke="currentColor" strokeWidth="16" 
+                                            strokeDasharray={2 * Math.PI * 80}
+                                            strokeDashoffset={2 * Math.PI * 80 * (1 - stats.reachPercent / 100)}
+                                            strokeLinecap="round"
+                                            className="text-indigo-600 transition-all duration-1000 ease-out"
+                                        />
+                                    </svg>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                        <span className="text-4xl font-black tracking-tighter">{stats.reachPercent}%</span>
+                                        <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">of electorate</span>
+                                    </div>
+                                </div>
+
+                                {/* Progress Metrics List */}
+                                <div className="flex-1 w-full space-y-8">
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-end">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Voter Penetration</p>
+                                            <p className="font-black text-slate-900 dark:text-white uppercase text-sm">{stats.totalReached.toLocaleString()} / {stats.totalElectorate.toLocaleString()}</p>
+                                        </div>
+                                        <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                            <div className="h-full bg-indigo-600 rounded-full transition-all duration-1000" style={{ width: `${stats.reachPercent}%` }}></div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Supporter Conversion</p>
+                                            <div className="flex items-end gap-2">
+                                                <p className="text-xl font-black text-emerald-500 leading-none">{stats.supportPercent}%</p>
+                                                <span className="text-[9px] font-bold text-slate-400 mb-[2px]">of reached</span>
+                                            </div>
+                                        </div>
+                                        <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Remaining to Target</p>
+                                            <p className="text-xl font-black text-slate-900 dark:text-white leading-none">{(stats.totalElectorate - stats.totalReached).toLocaleString()}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                           </div>
+
+                           <div className="mt-12 pt-10 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center bg-indigo-50/30 dark:bg-indigo-900/10 -mx-10 px-10 -mb-10 py-8">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-3 bg-indigo-600 rounded-xl text-white">
+                                        <SpeakerWaveIcon className="w-5 h-5 animate-pulse" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-black uppercase tracking-tight text-indigo-900 dark:text-indigo-200">AI Momentum Insight</p>
+                                        <p className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400">Onboarding is up 12% following the {profile.ward || profile.constituency} townhall.</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setActiveTab('voters')} className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:underline">Manage Network →</button>
+                           </div>
+                        </div>
+
+                        {/* Suggested Analytics Hub */}
+                        <div className="bg-slate-900 text-white rounded-[3rem] p-10 shadow-2xl relative overflow-hidden flex flex-col">
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                            <h3 className="text-2xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3 relative z-10">
+                                <ChartBarIcon className="w-8 h-8 text-indigo-400" />
+                                Strategy Analytics
+                            </h3>
+                            
+                            <div className="space-y-6 flex-1 relative z-10">
+                                {[
+                                    { title: 'Sentiment Analysis', desc: 'Real-time tone monitoring of suppoter feedback.', status: 'Ready to Activate', icon: <ChatBubbleLeftRightIcon className="w-4 h-4"/>, color: 'text-emerald-400' },
+                                    { title: 'Age Demographics', desc: 'Breakdown of your reach by GenZ, Millennials, and Elders.', status: 'Data Import Needed', icon: <UserGroupIcon className="w-4 h-4"/>, color: 'text-indigo-400' },
+                                    { title: 'Geographic Heatmap', desc: 'Identify "Cold Zones" with zero voter onboarding.', status: 'Available in Pro', icon: <MapPinIcon className="w-4 h-4"/>, color: 'text-orange-400' },
+                                    { title: 'Momentum Trajectory', desc: 'Projected reach by election day based on current rate.', status: 'Processing...', icon: <ArrowPathIcon className="w-4 h-4"/>, color: 'text-pink-400' }
+                                ].map((analytic, idx) => (
+                                    <div key={idx} className="p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all cursor-default group">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className={`${analytic.color} opacity-80 group-hover:opacity-100 transition-opacity`}>{analytic.icon}</div>
+                                            <p className="text-xs font-black uppercase tracking-wide">{analytic.title}</p>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 font-medium leading-relaxed mb-3">{analytic.desc}</p>
+                                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-800 ${analytic.color} border border-white/5 tracking-widest`}>
+                                            {analytic.status}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <button className="mt-8 w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl shadow-indigo-500/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                Request Deep Intelligence Report
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        {[
+                            { label: 'Total Supporter Strength', val: stats.supporters.toLocaleString(), sub: 'Hard Votes', icon: HeartIcon, color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/10' },
+                            { label: 'Remaining Unonboarded', val: (stats.totalElectorate - stats.totalReached).toLocaleString(), sub: 'Untapped Potential', icon: UserGroupIcon, color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/10' },
+                            { label: 'Upcoming Events', val: stats.upcomingEvents, sub: 'Engagement Ops', icon: CalendarDaysIcon, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/10' },
+                            { label: 'Campaign Readiness', val: 'Elite', sub: 'Institution Level', icon: ShieldCheckIcon, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/10' }
+                        ].map((s, idx) => (
+                            <div key={idx} className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+                                <div className={`flex items-center justify-between mb-4`}>
+                                    <div className={`p-3 rounded-xl ${s.bg} ${s.color} group-hover:scale-110 transition-transform`}>
+                                        <s.icon className="w-5 h-5" />
+                                    </div>
+                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">{s.sub}</span>
+                                </div>
+                                <p className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none mb-1">{s.val}</p>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{s.label}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Branding & Media View */}
             {activeTab === 'branding' && (

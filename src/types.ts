@@ -203,6 +203,7 @@ export interface County {
     secondaryColor?: string;
     motto?: string;
     website?: string;
+    registered_voters?: number;
 }
 
 export interface PoliticalParty {
@@ -218,6 +219,8 @@ export interface Constituency {
     id: string;
     countyId: string;
     name: string;
+    code?: string;
+    registered_voters?: number;
     createdAt?: string;
 }
 
@@ -225,6 +228,8 @@ export interface Ward {
     id: string;
     constituencyId: string;
     name: string;
+    code?: string;
+    registered_voters?: number;
     createdAt?: string;
 }
 

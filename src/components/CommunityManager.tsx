@@ -813,24 +813,95 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                 {activeTab === 'social' && renderSocial()}
                 {activeTab === 'heritage' && renderHeritage()}
                 {activeTab === 'campaign' && (
-                    <div className="space-y-8 animate-fade-in">
-                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
-                            <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
-                                <MapPin className="w-64 h-64" />
+                    <div className="space-y-12 animate-fade-in">
+                        {/* ── 2022 Voter Registry Awareness Hero ── */}
+                        <div className="relative overflow-hidden bg-slate-900 rounded-[3.5rem] p-12 text-white border-4 border-slate-800 shadow-2xl">
+                            <div className="absolute top-0 right-0 w-1/2 h-full opacity-10 pointer-events-none">
+                                <Sparkles className="w-full h-full text-indigo-500 blur-3xl animate-pulse" />
                             </div>
-                            <div className="relative z-10">
-                                <h3 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-4">
-                                    <Sparkles className="w-10 h-10 text-indigo-600" />
-                                    Campaign Command Center
-                                </h3>
-                                <p className="text-slate-500 font-medium mt-2 max-w-2xl">
-                                    Strategic political mobilization hub. Use AI to discover prospects, manage voter outreach, and track campaign momentum across your constituency.
-                                </p>
+                            
+                            <div className="relative z-10 flex flex-col lg:flex-row items-center gap-12">
+                                <div className="flex-1 space-y-6">
+                                    <div className="flex items-center gap-3">
+                                        <span className="bg-indigo-600 text-[10px] font-black uppercase tracking-[0.3em] px-4 py-1.5 rounded-full shadow-lg shadow-indigo-500/20">Official 2022 Register</span>
+                                        <div className="flex -space-x-2">
+                                            {[1,2,3].map(i => <div key={i} className="w-6 h-6 rounded-full border border-slate-900 bg-slate-800"></div>)}
+                                        </div>
+                                    </div>
+                                    
+                                    <h3 className="text-5xl font-black uppercase tracking-tighter leading-none">
+                                        Empowering the <br />
+                                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-white to-purple-400 animate-gradient-x">Digital Electorate</span>
+                                    </h3>
+                                    
+                                    <p className="text-slate-400 font-medium text-lg leading-relaxed max-w-xl">
+                                        The 2022 Voter Register is the foundation of our democratic journey. Stay informed, verify your records, and support the next generation of voters.
+                                    </p>
+                                    
+                                    <div className="flex flex-wrap gap-4 pt-4">
+                                        <a href="https://voters.iebc.or.ke" target="_blank" rel="noreferrer" className="bg-white text-slate-900 px-10 py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-white/10 flex items-center gap-2">
+                                            <ShieldCheck className="w-5 h-5" />
+                                            Register with IEBC
+                                        </a>
+                                        <button className="bg-slate-800 text-white border border-slate-700 px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-slate-700 transition-all flex items-center gap-2">
+                                            <History className="w-5 h-5" />
+                                            2022 Archives
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div className="shrink-0 grid grid-cols-2 gap-4">
+                                    {[
+                                        { label: 'Total Voters (2022)', val: '22.1M', sub: 'Verified Citizens' },
+                                        { label: 'Youth Percent', val: '39.8%', sub: 'Future Leaders' },
+                                        { label: ' constituencies ', val: '290', sub: 'Electoral Units' },
+                                        { label: 'Polling Stations', val: '46K+', sub: 'Active Hubs' }
+                                    ].map((s, i) => (
+                                        <div key={i} className="p-6 bg-white/5 backdrop-blur-md rounded-3xl border border-white/10 text-center hover:bg-white/10 transition-colors">
+                                            <p className="text-2xl font-black tracking-tighter uppercase leading-none mb-1">{s.val}</p>
+                                            <p className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-400">{s.label}</p>
+                                            <p className="text-[7px] font-bold text-slate-500 uppercase mt-1 italic">{s.sub}</p>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         </div>
-                        
-                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                            <LeadScoutManager defaultNiche={category} />
+
+                        {/* ── Call to Action Info Grid ── */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm group hover:border-indigo-500 transition-all">
+                                <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center text-indigo-600 mb-6 group-hover:scale-110 transition-transform">
+                                    <MapPin className="w-8 h-8" />
+                                </div>
+                                <h4 className="text-xl font-black uppercase tracking-tight mb-2">Neighborhood Outreach</h4>
+                                <p className="text-sm text-slate-500 leading-relaxed font-medium">Use AI to identify unregistered neighbors and guide them to the nearest IEBC center.</p>
+                            </div>
+                            
+                            <div className="bg-indigo-600 p-8 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
+                                <Sparkles className="absolute -right-4 -top-4 w-32 h-32 opacity-10" />
+                                <h4 className="text-xl font-black uppercase tracking-tight mb-2">Be the Change</h4>
+                                <p className="text-sm text-indigo-100 leading-relaxed font-medium mb-6">Your voice matters. Encourage 10 people today to verify their eligibility.</p>
+                                <button className="w-full py-4 bg-white text-indigo-600 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all">
+                                    Start Mission
+                                </button>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm group hover:border-indigo-500 transition-all">
+                                <div className="w-16 h-16 bg-pink-50 dark:bg-pink-900/30 rounded-2xl flex items-center justify-center text-pink-600 mb-6 group-hover:scale-110 transition-transform">
+                                    <MessageSquare className="w-8 h-8" />
+                                </div>
+                                <h4 className="text-xl font-black uppercase tracking-tight mb-2">Civic Dialogue</h4>
+                                <p className="text-sm text-slate-500 leading-relaxed font-medium">Join our community discussions on electoral transparency and progress.</p>
+                            </div>
+                        </div>
+
+                        {/* ── Strategic Lead Scout Integration ── */}
+                        <div className="bg-white dark:bg-slate-800 p-12 rounded-[4rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <div className="mb-10 text-center max-w-2xl mx-auto">
+                                <h3 className="text-4xl font-black uppercase tracking-tighter">Voter Intelligence Hub</h3>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-2">Powered by Antigravity AI</p>
+                            </div>
+                            <LeadScoutManager defaultNiche={category + " Voters " + (currentInstitution.location || "")} />
                         </div>
                     </div>
                 )}
