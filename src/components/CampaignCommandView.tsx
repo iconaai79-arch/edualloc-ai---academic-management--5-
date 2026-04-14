@@ -81,6 +81,18 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
             >
                 Setup Campaign Now
             </button>
+
+            {isSetupModalOpen && (
+                <CampaignProfileModal 
+                    profile={null} 
+                    user={user} 
+                    onClose={() => setIsSetupModalOpen(false)} 
+                    onSave={(p) => {
+                        setProfile(p);
+                        setIsSetupModalOpen(false);
+                    }} 
+                />
+            )}
         </div>
     );
 
