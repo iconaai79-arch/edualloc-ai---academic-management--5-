@@ -146,38 +146,6 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
         reader.readAsDataURL(file);
     };
 
-    if (loading) return <div className="flex h-screen items-center justify-center"><ArrowPathIcon className="w-10 h-10 animate-spin text-indigo-500" /></div>;
-
-    if (!profile) return (
-        <div className="flex flex-col items-center justify-center h-screen space-y-6">
-            <MegaphoneIcon className="w-20 h-20 text-slate-200" />
-            <h1 className="text-2xl font-black uppercase tracking-tighter">Campaign War Room</h1>
-            <p className="text-slate-400 font-bold uppercase text-xs">No active campaign profile found for this institution.</p>
-            <button 
-                onClick={() => setIsSetupModalOpen(true)}
-                className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-slate-900 transition-all active:scale-95"
-            >
-                Setup Campaign Now
-            </button>
-
-            {isSetupModalOpen && (
-                <CampaignProfileModal 
-                    profile={null} 
-                    user={user} 
-                    parties={politicalParties}
-                    counties={politicalCounties}
-                    constituencies={politicalConstituencies}
-                    wards={politicalWards}
-                    onClose={() => setIsSetupModalOpen(false)} 
-                    onSave={(p) => {
-                        setProfile(p);
-                        setIsSetupModalOpen(false);
-                    }} 
-                />
-            )}
-        </div>
-    );
-
     const stats = useMemo(() => {
         // Calculate total electorate based on position from geographical metadata
         let totalElectorate = profile?.targetVoterCount || 0;
@@ -224,6 +192,39 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
             totalElectorate
         };
     }, [voters, events, profile, politicalWards, politicalConstituencies, politicalCounties]);
+
+    if (loading) return <div className="flex h-screen items-center justify-center"><ArrowPathIcon className="w-10 h-10 animate-spin text-indigo-500" /></div>;
+
+    if (!profile) return (
+        <div className="flex flex-col items-center justify-center h-screen space-y-6">
+            <MegaphoneIcon className="w-20 h-20 text-slate-200" />
+            <h1 className="text-2xl font-black uppercase tracking-tighter">Campaign War Room</h1>
+            <p className="text-slate-400 font-bold uppercase text-xs">No active campaign profile found for this institution.</p>
+            <button 
+                onClick={() => setIsSetupModalOpen(true)}
+                className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-slate-900 transition-all active:scale-95"
+            >
+                Setup Campaign Now
+            </button>
+
+            {isSetupModalOpen && (
+                <CampaignProfileModal 
+                    profile={null} 
+                    user={user} 
+                    parties={politicalParties}
+                    counties={politicalCounties}
+                    constituencies={politicalConstituencies}
+                    wards={politicalWards}
+                    onClose={() => setIsSetupModalOpen(false)} 
+                    onSave={(p) => {
+                        setProfile(p);
+                        setIsSetupModalOpen(false);
+                    }} 
+                />
+            )}
+        </div>
+    );
+
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-930 p-6 space-y-8 animate-fade-in">
