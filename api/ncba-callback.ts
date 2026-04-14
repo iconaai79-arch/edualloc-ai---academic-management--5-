@@ -145,9 +145,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.log(`[NCBA] ✅ Payment Verified for Transaction ${transactionId}`);
             
             // 3. Update Transaction Record
-            // Extract the actual Bank Reference (ReferenceID)
-            const bankRef = bodyRaw.ReferenceID || bodyRaw.TransactionID || bodyRaw.CheckoutRequestID || body.ReferenceID || body.TransactionID || body.CheckoutRequestID;
-            
+            // Extract the actual Bank Reference / Receipt Number
+            const bodyRaw = body.Body?.stkCallback || body;
+            const bankRef = bodyRaw.BankTransactionID || bodyRaw.ReferenceID || bodyRaw.MpesaReceiptNumber || 
+                             bodyRaw.ReceiptNumber || bodyRaw.BankReference || bodyRaw.ExternalReference || 
+                             bodyRaw.ProviderReference || bodyRaw.TransactionReference || bodyRaw.TransactionID ||
+                             bodyRaw.ProviderID || bodyRaw.ChannelReference || bodyRaw.Reference ||
+                             body.ReferenceID || body.TransactionID || body.CheckoutRequestID;
             // Update transaction status and capture reference ID
             await supabase.from('ncba_transactions').update({
                 status: 'completed',

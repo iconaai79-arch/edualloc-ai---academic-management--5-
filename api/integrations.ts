@@ -1605,9 +1605,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const now = new Date().toISOString();
                 
                 // Extract M-Pesa Reference / Receipt Number if available
-                const receiptNum = externalData.ReferenceID || externalData.MpesaReceiptNumber || externalData.ReceiptNumber || 
-                                 externalData.BankReference || externalData.ProviderReference || 
-                                 externalData.TransactionReference || externalData.TransactionID;
+                const receiptNum = externalData.BankTransactionID || externalData.ReferenceID || externalData.MpesaReceiptNumber || 
+                                 externalData.ReceiptNumber || externalData.BankReference || externalData.ExternalReference || 
+                                 externalData.ProviderReference || externalData.TransactionReference || externalData.TransactionID ||
+                                 externalData.ProviderID || externalData.ChannelReference || externalData.Reference;
                 
                 // Extract Payer Info if available
                 const payerName = externalData.PayerName || externalData.CustomerName || externalData.Payer;
