@@ -347,7 +347,8 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                     </table>
                                 </div>
                             </div>
-                        ))}
+                        );
+                    })}
                     </div>
                 </div>
             ))}
