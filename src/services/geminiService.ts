@@ -596,6 +596,9 @@ export const analyzePoliticalRegistrySpreadsheet = async (headers: string[]): Pr
         
         // Merge with defaults to ensure all keys are present
         return { ...defaultMapping, ...aiMapping };
+    } catch (error) {
+        console.error("AI political registry map error:", error);
+        return defaultMapping;
     }
 };
 
