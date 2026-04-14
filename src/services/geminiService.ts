@@ -57,26 +57,32 @@ const safeGenerateContent = async (prompt: string, config: any = {}, preferredMo
         });
 
         if (!response.ok) {
+            const responseClone = response.clone();
             let errorText = '';
-            const errorData = await response.json().catch(async () => {
-                errorText = await response.text().catch(() => 'Unable to read error text');
+            try {
+                const errorData = await response.json();
+                throw new Error(errorData.message || errorData.error || `AI Service Error: ${response.status}`);
+            } catch (e: any) {
+                // If JSON fails, get text from clone
+                errorText = await responseClone.text().catch(() => 'Unable to read error text');
                 console.error("[System Debug] Server returned Non-JSON Error Response:", errorText.substring(0, 500));
-                return {};
-            });
-            throw new Error(errorData.message || errorData.error || `AI Service Error: ${response.status} - ${errorText.substring(0, 50)}`);
+                
+                // If it's a Vercel/Edge timeout or error page, distill it
+                if (errorText.includes('<html>')) {
+                    throw new Error(`Cloud Infrastructure Error: ${response.status} (The server took too long to respond or encountered a gateway issue).`);
+                }
+                
+                throw new Error(e.message || `AI Service Error: ${response.status} - ${errorText.substring(0, 100)}`);
+            }
         }
 
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-            const data = await response.json();
-            return data; // Expected to contain { text: string }
-        } else {
-            const text = await response.text();
-            console.error("[geminiService] Non-JSON response from AI Service:", text.substring(0, 200));
-            throw new Error(`AI Service Error (${response.status}): Invalid response format`);
-        }
+        const data = await response.json();
+        return data; // Expected to contain { text: string }
 
     } catch (error: any) {
+        if (error.name === 'AbortError') {
+            throw new Error("Gemini 3.0 Pro: Connection timed out. Please try again with fewer data points.");
+        }
         console.error("[System Debug] Engine Error details:", error);
         throw sanitizeAiError(error);
     }
@@ -298,7 +304,10 @@ export const generateTimetable = async (
             Output: JSON array of objects with these exact keys: { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }.
         `;
 
-        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
+        const response = await safeGenerateContent(prompt, { 
+            responseMimeType: 'application/json',
+            temperature: 0.1 
+        }, 'flash');
         const result = sanitizeAndParseJson(response.text || "[]");
         return (Array.isArray(result) ? result : []).map((entry: any) => ({
             ...entry,
@@ -331,7 +340,10 @@ export const generateExamTimetable = async (
         checkAiAvailable();
         const prompt = `Generate exam timetable for period ${JSON.stringify(examPeriod)}. Return JSON array. Rules: ${JSON.stringify(settings.rules)}.`;
 
-        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
+        const response = await safeGenerateContent(prompt, { 
+            responseMimeType: 'application/json',
+            temperature: 0.1
+        }, 'flash');
         const result = sanitizeAndParseJson(response.text || "[]");
         return (Array.isArray(result) ? result : []).map((entry: any) => ({
             ...entry,
