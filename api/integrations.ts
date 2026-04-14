@@ -1158,8 +1158,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                           'mpesa_transactions';
 
             // 1.5 Fresh fetch to get latest status
-            const { data: freshTxn } = await supabase.from(table).select('metadata, institution_id, amount').eq('id', txn.id).maybeSingle();
-            if (!freshTxn || freshTxn.metadata?.reconciled === true || freshTxn.metadata?.reconciled === 'processing') {
+            const { data: freshTxn } = await supabase.from(table).select('metadata, institution_id, amount, created_at').eq('id', txn.id).maybeSingle();
+            
+            if (!freshTxn) return;
+
+            const meta = freshTxn.metadata || {};
+            const isReconciled = meta.reconciled === true || meta.reconciled === 'true';
+            const isProcessing = meta.reconciled === 'processing';
+            
+            // Allow re-processing if stuck for more than 2 minutes
+            const processingTime = meta.processing_at ? new Date(meta.processing_at).getTime() : 0;
+            const isStuck = isProcessing && (Date.now() - processingTime > 120000);
+
+            if (isReconciled || (isProcessing && !isStuck)) {
                 console.log(`[Reconcile - SKIP] Already reconciled or in progress: ${txn.id}`);
                 return;
             }

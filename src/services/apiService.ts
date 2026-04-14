@@ -1331,8 +1331,9 @@ export const apiService = {
                 console.error(`[apiService] Non-JSON response in checkPaymentStatus [${provider}]:`, text.substring(0, 200));
                 return { status: 'pending' };
             }
-            if (result.status === 'completed' && result.metadata?.invoiceId) {
-                await apiService.reconcilePayment(result);
+            if (result.status === 'completed') {
+                // The backend queryPaymentStatus already triggers reconciliation.
+                // We no longer call the redundant frontend reconcilePayment.
             }
             return result;
         } catch (e) {
