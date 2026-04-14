@@ -478,6 +478,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                         </div>
                      </div>
                 </div>
+            )}
             {isSetupModalOpen && (
                 <CampaignProfileModal 
                     profile={profile} 
