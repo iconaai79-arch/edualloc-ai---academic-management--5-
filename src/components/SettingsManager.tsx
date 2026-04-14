@@ -1735,7 +1735,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                             </div>
                         )}
                         {generalSubTab === 'location' && <LocationSettings institution={props.currentInstitution} onSave={(id: string, data: any) => props.onUpdateInstitution && props.onUpdateInstitution(id, data)} />}
-                        {generalSubTab === 'branding' && ( /* ... branding UI ... */ <div className="space-y-6"><div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700"><div className="flex justify-between items-center mb-8"><h4 className="font-bold text-lg flex items-center gap-2"><SparklesIcon className="w-5 h-5 text-indigo-500" /> Visual Brand Identity</h4><button onClick={() => setShowPaperPreview(!showPaperPreview)} className="text-[10px] font-black uppercase text-indigo-600 hover:underline flex items-center gap-1"><EyeIcon className="w-4 h-4" /> {showPaperPreview ? 'Hide Paper' : 'Preview Documents'}</button></div><div className="grid grid-cols-1 md:grid-cols-2 gap-10"><div className="space-y-6"><div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Accent Theme Color</label><div className="flex gap-4 items-center"><input type="color" value={props.themeColor} onChange={(e: React.ChangeEvent<HTMLInputElement>) => props.onUpdateThemeColor && props.onUpdateThemeColor(e.target.value)} className="h-12 w-24 p-1 rounded-xl border border-slate-200 bg-white cursor-pointer" /><span className="font-mono text-sm font-bold text-slate-500 uppercase">{props.themeColor}</span></div></div><div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Corporate Seal / Logo</label><div className="flex items-center gap-6"><div className="h-20 w-20 rounded-2xl bg-slate-50 dark:bg-slate-900 flex items-center justify-center overflow-hidden border border-slate-100 shadow-inner">{props.logoUrl ? <img src={props.logoUrl} alt="Logo" className="h-full w-full object-contain" /> : <BuildingOfficeIcon className="w-8 h-8 text-slate-200" />}</div><label className="btn-secondary text-[10px] h-10 px-4 flex items-center justify-center cursor-pointer">Update Emblem<input type="file" className="hidden" accept="image/*" onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImageUpload(e, 'logo')} /></label></div></div></div><div className="space-y-4"><div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Document Header (LPO/Receipts)</label><label className="btn-secondary h-24 w-full flex flex-col items-center justify-center gap-2 cursor-pointer border-dashed"><ArrowUpTrayIcon className="w-6 h-6 text-slate-300" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Upload Header Banner</span><input type="file" className="hidden" accept="image/*" onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImageUpload(e, 'letterhead')} /></label></div><div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Official Report Footer</label><label className="btn-secondary h-16 w-full flex items-center justify-center gap-2 cursor-pointer border-dashed"><ArrowUpTrayIcon className="w-4 h-4 text-slate-300" /><span className="text-[10px) font-black uppercase tracking-widest text-slate-400">Upload Footer Strip</span><input type="file" className="hidden" accept="image/*" onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImageUpload(e, 'footer')} /></label></div></div></div></div>{showPaperPreview && (<div className="mt-12 border-4 border-dashed border-slate-100 rounded-[3.5rem] p-6 bg-slate-50 animate-scale-in origin-top"><BrandedPaper institution={props.currentInstitution} letterheadConfig={props.letterheadConfig} footerImageUrl={props.footerImageUrl}><div className="h-96 flex flex-col items-center justify-center opacity-10 py-32"><ClipboardListIcon className="w-24 h-24 text-slate-900 mb-6" /><p className="text-2xl font-black text-slate-900 uppercase tracking-[0.2em]">Live Document Preview</p></div></BrandedPaper></div>)}</div>)}
+                        {generalSubTab === 'branding' && ( /* ... branding UI ... */ <div className="space-y-6"><div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700"><div className="flex justify-between items-center mb-8"><h4 className="font-bold text-lg flex items-center gap-2"><SparklesIcon className="w-5 h-5 text-indigo-500" /> Visual Brand Identity</h4><button onClick={() => setShowPaperPreview(!showPaperPreview)} className="text-[10px] font-black uppercase text-indigo-600 hover:underline flex items-center gap-1"><EyeIcon className="w-4 h-4" /> {showPaperPreview ? 'Hide Paper' : 'Preview Documents'}</button></div><div className="grid grid-cols-1 md:grid-cols-2 gap-10"><div className="space-y-6"><div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Accent Theme Color</label><div className="flex gap-4 items-center"><input type="color" value={props.themeColor} onChange={(e: React.ChangeEvent<HTMLInputElement>) => props.onUpdateThemeColor && props.onUpdateThemeColor(e.target.value)} className="h-12 w-24 p-1 rounded-xl border border-slate-200 bg-white cursor-pointer" /><span className="font-mono text-sm font-bold text-slate-500 uppercase">{props.themeColor}</span></div></div><div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Corporate Seal / Logo</label><div className="flex items-center gap-6"><div className="h-20 w-20 rounded-2xl bg-slate-50 dark:bg-slate-900 flex items-center justify-center overflow-hidden border border-slate-100 shadow-inner">{props.logoUrl ? <img src={props.logoUrl} alt="Logo" className="h-full w-full object-contain" /> : <BuildingOfficeIcon className="w-8 h-8 text-slate-200" />}</div><label className="btn-secondary text-[10px] h-10 px-4 flex items-center justify-center cursor-pointer">Update Emblem<input type="file" className="hidden" accept="image/*" onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImageUpload(e, 'logo')} /></label></div></div></div><div className="space-y-4"><div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Document Header (LPO/Receipts)</label><label className="btn-secondary h-24 w-full flex flex-col items-center justify-center gap-2 cursor-pointer border-dashed"><ArrowUpTrayIcon className="w-6 h-6 text-slate-300" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Upload Header Banner</span><input type="file" className="hidden" accept="image/*" onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImageUpload(e, 'letterhead')} /></label></div><div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Official Report Footer</label><label className="btn-secondary h-16 w-full flex items-center justify-center gap-2 cursor-pointer border-dashed"><ArrowUpTrayIcon className="w-4 h-4 text-slate-300" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Upload Footer Strip</span><input type="file" className="hidden" accept="image/*" onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImageUpload(e, 'footer')} /></label></div></div></div></div>{showPaperPreview && (<div className="mt-12 border-4 border-dashed border-slate-100 rounded-[3.5rem] p-6 bg-slate-50 animate-scale-in origin-top"><BrandedPaper institution={props.currentInstitution} letterheadConfig={props.letterheadConfig} footerImageUrl={props.footerImageUrl}><div className="h-96 flex flex-col items-center justify-center opacity-10 py-32"><ClipboardListIcon className="w-24 h-24 text-slate-900 mb-6" /><p className="text-2xl font-black text-slate-900 uppercase tracking-[0.2em]">Live Document Preview</p></div></BrandedPaper></div>)}</div>)}
                         {generalSubTab === 'grading' && <div className="animate-fade-in"><GradingSystemManager currentInstitution={props.currentInstitution} onUpdateInstitution={props.onUpdateInstitution} /></div>}
                         {generalSubTab === 'billing' && props.currentUser.role === 'admin' && (
                             <div className="animate-fade-in">
@@ -1780,75 +1780,74 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 <div className="space-y-8">
                                     {instIntegrationTab === 'mpesa' && (
                                         <div className="animate-fade-in space-y-8">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-3 bg-green-50 dark:bg-green-900/30 rounded-2xl text-green-600">
-                                            <MpesaIcon className="w-6 h-6" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-xl font-black uppercase tracking-tight">M-Pesa Daraja Integration</h3>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase">Configuring Lipa Na M-Pesa for this Institution</p>
-                                        </div>
-                                    </div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-3 bg-green-50 dark:bg-green-900/30 rounded-2xl text-green-600">
+                                                    <MpesaIcon className="w-6 h-6" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-xl font-black uppercase tracking-tight">M-Pesa Daraja Integration</h3>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Configuring Lipa Na M-Pesa for this Institution</p>
+                                                </div>
+                                            </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem]">
-                                        <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Short Code (Paybill)</label>
-                                            <input 
-                                                type="text" 
-                                                value={localInstMpesaConfig.paybillNumber || ''} 
-                                                onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, paybillNumber: e.target.value })}
-                                                className="form-input" 
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Account Number (Reference)</label>
-                                            <input 
-                                                type="text" 
-                                                value={localInstMpesaConfig.accountNumber || ''} 
-                                                onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, accountNumber: e.target.value })}
-                                                className="form-input" 
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Lipa Na M-Pesa Passkey</label>
-                                            <input 
-                                                type="password" 
-                                                value={localInstMpesaConfig.passkey || ''} 
-                                                onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, passkey: e.target.value })}
-                                                className="form-input" 
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Consumer Key</label>
-                                            <input 
-                                                type="text" 
-                                                value={localInstMpesaConfig.consumerKey || ''} 
-                                                onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, consumerKey: e.target.value })}
-                                                className="form-input" 
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Consumer Secret</label>
-                                            <input 
-                                                type="password" 
-                                                value={localInstMpesaConfig.consumerSecret || ''} 
-                                                onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, consumerSecret: e.target.value })}
-                                                className="form-input" 
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Environment</label>
-                                            <select 
-                                                value={localInstMpesaConfig.environment || 'sandbox'} 
-                                                onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, environment: e.target.value as any })}
-                                                className="form-select"
-                                            >
-                                                <option value="sandbox">Sandbox (Test)</option>
-                                                <option value="production">Production (Live)</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem]">
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Short Code (Paybill)</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={localInstMpesaConfig.paybillNumber || ''} 
+                                                        onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, paybillNumber: e.target.value })}
+                                                        className="form-input" 
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Account Number (Reference)</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={localInstMpesaConfig.accountNumber || ''} 
+                                                        onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, accountNumber: e.target.value })}
+                                                        className="form-input" 
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Lipa Na M-Pesa Passkey</label>
+                                                    <input 
+                                                        type="password" 
+                                                        value={localInstMpesaConfig.passkey || ''} 
+                                                        onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, passkey: e.target.value })}
+                                                        className="form-input" 
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Consumer Key</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={localInstMpesaConfig.consumerKey || ''} 
+                                                        onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, consumerKey: e.target.value })}
+                                                        className="form-input" 
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Consumer Secret</label>
+                                                    <input 
+                                                        type="password" 
+                                                        value={localInstMpesaConfig.consumerSecret || ''} 
+                                                        onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, consumerSecret: e.target.value })}
+                                                        className="form-input" 
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Environment</label>
+                                                    <select 
+                                                        value={localInstMpesaConfig.environment || 'sandbox'} 
+                                                        onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, environment: e.target.value as any })}
+                                                        className="form-select"
+                                                    >
+                                                        <option value="sandbox">Sandbox (Test)</option>
+                                                        <option value="production">Production (Live)</option>
+                                                    </select>
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
 
@@ -1864,113 +1863,111 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 </div>
                                             </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem]">
-                                        <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Environment</label>
-                                            <select 
-                                                value={localInstNcbaConfig.environment || 'sandbox'} 
-                                                onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, environment: e.target.value as any })}
-                                                className="form-select"
-                                            >
-                                                <option value="sandbox">Sandbox (Test)</option>
-                                                <option value="production">Production (Live)</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Base URL</label>
-                                            <input type="text" value={localInstNcbaConfig.baseUrl} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, baseUrl: e.target.value })} className="form-input font-mono text-xs" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client ID</label>
-                                            <input type="text" value={localInstNcbaConfig.clientId} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientId: e.target.value })} className="form-input" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client Secret</label>
-                                            <input type="password" value={localInstNcbaConfig.clientSecret} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientSecret: e.target.value })} className="form-input" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">API Username</label>
-                                            <input type="text" value={localInstNcbaConfig.username || ''} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, username: e.target.value })} className="form-input" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">API Password</label>
-                                            <input type="password" value={localInstNcbaConfig.password || ''} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, password: e.target.value })} className="form-input" />
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-4 mt-6">
-                                        <button 
-                                            onClick={async () => {
-                                                setIsTestingNcba(true);
-                                                try {
-                                                    const res = await apiService.testNcbaAuth(localInstNcbaConfig);
-                                                    if (res.success) {
-                                                        alert(`Integration Success: ${res.message || 'Authentication successful'}`);
-                                                    } else {
-                                                        alert(`Integration Failed: ${res.message || 'Check your credentials'}`);
-                                                    }
-                                                } catch(err: any) {
-                                                    alert(`Connection Error: ${err.message}`);
-                                                } finally {
-                                                    setIsTestingNcba(false);
-                                                }
-                                            }}
-                                            disabled={isTestingNcba}
-                                            className="h-12 px-6 border-2 border-slate-200 dark:border-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
-                                        >
-                                            {isTestingNcba ? 'Verifying...' : 'Test NCBA Integration'}
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-
-
-
-                                    <div className="flex items-center justify-end gap-4 pt-4">
-                                        {saveInstGatewaysStatus === 'success' && (
-                                            <div className="flex items-center gap-2 text-green-600 animate-scale-in">
-                                                <CheckCircleIcon className="w-5 h-5" />
-                                                <span className="text-[10px] font-black uppercase tracking-wider">Integrations Map Secured</span>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem]">
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Environment</label>
+                                                    <select 
+                                                        value={localInstNcbaConfig.environment || 'sandbox'} 
+                                                        onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, environment: e.target.value as any })}
+                                                        className="form-select"
+                                                    >
+                                                        <option value="sandbox">Sandbox (Test)</option>
+                                                        <option value="production">Production (Live)</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Base URL</label>
+                                                    <input type="text" value={localInstNcbaConfig.baseUrl} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, baseUrl: e.target.value })} className="form-input font-mono text-xs" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client ID</label>
+                                                    <input type="text" value={localInstNcbaConfig.clientId} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientId: e.target.value })} className="form-input" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client Secret</label>
+                                                    <input type="password" value={localInstNcbaConfig.clientSecret} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientSecret: e.target.value })} className="form-input" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">API Username</label>
+                                                    <input type="text" value={localInstNcbaConfig.username || ''} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, username: e.target.value })} className="form-input" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">API Password</label>
+                                                    <input type="password" value={localInstNcbaConfig.password || ''} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, password: e.target.value })} className="form-input" />
+                                                </div>
                                             </div>
-                                        )}
-                                        {saveInstGatewaysStatus === 'error' && (
-                                            <div className="flex items-center gap-2 text-rose-500 animate-shake">
-                                                <ExclamationTriangleIcon className="w-5 h-5" />
-                                                <span className="text-[10px] font-black uppercase tracking-wider">Storage Failure</span>
+
+                                            <div className="flex items-center gap-4 mt-6">
+                                                <button 
+                                                    onClick={async () => {
+                                                        setIsTestingNcba(true);
+                                                        try {
+                                                            const res = await apiService.testNcbaAuth(localInstNcbaConfig);
+                                                            if (res.success) {
+                                                                alert(`Integration Success: ${res.message || 'Authentication successful'}`);
+                                                            } else {
+                                                                alert(`Integration Failed: ${res.message || 'Check your credentials'}`);
+                                                            }
+                                                        } catch(err: any) {
+                                                            alert(`Connection Error: ${err.message}`);
+                                                        } finally {
+                                                            setIsTestingNcba(false);
+                                                        }
+                                                    }}
+                                                    disabled={isTestingNcba}
+                                                    className="h-12 px-6 border-2 border-slate-200 dark:border-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    {isTestingNcba ? 'Verifying...' : 'Test NCBA Integration'}
+                                                </button>
                                             </div>
-                                        )}
-                                        <button 
-                                            onClick={async () => {
-                                                if (!props.currentInstitution || !props.onUpdateInstitution) return;
-                                                setIsSavingInstGateways(true);
-                                                setSaveInstGatewaysStatus('idle');
-                                                try {
-                                                    await props.onUpdateInstitution(props.currentInstitution.id, { 
-                                                        mpesaConfig: localInstMpesaConfig,
-                                                        ncbaConfig: localInstNcbaConfig
-                                                    });
-                                                    setSaveInstGatewaysStatus('success');
-                                                    setTimeout(() => setSaveInstGatewaysStatus('idle'), 3000);
-                                                } catch (err) {
-                                                    setSaveInstGatewaysStatus('error');
-                                                    setTimeout(() => setSaveInstGatewaysStatus('idle'), 4000);
-                                                } finally {
-                                                    setIsSavingInstGateways(false);
-                                                }
-                                            }}
-                                            disabled={isSavingInstGateways}
-                                            className={`btn-primary h-12 px-10 shadow-lg uppercase tracking-widest text-xs transition-all ${
-                                                saveInstGatewaysStatus === 'success' ? 'bg-green-600 shadow-green-100' : 
-                                                saveInstGatewaysStatus === 'error' ? 'bg-rose-600 shadow-rose-100' : 
-                                                'shadow-indigo-100 dark:shadow-none'
-                                            }`}
-                                        >
-                                            {isSavingInstGateways ? 'Persisting...' : 
-                                             saveInstGatewaysStatus === 'success' ? 'Map Saved' : 
-                                             saveInstGatewaysStatus === 'error' ? 'Retry Save' : 
-                                             'Save Gateway Map'}
-                                        </button>
-                                    </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center justify-end gap-4 pt-4">
+                                    {saveInstGatewaysStatus === 'success' && (
+                                        <div className="flex items-center gap-2 text-green-600 animate-scale-in">
+                                            <CheckCircleIcon className="w-5 h-5" />
+                                            <span className="text-[10px] font-black uppercase tracking-wider">Integrations Map Secured</span>
+                                        </div>
+                                    )}
+                                    {saveInstGatewaysStatus === 'error' && (
+                                        <div className="flex items-center gap-2 text-rose-500 animate-shake">
+                                            <ExclamationTriangleIcon className="w-5 h-5" />
+                                            <span className="text-[10px] font-black uppercase tracking-wider">Storage Failure</span>
+                                        </div>
+                                    )}
+                                    <button 
+                                        onClick={async () => {
+                                            if (!props.currentInstitution || !props.onUpdateInstitution) return;
+                                            setIsSavingInstGateways(true);
+                                            setSaveInstGatewaysStatus('idle');
+                                            try {
+                                                await props.onUpdateInstitution(props.currentInstitution.id, { 
+                                                    mpesaConfig: localInstMpesaConfig,
+                                                    ncbaConfig: localInstNcbaConfig
+                                                });
+                                                setSaveInstGatewaysStatus('success');
+                                                setTimeout(() => setSaveInstGatewaysStatus('idle'), 3000);
+                                            } catch (err) {
+                                                setSaveInstGatewaysStatus('error');
+                                                setTimeout(() => setSaveInstGatewaysStatus('idle'), 4000);
+                                            } finally {
+                                                setIsSavingInstGateways(false);
+                                            }
+                                        }}
+                                        disabled={isSavingInstGateways}
+                                        className={`btn-primary h-12 px-10 shadow-lg uppercase tracking-widest text-xs transition-all ${
+                                            saveInstGatewaysStatus === 'success' ? 'bg-green-600 shadow-green-100' : 
+                                            saveInstGatewaysStatus === 'error' ? 'bg-rose-600 shadow-rose-100' : 
+                                            'shadow-indigo-100 dark:shadow-none'
+                                        }`}
+                                    >
+                                        {isSavingInstGateways ? 'Persisting...' : 
+                                         saveInstGatewaysStatus === 'success' ? 'Map Saved' : 
+                                         saveInstGatewaysStatus === 'error' ? 'Retry Save' : 
+                                         'Save Gateway Map'}
+                                    </button>
                                 </div>
                             </div>
                         )}
