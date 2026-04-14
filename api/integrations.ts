@@ -1175,7 +1175,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return;
             }
 
-            const meta = freshTxn.metadata || {};
             const instId = freshTxn.institution_id || txn.institution_id;
             const amt = freshTxn.amount || txn.amount;
 
