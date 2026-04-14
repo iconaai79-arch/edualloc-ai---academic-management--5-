@@ -23,12 +23,14 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
     onClose, 
     onRefresh 
 }) => {
-    const [step, setStep] = useState<'upload' | 'mapping' | 'importing' | 'success' | 'error'>('upload');
+    const [step, setStep] = useState<'upload' | 'sheets' | 'mapping' | 'importing' | 'success' | 'error'>('upload');
     const [fileHeaders, setFileHeaders] = useState<string[]>([]);
     const [mapping, setMapping] = useState<Record<string, string | null>>({});
     const [rawData, setRawData] = useState<any[]>([]);
     const [errorMessage, setErrorMessage] = useState('');
     const [progress, setProgress] = useState(0);
+    const [availableSheets, setAvailableSheets] = useState<string[]>([]);
+    const [currentWorkbook, setCurrentWorkbook] = useState<XLSX.WorkBook | null>(null);
 
     const getTargetFields = () => {
         if (type === 'registry') {
@@ -38,41 +40,56 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
     };
 
     const handleFileSelect = (file: File) => {
-        setStep('importing');
         const reader = new FileReader();
         reader.onload = async (e) => {
             try {
                 const data = new Uint8Array(e.target?.result as ArrayBuffer);
                 const workbook = XLSX.read(data, { type: 'array' });
-                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                const jsonHeaders: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                
-                if (jsonHeaders.length < 1) throw new Error("Spreadsheet is empty.");
-                const headers = jsonHeaders[0].filter((h: any) => h != null && h !== '');
-                setFileHeaders(headers);
-                setRawData(XLSX.utils.sheet_to_json(worksheet));
-
-                let aiMapping;
-                if (type === 'registry') {
-                    aiMapping = await analyzePoliticalRegistrySpreadsheet(headers);
+                setCurrentWorkbook(workbook);
+                setAvailableSheets(workbook.SheetNames);
+                if (workbook.SheetNames.length > 1) {
+                    setStep('sheets');
                 } else {
-                    aiMapping = await analyzeVoterSpreadsheet(headers);
+                    processSheet(workbook.SheetNames[0], workbook);
                 }
-                
-                // Initialize mapping with all target fields to ensure they show up in the UI
-                const initialMapping: Record<string, string | null> = {};
-                getTargetFields().forEach(field => {
-                    initialMapping[field] = aiMapping[field] || null;
-                });
-
-                setMapping(initialMapping);
-                setStep('mapping');
             } catch (err: any) {
                 setErrorMessage(err.message);
                 setStep('error');
             }
         };
         reader.readAsArrayBuffer(file);
+    };
+
+    const processSheet = async (sheetName: string, workbook: XLSX.WorkBook) => {
+        setStep('importing');
+        try {
+            const worksheet = workbook.Sheets[sheetName];
+            const jsonHeaders: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            
+            if (jsonHeaders.length < 1) throw new Error("Spreadsheet is empty.");
+            const headers = jsonHeaders[0].filter((h: any) => h != null && h !== '');
+            setFileHeaders(headers);
+            setRawData(XLSX.utils.sheet_to_json(worksheet));
+
+            let aiMapping;
+            if (type === 'registry') {
+                aiMapping = await analyzePoliticalRegistrySpreadsheet(headers);
+            } else {
+                aiMapping = await analyzeVoterSpreadsheet(headers);
+            }
+            
+            // Initialize mapping with all target fields to ensure they show up in the UI
+            const initialMapping: Record<string, string | null> = {};
+            getTargetFields().forEach(field => {
+                initialMapping[field] = aiMapping[field] || null;
+            });
+
+            setMapping(initialMapping);
+            setStep('mapping');
+        } catch (err: any) {
+            setErrorMessage(err.message);
+            setStep('error');
+        }
     };
 
     const handleImport = async () => {
@@ -251,6 +268,27 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
                             <p className="text-xs text-slate-400 font-bold uppercase mb-8">Excel (.xlsx) or CSV format</p>
                             <input type="file" onChange={e => e.target.files && handleFileSelect(e.target.files[0])} accept=".xlsx, .xls, .csv" className="hidden" id="political-upload" />
                             <label htmlFor="political-upload" className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest cursor-pointer hover:bg-slate-900 transition-all shadow-xl shadow-indigo-100 dark:shadow-none">Select File</label>
+                        </div>
+                    )}
+
+                    {step === 'sheets' && (
+                        <div className="space-y-6">
+                            <div className="bg-amber-50 dark:bg-amber-900/20 p-6 rounded-3xl border border-amber-100 dark:border-amber-800 flex items-center gap-4">
+                                <SparklesIcon className="w-6 h-6 text-amber-600" />
+                                <p className="text-xs font-bold text-amber-900 dark:text-amber-100 uppercase leading-relaxed">Multiple tabs detected. Which sheet contains the {type === 'registry' ? 'political hierarchy' : 'voter data'}?</p>
+                            </div>
+                            <div className="grid grid-cols-1 gap-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+                                {availableSheets.map(name => (
+                                    <button 
+                                        key={name} 
+                                        onClick={() => processSheet(name, currentWorkbook!)}
+                                        className="w-full p-6 bg-slate-50 dark:bg-slate-800 hover:bg-indigo-600 hover:text-white rounded-[2rem] text-left transition-all group flex justify-between items-center"
+                                    >
+                                        <span className="font-black uppercase text-xs tracking-widest">{name}</span>
+                                        <ChevronRightIcon className="w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     )}
 
