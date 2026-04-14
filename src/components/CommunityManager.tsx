@@ -1079,6 +1079,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                     </div>
                                 )}
                              </div>
+                             )}
                         </div>
                         </div>
                     </div>
