@@ -1515,14 +1515,15 @@ export const apiService = {
     async fetchFeeStructures(instId?: string): Promise<FeeStructure[]> { return apiService.fetchModuleRecords('fee_structures', instId); },
     async fetchFinancialPeriods(instId?: string): Promise<FinancialPeriod[]> { return apiService.fetchModuleRecords('financial_periods', instId); },
     async fetchTransactions(instId?: string): Promise<MpesaTransaction[]> { 
-        const [mpesa, airtel, intasend] = await Promise.all([
+        const [mpesa, airtel, intasend, ncba] = await Promise.all([
             apiService.fetchModuleRecords('mpesa_transactions', instId).catch(() => []),
             apiService.fetchModuleRecords('airtel_transactions', instId).catch(() => []),
-            apiService.fetchModuleRecords('intasend_transactions', instId).catch(() => [])
+            apiService.fetchModuleRecords('intasend_transactions', instId).catch(() => []),
+            apiService.fetchModuleRecords('ncba_transactions', instId).catch(() => [])
         ]);
         
         // Merge and ensure all have a valid timestamp property for the UI
-        const allTxns = [...mpesa, ...airtel, ...intasend].map(t => ({
+        const allTxns = [...mpesa, ...airtel, ...intasend, ...ncba].map(t => ({
             ...t,
             timestamp: t.timestamp || t.createdAt || t.created_at || new Date().toISOString()
         }));
