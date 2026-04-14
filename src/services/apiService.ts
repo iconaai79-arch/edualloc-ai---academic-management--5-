@@ -1316,7 +1316,7 @@ export const apiService = {
                     'Content-Type': 'application/json' 
                 },
                 body: JSON.stringify({
-                    action: provider === 'ncba' ? 'ncbaQueryStk' : 'queryPaymentStatus',
+                    action: 'queryPaymentStatus',
                     provider,
                     checkoutRequestId,
                     config

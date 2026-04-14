@@ -116,23 +116,25 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                         (provider === 'airtel' ? airtelMoneyConfig : 
                          provider === 'ncba' ? ncbaConfig : intasendConfig));
 
-                    const status = result?.status;
+                    const status = (result?.status || '').toLowerCase();
+                    const isCompleted = status === 'completed' || status === 'success' || status === 'successful';
+                    const isFailed = status === 'failed' || status === 'error' || status === 'rejected';
 
-                    if (status === 'completed' && !isCompletedRef.current) {
+                    if (isCompleted && !isCompletedRef.current) {
                         isCompletedRef.current = true;
                         clearInterval(pollInterval);
                         setFinalStatus('completed');
                         setStatusMessage(`Payment Confirmed! ${units.toLocaleString()} SMS units have been added to your balance.`);
                         setIsLoading(false);
                         onPurchaseComplete(units);
-                    } else if ((status === 'failed' || attempts >= maxAttempts) && !isCompletedRef.current) {
+                    } else if ((isFailed || attempts >= maxAttempts) && !isCompletedRef.current) {
                         isCompletedRef.current = true;
                         clearInterval(pollInterval);
                         setFinalStatus('failed');
-                        setStatusMessage(status === 'failed' ? 'Transaction failed. Please try again.' : 'Timeout waiting for payment confirmation. If you have paid, it will reflect shortly.');
+                        setStatusMessage(isFailed ? 'Transaction failed. Please try again.' : 'Timeout waiting for payment confirmation. If you have paid, it will reflect shortly.');
                         setIsLoading(false);
                     }
-                }, 5000);
+                }, 3000);
             } else {
                 setFinalStatus('failed');
                 setStatusMessage(result.message || `Failed to initiate ${provider} payment.`);

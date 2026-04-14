@@ -51,6 +51,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
         if (isOpen) fetchGateways();
     }, [isOpen]);
 
+    const isCompletedRef = React.useRef(false);
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!/^(254)\d{9}$/.test(phoneNumber)) {
@@ -58,6 +59,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
             return;
         }
 
+        isCompletedRef.current = false;
         setIsLoading(true);
         const amount = forceAmount !== undefined ? forceAmount : (selectedPlan === 'monthly' ? monthlyPrice : yearlyPrice);
         const activeItems = forcedItems && forcedItems.length > 0 ? forcedItems : [{
@@ -102,12 +104,17 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
 
                 const pollInterval = setInterval(async () => {
                     attempts++;
-                    const { status } = await apiService.checkPaymentStatus(provider, checkoutRequestId, 
+                    const result = await apiService.checkPaymentStatus(provider, checkoutRequestId, 
                         provider === 'mpesa' ? mpesaConfig : 
                         (provider === 'airtel' ? airtelMoneyConfig : 
                          provider === 'ncba' ? ncbaConfig : intasendConfig));
 
-                    if (status === 'completed') {
+                    const status = (result?.status || '').toLowerCase();
+                    const isCompleted = status === 'completed' || status === 'success' || status === 'successful';
+                    const isFailed = status === 'failed' || status === 'error' || status === 'rejected';
+
+                    if (isCompleted && !isCompletedRef.current) {
+                        isCompletedRef.current = true;
                         clearInterval(pollInterval);
 
                         const paymentExecutor = onSubmit || onPay;
@@ -119,10 +126,11 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                         setStatusMessage('Payment Confirmed!');
                         if (onSuccess) onSuccess();
                         setIsLoading(false);
-                    } else if (status === 'failed' || attempts >= maxAttempts) {
+                    } else if ((isFailed || attempts >= maxAttempts) && !isCompletedRef.current) {
+                        isCompletedRef.current = true;
                         clearInterval(pollInterval);
                         setFinalStatus('failed');
-                        setStatusMessage(status === 'failed' ? 'Transaction failed. Please try again.' : 'Timeout waiting for payment confirmation. If you have paid, it will reflect shortly.');
+                        setStatusMessage(isFailed ? 'Transaction failed. Please try again.' : 'Timeout waiting for payment confirmation. If you have paid, it will reflect shortly.');
                         setIsLoading(false);
                     }
                 }, 3000);

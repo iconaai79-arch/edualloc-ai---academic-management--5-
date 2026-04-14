@@ -2093,7 +2093,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
 
-                return res.status(200).json({ success: true, status: result });
+                const finalStatus = result.success ? 'completed' : 
+                                   (['FAILED', 'REJECTED', 'CANCELLED', 'EXPIRED'].includes(String(result.status || '').toUpperCase()) ? 'failed' : 'pending');
+
+                return res.status(200).json({ 
+                    success: true, 
+                    status: finalStatus,
+                    message: result.ResultDesc || result.description,
+                    data: result 
+                });
             } catch (err: any) {
                 console.error(`[NCBA Query Fatal]:`, err);
                 return res.status(500).json({ success: false, message: 'NCBA Status Query failed.', error: err.message });
