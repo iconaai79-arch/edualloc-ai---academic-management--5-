@@ -1467,9 +1467,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     </div>
                                 )}
                             </div>
-                        </div>
-                    )
-            }
+                        )}
+                    </div>
+                </div>
+            )}
+        }
 
             {/* General Tab */}
             {
