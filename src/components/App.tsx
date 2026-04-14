@@ -2955,8 +2955,24 @@ export const App: React.FC = () => {
                                     onUpdateRequestStatus={async (id, status) => { await apiService.updateAllocationStatus(id, status); loadData(); }}
                                     onBulkUpdateRequestStatus={async (status, deptId) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
                                     onDirectAssign={handleDirectAssign}
-                                    onTimetableGenerated={async (entries, ay, sem) => { await apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[]); await handleLogAction(`Generated timetable for ${ay} / ${sem}`); }}
-                                    onExamTimetableGenerated={async (entries, ay, sem) => { await apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries); await handleLogAction(`Generated exam timetable for ${ay} / ${sem}`); }}
+                                    onTimetableGenerated={async (entries, ay, sem) => { 
+                                        const entriesWithIds = (entries as any[]).map(e => ({
+                                            ...e,
+                                            id: e.id || `tt_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                                            institutionId: currentUser!.institutionId,
+                                            academicYearId: ay,
+                                            semesterId: sem
+                                        }));
+                                        await apiService.saveTimetable(currentUser!.institutionId, ay, sem, entriesWithIds as TimetableEntry[]); 
+                                        setGeneratedTimetable(entriesWithIds as TimetableEntry[]);
+                                        await handleLogAction(`Generated timetable for ${ay} / ${sem}`); 
+                                        await loadData(); 
+                                    }}
+                                    onExamTimetableGenerated={async (entries, ay, sem) => { 
+                                        await apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries); 
+                                        await handleLogAction(`Generated exam timetable for ${ay} / ${sem}`); 
+                                        await loadData();
+                                    }}
                                     onSaveTimetableSettings={(config) => { onUpdateInstitution(activeInstitution!.id, { timetableSettings: config }); handleLogAction(`Saved timetable settings`); }}
                                     onSaveExamTimetableSettings={(config) => { onUpdateInstitution(activeInstitution!.id, { examTimetableSettings: config }); handleLogAction(`Saved exam timetable settings`); }}
                                     onUpdateLogo={(logo) => { onUpdateInstitution(activeInstitution!.id, { logoUrl: logo }); handleLogAction(`Updated institution logo`); }}

@@ -940,7 +940,16 @@ export const apiService = {
     },
     async fetchTimetable(institutionId: string): Promise<TimetableEntry[]> { return apiService.fetchModuleRecords('timetable_entries', institutionId); },
     async saveTimetable(institutionId: string, ayId: string, semId: string, entries: TimetableEntry[]): Promise<void> {
-        const snakeEntries = entries.map(e => ({ ...toSnakeCase(e), institution_id: institutionId, academic_year_id: ayId, semester_id: semId }));
+        // 1. Generate unique IDs and ensure tenancy for all entries
+        const entriesWithIds = entries.map(e => ({
+            ...e,
+            id: e.id || `tt_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            institutionId,
+            academicYearId: ayId,
+            semesterId: semId
+        }));
+
+        const snakeEntries = entriesWithIds.map(e => toSnakeCase(e));
 
         if (!_supabase) {
             let existing = ls.get('timetable_entries');
@@ -951,13 +960,20 @@ export const apiService = {
         }
 
         try {
-            // Use bulk save via proxy
-            // Note: Currently proxy save is upsert. we might need to delete existing first if not using UPSERT.
-            // But timetable entries usually have unique IDs or we can rely on UPSERT if we have PKs.
-            // If we really need to delete first, we'd need a multi-filter delete proxy.
-            // For now, let's use the proxy save.
-            await apiService.saveModuleRecord('timetable_entries', snakeEntries);
-        } catch (e) { console.error("Timetable Save Error:", e); }
+            // 2. Clear existing entries for this academic period to avoid duplicates
+            const deleteSql = `DELETE FROM timetable_entries WHERE institution_id = '${institutionId}' AND academic_year_id = '${ayId}' AND semester_id = '${semId}';`;
+            await apiService.runMigration(deleteSql);
+
+            // 3. Save new entries
+            await apiService.saveModuleRecords('timetable_entries', entriesWithIds);
+        } catch (e) { 
+            console.error("Timetable Save Error:", e);
+            try {
+                await apiService.saveModuleRecord('timetable_entries', snakeEntries);
+            } catch (innerE) {
+                console.error("Timetable Fallback Save Error:", innerE);
+            }
+        }
     },
     async updateAllocationStatus(requestId: string, status: RequestStatus, justification?: string, priority?: Priority): Promise<void> {
         if (!_supabase) {
@@ -1623,9 +1639,28 @@ export const apiService = {
     async fetchExamTimetable(institutionId: string): Promise<ExamTimetableEntry[]> { return apiService.fetchModuleRecords('exam_timetable_entries', institutionId); },
     async saveExamTimetable(institutionId: string, ayId: string, semId: string, entries: ExamTimetableEntry[]): Promise<void> {
         try {
-            const snakeEntries = entries.map(e => ({ ...toSnakeCase(e), institution_id: institutionId, academic_year_id: ayId, semester_id: semId }));
-            // Use bulk save via proxy
-            await apiService.saveModuleRecord('exam_timetable_entries', snakeEntries);
+            const entriesWithIds = entries.map(e => ({
+                ...e,
+                id: e.id || `et_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                institutionId,
+                academicYearId: ayId,
+                semesterId: semId
+            }));
+
+            if (!_supabase) {
+                let existing = ls.get('exam_timetable_entries');
+                existing = existing.filter((e: any) => !(e.institution_id === institutionId && e.semester_id === semId));
+                existing = [...existing, ...entriesWithIds.map(toSnakeCase)];
+                ls.set('exam_timetable_entries', existing);
+                return;
+            }
+
+            // Clear old entries
+            const deleteSql = `DELETE FROM exam_timetable_entries WHERE institution_id = '${institutionId}' AND academic_year_id = '${ayId}' AND semester_id = '${semId}';`;
+            await apiService.runMigration(deleteSql);
+
+            // Bulk save
+            await apiService.saveModuleRecords('exam_timetable_entries', entriesWithIds);
         } catch (e) { console.error("Exam Timetable Save Error:", e); }
     },
     async onAssociateSubjectToCourseLevel(subjectId: string | string[], levelId: string) {
