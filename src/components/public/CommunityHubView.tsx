@@ -15,7 +15,8 @@ import {
     History,
     Palmtree
 } from 'lucide-react';
-import type { Institution, County } from '../../types';
+import type { Institution, County, CampaignProfile } from '../../types';
+import { apiService } from '../../services/apiService';
 
 interface CommunityHubViewProps {
     institutions: Institution[];
