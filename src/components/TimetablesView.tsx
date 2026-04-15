@@ -317,7 +317,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                             operatingDays: profile.operatingDays || timetableSettings.operatingDays,
                             startTime: profile.startTime || timetableSettings.startTime,
                             endTime: profile.endTime || timetableSettings.endTime,
-                            periods: profile.periods || [],
+                            periods: (profile.periods && profile.periods.length > 0) ? profile.periods : (timetableSettings.periods || []),
                             cellSpanMinutes: profile.cellSpanMinutes || timetableSettings.cellSpanMinutes
                         };
                     }
@@ -330,7 +330,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                             operatingDays: defaultProfile.operatingDays || timetableSettings.operatingDays,
                             startTime: defaultProfile.startTime || timetableSettings.startTime,
                             endTime: defaultProfile.endTime || timetableSettings.endTime,
-                            periods: defaultProfile.periods || [],
+                            periods: (defaultProfile.periods && defaultProfile.periods.length > 0) ? defaultProfile.periods : (timetableSettings.periods || []),
                             cellSpanMinutes: defaultProfile.cellSpanMinutes || timetableSettings.cellSpanMinutes
                         };
                     }
@@ -338,11 +338,15 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
 
                 const filteredEntriesForPdf = (generatedTimetable || []).filter(e => {
                     if (!e) return false;
-                    const isCourseMatch = selectedCourseForMasterView === 'all' || e.courseId === selectedCourseForMasterView || (e as any).course_id === selectedCourseForMasterView;
+                    const courseId = String(e.courseId || (e as any).course_id || '');
+                    const targetCourseId = String(selectedCourseForMasterView);
+                    const isCourseMatch = targetCourseId === 'all' || courseId === targetCourseId;
                     if (!isCourseMatch) return false;
                     
                     if (selectedLevelIdForMasterView !== 'all') {
-                        return e.courseLevelId === selectedLevelIdForMasterView || (e as any).course_level_id === selectedLevelIdForMasterView;
+                        const levelId = String(e.courseLevelId || (e as any).course_level_id || '');
+                        const targetLevelId = String(selectedLevelIdForMasterView);
+                        return levelId === targetLevelId;
                     }
                     return true;
                 });
@@ -582,7 +586,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                                     operatingDays: profile.operatingDays || timetableSettings.operatingDays,
                                     startTime: profile.startTime || timetableSettings.startTime,
                                     endTime: profile.endTime || timetableSettings.endTime,
-                                    periods: profile.periods || [],
+                                    periods: (profile.periods && profile.periods.length > 0) ? profile.periods : (timetableSettings.periods || []),
                                     cellSpanMinutes: profile.cellSpanMinutes || timetableSettings.cellSpanMinutes
                                 };
                             }
@@ -595,18 +599,22 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                                     operatingDays: defaultProfile.operatingDays || timetableSettings.operatingDays,
                                     startTime: defaultProfile.startTime || timetableSettings.startTime,
                                     endTime: defaultProfile.endTime || timetableSettings.endTime,
-                                    periods: defaultProfile.periods || [],
+                                    periods: (defaultProfile.periods && defaultProfile.periods.length > 0) ? defaultProfile.periods : (timetableSettings.periods || []),
                                     cellSpanMinutes: defaultProfile.cellSpanMinutes || timetableSettings.cellSpanMinutes
                                 };
                             }
                         }
                         const filteredEntries = (generatedTimetable || []).filter(e => {
                             if (!e) return false;
-                            const isCourseMatch = selectedCourseForMasterView === 'all' || e.courseId === selectedCourseForMasterView || (e as any).course_id === selectedCourseForMasterView;
+                            const courseId = String(e.courseId || (e as any).course_id || '');
+                            const targetCourseId = String(selectedCourseForMasterView);
+                            const isCourseMatch = targetCourseId === 'all' || courseId === targetCourseId;
                             if (!isCourseMatch) return false;
                             
                             if (selectedLevelIdForMasterView !== 'all') {
-                                return e.courseLevelId === selectedLevelIdForMasterView || (e as any).course_level_id === selectedLevelIdForMasterView;
+                                const levelId = String(e.courseLevelId || (e as any).course_level_id || '');
+                                const targetLevelId = String(selectedLevelIdForMasterView);
+                                return levelId === targetLevelId;
                             }
                             return true;
                         });
