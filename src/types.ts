@@ -4033,3 +4033,42 @@ export interface MaintenanceLog {
     scheduledDate?: string;
 }
 
+export interface CivilYard {
+    id: string;
+    institutionId: string;
+    name: string;
+    location?: string;
+    isActive: boolean;
+}
+
+export interface CivilProduct {
+    id: string;
+    yardId?: string;
+    name: string;
+    productType: 'Block' | 'Paving' | 'Post' | 'Culvert' | 'Kerb';
+    unitPrice: number;
+    currentStock: number;
+    strengthRating?: string;
+}
+
+export interface ManufacturingBatch {
+    id: string;
+    productId: string;
+    batchNumber: string;
+    quantityCast: number;
+    castDate: string;
+    releaseDate?: string;
+    status: 'curing' | 'ready' | 'quarantined';
+    strengthTestResult?: string;
+}
+
+export interface CivilSale {
+    id: string;
+    yardId?: string;
+    customer_id?: string;
+    projectName?: string;
+    totalAmount: number;
+    deliveryStatus: 'pending' | 'processing' | 'dispatched' | 'delivered';
+    createdAt: string;
+}
+

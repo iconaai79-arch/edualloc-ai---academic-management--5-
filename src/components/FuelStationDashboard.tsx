@@ -124,6 +124,10 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
         { id: 'm1', assetId: 'a2', issueDescription: 'Abnormal noise in main bearing', technicianName: 'Eng. Peterson', maintenanceCost: 12500, status: 'in_progress', scheduledDate: new Date().toISOString() }
     ]);
 
+    const [financialReports, setFinancialReports] = useState<FinancialReport[]>([
+        { id: 'rep1', stationId: 's1', institutionId: 'inst1', reportType: 'daily', totalSales: 245600, totalTax: 39296, totalCommission: 4912, netProfit: 201392, periodStart: new Date().toISOString(), periodEnd: new Date().toISOString() }
+    ]);
+
     const [attendantCommissions, setAttendantCommissions] = useState<Record<string, number>>({
         'sh1': 1250,
         'sh2': 450
@@ -638,7 +642,6 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                         { id: 'pos', icon: ShoppingCart, label: 'POS & Store' },
                         { id: 'carwash', icon: Waves, label: 'Carwash' },
                         { id: 'servicing', icon: Wrench, label: 'Servicing' },
-                        { id: 'fleet', icon: ShieldCheck, label: 'Fleet & Corporate' },
                         { id: 'finance', icon: TrendingUp, label: 'Finance' },
                         { id: 'maintenance', icon: Wrench, label: 'Assets/Maintenance' },
                         { id: 'reconciliation', icon: Clock, label: 'Shift Recon' },

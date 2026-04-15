@@ -137,6 +137,7 @@ CREATE TABLE IF NOT EXISTS station_pos_sales (
 
 CREATE TABLE IF NOT EXISTS station_pos_sale_items (
     id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
     sale_id TEXT REFERENCES station_pos_sales(id) ON DELETE CASCADE,
     item_id TEXT REFERENCES station_items(id),
     quantity INTEGER NOT NULL,
@@ -271,7 +272,7 @@ CREATE POLICY "Users can manage inventory logs" ON fuel_inventory_log FOR ALL TO
 CREATE POLICY "Users can manage station shifts" ON station_shifts FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 CREATE POLICY "Users can manage station items" ON station_items FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 CREATE POLICY "Users can manage POS sales" ON station_pos_sales FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
-CREATE POLICY "Users can manage POS sale items" ON station_pos_sale_items FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM station_pos_sales WHERE id = station_pos_sale_items.sale_id AND institution_id = auth.uid()::text) OR public.get_curr_user_role() = 'super_admin');
+CREATE POLICY "Users can manage POS sale items" ON station_pos_sale_items FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 CREATE POLICY "Users can manage carwash services" ON carwash_services FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 CREATE POLICY "Users can manage carwash sales" ON carwash_sales FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 CREATE POLICY "Users can manage car servicing packages" ON car_servicing_packages FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
@@ -307,6 +308,7 @@ CREATE TABLE IF NOT EXISTS fuel_fleet_accounts (
 
 CREATE TABLE IF NOT EXISTS fuel_fleet_cards (
     id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
     fleet_account_id TEXT REFERENCES fuel_fleet_accounts(id) ON DELETE CASCADE,
     card_number TEXT UNIQUE NOT NULL,
     vehicle_plate TEXT,
@@ -322,6 +324,7 @@ CREATE TABLE IF NOT EXISTS fuel_fleet_cards (
 -- 16. Price History & Trends (Dynamic Pricing)
 CREATE TABLE IF NOT EXISTS fuel_price_history (
     id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
     station_id TEXT REFERENCES fuel_stations(id) ON DELETE CASCADE,
     fuel_type TEXT NOT NULL,
     old_price DECIMAL NOT NULL,
@@ -336,8 +339,8 @@ ALTER TABLE fuel_price_history ENABLE ROW LEVEL SECURITY;
 
 -- Policies for Fleet
 CREATE POLICY "Users can manage fleet accounts" ON fuel_fleet_accounts FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
-CREATE POLICY "Users can manage fleet cards" ON fuel_fleet_cards FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM fuel_fleet_accounts WHERE id = fleet_account_id AND institution_id = auth.uid()::text) OR public.get_curr_user_role() = 'super_admin');
-CREATE POLICY "Users can manage price history" ON fuel_price_history FOR ALL TO authenticated USING (station_id IN (SELECT id FROM fuel_stations WHERE institution_id = auth.uid()::text) OR public.get_curr_user_role() = 'super_admin');
+CREATE POLICY "Users can manage fleet cards" ON fuel_fleet_cards FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+CREATE POLICY "Users can manage price history" ON fuel_price_history FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 
 -- Fleet Indexes
 CREATE INDEX idx_fleet_accounts_institution ON fuel_fleet_accounts(institution_id);
@@ -507,3 +510,72 @@ CREATE POLICY "Users can manage maintenance logs" ON fuel_maintenance_logs FOR A
 -- Index
 CREATE INDEX idx_station_assets_station ON fuel_station_assets(station_id);
 CREATE INDEX idx_maintenance_logs_asset ON fuel_maintenance_logs(asset_id);
+
+-- 26. Civil Manufacturing Yards (Independent Entity)
+CREATE TABLE IF NOT EXISTS civil_yards (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    location TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 27. Civil Products
+CREATE TABLE IF NOT EXISTS civil_products (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
+    yard_id TEXT REFERENCES civil_yards(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    product_type TEXT NOT NULL, -- 'Block', 'Paving', 'Post', 'Culvert', 'Kerb'
+    unit_price DECIMAL NOT NULL,
+    current_stock INTEGER DEFAULT 0,
+    min_stock_threshold INTEGER DEFAULT 10,
+    strength_rating TEXT,
+    specifications JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 28. Manufacturing Batches
+CREATE TABLE IF NOT EXISTS civil_batches (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
+    product_id TEXT REFERENCES civil_products(id) ON DELETE CASCADE,
+    batch_number TEXT NOT NULL,
+    quantity_cast INTEGER NOT NULL,
+    quantity_damaged INTEGER DEFAULT 0,
+    cast_date DATE DEFAULT CURRENT_DATE,
+    release_date DATE,
+    status TEXT CHECK (status IN ('curing', 'ready', 'quarantined')),
+    strength_test_result TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 29. Civil Bulk Sales
+CREATE TABLE IF NOT EXISTS civil_sales (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
+    yard_id TEXT REFERENCES civil_yards(id) ON DELETE SET NULL,
+    customer_id TEXT,
+    project_name TEXT,
+    total_amount DECIMAL NOT NULL,
+    tax_amount DECIMAL DEFAULT 0,
+    delivery_status TEXT DEFAULT 'pending' CHECK (delivery_status IN ('pending', 'processing', 'dispatched', 'delivered')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE civil_yards ENABLE ROW LEVEL SECURITY;
+ALTER TABLE civil_products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE civil_batches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE civil_sales ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage yards" ON civil_yards FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+CREATE POLICY "Users can manage civil products" ON civil_products FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+CREATE POLICY "Users can manage civil batches" ON civil_batches FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+CREATE POLICY "Users can manage civil sales" ON civil_sales FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+-- Index
+CREATE INDEX idx_civil_yards_inst ON civil_yards(institution_id);
+CREATE INDEX idx_civil_products_yard ON civil_products(yard_id);
+CREATE INDEX idx_civil_batches_prod ON civil_batches(product_id);
+CREATE INDEX idx_civil_sales_yard ON civil_sales(yard_id);
