@@ -783,7 +783,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                         <nav className="-mb-px flex space-x-6" aria-label="Global Settings Sub-tabs">
                             <button onClick={() => setGlobalSubTab('profile')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'profile' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><InformationCircleIcon className="w-4 h-4" /> Platform Profile</button>
                             <button onClick={() => setGlobalSubTab('infrastructure')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'infrastructure' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ShieldIcon className="w-4 h-4" /> Global Infrastructure</button>
-                            <button onClick={() => setGlobalSubTab('storage')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'storage' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ArrowUpTrayIcon className="w-4 h-4" /> FTP & Storage</button>
+                            <button onClick={() => setGlobalSubTab('storage')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'storage' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ArrowUpTrayIcon className="w-4 h-4" /> Asset FTP</button>
+                            <button onClick={() => setGlobalSubTab('googledrive')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'googledrive' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><SparklesIcon className="w-4 h-4" /> Google Drive</button>
                             <button onClick={() => setGlobalSubTab('branding')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'branding' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><SparklesIcon className="w-4 h-4" /> Visual Identity</button>
                             <button onClick={() => setGlobalSubTab('sms')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'sms' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><PaperAirplaneIcon className="w-4 h-4" /> SMS Gateway</button>
                             <button onClick={() => setGlobalSubTab('email')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'email' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><EnvelopeIcon className="w-4 h-4" /> Email Relay</button>
@@ -1342,66 +1343,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     </div>
                                 </div>
                                 
-                                <div className="mt-12 space-y-6">
-                                    <div className="flex items-center gap-4 mb-4">
-                                        <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-2xl">
-                                             <SparklesIcon className="w-6 h-6 text-blue-600" />
-                                        </div>
-                                        <div>
-                                            <h4 className="text-sm font-black uppercase tracking-tight">Google Drive Cloud Connectivity</h4>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Platform-wide cloud backup for critical user assets</p>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 p-8 bg-slate-50 dark:bg-slate-900/40 rounded-3xl border border-slate-100 dark:border-slate-800">
-                                        <div className="space-y-1.5 lg:col-span-1">
-                                            <div className="flex justify-between items-center mb-1">
-                                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Activation Status</label>
-                                                <button 
-                                                    onClick={() => setLocalGoogleDriveConfig({...localGoogleDriveConfig, isActive: !localGoogleDriveConfig.isActive})}
-                                                    className={`px-3 py-1 rounded-full text-[9px] font-black uppercase transition-all ${localGoogleDriveConfig.isActive ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-slate-200 text-slate-500 border border-slate-300'}`}
-                                                >
-                                                    {localGoogleDriveConfig.isActive ? 'Active & Ready' : 'Deactivated'}
-                                                </button>
-                                            </div>
-                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Client ID</label>
-                                            <input 
-                                                value={localGoogleDriveConfig.clientId} 
-                                                onChange={e => setLocalGoogleDriveConfig({...localGoogleDriveConfig, clientId: e.target.value})}
-                                                placeholder="722xxxxxx-xxxx.apps.googleusercontent.com" 
-                                                className="form-input text-xs font-mono" 
-                                            />
-                                        </div>
-                                        <div className="space-y-1.5 lg:col-span-1">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mt-6">Client Secret</label>
-                                            <input 
-                                                type="password"
-                                                value={localGoogleDriveConfig.clientSecret} 
-                                                onChange={e => setLocalGoogleDriveConfig({...localGoogleDriveConfig, clientSecret: e.target.value})}
-                                                className="form-input text-xs font-mono" 
-                                            />
-                                        </div>
-                                        <div className="space-y-1.5 lg:col-span-1">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mt-6">Refresh Token</label>
-                                            <input 
-                                                type="password"
-                                                value={localGoogleDriveConfig.refreshToken} 
-                                                onChange={e => setLocalGoogleDriveConfig({...localGoogleDriveConfig, refreshToken: e.target.value})}
-                                                className="form-input text-xs font-mono" 
-                                            />
-                                        </div>
-                                        <div className="space-y-1.5 lg:col-span-1">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Target Folder ID (Optional)</label>
-                                            <input 
-                                                value={localGoogleDriveConfig.folderId || ''} 
-                                                onChange={e => setLocalGoogleDriveConfig({...localGoogleDriveConfig, folderId: e.target.value})}
-                                                placeholder="1Abc_def_Ghi..." 
-                                                className="form-input text-xs font-mono" 
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
                                 <div className="mt-10 pt-8 border-t border-slate-50 dark:border-slate-800 flex justify-end gap-4">
                                     <button 
                                         onClick={async () => {
@@ -1424,6 +1365,78 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     >
                                         {isTestingFtp ? 'Testing...' : 'Test Connection'}
                                     </button>
+                                    <button 
+                                        onClick={handleSaveGlobalConfigs} 
+                                        disabled={isSavingConfigs} 
+                                        className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-[10px]"
+                                    >
+                                        {isSavingConfigs ? 'Synchronizing...' : 'Authorize & Save Configuration'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {globalSubTab === 'googledrive' && (
+                            <div className="bg-white dark:bg-slate-800 p-10 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm animate-fade-in">
+                                <div className="flex justify-between items-center mb-10">
+                                    <div>
+                                        <h3 className="text-2xl font-black uppercase tracking-tighter">Google Drive Cloud Connectivity</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Platform-wide cloud backup for critical user assets</p>
+                                    </div>
+                                    <div className="p-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl">
+                                        <SparklesIcon className="w-8 h-8 text-indigo-600" />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 p-8 bg-slate-50 dark:bg-slate-900/40 rounded-3xl border border-slate-100 dark:border-slate-800">
+                                    <div className="space-y-1.5 lg:col-span-1">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Activation Status</label>
+                                            <button 
+                                                onClick={() => setLocalGoogleDriveConfig({...localGoogleDriveConfig, isActive: !localGoogleDriveConfig.isActive})}
+                                                className={`px-3 py-1 rounded-full text-[9px] font-black uppercase transition-all ${localGoogleDriveConfig.isActive ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-slate-200 text-slate-500 border border-slate-300'}`}
+                                            >
+                                                {localGoogleDriveConfig.isActive ? 'Active & Ready' : 'Deactivated'}
+                                            </button>
+                                        </div>
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Client ID</label>
+                                        <input 
+                                            value={localGoogleDriveConfig.clientId} 
+                                            onChange={e => setLocalGoogleDriveConfig({...localGoogleDriveConfig, clientId: e.target.value})}
+                                            placeholder="722xxxxxx-xxxx.apps.googleusercontent.com" 
+                                            className="form-input text-xs font-mono" 
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5 lg:col-span-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mt-6">Client Secret</label>
+                                        <input 
+                                            type="password"
+                                            value={localGoogleDriveConfig.clientSecret} 
+                                            onChange={e => setLocalGoogleDriveConfig({...localGoogleDriveConfig, clientSecret: e.target.value})}
+                                            className="form-input text-xs font-mono" 
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5 lg:col-span-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mt-6">Refresh Token</label>
+                                        <input 
+                                            type="password"
+                                            value={localGoogleDriveConfig.refreshToken} 
+                                            onChange={e => setLocalGoogleDriveConfig({...localGoogleDriveConfig, refreshToken: e.target.value})}
+                                            className="form-input text-xs font-mono" 
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5 lg:col-span-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Target Folder ID (Optional)</label>
+                                        <input 
+                                            value={localGoogleDriveConfig.folderId || ''} 
+                                            onChange={e => setLocalGoogleDriveConfig({...localGoogleDriveConfig, folderId: e.target.value})}
+                                            placeholder="1Abc_def_Ghi..." 
+                                            className="form-input text-xs font-mono" 
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="mt-10 pt-8 border-t border-slate-50 dark:border-slate-800 flex justify-end gap-4">
                                     <button 
                                         onClick={handleSaveGlobalConfigs} 
                                         disabled={isSavingConfigs} 
