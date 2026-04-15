@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState } from 'react';
 import type { TimetableEntry, Subject, User, Room, Course, TimetableSettings, AcademicYear, Semester, Institution, CourseLevel, Conflict } from '../types';
 import { generatePastelColor } from '../utils/colorUtils';
@@ -89,7 +88,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
         if (!level) return [];
         return generatedTimetable.filter(e =>
             e && e.day === day &&
-            (level.subjectIds || []).includes(e.subjectId) &&
+            (e.courseLevelId === level.id || (e as any).course_level_id === level.id) &&
             timeToMinutes(e.startTime) === timeToMinutes(period.startTime)
         );
     };
@@ -98,7 +97,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
         <div className="space-y-12 animate-fade-in no-break">
             {relevantCourses.map((course) => {
                 const courseEntries = generatedTimetable.filter(e =>
-                    e && (course.levels || []).some(l => l && (l.subjectIds || []).includes(e.subjectId))
+                    e && (e.courseId === course.id || (e as any).course_id === course.id)
                 );
 
                 return (
@@ -194,27 +193,21 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                                 <div className="flex h-full gap-1">
                                                                     {/* Group by Level ID locally or just check if we should 'BLOCK'ify individual items */}
                                                                     {(() => {
-                                                                        // Count entries per level
                                                                         const levelCounts: Record<string, number> = {};
                                                                         slotEntries.forEach(e => {
                                                                             if (!e) return;
-                                                                            // Find which level this entry belongs to (it might belong to multiple subjectIds in different levels)
-                                                                            (course.levels || []).forEach(l => {
-                                                                                if (l && (l.subjectIds || []).includes(e.subjectId)) {
-                                                                                    levelCounts[l.id] = (levelCounts[l.id] || 0) + 1;
-                                                                                }
-                                                                            });
+                                                                            const slotStartMinutes = timeToMinutes(period.startTime);
+                                                                            const entries = (generatedTimetable || []).filter(entry =>
+                                                                                entry.day === day &&
+                                                                                entry.courseLevelId === e.courseLevelId &&
+                                                                                timeToMinutes(entry.startTime) === slotStartMinutes
+                                                                            );
+                                                                            levelCounts[e.courseLevelId] = (levelCounts[e.courseLevelId] || 0) + 1;
                                                                         });
-
-                                                                        // If any level has > 1 entries, we show BLOCK for those entries?
-                                                                        // This gets complex in the aggregate view. 
-                                                                        // Let's stick to the simplest interpretation: if there are multiple entries for the same slot in this aggregate view, 
-                                                                        // we render them as before, BUT if they belong to a block (multiple entries per level), we could label them.
-
-                                                                        // Actually, if the user sees "Maths, English" for Level 1 in the same cell, that's what they want to see as "BLOCK".
 
                                                                         return slotEntries.map((entry, idx) => {
                                                                             if (!entry) return null;
+                                                                            const classEntries = (generatedTimetable || []).filter(e => e.courseLevelId === entry.courseLevelId);
                                                                             const levelEntryCount = (course.levels || []).find(l => l && (l.subjectIds || []).includes(entry.subjectId)) ?
                                                                                 (course.levels || []).filter(l => l && (l.subjectIds || []).includes(entry.subjectId))
                                                                                     .reduce((max, l) => Math.max(max, levelCounts[l.id] || 0), 0) : 0;

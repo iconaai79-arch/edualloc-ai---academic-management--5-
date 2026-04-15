@@ -1277,7 +1277,7 @@ export const generateMasterCourseTimetablePdf = async (
 
                             const entries = (generatedTimetable || []).filter(e =>
                                 e.day === day &&
-                                (level.subjectIds || []).includes(e.subjectId) &&
+                                (e.courseLevelId === level.id || (e as any).course_level_id === level.id) &&
                                 timeToMinutes(e.startTime) === slotStartMinutes
                             );
 
@@ -1410,7 +1410,7 @@ export const generateMasterCourseTimetablePdf = async (
                     yPos += 10;
 
                     // --- PER-CLASS WORKLOAD SUMMARY ---
-                    const classEntries = (generatedTimetable || []).filter(e => (level.subjectIds || []).includes(e.subjectId));
+                    const classEntries = (generatedTimetable || []).filter(e => (e.courseLevelId === level.id || (e as any).course_level_id === level.id));
                     const classLecturerWorkload = new Map<string, { periods: number, subjects: Set<string> }>();
 
                     classEntries.forEach(e => {
@@ -1472,7 +1472,7 @@ export const generateMasterCourseTimetablePdf = async (
                             const breakObj = breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
                             const entries = (generatedTimetable || []).filter(e =>
                                 e.day === day &&
-                                (level.subjectIds || []).includes(e.subjectId) &&
+                                (e.courseLevelId === level.id || (e as any).course_level_id === level.id) &&
                                 timeToMinutes(e.startTime) === slotStartMinutes
                             );
 
