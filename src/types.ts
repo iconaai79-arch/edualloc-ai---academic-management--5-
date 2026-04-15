@@ -973,7 +973,7 @@ export interface ExamTimetableEntry {
 }
 
 export interface Conflict {
-    type: 'room' | 'lecturer' | 'consecutive_subject';
+    type: 'room' | 'lecturer' | 'consecutive_subject' | 'group_overlap';
     resourceId: string;
     day: string;
     startTime: string;

@@ -277,13 +277,16 @@ export const generateTimetable = async (
             5. TIME-OFF REQUESTS: 
                - If a teacher has a "Time-Off Request" for a specific day/time, you CANNOT schedule them then.
 
-            6. DOUBLE-BOOKING: 
-               - Zero tolerance for lecturer or room overlap. 
+            6. DOUBLE-BOOKING (ZERO TOLERANCE): 
+               - Lecturer overlap: A lecturer cannot be in two places at once.
+               - Room overlap: A room cannot host two lessons at once.
+               - GROUP OVERLAP: A Course Level (Stream/Group) cannot have two lessons at the same time. This is a FATAL conflict.
 
             7. UNIT DISTRIBUTION (CRITICAL & NON-NEGOTIABLE):
                - STRUCTURE OVERRIDES: If a subject has a 'structure' override defined within a specific course/level, you MUST ignore the default structure in the Subject Registry and use the override instead for that specific group.
                - SPREAD RULE: Separate lessons of the same subject MUST NOT be scheduled back-to-back (consecutively) unless they are part of a single defined 'double' or 'triple' block.
                - SINGLE PERIOD BAN: A subject with 'periods: 1' structure MUST NEVER appear more than once on the same day for a specific group.
+               - ONE LESSON PER PERIOD: For any given Course Level (Group), there must be EXACTLY ZERO or ONE lesson scheduled in any absolute time period, unless they are part of a 'same_time_subjects' block (e.g. electives).
                - DEFAULT SPREAD: Mon/Wed/Fri is a VALID spread. Mon/Tue/Wed is a POOR spread. Mon/Mon/Tue is ILLEGAL. 
 
             8. STREAM HOME ROOMS & DEDICATED ROOMS:
@@ -295,9 +298,15 @@ export const generateTimetable = async (
                - TEACHER FATIGUE (NO BACK-TO-BACK): Avoid scheduling more than 2 consecutive lessons for the same teacher. Insert a gap after every 2 consecutive lessons.
 
             10. MULTI-PROFILE COLLISION DETECTION (CRITICAL):
-               - Different courses follow different time profiles (e.g., Morning vs Afternoon streams).
-               - You MUST calculate the ABSOLUTE time (using start/end times) for every entry.
-               - A Lecturer or Room overlap in ABSOLUTE TIME is a fatal conflict, even if they belong to different profiles.
+                - Different courses follow different time profiles (e.g., Morning vs Afternoon streams).
+                - You MUST calculate the ABSOLUTE time (using start/end times) for every entry.
+                - A Lecturer, Room, or Group (Course Level) overlap in ABSOLUTE TIME is a fatal conflict, even if they belong to different profiles.
+
+            11. PROHIBITED - DO NOT EVER DO THESE:
+                - DO NOT return more than one lesson for any Course Level (Stream) at the same absolute time (unless it is a 'same_time_subjects' block).
+                - DO NOT return a lesson as separate 1-period entries if it is defined as a 2-period or 3-period block in the Subject Registry or Level Overrides.
+                - DO NOT ignore the 'structure' property. If it says 2 double periods, you MUST return EXACTLY TWO objects for that subject per group, each with a 2-period duration.
+                - DO NOT exceed teacher daily limits.
 
             PLANNING STRATEGY:
             - Use a "First-Pass" to place high-priority/constrained subjects first.
@@ -309,7 +318,7 @@ export const generateTimetable = async (
         const modelTier = aiModelTier === 'premium' ? 'pro' : 'flash';
         const response = await safeGenerateContent(prompt, { 
             responseMimeType: 'application/json',
-            temperature: 0.1 
+            temperature: 0.05 
         }, modelTier);
         const result = sanitizeAndParseJson(response.text || "[]");
         return (Array.isArray(result) ? result : []).map((entry: any) => ({

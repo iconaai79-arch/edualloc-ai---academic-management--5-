@@ -59,13 +59,18 @@ export const detectTimetableConflicts = (
                                 conflictingEntries: [e1, e2]
                             });
                         } else {
-                            // Shared room: check if total concurrent sessions at any point exceed limit
-                            // Simplified: if they overlap in a shared room, we might need a more complex sweep if > 2 entries
-                            // But for now, if it's two and limit is 1, it's a conflict.
-                            const limit = room.concurrentSessions || 1;
-                            // For simplicity, we just flag if more than 'limit' overlap at this specific pair
-                            // A full implementation would count peaks across the day
                         }
+                    }
+
+                    // Group (Stream) Conflict
+                    if (e1.courseLevelId === e2.courseLevelId) {
+                        conflicts.push({
+                            type: 'group_overlap',
+                            resourceId: e1.courseLevelId,
+                            day,
+                            startTime: e1.startTime,
+                            conflictingEntries: [e1, e2]
+                        });
                     }
                 }
             }
