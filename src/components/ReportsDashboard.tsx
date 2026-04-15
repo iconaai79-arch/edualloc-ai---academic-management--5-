@@ -302,18 +302,21 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         
         // Always filter by active period if available to ensure report relevance
         if (activeSemester) {
-            filtered = filtered.filter(e => e.semesterId === activeSemester.id);
+            const semFiltered = filtered.filter(e => e.semesterId === activeSemester.id);
+            if (semFiltered.length > 0) filtered = semFiltered;
         } else if (academicYears.length > 0) {
             const activeYear = academicYears.find(y => y.status === 'active');
             if (activeYear) {
-                filtered = filtered.filter(e => e.academicYearId === activeYear.id);
+                const yrFiltered = filtered.filter(e => e.academicYearId === activeYear.id);
+                if (yrFiltered.length > 0) filtered = yrFiltered;
             }
         }
         
         if (departmentFilter === 'all') return filtered;
         
         const subjectIdsInDept = new Set(filteredSubjects.map(s => s.id));
-        return filtered.filter(e => e && subjectIdsInDept.has(e.subjectId));
+        const deptFiltered = filtered.filter(e => e && subjectIdsInDept.has(e.subjectId));
+        return deptFiltered.length > 0 ? deptFiltered : filtered;
     }, [allTimetableEntries, activeSemester, academicYears, departmentFilter, filteredSubjects]);
 
     const filteredRequests = useMemo(() => {
