@@ -271,6 +271,7 @@ CREATE TABLE IF NOT EXISTS fuel_transfers (
 
 -- Enable RLS for transfers
 ALTER TABLE fuel_transfers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage fuel transfers" ON fuel_transfers;
 CREATE POLICY "Users can manage fuel transfers" ON fuel_transfers FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 
 -- Enable RLS
@@ -291,20 +292,49 @@ ALTER TABLE car_servicing_sales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fuel_station_customers ENABLE ROW LEVEL SECURITY;
 
 -- Policies
+DROP POLICY IF EXISTS "Institutions can manage their stations" ON fuel_stations;
 CREATE POLICY "Institutions can manage their stations" ON fuel_stations FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage fuel systems" ON fuel_tanks;
 CREATE POLICY "Users can manage fuel systems" ON fuel_tanks FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage fuel pumps" ON fuel_pumps;
 CREATE POLICY "Users can manage fuel pumps" ON fuel_pumps FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage fuel prices" ON fuel_prices;
 CREATE POLICY "Users can manage fuel prices" ON fuel_prices FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage fuel sales" ON fuel_sales;
 CREATE POLICY "Users can manage fuel sales" ON fuel_sales FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage inventory logs" ON fuel_inventory_log;
 CREATE POLICY "Users can manage inventory logs" ON fuel_inventory_log FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage station shifts" ON station_shifts;
 CREATE POLICY "Users can manage station shifts" ON station_shifts FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage station items" ON station_items;
 CREATE POLICY "Users can manage station items" ON station_items FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage POS sales" ON station_pos_sales;
 CREATE POLICY "Users can manage POS sales" ON station_pos_sales FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage POS sale items" ON station_pos_sale_items;
 CREATE POLICY "Users can manage POS sale items" ON station_pos_sale_items FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage carwash services" ON carwash_services;
 CREATE POLICY "Users can manage carwash services" ON carwash_services FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage carwash sales" ON carwash_sales;
 CREATE POLICY "Users can manage carwash sales" ON carwash_sales FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage car servicing packages" ON car_servicing_packages;
 CREATE POLICY "Users can manage car servicing packages" ON car_servicing_packages FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage car servicing sales" ON car_servicing_sales;
 CREATE POLICY "Users can manage car servicing sales" ON car_servicing_sales FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage fuel customers" ON fuel_station_customers;
 CREATE POLICY "Users can manage fuel customers" ON fuel_station_customers FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 
 -- Indexes
@@ -366,8 +396,13 @@ ALTER TABLE fuel_fleet_cards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fuel_price_history ENABLE ROW LEVEL SECURITY;
 
 -- Policies for Fleet
+DROP POLICY IF EXISTS "Users can manage fleet accounts" ON fuel_fleet_accounts;
 CREATE POLICY "Users can manage fleet accounts" ON fuel_fleet_accounts FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage fleet cards" ON fuel_fleet_cards;
 CREATE POLICY "Users can manage fleet cards" ON fuel_fleet_cards FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage price history" ON fuel_price_history;
 CREATE POLICY "Users can manage price history" ON fuel_price_history FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 
 -- Fleet Indexes
@@ -387,6 +422,7 @@ CREATE TABLE IF NOT EXISTS fuel_etr_configs (
 
 -- Enable RLS for ETR
 ALTER TABLE fuel_etr_configs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage ETR configs" ON fuel_etr_configs;
 CREATE POLICY "Users can manage ETR configs" ON fuel_etr_configs FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 
 -- Index
@@ -421,7 +457,10 @@ CREATE TABLE IF NOT EXISTS fuel_sms_logs (
 ALTER TABLE fuel_reorder_predictions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fuel_sms_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage predictions" ON fuel_reorder_predictions;
 CREATE POLICY "Users can manage predictions" ON fuel_reorder_predictions FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage SMS logs" ON fuel_sms_logs;
 CREATE POLICY "Users can manage SMS logs" ON fuel_sms_logs FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 
 -- Index
@@ -457,7 +496,10 @@ CREATE TABLE IF NOT EXISTS fuel_financial_reports (
 ALTER TABLE fuel_fleet_telemetry ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fuel_financial_reports ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage telemetry" ON fuel_fleet_telemetry;
 CREATE POLICY "Users can manage telemetry" ON fuel_fleet_telemetry FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage financial reports" ON fuel_financial_reports;
 CREATE POLICY "Users can manage financial reports" ON fuel_financial_reports FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 
 -- Index
@@ -490,7 +532,10 @@ CREATE TABLE IF NOT EXISTS fuel_staff_achievements (
 ALTER TABLE fuel_leak_alerts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fuel_staff_achievements ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage leak alerts" ON fuel_leak_alerts;
 CREATE POLICY "Users can manage leak alerts" ON fuel_leak_alerts FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage achievements" ON fuel_staff_achievements;
 CREATE POLICY "Users can manage achievements" ON fuel_staff_achievements FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 
 -- Index
@@ -532,7 +577,10 @@ CREATE TABLE IF NOT EXISTS fuel_maintenance_logs (
 ALTER TABLE fuel_station_assets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fuel_maintenance_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage assets" ON fuel_station_assets;
 CREATE POLICY "Users can manage assets" ON fuel_station_assets FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage maintenance logs" ON fuel_maintenance_logs;
 CREATE POLICY "Users can manage maintenance logs" ON fuel_maintenance_logs FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 
 -- Index
@@ -597,9 +645,16 @@ ALTER TABLE civil_products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE civil_batches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE civil_sales ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage yards" ON civil_yards;
 CREATE POLICY "Users can manage yards" ON civil_yards FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage civil products" ON civil_products;
 CREATE POLICY "Users can manage civil products" ON civil_products FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage civil batches" ON civil_batches;
 CREATE POLICY "Users can manage civil batches" ON civil_batches FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage civil sales" ON civil_sales;
 CREATE POLICY "Users can manage civil sales" ON civil_sales FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 
 -- Index
