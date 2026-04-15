@@ -104,7 +104,7 @@ export const generateDisplaySlots = (settings: TimetableSettings, includeBreaks:
     return all.sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
   }
 
-  const { startTime = '08:00', endTime = '17:00', cellSpanMinutes = 60, breaks = [] } = settings;
+  const { startTime = '08:00', endTime = '17:00', cellSpanMinutes = 60 } = settings;
   const slots: { start: string; end: string }[] = [];
 
   const step = cellSpanMinutes || 60;
