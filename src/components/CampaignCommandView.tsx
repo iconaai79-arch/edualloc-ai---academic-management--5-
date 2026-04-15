@@ -543,17 +543,67 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-12 shadow-2xl border border-slate-100 dark:border-slate-800">
                         <div className="flex justify-between items-center mb-12">
                             <h3 className="text-3xl font-black uppercase tracking-tighter">Campaign Configuration</h3>
-                    <button 
-                        onClick={() => {
-                            setIsSetupModalOpen(true);
-                        }}
-                        className="bg-slate-100 dark:bg-slate-800 text-indigo-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all"
-                    >
-                        Edit Profile
-                    </button>
-                </div>
+                            <button 
+                                onClick={() => setIsSetupModalOpen(true)}
+                                className="bg-slate-100 dark:bg-slate-800 text-indigo-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all"
+                            >
+                                Edit Profile
+                            </button>
+                        </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-12">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-12">
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Candidate Name</label>
+                                <p className="text-xl font-black text-slate-900 dark:text-white uppercase">{profile!.candidateName}</p>
+                                
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mt-6">Target Office</label>
+                                <p className="text-xl font-black text-slate-900 dark:text-white uppercase">{profile!.position}</p>
+
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mt-6">Political Party</label>
+                                <p className="text-xl font-black text-slate-900 dark:text-white uppercase">{profile!.partyName || 'Independent'}</p>
+                            </div>
+
+                            <div className="bg-slate-50 dark:bg-slate-800/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 relative group">
+                                <ChatBubbleLeftRightIcon className="w-12 h-12 text-indigo-600 mb-6" />
+                                <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white mb-2">Unique Invite Link</h4>
+                                <p className="text-slate-500 text-xs font-medium mb-6">
+                                    Share this link online. Supporters who click this can join your campaign and provide their contact details.
+                                </p>
+                                <div className="flex gap-2">
+                                    <input 
+                                        readOnly 
+                                        value={`${window.location.origin}/?view=join-campaign&id=${profile!.inviteSlug || profile!.id}`}
+                                        className="bg-white dark:bg-slate-900 border-none rounded-xl p-3 text-[10px] font-black text-indigo-500 w-full"
+                                    />
+                                    <button 
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(`${window.location.origin}/?view=join-campaign&id=${profile!.inviteSlug || profile!.id}`);
+                                            alert("Link copied to clipboard!");
+                                        }}
+                                        className="bg-indigo-600 text-white px-4 rounded-xl font-black text-[10px] uppercase tracking-widest"
+                                    >
+                                        Copy
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-6">
+                             <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white mb-4">Core Agendas</h4>
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {(profile!.agendas || []).length > 0 ? profile!.agendas?.map((agenda, i) => (
+                                    <div key={i} className="flex gap-3 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-l-4 border-indigo-500">
+                                        <div className="w-6 h-6 shrink-0 bg-white dark:bg-slate-900 rounded-lg flex items-center justify-center font-black text-xs text-indigo-600 shadow-sm">{i+1}</div>
+                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight">{agenda}</p>
+                                    </div>
+                                )) : (
+                                    <p className="text-slate-400 text-[10px] font-black uppercase">No structured agendas defined. Edit profile to add some.</p>
+                                )}
+                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Manifesto View */}
             {activeTab === 'manifesto' && (
