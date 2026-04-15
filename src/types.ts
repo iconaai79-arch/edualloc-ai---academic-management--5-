@@ -300,6 +300,7 @@ export interface Institution {
     airtelMoneyConfig?: AirtelMoneyConfig;
     intasendConfig?: IntasendConfig;
     ncbaConfig?: NcbaConfig;
+    googleDriveConfig?: GoogleDriveConfig;
     farmerSmsBillingEnabled?: boolean;
     moduleStates?: InstitutionModuleState[];
     coopSettings?: CoopSettings;
@@ -692,6 +693,14 @@ export interface IntasendConfig {
     environment?: 'sandbox' | 'test' | 'production';
 }
 
+export interface GoogleDriveConfig {
+    clientId: string;
+    clientSecret: string;
+    refreshToken: string;
+    folderId?: string;
+    isActive: boolean;
+}
+
 export interface ShowcaseItem {
     id: string;
     title: string;
@@ -727,6 +736,7 @@ export interface CompanyDetails {
     airtelMoneyConfig?: AirtelMoneyConfig;
     intasendConfig?: IntasendConfig;
     ncbaConfig?: NcbaConfig;
+    googleDriveConfig?: GoogleDriveConfig;
     emailConfig: EmailConfig;
     smsConfig: SmsConfig;
     letterheadConfig: LetterheadConfig;

@@ -152,6 +152,18 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
             const publicUrl = await apiService.uploadFile('eduai', path, file);
 
             if (publicUrl) {
+                // Background Mirroring to Google Drive
+                try {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = async () => {
+                        const base64 = (reader.result as string).split(',')[1];
+                        await apiService.uploadToGoogleDrive(file.name, file.type, base64);
+                    };
+                } catch (err) {
+                    console.log("Cloud mirror skipped (Retail):", err);
+                }
+
                 setFormData(prev => ({ ...prev, imageUrl: publicUrl }));
             }
         } catch (error) {

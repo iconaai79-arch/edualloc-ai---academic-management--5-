@@ -235,12 +235,12 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                                         return slotEntries.map((entry) => {
                                                                             if (!entry) return null;
                                                                             const entryLid = String(entry.courseLevelId || (entry as any).course_level_id || '');
-                                                                            const isBlockPart = (levelCounts[entryLid] || 0) > 1;
+                                                                            const level = course.levels.find(l => String(l.id) === entryLid);
                                                                             
                                                                             const subject = getSubjectById(entry.subjectId);
                                                                             const lecturer = getLecturerById(entry.lecturerId);
                                                                             const room = getRoomById(entry.roomId);
-                                                                            const isConflicting = timetableConflicts?.some(c =>
+                                                                            const isConflicting = (timetableConflicts || []).some(c =>
                                                                                 c.type === 'consecutive_subject' &&
                                                                                 c.day === day &&
                                                                                 c.conflictingEntries.some(ce => ce.id === entry.id)
@@ -248,7 +248,10 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
 
                                                                             return (
                                                                                 <div key={entry.id} className={`flex-1 rounded-xl p-2 shadow-sm border ${isConflicting ? 'border-red-500 ring-2 ring-red-200 animate-pulse' : 'border-black/5'}`} style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
-                                                                                    <div className="text-[10px] leading-tight text-slate-900 dark:text-white font-black uppercase tracking-tighter flex items-center justify-center gap-1">
+                                                                                    <div className="flex justify-between items-start mb-1">
+                                                                                        <span className="text-[8px] font-black bg-black/10 px-1 rounded text-slate-700">{level?.name || 'Class'}</span>
+                                                                                    </div>
+                                                                                    <div className="text-[10px] leading-tight text-slate-900 dark:text-white font-black uppercase tracking-tighter flex items-center justify-start gap-1">
                                                                                         {isConflicting && <span title="Consecutive Lesson Violation" className="text-red-600">⚠️</span>}
                                                                                         <span className="block">{subject?.shortName || subject?.code}</span>
                                                                                     </div>

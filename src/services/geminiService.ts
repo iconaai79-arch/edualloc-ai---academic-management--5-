@@ -218,68 +218,68 @@ export const generateTimetable = async (
     try {
         checkAiAvailable();
         const prompt = `
-            Task: Generate a conflict-free consolidated academic timetable.
+            Task: Architect a precise, conflict-free academic timetable matrix.
             
-            Inputs:
-            - Approved Allocations: ${JSON.stringify(allocations.map(a => ({ subjectId: a.subjectId, lecturerId: a.lecturerId, courseLevelIds: a.courseLevelIds })))}
-            - Subject Registry: ${JSON.stringify(subjects.map(s => ({ id: s.id, code: s.code, name: s.name, structure: s.lessonStructure })))}
-            - Faculty Registry: ${JSON.stringify(lecturers.map(u => ({ id: u.id, name: u.name })))}
-            - Room Inventory: ${JSON.stringify(rooms.map(r => ({ id: r.id, name: r.name, cap: r.capacity })))}
-            - Course & Level Structure: ${JSON.stringify(courses.map(c => ({
-            id: c.id,
-            name: c.name,
-            profileId: c.scheduleProfileId,
-            levels: c.levels.map(l => ({
-                id: l.id,
-                name: l.name,
-                subjectIds: l.subjectIds,
-                homeRoomId: l.roomId,
-                overrides: (l.subjectMetadata || []).map(m => ({ subjectId: m.subjectId, structure: m.lessonStructure, dedicatedRoomId: m.dedicatedRoomId }))
-            }))
-        })))}
-            - Operating Parameters: ${JSON.stringify({ 
-                start: settings.startTime, 
-                end: settings.endTime, 
-                days: settings.operatingDays,
-                periodsAvailable: settings.periods || [],
-                periodDurationMinutes: settings.cellSpanMinutes || 60,
-                defaultProfileId: settings.defaultScheduleProfileId
+            Contextual Inputs:
+            - Approved Instructional Allocations: ${JSON.stringify(allocations.map(a => ({ subjectId: a.subjectId, coordinatorId: a.lecturerId, targetGrades: a.courseLevelIds })))}
+            - Subject Specification Registry: ${JSON.stringify(subjects.map(s => ({ id: s.id, code: s.code, name: s.name, intendedStructure: s.lessonStructure })))}
+            - Faculty Resource Registry: ${JSON.stringify(lecturers.map(u => ({ id: u.id, name: u.name })))}
+            - Spatial Assets (Rooms): ${JSON.stringify(rooms.map(r => ({ id: r.id, name: r.name, cap: r.capacity })))}
+            - Institutional Grade & Level Hierarchy: ${JSON.stringify(courses.map(c => ({
+                id: c.id,
+                name: c.name,
+                activeProfileId: c.scheduleProfileId,
+                grades: c.levels.map(l => ({
+                    id: l.id,
+                    name: l.name,
+                    assignedSubjectIds: l.subjectIds,
+                    baseRoomId: l.roomId
+                }))
+            })))}
+            - Temporal Parameters: ${JSON.stringify({ 
+                dayStart: settings.startTime, 
+                dayEnd: settings.endTime, 
+                operatingDays: settings.operatingDays,
+                globalSlots: settings.periods || [],
+                slotDuration: settings.cellSpanMinutes || 60,
+                institutionDefaultProfileId: settings.defaultScheduleProfileId
             })}
-            - Curriculum Schedule Profiles: ${JSON.stringify(profiles.map(p => ({ 
+            - Schedule Template Profiles: ${JSON.stringify(profiles.map(p => ({ 
                 id: p.id, 
                 name: p.name, 
-                periodsAvailable: p.periods || [],
+                availableSlots: p.periods || [],
                 breaks: p.breaks || []
             })))}
-            - Global Institutional Breaks: ${JSON.stringify(settings.breaks)}
             
-            NON-NEGOTIABLE HEURISTICS - YOU MUST STRICTLY ENFORCE THESE RULES:
+            STRICT ARCHITECTURAL DIRECTIVES:
+            1. GRADE COVERAGE (ZERO EXCLUSION):
+               - EVERY Grade/Level defined in the hierarchy MUST have its assigned subjects scheduled according to their intendedStructure.
+               - DO NOT omit any grade that has valid allocations.
+            
+            2. LESSON STRUCTURE INTEGRITY:
+               - intendedStructure contains [{ periods: N, count: M }] (e.g., {periods: 2, count: 2} means 2 groups of double periods).
+               - DOUBLE/BLOCK LESSONS: If 'periods' > 1, those N lessons MUST be scheduled CONSECUTIVELY in neighboring slots on the same day.
+               - SINGLE LESSONS: If 'periods' = 1, they MUST NOT be blocked.
+               - TOTAL LESSONS: For each allocation, generate (periods * count) entries.
+            
+            3. ONE ENTRY = ONE SLOT (GRANULARITY):
+               - Your JSON output MUST be a flat array where EACH object represents EXACTLY ONE period (slot).
+               - Even for a double lesson (2 periods), you return TWO separate objects with matching subjectId but different slot times.
+            
+            4. PROFILE SYNCRONIZATION:
+               - Use the 'activeProfileId' for the grade. If empty, use 'institutionDefaultProfileId'. If both empty, use 'globalSlots'.
+               - Lessons MUST align perfectly with the resolved profile's startTime and endTime.
+            
+            5. VERTICAL LOGIC (DISTRIBUTION):
+               - Avoid "Front-Loading": Spread lessons across the entire day (Morning to Evening).
+               - Avoid "Day-Clustering": Spread a subject's lessons across different days of the week.
+            
+            6. HARD CONSTRAINTS (NO CONFLICTS):
+               - No lecturer in two places at once.
+               - No room with two different classes at once.
+               - No grade/level group with two different lessons at once.
 
-            1. SCHEDULE PROFILE INHERITANCE (CRITICAL):
-               - RULE 1 (Override): If a course has an explicit 'profileId', use that profile's periods and breaks.
-               - RULE 2 (Default): If 'profileId' is empty, check if there is a 'defaultProfileId' in Operating Parameters. If yes, use that profile.
-               - RULE 3 (Fallback): If no specific or default profile exists, use the global 'periodsAvailable' and global breaks.
-               - Every lesson must align exactly with the startTime and endTime of a single slot in the resolved profile.
-
-            2. ONE LESSON = ONE PERIOD (CRITICAL): 
-               - EVERY TimetableEntry in your output MUST corresponds to EXACTLY ONE period (slot) from the resolved profile.
-               - DO NOT return multi-period blocks. If a subject requires 2 periods, return TWO separate objects.
-               - Align perfectly with slot boundaries.
-
-            3. VERTICAL DISTRIBUTION:
-               - YOU MUST spread lessons across the full day (Period 1 to Period 8).
-               - DO NOT cluster all lessons into the first few periods.
-               - STOCHASTIC SELECTION: Choose slots randomly from the available valid pool.
-
-            4. WORKLOAD & CONSTRAINTS:
-               - SPREAD RULE: Separate lessons of the same subject for the same stream across DIFFERENT DAYS if possible.
-               - SINGLE PERIOD DAY LIMIT: For a specific stream, do not schedule more than one period of the same subject on the same day unless it's an elective block.
-               - TEACHER RULES: Respect max_lessons_per_day and avoid back-to-back overcrowding.
-
-            5. DOUBLE-BOOKING (ZERO TOLERANCE): 
-               - No lecturer, room, or stream (group) overlap in absolute time. 
-
-            Output: JSON array of objects: { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }.
+            Output Format: JSON Array of objects: { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }.
         `;
 
         const modelTier = aiModelTier === 'premium' ? 'pro' : 'flash';

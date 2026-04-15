@@ -518,11 +518,92 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     recipient_count: normalizedRecipients.length
                 });
             } else if (provider === 'Sematime') {
-                // Placeholder for Sematime implementation
                 return res.status(501).json({ success: false, message: 'Sematime integration is currently under maintenance. Please use ABMIS or Zettatel.' });
             }
 
             return res.status(400).json({ success: false, message: `Unsupported SMS provider: ${provider}` });
+        }
+
+        // --- Google Drive Integration ---
+        interface GoogleDriveConfig {
+            clientId: string;
+            clientSecret: string;
+            refreshToken: string;
+            folderId?: string;
+            isActive: boolean;
+        }
+
+        async function refreshGoogleDriveTokens(config: GoogleDriveConfig) {
+            const tokenUrl = 'https://oauth2.googleapis.com/token';
+            const params = new URLSearchParams({
+                client_id: config.clientId,
+                client_secret: config.clientSecret,
+                refresh_token: config.refreshToken,
+                grant_type: 'refresh_token'
+            });
+
+            const greq = await fetch(tokenUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: params.toString()
+            });
+
+            if (!greq.ok) {
+                const err = await greq.json();
+                throw new Error(`Google Auth Refresh Failed: ${err.error_description || err.error || 'Unknown error'}`);
+            }
+
+            return await greq.json();
+        }
+
+        if (action === 'googleDriveUpload') {
+            const { fileName, mimeType, content, folderId, institutionId: instId } = paramsMap;
+            if (!content) return res.status(400).json({ success: false, message: 'Missing file content for upload.' });
+
+            const targetInstId = instId || user.user_metadata?.institutionId || user.institution_id || user.institutionId;
+            const { data: inst } = await supabase.from('institutions').select('google_drive_config').eq('id', targetInstId).maybeSingle();
+            
+            const driveConfig = inst?.google_drive_config as GoogleDriveConfig;
+            if (!driveConfig || !driveConfig.isActive) {
+                return res.status(400).json({ success: false, message: 'Google Drive integration is not active for this institution.' });
+            }
+
+            try {
+                const { access_token } = await refreshGoogleDriveTokens(driveConfig);
+                const metadata = {
+                    name: fileName || `Upload_${Date.now()}`,
+                    mimeType: mimeType || 'image/jpeg',
+                    parents: (folderId || driveConfig.folderId) ? [folderId || driveConfig.folderId] : []
+                };
+
+                const boundary = '-------eduai-upload-boundary';
+                const delimiter = "\r\n--" + boundary + "\r\n";
+                const close_delim = "\r\n--" + boundary + "--";
+                const base64Data = content.includes(',') ? content.split(',')[1] : content;
+                
+                const body = 
+                    delimiter + 'Content-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(metadata) +
+                    delimiter + 'Content-Type: ' + metadata.mimeType + '\r\nContent-Transfer-Encoding: base64\r\n\r\n' + base64Data +
+                    close_delim;
+
+                const uploadRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${access_token}`,
+                        'Content-Type': `multipart/related; boundary=${boundary}`
+                    },
+                    body: body
+                });
+
+                if (!uploadRes.ok) {
+                    const errorJson = await uploadRes.json();
+                    throw new Error(`Google Drive API: ${errorJson.error?.message || 'Upload failed'}`);
+                }
+
+                return res.status(200).json({ success: true, message: 'Success', fileId: (await uploadRes.json()).id });
+            } catch (err: any) {
+                return res.status(500).json({ success: false, message: err.message });
+            }
         }
 
         if (action === 'forgotPassword') {

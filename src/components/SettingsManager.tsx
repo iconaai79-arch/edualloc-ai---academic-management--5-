@@ -8,7 +8,7 @@ import type {
     MpesaTransaction, InvoiceItem, TransactionStatus, ExtensionRequest,
     CompanyDetails, MpesaConfig, SubscriptionConfig, ScheduleProfile,
     TimetableConstraint, TimetableConstraintType, Break, TimetablePeriod, AcademicLevel,
-    TeacherLogicRule, TeacherRuleType, Invoice, Receipt, NcbaConfig, FtpConfig
+    TeacherLogicRule, TeacherRuleType, Invoice, Receipt, NcbaConfig, FtpConfig, GoogleDriveConfig
 } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
 import { AcademicYearManager } from './AcademicYearManager';
@@ -207,7 +207,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_settings' | 'security_policy' | 'location' | 'branding' | 'grading' | 'billing' | 'integrations' | 'sms' | 'email' | 'farmer_billing'>('profile');
     const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'integrations' | 'showcase' | 'storage'>('profile');
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'ncba'>('mpesa');
-    const [instIntegrationTab, setInstIntegrationTab] = useState<'mpesa' | 'ncba'>('mpesa');
+    const [instIntegrationTab, setInstIntegrationTab] = useState<'mpesa' | 'ncba' | 'googledrive'>('mpesa');
     const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>('departments');
     const [showPaperPreview, setShowPaperPreview] = useState(false);
 
@@ -294,6 +294,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [localInstNcbaConfig, setLocalInstNcbaConfig] = useState<NcbaConfig>(
         props.currentInstitution?.ncbaConfig || { clientId: '', clientSecret: '', username: '', password: '', baseUrl: 'https://sandbox.ncbagroup.com', environment: 'sandbox' }
     );
+    const [localInstGoogleDriveConfig, setLocalInstGoogleDriveConfig] = useState<GoogleDriveConfig>(
+        props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false }
+    );
     const [isSavingInstSms, setIsSavingInstSms] = useState(false);
     const [saveInstSmsStatus, setSaveInstSmsStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const [isSavingInstGateways, setIsSavingInstGateways] = useState(false);
@@ -318,8 +321,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             isOtpEnabled: props.currentInstitution?.isOtpEnabled ?? false,
             parentAbsenceNotificationsEnabled: props.currentInstitution?.parentAbsenceNotificationsEnabled ?? false,
             farmerSmsBillingEnabled: props.currentInstitution?.farmerSmsBillingEnabled ?? false,
-            slug: props.currentInstitution?.slug || ''
+            slug: props.currentInstitution?.slug || '',
+            googleDriveConfig: props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false }
         });
+        setLocalInstGoogleDriveConfig(props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false });
     }, [props.currentInstitution]);
     // Update local state when profile changes
     useEffect(() => {
@@ -500,6 +505,18 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
             const publicUrl = await apiService.uploadFile('eduai', path, file);
             if (publicUrl) {
+                // Secondary Mirror to Cloud Storage (Google Drive)
+                try {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = async () => {
+                        const base64Content = (reader.result as string).split(',')[1];
+                        await apiService.uploadToGoogleDrive(file.name, file.type, base64Content);
+                    };
+                } catch (gdMirrorErr) {
+                    console.warn("Cloud Mirror Bypass:", gdMirrorErr);
+                }
+
                 if (type === 'logo') props.onUpdateLogo?.(publicUrl);
                 if (type === 'letterhead') {
                     const currentConfig = props.letterheadConfig || { headerImageUrl: null, stampImageUrl: null };
@@ -539,6 +556,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     );
     const [localSubConfig, setLocalSubConfig] = useState<SubscriptionConfig>(props.companyDetails?.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
     const [localFtpConfig, setLocalFtpConfig] = useState<FtpConfig>(props.companyDetails?.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
+    const [localGoogleDriveConfig, setLocalGoogleDriveConfig] = useState<GoogleDriveConfig>(props.companyDetails?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false });
 
     const [isSavingConfigs, setIsSavingConfigs] = useState(false);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -564,11 +582,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 showcaseConfig: props.companyDetails.showcaseConfig || { enabled: true, showLoginLink: true }
             });
             setLocalSmsConfig(props.companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
-            setLocalEmailConfig(props.companyDetails.emailConfig || { host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
+            setLocalEmailConfig(props.companyDetails.emailConfig || { provider: 'smtp', host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
             setLocalMpesaConfig(props.companyDetails.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' });
             setLocalNcbaConfig(props.companyDetails.ncbaConfig || { clientId: '', clientSecret: '', username: '', password: '', baseUrl: 'https://c2bapis.ncbagroup.com', environment: 'production' });
             setLocalSubConfig(props.companyDetails.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
             setLocalFtpConfig(props.companyDetails.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
+            setLocalGoogleDriveConfig(props.companyDetails.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false });
         }
     }, [props.companyDetails]);
 
@@ -596,6 +615,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 ncbaConfig: sanitizedNcba,
                 subscriptionConfig: localSubConfig,
                 ftpConfig: localFtpConfig,
+                googleDriveConfig: localGoogleDriveConfig,
                 enforceGlobalOtp: localCompanyInfo.enforceGlobalOtp,
                 chatAssistantConfig: {
                     ...props.companyDetails.chatAssistantConfig,
@@ -1321,6 +1341,66 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         />
                                     </div>
                                 </div>
+                                
+                                <div className="mt-12 space-y-6">
+                                    <div className="flex items-center gap-4 mb-4">
+                                        <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-2xl">
+                                             <SparklesIcon className="w-6 h-6 text-blue-600" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-sm font-black uppercase tracking-tight">Google Drive Cloud Connectivity</h4>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Platform-wide cloud backup for critical user assets</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 p-8 bg-slate-50 dark:bg-slate-900/40 rounded-3xl border border-slate-100 dark:border-slate-800">
+                                        <div className="space-y-1.5 lg:col-span-1">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Activation Status</label>
+                                                <button 
+                                                    onClick={() => setLocalGoogleDriveConfig({...localGoogleDriveConfig, isActive: !localGoogleDriveConfig.isActive})}
+                                                    className={`px-3 py-1 rounded-full text-[9px] font-black uppercase transition-all ${localGoogleDriveConfig.isActive ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-slate-200 text-slate-500 border border-slate-300'}`}
+                                                >
+                                                    {localGoogleDriveConfig.isActive ? 'Active & Ready' : 'Deactivated'}
+                                                </button>
+                                            </div>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Client ID</label>
+                                            <input 
+                                                value={localGoogleDriveConfig.clientId} 
+                                                onChange={e => setLocalGoogleDriveConfig({...localGoogleDriveConfig, clientId: e.target.value})}
+                                                placeholder="722xxxxxx-xxxx.apps.googleusercontent.com" 
+                                                className="form-input text-xs font-mono" 
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5 lg:col-span-1">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mt-6">Client Secret</label>
+                                            <input 
+                                                type="password"
+                                                value={localGoogleDriveConfig.clientSecret} 
+                                                onChange={e => setLocalGoogleDriveConfig({...localGoogleDriveConfig, clientSecret: e.target.value})}
+                                                className="form-input text-xs font-mono" 
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5 lg:col-span-1">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mt-6">Refresh Token</label>
+                                            <input 
+                                                type="password"
+                                                value={localGoogleDriveConfig.refreshToken} 
+                                                onChange={e => setLocalGoogleDriveConfig({...localGoogleDriveConfig, refreshToken: e.target.value})}
+                                                className="form-input text-xs font-mono" 
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5 lg:col-span-1">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Target Folder ID (Optional)</label>
+                                            <input 
+                                                value={localGoogleDriveConfig.folderId || ''} 
+                                                onChange={e => setLocalGoogleDriveConfig({...localGoogleDriveConfig, folderId: e.target.value})}
+                                                placeholder="1Abc_def_Ghi..." 
+                                                className="form-input text-xs font-mono" 
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
 
                                 <div className="mt-10 pt-8 border-t border-slate-50 dark:border-slate-800 flex justify-end gap-4">
                                     <button 
@@ -1878,6 +1958,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     >
                                         NCBA Bank
                                     </button>
+                                    <button
+                                        onClick={() => setInstIntegrationTab('googledrive')}
+                                        className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${instIntegrationTab === 'googledrive' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        Google Drive
+                                    </button>
                                 </div>
 
                                 <div className="space-y-8">
@@ -2025,6 +2111,74 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             </div>
                                         </div>
                                     )}
+
+                                    {instIntegrationTab === 'googledrive' && (
+                                        <div className="animate-fade-in space-y-8">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-2xl text-blue-600">
+                                                    <SparklesIcon className="w-6 h-6" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-xl font-black uppercase tracking-tight">Institutional Google Drive</h3>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Automated Cloud Backups for Student & Asset Records</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-8 bg-slate-50 dark:bg-slate-900/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
+                                                <div className="md:col-span-2 flex items-center justify-between mb-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+                                                    <div>
+                                                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Connectivity Status</h4>
+                                                        <p className="text-[10px] text-slate-500 mt-1">Institutions can override global storage with their own cloud credentials.</p>
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => setLocalInstGoogleDriveConfig({...localInstGoogleDriveConfig, isActive: !localInstGoogleDriveConfig.isActive})}
+                                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${localInstGoogleDriveConfig.isActive ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-200 text-slate-500'}`}
+                                                    >
+                                                        {localInstGoogleDriveConfig.isActive ? 'Active & Routing' : 'Offline / Inactive'}
+                                                    </button>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">GCP Client ID</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={localInstGoogleDriveConfig.clientId || ''} 
+                                                        onChange={(e) => setLocalInstGoogleDriveConfig({ ...localInstGoogleDriveConfig, clientId: e.target.value })}
+                                                        className="form-input font-mono text-xs" 
+                                                        placeholder="722xxxxxx-xxxx.apps.googleusercontent.com"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">GCP Client Secret</label>
+                                                    <input 
+                                                        type="password" 
+                                                        value={localInstGoogleDriveConfig.clientSecret || ''} 
+                                                        onChange={(e) => setLocalInstGoogleDriveConfig({ ...localInstGoogleDriveConfig, clientSecret: e.target.value })}
+                                                        className="form-input font-mono text-xs" 
+                                                    />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">OAuth Refresh Token</label>
+                                                    <input 
+                                                        type="password" 
+                                                        value={localInstGoogleDriveConfig.refreshToken || ''} 
+                                                        onChange={(e) => setLocalInstGoogleDriveConfig({ ...localInstGoogleDriveConfig, refreshToken: e.target.value })}
+                                                        className="form-input font-mono text-xs" 
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Target Folder ID (Drive Path)</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={localInstGoogleDriveConfig.folderId || ''} 
+                                                        onChange={(e) => setLocalInstGoogleDriveConfig({ ...localInstGoogleDriveConfig, folderId: e.target.value })}
+                                                        className="form-input font-mono text-xs" 
+                                                        placeholder="1Abc_def_Ghi..."
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex items-center justify-end gap-4 pt-4">
@@ -2048,7 +2202,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             try {
                                                 await props.onUpdateInstitution(props.currentInstitution.id, { 
                                                     mpesaConfig: localInstMpesaConfig,
-                                                    ncbaConfig: localInstNcbaConfig
+                                                    ncbaConfig: localInstNcbaConfig,
+                                                    googleDriveConfig: localInstGoogleDriveConfig
                                                 });
                                                 setSaveInstGatewaysStatus('success');
                                                 setTimeout(() => setSaveInstGatewaysStatus('idle'), 3000);

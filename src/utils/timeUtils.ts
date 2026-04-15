@@ -85,17 +85,19 @@ export const generateTimeSlots = (settings: TimetableSettings, includeBreaks: bo
   return filterOutBreaks(slots, breaks, includeBreaks);
 };
 
-export const generateDisplaySlots = (settings: TimetableSettings, includeBreaks: boolean = false): { start: string; end: string }[] => {
+export const generateDisplaySlots = (settings: TimetableSettings, includeBreaks: boolean = false): { start: string; end: string; isBreak?: boolean; label?: string }[] => {
   if (!settings) return [];
   const periods = settings.periods || [];
-  if (Array.isArray(periods) && periods.length > 0) {
-    const all = [...periods]
-      .filter(p => p && p.startTime && p.endTime)
-      .map(p => ({ start: p.startTime, end: p.endTime }));
+  const breaks = settings.breaks || [];
 
-    if (includeBreaks && settings.breaks) {
-      settings.breaks.filter(b => b.status !== 'inactive').forEach(b => {
-        all.push({ start: b.startTime, end: b.endTime });
+  if (Array.isArray(periods) && periods.length > 0) {
+    const all: { start: string; end: string; isBreak?: boolean; label?: string }[] = [...periods]
+      .filter(p => p && p.startTime && p.endTime)
+      .map(p => ({ start: p.startTime, end: p.endTime, label: p.name }));
+
+    if (includeBreaks && breaks) {
+      breaks.filter(b => b.status !== 'inactive').forEach(b => {
+        all.push({ start: b.startTime, end: b.endTime, isBreak: true, label: b.name });
       });
     }
 
@@ -116,11 +118,27 @@ export const generateDisplaySlots = (settings: TimetableSettings, includeBreaks:
     slots.push({
       start: minutesToTime(currentMinutes),
       end: minutesToTime(slotEndMinutes),
+      label: `Period ${slots.length + 1}`
     });
     currentMinutes += step;
   }
 
-  return filterOutBreaks(slots, breaks, includeBreaks);
+  const result = filterOutBreaks(slots, breaks, includeBreaks);
+  
+  if (includeBreaks) {
+    breaks.filter(b => b.status !== 'inactive').forEach(b => {
+      // Add breaks but they will be sorted
+      result.push({
+        start: b.startTime,
+        end: b.endTime,
+        isBreak: true,
+        label: b.name
+      });
+    });
+    return result.sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+  }
+
+  return result;
 };
 
 export const generatePeriodLabels = (

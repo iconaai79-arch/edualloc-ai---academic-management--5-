@@ -1272,17 +1272,40 @@ export const generateMasterCourseTimetablePdf = async (
 
                             if (rowOccupiedSlots.has(slotStartMinutes)) continue;
 
-                            const isBreak = !!slot.isBreak;
+                            const isBreak = slot.isBreak;
                             const breakText = (slot.label || 'BREAK').split('').join('\n');
 
                             const entries = (generatedTimetable || []).filter(e =>
                                 e.day === day &&
-                                (String(e.courseLevelId) === String(level.id) || String((e as any).course_level_id) === String(level.id)) &&
+                                (String(e.courseLevelId) === String(level.id) || String((e as any).courseLevelId) === String(level.id) || String((e as any).course_level_id) === String(level.id)) &&
                                 timeToMinutes(e.startTime) === slotStartMinutes
                             );
 
                             if (isBreak) {
-                                row.push({ content: breakText, colSpan: 1, styles: { halign: 'center', valign: 'middle', fontSize: 9, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [150, 150, 150], cellPadding: 1 } });
+                                // Calculate break colSpan to ensure display consistency
+                                const slotEndMinutes = timeToMinutes(slot.end);
+                                const breakObj = timetableSettings.breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start);
+                                let colSpan = 1;
+                                if (breakObj) {
+                                  const breakEndMinutes = timeToMinutes(breakObj.endTime);
+                                  if (breakEndMinutes > slotEndMinutes) {
+                                      for (let k = i + 1; k < displaySlots.length; k++) {
+                                          if (timeToMinutes(displaySlots[k].start) < breakEndMinutes) {
+                                              colSpan++;
+                                          } else {
+                                              break;
+                                          }
+                                      }
+                                  }
+                                }
+                                
+                                row.push({ 
+                                  content: breakText, 
+                                  colSpan, 
+                                  styles: { halign: 'center', valign: 'middle', fontSize: 9, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [150, 150, 150], cellPadding: 1 } 
+                                });
+                                for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
+                                i += colSpan - 1;
                             } else if (entries.length > 0) {
                                 const isBlock = entries.length > 1;
                                 const text = entries.map(e => {
@@ -1467,22 +1490,36 @@ export const generateMasterCourseTimetablePdf = async (
                             const slotStartMinutes = timeToMinutes(slot.start);
                             if (rowOccupiedSlots.has(slotStartMinutes)) continue;
 
-                            const isBreak = !!slot.isBreak;
+                            const isBreak = slot.isBreak;
                             const breakText = (slot.label || 'BREAK').split('').join('\n');
                             const entries = (generatedTimetable || []).filter(e =>
                                 e.day === day &&
-                                (String(e.courseLevelId) === String(level.id) || String((e as any).course_level_id) === String(level.id)) &&
+                                (String(e.courseLevelId) === String(level.id) || String((e as any).courseLevelId) === String(level.id) || String((e as any).course_level_id) === String(level.id)) &&
                                 timeToMinutes(e.startTime) === slotStartMinutes
                             );
 
                             if (isBreak) {
+                                // Calculate break colSpan
+                                const slotEndMinutes = timeToMinutes(slot.end);
+                                const breakObj = timetableSettings.breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start);
+                                let colSpan = 1;
+                                if (breakObj) {
+                                  const breakEndMinutes = timeToMinutes(breakObj.endTime);
+                                  if (breakEndMinutes > slotEndMinutes) {
+                                      for (let k = i + 1; k < displaySlots.length; k++) {
+                                          if (timeToMinutes(displaySlots[k].start) < breakEndMinutes) {
+                                              colSpan++;
+                                          } else {
+                                              break;
+                                          }
+                                      }
+                                  }
+                                }
+
                                 if (dIndex === 0) {
-                                    // Use rowSpan to create a single vertical break column across all days
-                                    // Vertical text layout
-                                    const breakTxt = breakText;
                                     row.push({
-                                        content: breakTxt,
-                                        colSpan: 1,
+                                        content: breakText,
+                                        colSpan: colSpan,
                                         rowSpan: days.length,
                                         styles: {
                                             halign: 'center',
@@ -1495,7 +1532,8 @@ export const generateMasterCourseTimetablePdf = async (
                                         }
                                     });
                                 }
-                                // For other days, we don't push anything because rowSpan covers it
+                                for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
+                                i += colSpan - 1;
                             } else if (entries.length > 0) {
                                 const isBlock = entries.length > 1;
                                 const firstEntry = entries[0];
@@ -1918,13 +1956,10 @@ export const generateMasterFacilityGridPdf = async (
                     const row: any[] = [room.name];
                     const rowOccupiedSlots = new Set<number>();
 
-                    for (let i = 0; i < displaySlots.length; i++) {
+                     for (let i = 0; i < displaySlots.length; i++) {
                         const slot = displaySlots[i];
                         const slotStartMinutes = timeToMinutes(slot.start);
                         if (rowOccupiedSlots.has(slotStartMinutes)) continue;
-
-                        const isBreak = breaks.some(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
-                        const breakObj = breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
 
                         const entries = (generatedTimetable || []).filter(e => {
                             if (e.day !== day) return false;
@@ -1937,12 +1972,30 @@ export const generateMasterFacilityGridPdf = async (
                             return false;
                         });
 
-                        if (isBreak) {
-                            const breakText = (breakObj?.name || 'BREAK').split('').join('\n');
+                        if (slot.isBreak) {
+                            const breakText = (slot.label || 'BREAK').split('').join('\n');
+                            const slotEndMinutes = timeToMinutes(slot.end);
+                            const breakObj = timetableSettings.breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start);
+                            let colSpan = 1;
+                            if (breakObj) {
+                                const breakEndMinutes = timeToMinutes(breakObj.endTime);
+                                if (breakEndMinutes > slotEndMinutes) {
+                                    for (let k = i + 1; k < displaySlots.length; k++) {
+                                        if (timeToMinutes(displaySlots[k].start) < breakEndMinutes) {
+                                            colSpan++;
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+
                             row.push({
-                                content: breakText, colSpan: 1,
+                                content: breakText, colSpan,
                                 styles: { halign: 'center', valign: 'middle', fontSize: 9, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [150, 150, 150], cellPadding: 1 }
                             });
+                            for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
+                            i += colSpan - 1;
                         } else if (entries.length > 0) {
                             const isBlock = entries.length > 1;
                             const firstEntry = entries[0];

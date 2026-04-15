@@ -475,6 +475,33 @@ export const apiService = {
             return null;
         }
     },
+    async uploadToGoogleDrive(file: File, fileName?: string): Promise<string | null> {
+        try {
+            const reader = new FileReader();
+            const base64Promise = new Promise<string>((resolve, reject) => {
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+
+            const content = await base64Promise;
+            const result = await apiService.invokeIntegration({
+                action: 'googleDriveUpload',
+                fileName: fileName || file.name,
+                mimeType: file.type,
+                content: content
+            });
+
+            if (result.success) {
+                return result.fileId;
+            }
+            throw new Error(result.message || 'Drive upload failed.');
+        } catch (err: any) {
+            console.error("[Google Drive] Upload failed:", err);
+            alert(`Google Drive Upload Error: ${err.message}`);
+            return null;
+        }
+    },
     async fetchModuleRecords<T = any>(
         module: string, 
         institutionId?: string, 
