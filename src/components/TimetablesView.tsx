@@ -67,6 +67,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
 
     const [viewMode, setViewMode] = useState<'grid' | 'workload' | 'relations' | 'master_course' | 'master_department' | 'master_building' | 'lecturer_schedule' | 'master_staff'>('master_course');
     const [selectedCourseForMasterView, setSelectedCourseForMasterView] = useState<string>('all');
+    const [selectedLevelIdForMasterView, setSelectedLevelIdForMasterView] = useState<string>('all');
     const [selectedLecturerId, setSelectedLecturerId] = useState<string>('');
     const [selectedDay, setSelectedDay] = useState<string>(timetableSettings?.operatingDays?.[0] || 'Monday');
     const [selectedBuildingId, setSelectedBuildingId] = useState<string>('all');
@@ -287,9 +288,21 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                 );
             } else {
                 const isSingleCourse = selectedCourseForMasterView !== 'all';
-                const coursesToInclude = isSingleCourse
+                const isSingleLevel = isSingleCourse && selectedLevelIdForMasterView !== 'all';
+                
+                let coursesToInclude = isSingleCourse
                     ? (courses || []).filter(c => c && c.id === selectedCourseForMasterView)
                     : (courses || []);
+
+                // If a single level is selected, we need to handle it during filtering
+                // The generator currently doesn't filter by levelId but the pdfService does if we pass the right data.
+                // We'll pass a level-specific subset of course.levels if isSingleLevel
+                if (isSingleLevel && coursesToInclude.length > 0) {
+                    coursesToInclude = coursesToInclude.map(c => ({
+                        ...c,
+                        levels: (c.levels || []).filter(l => l.id === selectedLevelIdForMasterView)
+                    }));
+                }
 
                 // Determine effective settings for the PDF
                 let effectiveSettings = timetableSettings;
@@ -500,12 +513,29 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                             </div>
                             <select
                                 value={selectedCourseForMasterView}
-                                onChange={e => setSelectedCourseForMasterView(e.target.value)}
-                                className="form-select text-[10px] font-black uppercase tracking-widest h-11 lg:w-48"
+                                onChange={e => {
+                                    setSelectedCourseForMasterView(e.target.value);
+                                    setSelectedLevelIdForMasterView('all');
+                                }}
+                                className="form-select text-[10px] font-black uppercase tracking-widest h-11 lg:min-w-40"
                             >
                                 <option value="all">All {isSchool ? 'Grades' : 'Courses'}</option>
                                 {(courses || []).map(c => c && <option key={c.id} value={c.id}>{c.name}</option>)}
                             </select>
+
+                            {selectedCourseForMasterView !== 'all' && (
+                                <select
+                                    value={selectedLevelIdForMasterView}
+                                    onChange={e => setSelectedLevelIdForMasterView(e.target.value)}
+                                    className="form-select text-[10px] font-black uppercase tracking-widest h-11 lg:min-w-40 bg-indigo-50/50"
+                                >
+                                    <option value="all">All {isSchool ? 'Streams' : 'Levels'}</option>
+                                    {(() => {
+                                        const course = (courses || []).find(c => c && c.id === selectedCourseForMasterView);
+                                        return (course?.levels || []).map(l => l && <option key={l.id} value={l.id}>{l.name}</option>);
+                                    })()}
+                                </select>
+                            )}
                             <button onClick={handleDownloadPdf} disabled={isGeneratingPdf} className="h-11 px-6 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-all flex items-center gap-2 shadow-sm border border-indigo-100 disabled:opacity-50">
                                 <EyeIcon className="w-4 h-4" /> {isGeneratingPdf ? 'Compiling...' : 'PDF Preview'}
                             </button>
@@ -571,6 +601,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                                 getRoomById={getRoomById}
                                 timetableSettings={effectiveSettings}
                                 selectedCourseId={selectedCourseForMasterView}
+                                selectedLevelId={selectedLevelIdForMasterView}
                                 academicYears={academicYears || []}
                                 activeSemester={activeSemester || null}
                                 isSchool={isSchool}

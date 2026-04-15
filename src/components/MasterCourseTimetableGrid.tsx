@@ -18,7 +18,8 @@ interface MasterCourseTimetableGridProps {
     getLecturerById: (id: string) => User | undefined;
     getRoomById: (id: string) => Room | undefined;
     timetableSettings: TimetableSettings;
-    selectedCourseId?: string; // Optional: for highlighting or filtering
+    selectedCourseId?: string;
+    selectedLevelId?: string;
     academicYears: AcademicYear[];
     activeSemester: Semester | null;
     isSchool?: boolean;
@@ -42,7 +43,8 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
     getRoomById,
     timetableConflicts,
     layoutMode,
-    onLayoutModeChange
+    onLayoutModeChange,
+    selectedLevelId = 'all'
 }) => {
     const isSchool = isSchoolInstitution(currentInstitution);
     // const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal'); // LIFTED TO PARENT
@@ -51,11 +53,21 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
     const cellSpanMinutes = timetableSettings.cellSpanMinutes || 60;
 
     const relevantCourses = useMemo(() => {
+        let list = courses || [];
         if (selectedCourseId && selectedCourseId !== 'all') {
-            return courses.filter(c => c.id === selectedCourseId);
+            list = list.filter(c => c && c.id === selectedCourseId);
         }
-        return courses;
-    }, [courses, selectedCourseId]);
+        
+        // If a specific level is selected, we only want to show that level within the courses
+        if (selectedLevelId && selectedLevelId !== 'all') {
+            list = list.map(course => ({
+                ...course,
+                levels: (course.levels || []).filter(l => l && l.id === selectedLevelId)
+            })).filter(course => (course.levels || []).length > 0);
+        }
+        
+        return list;
+    }, [courses, selectedCourseId, selectedLevelId]);
 
     const workloadData = useMemo(() => {
         return relevantCourses.map(course => {
