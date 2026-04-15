@@ -286,9 +286,42 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                     false
                 );
             } else {
-                const coursesToInclude = selectedCourseForMasterView === 'all'
-                    ? (courses || [])
-                    : (courses || []).filter(c => c && c.id === selectedCourseForMasterView);
+                const isSingleCourse = selectedCourseForMasterView !== 'all';
+                const coursesToInclude = isSingleCourse
+                    ? (courses || []).filter(c => c && c.id === selectedCourseForMasterView)
+                    : (courses || []);
+
+                // Determine effective settings for the PDF
+                let effectiveSettings = timetableSettings;
+                if (isSingleCourse && coursesToInclude.length > 0) {
+                    const singleCourse = coursesToInclude[0];
+                    const profileId = singleCourse.scheduleProfileId;
+                    const profile = (currentInstitution?.scheduleProfiles || []).find(p => p.id === profileId);
+                    
+                    if (profile) {
+                        effectiveSettings = {
+                            ...timetableSettings,
+                            operatingDays: profile.operatingDays || timetableSettings.operatingDays,
+                            startTime: profile.startTime || timetableSettings.startTime,
+                            endTime: profile.endTime || timetableSettings.endTime,
+                            periods: profile.periods || [],
+                            cellSpanMinutes: profile.cellSpanMinutes || timetableSettings.cellSpanMinutes
+                        };
+                    }
+                } else if (timetableSettings.defaultScheduleProfileId) {
+                    // Fallback to Institutional Default Profile for "All Courses" view
+                    const defaultProfile = (currentInstitution?.scheduleProfiles || []).find(p => p.id === timetableSettings.defaultScheduleProfileId);
+                    if (defaultProfile) {
+                        effectiveSettings = {
+                            ...timetableSettings,
+                            operatingDays: defaultProfile.operatingDays || timetableSettings.operatingDays,
+                            startTime: defaultProfile.startTime || timetableSettings.startTime,
+                            endTime: defaultProfile.endTime || timetableSettings.endTime,
+                            periods: defaultProfile.periods || [],
+                            cellSpanMinutes: defaultProfile.cellSpanMinutes || timetableSettings.cellSpanMinutes
+                        };
+                    }
+                }
 
                 blob = await generateMasterCourseTimetablePdf(
                     generatedTimetable,
@@ -300,12 +333,12 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                     logoUrl,
                     activeAcademicYear?.name || 'Academic Period',
                     activeSemester?.name || '',
-                    timetableSettings,
+                    effectiveSettings,
                     getSubjectById,
                     getLecturerById,
-                    getRoomById, // Pass the room getter to resolve dedicated rooms
-                    false, // Full document mode
-                    layoutMode // Pass the current layout mode
+                    getRoomById,
+                    false,
+                    layoutMode
                 );
             }
 
@@ -495,25 +528,59 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
 
             <div className="printable-area">
                 {viewMode === 'master_course' ? (
-                    <MasterCourseTimetableGrid
-                        courses={courses || []}
-                        subjects={subjects || []}
-                        lecturers={lecturers || []}
-                        rooms={rooms || []}
-                        entries={generatedTimetable || []}
-                        getSubjectById={getSubjectById}
-                        getLecturerById={getLecturerById}
-                        getRoomById={getRoomById}
-                        timetableSettings={timetableSettings}
-                        selectedCourseId={selectedCourseForMasterView}
-                        academicYears={academicYears || []}
-                        activeSemester={activeSemester || null}
-                        isSchool={isSchool}
-                        currentInstitution={currentInstitution}
-                        timetableConflicts={timetableConflicts}
-                        layoutMode={layoutMode}
-                        onLayoutModeChange={setLayoutMode}
-                    />
+                    (() => {
+                        const isSingleCourse = selectedCourseForMasterView !== 'all';
+                        let effectiveSettings = timetableSettings;
+                        if (isSingleCourse) {
+                            const singleCourse = (courses || []).find(c => c && c.id === selectedCourseForMasterView);
+                            const profileId = singleCourse?.scheduleProfileId;
+                            const profile = (currentInstitution?.scheduleProfiles || []).find(p => p.id === profileId);
+                            if (profile) {
+                                effectiveSettings = {
+                                    ...timetableSettings,
+                                    operatingDays: profile.operatingDays || timetableSettings.operatingDays,
+                                    startTime: profile.startTime || timetableSettings.startTime,
+                                    endTime: profile.endTime || timetableSettings.endTime,
+                                    periods: profile.periods || [],
+                                    cellSpanMinutes: profile.cellSpanMinutes || timetableSettings.cellSpanMinutes
+                                };
+                            }
+                        } else if (timetableSettings.defaultScheduleProfileId) {
+                            // Fallback to Institutional Default Profile for "All Courses" grid
+                            const defaultProfile = (currentInstitution?.scheduleProfiles || []).find(p => p.id === timetableSettings.defaultScheduleProfileId);
+                            if (defaultProfile) {
+                                effectiveSettings = {
+                                    ...timetableSettings,
+                                    operatingDays: defaultProfile.operatingDays || timetableSettings.operatingDays,
+                                    startTime: defaultProfile.startTime || timetableSettings.startTime,
+                                    endTime: defaultProfile.endTime || timetableSettings.endTime,
+                                    periods: defaultProfile.periods || [],
+                                    cellSpanMinutes: defaultProfile.cellSpanMinutes || timetableSettings.cellSpanMinutes
+                                };
+                            }
+                        }
+                        return (
+                            <MasterCourseTimetableGrid
+                                courses={courses || []}
+                                subjects={subjects || []}
+                                lecturers={lecturers || []}
+                                rooms={rooms || []}
+                                entries={generatedTimetable || []}
+                                getSubjectById={getSubjectById}
+                                getLecturerById={getLecturerById}
+                                getRoomById={getRoomById}
+                                timetableSettings={effectiveSettings}
+                                selectedCourseId={selectedCourseForMasterView}
+                                academicYears={academicYears || []}
+                                activeSemester={activeSemester || null}
+                                isSchool={isSchool}
+                                currentInstitution={currentInstitution}
+                                timetableConflicts={timetableConflicts}
+                                layoutMode={layoutMode}
+                                onLayoutModeChange={setLayoutMode}
+                            />
+                        );
+                    })()
                 ) : viewMode === 'grid' ? (
                     <div className="space-y-6 animate-fade-in">
                         <div className="flex items-center gap-3 border-l-4 border-indigo-600 pl-4 bg-slate-50 dark:bg-slate-900/40 p-3 rounded-r-2xl no-print">
