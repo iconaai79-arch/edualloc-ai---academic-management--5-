@@ -336,8 +336,19 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                     }
                 }
 
+                const filteredEntriesForPdf = (generatedTimetable || []).filter(e => {
+                    if (!e) return false;
+                    const isCourseMatch = selectedCourseForMasterView === 'all' || e.courseId === selectedCourseForMasterView || (e as any).course_id === selectedCourseForMasterView;
+                    if (!isCourseMatch) return false;
+                    
+                    if (selectedLevelIdForMasterView !== 'all') {
+                        return e.courseLevelId === selectedLevelIdForMasterView || (e as any).course_level_id === selectedLevelIdForMasterView;
+                    }
+                    return true;
+                });
+
                 blob = await generateMasterCourseTimetablePdf(
-                    generatedTimetable,
+                    filteredEntriesForPdf,
                     coursesToInclude,
                     viewModeTitles['master_course'],
                     "",
