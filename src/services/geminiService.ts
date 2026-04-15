@@ -240,6 +240,7 @@ export const generateTimetable = async (
                 start: settings.startTime, 
                 end: settings.endTime, 
                 days: settings.operatingDays,
+                periodsAvailable: settings.periods || [],
                 periodDurationMinutes: settings.cellSpanMinutes || 60 
             })}
             - Curriculum Schedule Profiles: ${JSON.stringify(profiles.map(p => ({ 
@@ -307,6 +308,11 @@ export const generateTimetable = async (
                 - DO NOT return a lesson as separate 1-period entries if it is defined as a 2-period or 3-period block in the Subject Registry or Level Overrides.
                 - DO NOT ignore the 'structure' property. If it says 2 double periods, you MUST return EXACTLY TWO objects for that subject per group, each with a 2-period duration.
                 - DO NOT exceed teacher daily limits.
+
+            12. TEMPORAL DISTRIBUTION (CRITICAL):
+                - You MUST distribute lessons across all available periods in the day (e.g. from Period 1 to Period 8).
+                - DO NOT cluster all lessons in the first few hours of the day.
+                - Each group's schedule should be balanced, with lessons spread throughout the operating hours.
 
             PLANNING STRATEGY:
             - Use a "First-Pass" to place high-priority/constrained subjects first.
