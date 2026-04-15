@@ -1306,8 +1306,20 @@ export const generateMasterCourseTimetablePdf = async (
                                     return [s?.shortName || s?.code || 'N/A', r?.name || ''].filter(Boolean).join(' ');
                                 }).join('\n---\n');
 
-                                const maxDuration = Math.max(...entries.map(e => timeToMinutes(e.endTime) - timeToMinutes(e.startTime)));
-                                const colSpan = Math.max(1, Math.round(maxDuration / cellSpanMinutes));
+                                const slotEndMinutes = timeToMinutes(displaySlots[i].end);
+                                const maxEntryEndMinutes = Math.max(...entries.map(e => timeToMinutes(e.endTime)));
+
+                                // Calculate colSpan based on how many periods this lesson actually covers
+                                let colSpan = 1;
+                                if (maxEntryEndMinutes > slotEndMinutes) {
+                                    for (let k = i + 1; k < displaySlots.length; k++) {
+                                        if (timeToMinutes(displaySlots[k].start) < maxEntryEndMinutes) {
+                                            colSpan++;
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                }
                                 for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
 
                                 const customColors = entries.map(e => generatePastelColorRgb(e.subjectId));
@@ -1494,8 +1506,20 @@ export const generateMasterCourseTimetablePdf = async (
                                     return s?.shortName || s?.code || 'N/A';
                                 }).join('\n---\n');
 
-                                const maxDuration = Math.max(...entries.map(e => timeToMinutes(e.endTime) - timeToMinutes(e.startTime)));
-                                const colSpan = Math.max(1, Math.round(maxDuration / cellSpanMinutes));
+                                const slotEndMinutes = timeToMinutes(periodHeaders[i].endTime); 
+                                const maxEntryEndMinutes = Math.max(...entries.map(e => timeToMinutes(e.endTime)));
+
+                                // Calculate colSpan based on how many periods this lesson actually covers
+                                let colSpan = 1;
+                                if (maxEntryEndMinutes > slotEndMinutes) {
+                                    for (let k = i + 1; k < periodHeaders.length; k++) {
+                                        if (timeToMinutes(periodHeaders[k].startTime) < maxEntryEndMinutes) {
+                                            colSpan++;
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                }
                                 for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
 
                                 const customColors = entries.map(e => generatePastelColorRgb(e.subjectId));

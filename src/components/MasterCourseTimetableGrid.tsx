@@ -156,9 +156,20 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                     }
 
                                                     if (slotEntries.length > 0) {
-                                                        const primaryEntry = slotEntries[0];
-                                                        const duration = timeToMinutes(primaryEntry.endTime) - timeToMinutes(primaryEntry.startTime);
-                                                        const colSpan = Math.max(1, Math.round(duration / cellSpanMinutes));
+                                                        const slotEndMinutes = timeToMinutes(period.endTime);
+                                                        const maxEntryEndMinutes = Math.max(...slotEntries.map(e => timeToMinutes(e.endTime)));
+                                                        
+                                                        // Calculate colSpan based on how many periods this lesson actually covers
+                                                        let colSpan = 1;
+                                                        if (maxEntryEndMinutes > slotEndMinutes) {
+                                                            for (let k = periodIndex + 1; k < periodHeaders.length; k++) {
+                                                                if (timeToMinutes(periodHeaders[k].startTime) < maxEntryEndMinutes) {
+                                                                    colSpan++;
+                                                                } else {
+                                                                    break;
+                                                                }
+                                                            }
+                                                        }
 
                                                         // Mark occupied slots
                                                         for (let k = 0; k < colSpan; k++) {

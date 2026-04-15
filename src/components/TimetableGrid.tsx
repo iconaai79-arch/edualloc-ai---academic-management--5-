@@ -146,9 +146,20 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
 
                             if (entriesStartingInSlot.length > 0) {
                                 // Calculate max duration among all entries in this slot to determine colSpan
-                                const durations = entriesStartingInSlot.map(e => timeToMinutes(e.endTime) - timeToMinutes(e.startTime));
-                                const maxDuration = Math.max(...durations);
-                                let colSpan = Math.max(1, Math.round(maxDuration / cellSpanMinutes));
+                                const slotEndMinutes = timeToMinutes(displaySlots[i].end);
+                                const maxEntryEndMinutes = Math.max(...entriesStartingInSlot.map(e => timeToMinutes(e.endTime)));
+
+                                // Calculate colSpan based on how many periods this lesson actually covers
+                                let colSpan = 1;
+                                if (maxEntryEndMinutes > slotEndMinutes) {
+                                    for (let k = i + 1; k < displaySlots.length; k++) {
+                                        if (timeToMinutes(displaySlots[k].start) < maxEntryEndMinutes) {
+                                            colSpan++;
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                }
 
                                 // Mark future slots as occupied for the max duration
                                 for (let j = 1; j < colSpan; j++) {
