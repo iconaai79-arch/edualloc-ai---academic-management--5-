@@ -4072,3 +4072,35 @@ export interface CivilSale {
     createdAt: string;
 }
 
+export interface LogisticVehicle {
+    id: string;
+    institutionId: string;
+    plateNumber: string;
+    vehicleType: 'Tanker' | 'Flatbed' | 'Crane Truck';
+    capacityRating: string;
+    currentOdometer: number;
+    status: 'available' | 'on_trip' | 'maintenance' | 'decommissioned';
+}
+
+export interface LogisticDriver {
+    id: string;
+    institutionId: string;
+    userId: string;
+    licenseNumber: string;
+    specialization?: string;
+    rating: number;
+    status: 'active' | 'on_leave' | 'suspended';
+}
+
+export interface LogisticTrip {
+    id: string;
+    vehicleId: string;
+    driverId: string;
+    cargoDescription: string;
+    origin: string;
+    destination: string;
+    status: 'loading' | 'en_route' | 'offloading' | 'completed' | 'cancelled';
+    startedAt: string;
+    completedAt?: string;
+}
+

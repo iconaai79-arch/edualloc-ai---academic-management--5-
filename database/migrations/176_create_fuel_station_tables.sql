@@ -29,6 +29,30 @@ BEGIN
     END LOOP;
 END $$;
 
+-- REPAIR BLOCK: Ensure station_id exists where required (Fixes ERROR 42703 for station_id)
+DO $$ 
+DECLARE 
+    station_tables TEXT[] := ARRAY[
+        'fuel_tanks', 'fuel_pumps', 'fuel_prices', 'fuel_sales', 
+        'fuel_inventory_log', 'station_shifts', 'station_items', 
+        'station_pos_sales', 'carwash_services', 'carwash_sales', 
+        'car_servicing_packages', 'car_servicing_sales', 'fuel_price_history', 
+        'fuel_etr_configs', 'fuel_reorder_predictions', 'fuel_leak_alerts', 
+        'fuel_financial_reports', 'fuel_station_assets'
+    ];
+    t TEXT;
+BEGIN 
+    FOREACH t IN ARRAY station_tables LOOP
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = t) THEN
+            BEGIN
+                EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS station_id TEXT REFERENCES fuel_stations(id) ON DELETE CASCADE', t);
+            EXCEPTION WHEN others THEN
+                RAISE NOTICE 'Could not add station_id to table %', t;
+            END;
+        END IF;
+    END LOOP;
+END $$;
+
 -- 0. Stations (Physical locations)
 CREATE TABLE IF NOT EXISTS fuel_stations (
     id TEXT PRIMARY KEY,
@@ -662,3 +686,75 @@ CREATE INDEX idx_civil_yards_inst ON civil_yards(institution_id);
 CREATE INDEX idx_civil_products_yard ON civil_products(yard_id);
 CREATE INDEX idx_civil_batches_prod ON civil_batches(product_id);
 CREATE INDEX idx_civil_sales_yard ON civil_sales(yard_id);
+
+-- 30. Logistics & Heavy Transport (Fleet Control)
+CREATE TABLE IF NOT EXISTS logistic_vehicles (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
+    plate_number TEXT UNIQUE NOT NULL,
+    vehicle_type TEXT NOT NULL, -- 'Tanker', 'Flatbed', 'Crane Truck'
+    capacity_rating TEXT, -- e.g. '30 Tons', '15,000 Liters'
+    current_odometer INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'available' CHECK (status IN ('available', 'on_trip', 'maintenance', 'decommissioned')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS logistic_drivers (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    license_number TEXT UNIQUE,
+    specialization TEXT, -- 'Hazmat', 'Heavy Load'
+    rating DECIMAL DEFAULT 5.0,
+    status TEXT DEFAULT 'active' CHECK (status IN ('active', 'on_leave', 'suspended')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS logistic_trips (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
+    vehicle_id TEXT REFERENCES logistic_vehicles(id) ON DELETE CASCADE,
+    driver_id TEXT REFERENCES logistic_drivers(id) ON DELETE SET NULL,
+    cargo_description TEXT, -- e.g. '500 Paving Slabs', '12,000L Diesel'
+    origin TEXT,
+    destination TEXT,
+    start_odometer INTEGER,
+    end_odometer INTEGER,
+    fuel_consumed DECIMAL,
+    status TEXT DEFAULT 'loading' CHECK (status IN ('loading', 'en_route', 'offloading', 'completed', 'cancelled')),
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    completed_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE TABLE IF NOT EXISTS logistic_vehicle_maintenance (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
+    vehicle_id TEXT REFERENCES logistic_vehicles(id) ON DELETE CASCADE,
+    maintenance_type TEXT NOT NULL, -- 'Tyre Change', 'Engine Service', 'Brake Check'
+    odometer_at_service INTEGER NOT NULL,
+    cost DECIMAL DEFAULT 0,
+    technician_notes TEXT,
+    service_date DATE DEFAULT CURRENT_DATE
+);
+
+ALTER TABLE logistic_vehicles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE logistic_drivers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE logistic_trips ENABLE ROW LEVEL SECURITY;
+ALTER TABLE logistic_vehicle_maintenance ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can manage vehicles" ON logistic_vehicles;
+CREATE POLICY "Users can manage vehicles" ON logistic_vehicles FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage drivers" ON logistic_drivers;
+CREATE POLICY "Users can manage drivers" ON logistic_drivers FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage trips" ON logistic_trips;
+CREATE POLICY "Users can manage trips" ON logistic_trips FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Users can manage vehicle maintenance" ON logistic_vehicle_maintenance;
+CREATE POLICY "Users can manage vehicle maintenance" ON logistic_vehicle_maintenance FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+
+-- Index
+CREATE INDEX idx_logistic_vehicles_inst ON logistic_vehicles(institution_id);
+CREATE INDEX idx_logistic_trips_vehicle ON logistic_trips(vehicle_id);
+CREATE INDEX idx_logistic_maintenance_vehicle ON logistic_vehicle_maintenance(vehicle_id);
