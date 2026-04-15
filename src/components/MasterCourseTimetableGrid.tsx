@@ -98,9 +98,10 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
 
     const getCellEntries = (level: CourseLevel, day: string, period: any) => {
         if (!level) return [];
+        const lid = String(level.id);
         return generatedTimetable.filter(e =>
             e && e.day === day &&
-            (e.courseLevelId === level.id || (e as any).course_level_id === level.id) &&
+            (String(e.courseLevelId) === lid || String((e as any).course_level_id) === lid) &&
             timeToMinutes(e.startTime) === timeToMinutes(period.startTime)
         );
     };
@@ -108,11 +109,11 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
     const renderHorizontalLayout = () => (
         <div className="space-y-12 animate-fade-in no-break">
             {relevantCourses.map((course) => {
-                const levelIds = (course.levels || []).filter(l => l).map(l => l.id);
+                const levelIds = (course.levels || []).filter(l => l).map(l => String(l.id));
                 const courseEntries = generatedTimetable.filter(e =>
                     e && 
-                    (e.courseId === course.id || (e as any).course_id === course.id) &&
-                    (levelIds.includes(e.courseLevelId) || levelIds.includes((e as any).course_level_id))
+                    (String(e.courseId) === String(course.id) || String((e as any).course_id) === String(course.id)) &&
+                    (levelIds.includes(String(e.courseLevelId)) || levelIds.includes(String((e as any).course_level_id)))
                 );
 
                 return (

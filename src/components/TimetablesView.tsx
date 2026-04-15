@@ -589,13 +589,24 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                                 };
                             }
                         }
+                        const filteredEntries = (generatedTimetable || []).filter(e => {
+                            if (!e) return false;
+                            const isCourseMatch = selectedCourseForMasterView === 'all' || e.courseId === selectedCourseForMasterView || (e as any).course_id === selectedCourseForMasterView;
+                            if (!isCourseMatch) return false;
+                            
+                            if (selectedLevelIdForMasterView !== 'all') {
+                                return e.courseLevelId === selectedLevelIdForMasterView || (e as any).course_level_id === selectedLevelIdForMasterView;
+                            }
+                            return true;
+                        });
+
                         return (
                             <MasterCourseTimetableGrid
                                 courses={courses || []}
                                 subjects={subjects || []}
                                 lecturers={lecturers || []}
                                 rooms={rooms || []}
-                                entries={generatedTimetable || []}
+                                entries={filteredEntries}
                                 getSubjectById={getSubjectById}
                                 getLecturerById={getLecturerById}
                                 getRoomById={getRoomById}
