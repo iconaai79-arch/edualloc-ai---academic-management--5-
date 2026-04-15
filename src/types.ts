@@ -448,6 +448,7 @@ export interface TimetableSettings {
     periods: TimetablePeriod[];
     periodLengthMinutes: number;
     cellSpanMinutes: number;
+    defaultScheduleProfileId?: string;
     maxPeriodsPerDay: number;
     minWeeklyPeriods: number;
     maxWeeklyPeriods: number;

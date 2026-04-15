@@ -242,7 +242,8 @@ export const generateTimetable = async (
                 end: settings.endTime, 
                 days: settings.operatingDays,
                 periodsAvailable: settings.periods || [],
-                periodDurationMinutes: settings.cellSpanMinutes || 60 
+                periodDurationMinutes: settings.cellSpanMinutes || 60,
+                defaultProfileId: settings.defaultScheduleProfileId
             })}
             - Curriculum Schedule Profiles: ${JSON.stringify(profiles.map(p => ({ 
                 id: p.id, 
@@ -254,16 +255,16 @@ export const generateTimetable = async (
             
             NON-NEGOTIABLE HEURISTICS - YOU MUST STRICTLY ENFORCE THESE RULES:
 
-            1. ONE LESSON = ONE PERIOD (CRITICAL): 
-               - EVERY TimetableEntry in your output MUST corresponds to EXACTLY ONE period (slot) from the associated profile.
-               - DO NOT return multi-period blocks (e.g., startTime 8:00, endTime 10:00). 
-               - If a subject requires 2 periods, you MUST return TWO separate TimetableEntry objects, each for a single period slot (e.g., Slot 1 and Slot 2).
-               - Every entry must align perfectly with the startTime and endTime of a SINGLE slot in the profileId associated with the course.
+            1. SCHEDULE PROFILE INHERITANCE (CRITICAL):
+               - RULE 1 (Override): If a course has an explicit 'profileId', use that profile's periods and breaks.
+               - RULE 2 (Default): If 'profileId' is empty, check if there is a 'defaultProfileId' in Operating Parameters. If yes, use that profile.
+               - RULE 3 (Fallback): If no specific or default profile exists, use the global 'periodsAvailable' and global breaks.
+               - Every lesson must align exactly with the startTime and endTime of a single slot in the resolved profile.
 
-            2. PROFILE ADHERENCE:
-               - You MUST follow the 'periodsAvailable' list for each profile.
-               - NEVER schedule a lesson during a 'break' defined in the profile.
-               - Multi-Profile Awareness: Different courses use different profiles. A lecturer or room is only available if they are not already occupied in ANY profile's absolute time.
+            2. ONE LESSON = ONE PERIOD (CRITICAL): 
+               - EVERY TimetableEntry in your output MUST corresponds to EXACTLY ONE period (slot) from the resolved profile.
+               - DO NOT return multi-period blocks. If a subject requires 2 periods, return TWO separate objects.
+               - Align perfectly with slot boundaries.
 
             3. VERTICAL DISTRIBUTION:
                - YOU MUST spread lessons across the full day (Period 1 to Period 8).

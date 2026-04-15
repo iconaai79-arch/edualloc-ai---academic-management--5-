@@ -2495,10 +2495,33 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         ))}
                                     </div>
                                 </div>
-                                <div className="flex justify-end pt-4 border-t">
-                                    <button onClick={handleSaveTimetable} className="btn-primary px-10 h-12 shadow-lg shadow-indigo-100">
-                                        {selectedProfileId === 'default' ? 'Commit Global Defaults' : `Sync ${props.currentInstitution?.scheduleProfiles?.find((p: ScheduleProfile) => p.id === selectedProfileId)?.name || 'Profile'} Registry`}
-                                    </button>
+                                <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
+                                    {/* Default Profile Selector */}
+                                    <div className="bg-indigo-50/50 dark:bg-indigo-900/10 p-6 rounded-3xl border border-indigo-100 dark:border-indigo-900/30 mb-6">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <SparklesIcon className="w-5 h-5 text-indigo-600" />
+                                            <div>
+                                                <h4 className="text-sm font-black uppercase tracking-tight">Institutional Default</h4>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Baseline profile for all courses without an override.</p>
+                                            </div>
+                                        </div>
+                                        <select 
+                                            value={localTimetableSettings.defaultScheduleProfileId || ''} 
+                                            onChange={(e) => setLocalTimetableSettings({ ...localTimetableSettings, defaultScheduleProfileId: e.target.value || undefined })}
+                                            className="form-select"
+                                        >
+                                            <option value="">-- Use Specific Global Operating Hours --</option>
+                                            {(props.currentInstitution?.scheduleProfiles || []).map(p => (
+                                                <option key={p.id} value={p.id}>{p.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="flex justify-end pt-4">
+                                        <button onClick={handleSaveTimetable} className="btn-primary px-10 h-12 shadow-lg shadow-indigo-200">
+                                            {selectedProfileId === 'default' ? 'Commit Global Defaults' : `Sync ${props.currentInstitution?.scheduleProfiles?.find((p: ScheduleProfile) => p.id === selectedProfileId)?.name || 'Profile'} Registry`}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         )}
