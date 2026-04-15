@@ -65,6 +65,22 @@ BEGIN
     END LOOP;
 END $$;
 
+-- REPAIR BLOCK: Ensure Academic Timetable consistency
+DO $$ 
+BEGIN 
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'timetable_entries') THEN
+        BEGIN
+            ALTER TABLE timetable_entries ADD COLUMN IF NOT EXISTS course_id TEXT REFERENCES courses(id) ON DELETE CASCADE;
+            ALTER TABLE timetable_entries ADD COLUMN IF NOT EXISTS course_level_id TEXT;
+        EXCEPTION WHEN others THEN
+            RAISE NOTICE 'Academic repair failed';
+        END;
+    END IF;
+END $$;
+
+-- Force API Schema Refresh
+NOTIFY pgrst, 'reload schema';
+
 -- 1. Fuel Tanks (Physical storage)
 CREATE TABLE IF NOT EXISTS fuel_tanks (
     id TEXT PRIMARY KEY,

@@ -193,7 +193,10 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       >
                         <option value="">-- Select Category --</option>
                         <option value="Agrovet">Agrovet (Agricultural Supplies)</option>
+                        <option value="Fuel Station">Fuel & Energy Station (Multi-Pump/IoT)</option>
                         <option value="Property Management">Property Management (Rent/Leases)</option>
+                        <option value="Industrial Logistics">Industrial Logistics & Heavy Fleet</option>
+                        <option value="Civil Manufacturing">Civil Manufacturing Yard (Infrastructure)</option>
                         <option value="Retail Agency">Retail Agency (Commission Based)</option>
                         <option value="Car Wash">Car Wash / Service Center</option>
                         <option value="Automotive Marketplace">Car Sales / Automotive Marketplace</option>

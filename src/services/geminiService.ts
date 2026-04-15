@@ -311,14 +311,7 @@ export const generateTimetable = async (
         const result = sanitizeAndParseJson(response.text || "[]");
         return (Array.isArray(result) ? result : []).map((entry: any) => ({
             ...entry,
-            id: `entry_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            start_time: entry.startTime,
-            end_time: entry.endTime,
-            subject_id: entry.subjectId,
-            lecturer_id: entry.lecturerId,
-            room_id: entry.roomId,
-            course_id: entry.courseId,
-            course_level_id: entry.courseLevelId
+            id: `entry_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
         }));
     } catch (error) {
         console.error("AI timetable error:", error);

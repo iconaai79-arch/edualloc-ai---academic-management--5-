@@ -969,7 +969,8 @@ export const apiService = {
         } catch (e) { 
             console.error("Timetable Save Error:", e);
             try {
-                await apiService.saveModuleRecord('timetable_entries', snakeEntries);
+                // Fixed: Fallback was using singular saveModuleRecord for an array
+                await apiService.saveModuleRecords('timetable_entries', snakeEntries);
             } catch (innerE) {
                 console.error("Timetable Fallback Save Error:", innerE);
             }

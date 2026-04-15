@@ -55,6 +55,9 @@ const TransportHubView = lazy(() => import('./public/TransportHubView').then(m =
 const HospitalityStorefront = lazy(() => import('./hospitality/HospitalityStorefront').then(m => ({ default: m.HospitalityStorefront })));
 const HospitalityMarketplace = lazy(() => import('./hospitality/HospitalityMarketplace').then(m => ({ default: m.HospitalityMarketplace })));
 const CampaignJoinPage = lazy(() => import('./public/CampaignJoinPage').then(m => ({ default: m.CampaignJoinPage })));
+const FuelStationDashboard = lazy(() => import('./FuelStationDashboard').then(m => ({ default: m.FuelStationDashboard })));
+const CivilWorksDashboard = lazy(() => import('./CivilWorksDashboard').then(m => ({ default: m.CivilWorksDashboard })));
+const LogisticsDashboard = lazy(() => import('./LogisticsDashboard').then(m => ({ default: m.LogisticsDashboard })));
 
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { getAdminRoleForInstitution } from '../utils/roleUtils';
@@ -4129,6 +4132,21 @@ export const App: React.FC = () => {
                                 <ConstructionManager 
                                     currentInstitution={activeInstitution!}
                                     users={users.filter(u => u.institutionId === currentUser.institutionId)}
+                                />
+                            ) : (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('fuel station')) ? (
+                                <FuelStationDashboard 
+                                    currentInstitution={activeInstitution!}
+                                    onLogAction={handleLogAction}
+                                />
+                            ) : (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('civil manufacturing')) ? (
+                                <CivilWorksDashboard 
+                                    currentInstitution={activeInstitution!}
+                                    onLogAction={handleLogAction}
+                                />
+                            ) : (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('industrial logistics')) ? (
+                                <LogisticsDashboard 
+                                    currentInstitution={activeInstitution!}
+                                    onLogAction={handleLogAction}
                                 />
                             ) : isAdminCatchAll ? (
                                 <AdminView
