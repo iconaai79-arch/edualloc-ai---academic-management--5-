@@ -108,8 +108,11 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
     const renderHorizontalLayout = () => (
         <div className="space-y-12 animate-fade-in no-break">
             {relevantCourses.map((course) => {
+                const levelIds = (course.levels || []).filter(l => l).map(l => l.id);
                 const courseEntries = generatedTimetable.filter(e =>
-                    e && (e.courseId === course.id || (e as any).course_id === course.id)
+                    e && 
+                    (e.courseId === course.id || (e as any).course_id === course.id) &&
+                    (levelIds.includes(e.courseLevelId) || levelIds.includes((e as any).course_level_id))
                 );
 
                 return (
@@ -234,7 +237,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                                                 c.conflictingEntries.some(ce => ce.id === entry.id)
                                                                             );
 
-                                                                            if (isBlockPart && idx === slotEntries.findIndex(e => e && (course.levels || []).some(l => l && (l.subjectIds || []).includes(e.subjectId) && (l.subjectIds || []).includes(entry.subjectId)))) {
+                                                                            if (isBlockPart && idx === slotEntries.findIndex(e => e && e.courseLevelId === entry.courseLevelId)) {
                                                                                 // Only show BLOCK once per level group if needed?
                                                                                 // This is getting messy. Let's just follow the vertical layout pattern:
                                                                                 // If entries.length > 1 for the SAME group, it's a block.
