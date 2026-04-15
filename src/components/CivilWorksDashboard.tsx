@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
     HardHat, Hammer, PlusCircle, Activity, Clock, ShieldCheck, 
-    Layers, Box, Dna, FileContract, TrendingUp, Calendar,
+    Layers, Box, Dna, ScrollText, TrendingUp, Calendar,
     Factory, MapPin, Truck, ChevronRight, BarChart3, PackageCheck
 } from 'lucide-react';
 import { CivilProduct, ManufacturingBatch, CivilSale, CivilYard } from '../types';
@@ -144,7 +144,7 @@ const CivilWorksDashboard: React.FC = () => {
                             </div>
                             <div className="flex justify-between items-center mb-10 relative z-10">
                                 <h2 className="text-2xl font-black flex items-center gap-3">
-                                    <FileContract className="w-6 h-6 text-indigo-400" />
+                                    <ScrollText className="w-6 h-6 text-indigo-400" />
                                     B2B Project Contracts
                                 </h2>
                                 <button className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all">Export Report</button>

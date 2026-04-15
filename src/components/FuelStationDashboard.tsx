@@ -3,7 +3,7 @@ import {
     Droplet, Fuel, Activity, TrendingUp, AlertTriangle, CheckCircle2, 
     RefreshCcw, ChevronRight, BarChart3, Clock, DollarSign,
     Box, Settings, ArrowRight, ShieldCheck, ShoppingCart, Tag, User, Search, PackageSearch, Plus, Minus, Trash2, CreditCard, Banknote,
-    Waves, Wrench, Car, Play, CheckCircle, MapPin, ChevronDown
+    Waves, Wrench, Car, Play, CheckCircle, MapPin, ChevronDown, ArrowDownToLine, Truck, BrainCircuit, History, MessageSquare, ShieldAlert, Trophy, Star
 } from 'lucide-react';
 import type { 
     FuelTank, FuelPump, FuelSale, Institution, StationShift, StationItem, 
