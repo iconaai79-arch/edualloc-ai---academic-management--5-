@@ -204,9 +204,10 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                         
                                                         // Calculate colSpan based on how many periods this lesson actually covers
                                                         let colSpan = 1;
-                                                        if (maxEntryEndMinutes > slotEndMinutes) {
+                                                        // Only span if the lesson ends significantly after the first slot
+                                                        if (maxEntryEndMinutes > slotEndMinutes + 10) { 
                                                             for (let k = periodIndex + 1; k < periodHeaders.length; k++) {
-                                                                if (timeToMinutes(periodHeaders[k].startTime) < maxEntryEndMinutes) {
+                                                                if (timeToMinutes(periodHeaders[k].startTime) < maxEntryEndMinutes - 5) {
                                                                     colSpan++;
                                                                 } else {
                                                                     break;
@@ -220,43 +221,22 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                             if (nextPeriod) occupiedSlots.add(nextPeriod.startTime);
                                                         }
 
-                                                        // In horizontal layout, slotEntries contains ALL entries for ALL levels of this course in this slot.
-                                                        // To determine if a specific group (Level) has a "BLOCK", we'd need to group by level.
-                                                        // However, the horizontal layout is already an aggregate view. 
-                                                        // If multiple subjects appear in the same slot for the same course, 
-                                                        // they should arguably be shown individually if they belong to different classes, 
-                                                        // UNLESS they are concurrent for the same class.
-                                                        // Existing code iterates over `slotEntries.map`.
-                                                        // Let's refine this: if ANY level has > 1 subject in this slot, we might want to flag it.
-                                                        // But the UI here is a "Course Map". 
-                                                        // If we want to satisfy "BLOCK PATHWAY SUBJECTS SHOULD DISPLAY AS BLOCK", 
-                                                        // we should probably check if there are multiple entries for the SAME level.
-
                                                         return (
                                                             <td key={slotKey} colSpan={colSpan} className="p-1 border border-slate-100 dark:border-slate-800 text-center align-middle">
                                                                 <div className="flex h-full gap-1">
-                                                                    {/* Group by Level ID locally or just check if we should 'BLOCK'ify individual items */}
                                                                     {(() => {
                                                                         const levelCounts: Record<string, number> = {};
                                                                         slotEntries.forEach(e => {
                                                                             if (!e) return;
-                                                                            const slotStartMinutes = timeToMinutes(period.startTime);
-                                                                            const entries = (generatedTimetable || []).filter(entry =>
-                                                                                entry.day === day &&
-                                                                                entry.courseLevelId === e.courseLevelId &&
-                                                                                timeToMinutes(entry.startTime) === slotStartMinutes
-                                                                            );
-                                                                            levelCounts[e.courseLevelId] = (levelCounts[e.courseLevelId] || 0) + 1;
+                                                                            const lid = String(e.courseLevelId || (e as any).course_level_id || '');
+                                                                            levelCounts[lid] = (levelCounts[lid] || 0) + 1;
                                                                         });
 
-                                                                        return slotEntries.map((entry, idx) => {
+                                                                        return slotEntries.map((entry) => {
                                                                             if (!entry) return null;
-                                                                            const classEntries = (generatedTimetable || []).filter(e => e.courseLevelId === entry.courseLevelId);
-                                                                            const levelEntryCount = (course.levels || []).find(l => l && (l.subjectIds || []).includes(entry.subjectId)) ?
-                                                                                (course.levels || []).filter(l => l && (l.subjectIds || []).includes(entry.subjectId))
-                                                                                    .reduce((max, l) => Math.max(max, levelCounts[l.id] || 0), 0) : 0;
-
-                                                                            const isBlockPart = levelEntryCount > 1;
+                                                                            const entryLid = String(entry.courseLevelId || (entry as any).course_level_id || '');
+                                                                            const isBlockPart = (levelCounts[entryLid] || 0) > 1;
+                                                                            
                                                                             const subject = getSubjectById(entry.subjectId);
                                                                             const lecturer = getLecturerById(entry.lecturerId);
                                                                             const room = getRoomById(entry.roomId);
@@ -351,16 +331,35 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
 
                                                             const entries = getCellEntries(level, day, period);
                                                             if (entries && entries.length > 0) {
-                                                                const primaryEntry = entries[0];
-                                                                const duration = timeToMinutes(primaryEntry.endTime) - timeToMinutes(primaryEntry.startTime);
-                                                                const colSpan = Math.round(duration / cellSpanMinutes);
+                                                                const slotEndMinutes = timeToMinutes(period.endTime);
+                                                                const maxEntryEndMinutes = Math.max(...entries.map(e => timeToMinutes(e.endTime)));
+                                                                
+                                                                let colSpan = 1;
+                                                                if (maxEntryEndMinutes > slotEndMinutes + 10) { 
+                                                                    for (let k = periodIndex + 1; k < periodHeaders.length; k++) {
+                                                                        if (timeToMinutes(periodHeaders[k].startTime) < maxEntryEndMinutes - 5) {
+                                                                            colSpan++;
+                                                                        } else {
+                                                                            break;
+                                                                        }
+                                                                    }
+                                                                }
 
                                                                 for (let k = 0; k < colSpan; k++) occupiedSlots.add(periodIndex + k);
+
+                                                                const levelCounts: Record<string, number> = {};
+                                                                entries.forEach(e => {
+                                                                    if (!e) return;
+                                                                    const lid = String(e.courseLevelId || (e as any).course_level_id || '');
+                                                                    levelCounts[lid] = (levelCounts[lid] || 0) + 1;
+                                                                });
 
                                                                 return (
                                                                     <td key={periodIndex} colSpan={colSpan} className="p-1 border-l border-slate-100 dark:border-slate-800 align-middle text-center">
                                                                         <div className="flex h-full gap-1">
                                                                             {entries.map((entry) => {
+                                                                                const entryLid = String(entry.courseLevelId || (entry as any).course_level_id || '');
+                                                                                const isBlockPart = (levelCounts[entryLid] || 0) > 1;
                                                                                 const s = subjects.find(sub => sub.id === entry.subjectId);
                                                                                 const l = lecturers.find(lec => lec.id === entry.lecturerId);
                                                                                 const r = rooms.find(rom => rom.id === entry.roomId);
