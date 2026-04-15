@@ -30,6 +30,7 @@ import { PdfPreviewModal } from './PdfPreviewModal';
 import { EyeIcon } from './icons/EyeIcon';
 import { TrendingUpIcon } from './icons/TrendingUpIcon';
 import { AttendanceAnalytics } from './AttendanceAnalytics';
+import { timeToMinutes, minutesToTime } from '../utils/timeUtils';
 
 interface ReportsDashboardProps {
     lecturers: User[];
@@ -611,7 +612,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                                     <span className="text-slate-700 dark:text-slate-200">{dept.name}</span>
                                                     <span className="text-slate-500 dark:text-slate-400">{dept.allocatedPeriods} / {dept.totalPeriods} periods</span>
                                                 </div>
-                                                <ProgressBar value={dept.allocatedPeriods} max={dept.totalPeriods} />
+                                                < ProgressBar value={dept.allocatedPeriods} max={dept.totalPeriods} />
                                             </div>
                                         ))}
                                     </div>

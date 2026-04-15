@@ -3424,7 +3424,7 @@ export const App: React.FC = () => {
                                     onClearDemoData={handleClearDemoData}
                                     examTimetable={examTimetable}
                                     onManualInvoice={(instId: string, items: InvoiceItem[], total: number, due: string) => { }}
-                                    onUpdateRequestStatus={(id, status) => apiService.updateAllocationStatus(id, status)}
+                                     onUpdateRequestStatus={async (id, status) => { await apiService.updateAllocationStatus(id, status); await loadData(); }}
                                     onBulkUpdateRequestStatus={async (status: RequestStatus, deptId?: string) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
                                     onGenerateReceipt={onGenerateReceipt}
                                     getLecturerById={getLecturerById}
