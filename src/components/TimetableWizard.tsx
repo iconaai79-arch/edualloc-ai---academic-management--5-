@@ -73,6 +73,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
     }, [rooms, lecturers, subjects, courses]);
 
     const workloadStatus = useMemo(() => {
+            const pending = allocations.filter(a => a.status === 'pending' || a.status === 'hod_approved').length;
             const approvedAllocations = allocations.filter(a => a.status === 'approved');
             const approvedPeriods = approvedAllocations.reduce((sum, a) => {
                 const subject = subjects.find(s => s.id === a.subjectId);
