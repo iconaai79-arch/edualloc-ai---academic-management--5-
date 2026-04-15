@@ -775,7 +775,17 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 <>
                                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
                                         <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">{isEdu ? 'Registry Load' : 'Ministerial Registry'}</h3>
-                                        <p className="text-4xl font-black text-indigo-600 tracking-tighter">{(props.allocations || []).length}</p>
+                                        <div className="flex flex-col">
+                                            <p className="text-4xl font-black text-indigo-600 tracking-tighter">{(props.allocations || []).length}</p>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                                {(props.allocations || []).reduce((sum, a) => {
+                                                    const subject = (props.subjects || []).find(s => s.id === a.subjectId);
+                                                    const periods = subject?.lessonStructure?.reduce((s, ls) => s + (ls.periods || 0) * (ls.count || 0), 0) || 0;
+                                                    const streams = (a.courseLevelIds || []).length || 1;
+                                                    return sum + (periods * streams);
+                                                }, 0)} Periods / Week
+                                            </p>
+                                        </div>
                                     </div>
                                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
                                         <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">{isEdu ? 'Total Students' : 'Total Congregation'}</h3>

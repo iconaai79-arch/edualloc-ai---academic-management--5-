@@ -364,25 +364,52 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     const departmentWorkload = useMemo(() => {
         return filteredDepartments.map(dept => {
             if (!dept) return { id: '', name: '', totalPeriods: 0, allocatedPeriods: 0 };
+            
+            // 1. Calculate Target Capacity (Total Periods defined across all course levels for this department's subjects)
+            let totalPeriodsTarget = 0;
+            courses.forEach(course => {
+                if (course.departmentId === dept.id) {
+                    (course.levels || []).forEach(level => {
+                        (level.subjectIds || []).forEach(sid => {
+                            const sj = subjects.find(s => s.id === sid);
+                            if (sj) {
+                                totalPeriodsTarget += calculateTotalPeriods(sj.lessonStructure);
+                            }
+                        });
+                    });
+                } else {
+                    // Also check if subjects from this department are taught in other departments' courses (rare but possible)
+                    (course.levels || []).forEach(level => {
+                        (level.subjectIds || []).forEach(sid => {
+                            const sj = subjects.find(s => s.id === sid && s.departmentId === dept.id);
+                            if (sj) {
+                                totalPeriodsTarget += calculateTotalPeriods(sj.lessonStructure);
+                            }
+                        });
+                    });
+                }
+            });
+
+            // 2. Calculate Allocated Periods (Sum of periods * number of streams in each allocation)
             const departmentSubjects = (Array.isArray(subjects) ? subjects : []).filter(s => s && s.departmentId === dept.id);
             const allocatedDeptSubjects = (Array.isArray(allocations) ? allocations : []).filter(a =>
                 a && departmentSubjects.some(s => s && s.id === a.subjectId)
             );
 
-            const totalPeriods = departmentSubjects.reduce((sum, s) => sum + calculateTotalPeriods(s?.lessonStructure), 0);
             const allocatedPeriods = allocatedDeptSubjects.reduce((sum, a) => {
                 const subject = (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === a.subjectId);
-                return sum + (subject ? calculateTotalPeriods(subject.lessonStructure) : 0);
+                const streamMultiplier = (a.courseLevelIds || []).length || 1;
+                return sum + (subject ? calculateTotalPeriods(subject.lessonStructure) * streamMultiplier : 0);
             }, 0);
 
             return {
                 id: dept.id,
                 name: dept.name,
-                totalPeriods,
+                totalPeriods: totalPeriodsTarget,
                 allocatedPeriods
             };
         });
-    }, [filteredDepartments, subjects, allocations]);
+    }, [filteredDepartments, subjects, allocations, courses]);
 
     const lecturerWorkload = useMemo(() => {
         return filteredLecturers
@@ -391,7 +418,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                 const lecturerAllocations = (Array.isArray(allocations) ? allocations : []).filter(a => a && a.lecturerId === lecturer.id);
                 const allocatedPeriods = lecturerAllocations.reduce((sum, a) => {
                     const subject = (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === a.subjectId);
-                    return sum + (subject ? calculateTotalPeriods(subject.lessonStructure) : 0);
+                    const streamMultiplier = (a.courseLevelIds || []).length || 1;
+                    return sum + (subject ? calculateTotalPeriods(subject.lessonStructure) * streamMultiplier : 0);
                 }, 0);
                 const subjectNames = lecturerAllocations
                     .map(a => (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === a.subjectId)?.name)

@@ -73,200 +73,206 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
     }, [rooms, lecturers, subjects, courses]);
 
     const workloadStatus = useMemo(() => {
-        const approved = allocations.filter(a => a.status === 'approved').length;
-        const pending = allocations.filter(a => a.status === 'pending' || a.status === 'hod_approved').length;
-        return { approved, pending };
-    }, [allocations]);
+            const approvedAllocations = allocations.filter(a => a.status === 'approved');
+            const approvedPeriods = approvedAllocations.reduce((sum, a) => {
+                const subject = subjects.find(s => s.id === a.subjectId);
+                const periods = subject?.lessonStructure?.reduce((s, ls) => s + (ls.periods || 0) * (ls.count || 0), 0) || 0;
+                const streams = (a.courseLevelIds || []).length || 1;
+                return sum + (periods * streams);
+            }, 0);
+            return { approved: approvedAllocations.length, pending, approvedPeriods };
+        }, [allocations, subjects]);
 
-    const canProceedStep1 = contextStatus.year && contextStatus.semester && contextStatus.settings;
-    const canProceedStep2 = resourceStatus.rooms > 0 && resourceStatus.lecturers > 0 && resourceStatus.subjects > 0;
-    const canProceedStep3 = workloadStatus.approved > 0;
+        const canProceedStep1 = contextStatus.year && contextStatus.semester && contextStatus.settings;
+        const canProceedStep2 = resourceStatus.rooms > 0 && resourceStatus.lecturers > 0 && resourceStatus.subjects > 0;
+        const canProceedStep3 = workloadStatus.approved > 0;
 
-    const handleGenerate = async () => {
-        if (!activeAcademicYear || !activeSemester) return;
+        const handleGenerate = async () => {
+            if (!activeAcademicYear || !activeSemester) return;
 
-        setIsGenerating(true);
-        setError(null);
+            setIsGenerating(true);
+            setError(null);
 
-        try {
-            let result: any[] = [];
+            try {
+                let result: any[] = [];
 
-            if (mode === 'ai') {
-                result = await generateTimetable(
-                    allocations.filter(a => a.status === 'approved'),
-                    subjects,
-                    lecturers,
-                    rooms,
-                    timetableSettings,
-                    courseSizes,
-                    courses,
-                    timeOffRequests,
-                    currentInstitution?.scheduleProfiles || [],
-                    'premium'
-                );
-            } else {
-                result = generateStandardTimetable(
-                    allocations.filter(a => a.status === 'approved'),
-                    subjects,
-                    lecturers,
-                    rooms,
-                    timetableSettings,
-                    activeAcademicYear.id,
-                    activeSemester.id,
-                    courses,
-                    currentInstitution?.scheduleProfiles || []
-                );
+                if (mode === 'ai') {
+                    result = await generateTimetable(
+                        allocations.filter(a => a.status === 'approved'),
+                        subjects,
+                        lecturers,
+                        rooms,
+                        timetableSettings,
+                        courseSizes,
+                        courses,
+                        timeOffRequests,
+                        currentInstitution?.scheduleProfiles || [],
+                        'premium'
+                    );
+                } else {
+                    result = generateStandardTimetable(
+                        allocations.filter(a => a.status === 'approved'),
+                        subjects,
+                        lecturers,
+                        rooms,
+                        timetableSettings,
+                        activeAcademicYear.id,
+                        activeSemester.id,
+                        courses,
+                        currentInstitution?.scheduleProfiles || []
+                    );
+                }
+
+                if (result && result.length > 0) {
+                    await onTimetableGenerated(result, activeAcademicYear.id, activeSemester.id);
+                    setGeneratedCount(result.length);
+                    onLogAction?.(`Generated ${mode === 'ai' ? 'AI' : 'standard'} timetable for ${activeSemester.name} (${activeAcademicYear.name}): ${result.length} entries`);
+                    setStep(5); // Success step
+                } else {
+                    setError("The generator produced 0 entries. Please check your allocations and constraints.");
+                }
+            } catch (e: any) {
+                setError(e.message || "An unexpected error occurred during generation.");
+            } finally {
+                setIsGenerating(false);
             }
+        };
 
-            if (result && result.length > 0) {
-                await onTimetableGenerated(result, activeAcademicYear.id, activeSemester.id);
-                setGeneratedCount(result.length);
-                onLogAction?.(`Generated ${mode === 'ai' ? 'AI' : 'standard'} timetable for ${activeSemester.name} (${activeAcademicYear.name}): ${result.length} entries`);
-                setStep(5); // Success step
-            } else {
-                setError("The generator produced 0 entries. Please check your allocations and constraints.");
+        const handleNext = () => {
+            setError(null);
+            if (step === 1 && !canProceedStep1) {
+                setError("Please ensure Academic Year, Semester, and Operating Hours are configured.");
+                return;
             }
-        } catch (e: any) {
-            setError(e.message || "An unexpected error occurred during generation.");
-        } finally {
-            setIsGenerating(false);
-        }
-    };
+            if (step === 2 && !canProceedStep2) {
+                setError("Missing critical resources. Please add rooms, faculty, and subjects.");
+                return;
+            }
+            if (step === 3 && !canProceedStep3) {
+                setError("No approved allocations found to schedule.");
+                return;
+            }
+            setStep(prev => prev + 1);
+        };
 
-    const handleNext = () => {
-        setError(null);
-        if (step === 1 && !canProceedStep1) {
-            setError("Please ensure Academic Year, Semester, and Operating Hours are configured.");
-            return;
-        }
-        if (step === 2 && !canProceedStep2) {
-            setError("Missing critical resources. Please add rooms, faculty, and subjects.");
-            return;
-        }
-        if (step === 3 && !canProceedStep3) {
-            setError("No approved allocations found to schedule.");
-            return;
-        }
-        setStep(prev => prev + 1);
-    };
+        const containerClasses = isInline
+            ? "w-full bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in-up"
+            : "bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up";
 
-    const containerClasses = isInline
-        ? "w-full bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in-up"
-        : "bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up";
-
-    const content = (
-        <div className={containerClasses}>
-            {/* Header */}
-            <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-200 dark:shadow-none">
-                        <SparklesIcon className="w-6 h-6" />
+        const content = (
+            <div className={containerClasses}>
+                {/* Header */}
+                <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-200 dark:shadow-none">
+                            <SparklesIcon className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Timetable Wizard</h3>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Step {step} of 5</p>
+                        </div>
                     </div>
-                    <div>
-                        <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Timetable Wizard</h3>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Step {step} of 5</p>
-                    </div>
+                    {!isInline && onClose && (
+                        <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">
+                            <XIcon className="w-6 h-6 text-slate-400" />
+                        </button>
+                    )}
                 </div>
-                {!isInline && onClose && (
-                    <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">
-                        <XIcon className="w-6 h-6 text-slate-400" />
-                    </button>
-                )}
-            </div>
 
-            {/* Progress Bar */}
-            <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5">
-                <div
-                    className="h-full bg-indigo-600 transition-all duration-500 ease-out"
-                    style={{ width: `${(step / 5) * 100}%` }}
-                />
-            </div>
+                {/* Progress Bar */}
+                <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5">
+                    <div
+                        className="h-full bg-indigo-600 transition-all duration-500 ease-out"
+                        style={{ width: `${(step / 5) * 100}%` }}
+                    />
+                </div>
 
-            {/* Body */}
-            <div className="p-8 min-h-[300px] flex flex-col justify-center">
+                {/* Body */}
+                <div className="p-8 min-h-[300px] flex flex-col justify-center">
 
-                {step === 1 && (
-                    <div className="space-y-6 animate-fade-in">
-                        <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">1. Academic Context Verification</h4>
-                        <div className="space-y-3">
-                            <div className={`flex items-center justify-between p-4 rounded-2xl border ${contextStatus.year ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'}`}>
-                                <div className="flex items-center gap-3">
-                                    <CalendarDaysIcon className={`w-5 h-5 ${contextStatus.year ? 'text-green-600' : 'text-red-600'}`} />
-                                    <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Active Academic Year</span>
+                    {step === 1 && (
+                        <div className="space-y-6 animate-fade-in">
+                            <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">1. Academic Context Verification</h4>
+                            <div className="space-y-3">
+                                <div className={`flex items-center justify-between p-4 rounded-2xl border ${contextStatus.year ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'}`}>
+                                    <div className="flex items-center gap-3">
+                                        <CalendarDaysIcon className={`w-5 h-5 ${contextStatus.year ? 'text-green-600' : 'text-red-600'}`} />
+                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Active Academic Year</span>
+                                    </div>
+                                    {contextStatus.year ? <CheckCircleIcon className="w-6 h-6 text-green-600" /> : <XIcon className="w-6 h-6 text-red-600" />}
                                 </div>
-                                {contextStatus.year ? <CheckCircleIcon className="w-6 h-6 text-green-600" /> : <XIcon className="w-6 h-6 text-red-600" />}
-                            </div>
-                            <div className={`flex items-center justify-between p-4 rounded-2xl border ${contextStatus.semester ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'}`}>
-                                <div className="flex items-center gap-3">
-                                    <CalendarDaysIcon className={`w-5 h-5 ${contextStatus.semester ? 'text-green-600' : 'text-red-600'}`} />
-                                    <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Active Semester</span>
+                                <div className={`flex items-center justify-between p-4 rounded-2xl border ${contextStatus.semester ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'}`}>
+                                    <div className="flex items-center gap-3">
+                                        <CalendarDaysIcon className={`w-5 h-5 ${contextStatus.semester ? 'text-green-600' : 'text-red-600'}`} />
+                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Active Semester</span>
+                                    </div>
+                                    {contextStatus.semester ? <CheckCircleIcon className="w-6 h-6 text-green-600" /> : <XIcon className="w-6 h-6 text-red-600" />}
                                 </div>
-                                {contextStatus.semester ? <CheckCircleIcon className="w-6 h-6 text-green-600" /> : <XIcon className="w-6 h-6 text-red-600" />}
-                            </div>
-                            <div className={`flex items-center justify-between p-4 rounded-2xl border ${contextStatus.settings ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'}`}>
-                                <div className="flex items-center gap-3">
-                                    <CommandLineIcon className={`w-5 h-5 ${contextStatus.settings ? 'text-green-600' : 'text-red-600'}`} />
-                                    <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Operational Hours Configured</span>
+                                <div className={`flex items-center justify-between p-4 rounded-2xl border ${contextStatus.settings ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'}`}>
+                                    <div className="flex items-center gap-3">
+                                        <CommandLineIcon className={`w-5 h-5 ${contextStatus.settings ? 'text-green-600' : 'text-red-600'}`} />
+                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Operational Hours Configured</span>
+                                    </div>
+                                    {contextStatus.settings ? <CheckCircleIcon className="w-6 h-6 text-green-600" /> : <XIcon className="w-6 h-6 text-red-600" />}
                                 </div>
-                                {contextStatus.settings ? <CheckCircleIcon className="w-6 h-6 text-green-600" /> : <XIcon className="w-6 h-6 text-red-600" />}
                             </div>
+                            {!canProceedStep1 && (
+                                <div className="flex justify-center mt-4">
+                                    <button
+                                        onClick={() => onNavigateToSettings?.('calendar')}
+                                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-widest underline decoration-2 underline-offset-4"
+                                    >
+                                        Configure in Settings &rarr;
+                                    </button>
+                                </div>
+                            )}
                         </div>
-                        {!canProceedStep1 && (
-                            <div className="flex justify-center mt-4">
-                                <button
-                                    onClick={() => onNavigateToSettings?.('calendar')}
-                                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-widest underline decoration-2 underline-offset-4"
-                                >
-                                    Configure in Settings &rarr;
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                )}
+                    )}
 
 
-                {step === 2 && (
-                    <div className="space-y-6 animate-fade-in">
-                        <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">2. Resource Availability</h4>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
-                                <BuildingOfficeIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-                                <p className="text-2xl font-black text-slate-800 dark:text-white">{resourceStatus.rooms}</p>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Rooms</p>
-                            </div>
-                            <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
-                                <UserGroupIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-                                <p className="text-2xl font-black text-slate-800 dark:text-white">{resourceStatus.lecturers}</p>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Faculty</p>
-                            </div>
-                            <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
-                                <RectangleStackIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-                                <p className="text-2xl font-black text-slate-800 dark:text-white">{resourceStatus.subjects}</p>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Subjects</p>
-                            </div>
-                            <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
-                                <CommandLineIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-                                <p className="text-2xl font-black text-slate-800 dark:text-white">{resourceStatus.courses}</p>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Courses</p>
-                            </div>
-                        </div>
-                        {!canProceedStep2 && <p className="text-center text-xs text-red-500 font-bold uppercase tracking-widest mt-4">Missing critical resources. Add rooms, staff, or subjects first.</p>}
-                    </div>
-                )}
-
-                {step === 3 && (
-                    <div className="space-y-6 animate-fade-in">
-                        <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">3. Registry Load Check</h4>
-
-                        <div className="flex flex-col gap-4">
-                            <div className="flex justify-between items-center p-5 bg-white dark:bg-slate-800 border-2 border-green-100 dark:border-green-900 rounded-2xl">
-                                <div>
-                                    <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Ready for Scheduling</p>
-                                    <p className="text-3xl font-black text-green-600 dark:text-green-400 mt-1">{workloadStatus.approved}</p>
-                                    <p className="text-[10px] text-slate-400 uppercase tracking-widest">Approved Allocations</p>
+                    {step === 2 && (
+                        <div className="space-y-6 animate-fade-in">
+                            <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">2. Resource Availability</h4>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
+                                    <BuildingOfficeIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                                    <p className="text-2xl font-black text-slate-800 dark:text-white">{resourceStatus.rooms}</p>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Rooms</p>
                                 </div>
-                                <CheckCircleIcon className="w-10 h-10 text-green-500 opacity-20" />
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
+                                    <UserGroupIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                                    <p className="text-2xl font-black text-slate-800 dark:text-white">{resourceStatus.lecturers}</p>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Faculty</p>
+                                </div>
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
+                                    <RectangleStackIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                                    <p className="text-2xl font-black text-slate-800 dark:text-white">{resourceStatus.subjects}</p>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Subjects</p>
+                                </div>
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
+                                    <CommandLineIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                                    <p className="text-2xl font-black text-slate-800 dark:text-white">{resourceStatus.courses}</p>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Courses</p>
+                                </div>
                             </div>
+                            {!canProceedStep2 && <p className="text-center text-xs text-red-500 font-bold uppercase tracking-widest mt-4">Missing critical resources. Add rooms, staff, or subjects first.</p>}
+                        </div>
+                    )}
+
+                    {step === 3 && (
+                        <div className="space-y-6 animate-fade-in">
+                            <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">3. Registry Load Check</h4>
+
+                            <div className="flex flex-col gap-4">
+                                <div className="flex justify-between items-center p-5 bg-white dark:bg-slate-800 border-2 border-green-100 dark:border-green-900 rounded-2xl">
+                                    <div>
+                                        <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Ready for Scheduling</p>
+                                        <p className="text-3xl font-black text-green-600 dark:text-green-400 mt-1">{workloadStatus.approved}</p>
+                                        <p className="text-[10px] text-slate-400 uppercase tracking-widest text-indigo-500 font-black">{workloadStatus.approvedPeriods} Total Periods</p>
+                                        <p className="text-[10px] text-slate-400 uppercase tracking-widest">Approved Allocations</p>
+                                    </div>
+                                    <CheckCircleIcon className="w-10 h-10 text-green-500 opacity-20" />
+                                </div>
 
                             <div className="flex justify-between items-center p-5 bg-white dark:bg-slate-800 border-2 border-yellow-100 dark:border-yellow-900 rounded-2xl">
                                 <div>
