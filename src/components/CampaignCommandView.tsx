@@ -725,118 +725,96 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                 </div>
             )}
 
-            {/* AI Pulse View */}
+            {/* AI Pulse / Analytics View */}
             {activeTab === 'ai_pulse' && (
                 <div className="space-y-8 animate-fade-in">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="bg-slate-900 text-white rounded-[3rem] p-12 shadow-2xl relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl"></div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {[
+                            { label: 'Total Supporters', value: voters.filter(v => v.status === 'supporter').length.toLocaleString(), sub: 'Verified Supporters', color: 'indigo' },
+                            { label: 'Conversion Rate', value: `${voters.length > 0 ? Math.round((voters.filter(v => v.status === 'supporter').length / voters.length) * 100) : 0}%`, sub: 'From Outreach', color: 'emerald' },
+                            { label: 'Campaign Events', value: events.length.toLocaleString(), sub: 'Scheduled & Past', color: 'orange' },
+                            { label: 'Target Completion', value: `${profile ? Math.round((voters.filter(v => v.status === 'supporter').length / profile.targetVoterCount) * 100) : 0}%`, sub: `Goal: ${profile?.targetVoterCount.toLocaleString()}`, color: 'blue' }
+                        ].map((stat, i) => (
+                            <div key={i} className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+                                <div className={`absolute top-0 right-0 w-24 h-24 bg-${stat.color}-500/5 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-all duration-700`}></div>
+                                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">{stat.label}</h4>
+                                <p className={`text-4xl font-black text-slate-900 dark:text-white tracking-tighter mb-2`}>{stat.value}</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{stat.sub}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-[3rem] p-12 shadow-2xl border border-slate-100 dark:border-slate-800">
                             <h3 className="text-3xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3">
-                                <SparklesIcon className="w-8 h-8 text-emerald-400" /> Sentiment Analysis
+                                <ChartBarIcon className="w-8 h-8 text-indigo-600" /> Supporter Growth & Status
                             </h3>
                             <div className="space-y-8">
-                                <div>
-                                    <div className="flex justify-between mb-2">
-                                        <span className="font-black text-[10px] uppercase tracking-widest">Public Favorability</span>
-                                        <span className="text-emerald-400 font-black">78%</span>
-                                    </div>
-                                    <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden">
-                                        <div className="bg-emerald-400 h-full" style={{ width: '78%' }}></div>
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="flex justify-between mb-2">
-                                        <span className="font-black text-[10px] uppercase tracking-widest">Digital Engagement</span>
-                                        <span className="text-indigo-400 font-black">92%</span>
-                                    </div>
-                                    <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden">
-                                        <div className="bg-indigo-400 h-full" style={{ width: '92%' }}></div>
-                                    </div>
-                                </div>
-                                <div className="pt-8 border-t border-white/10">
-                                    <p className="text-sm font-medium text-slate-400 italic">
-                                        "Voters are responding positively to your stance on digital literacy in primary schools. The sentiment spike matches your recent radio interview."
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-12 shadow-2xl border border-slate-100 dark:border-slate-800">
-                            <h3 className="text-3xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3">
-                                <ShieldCheckIcon className="w-8 h-8 text-indigo-600" /> Strategic Recommendations
-                            </h3>
-                            <div className="space-y-6">
                                 {[
-                                    { title: 'Differentiate', text: 'Rival candidate Z is focusing on roads. Shift your focus to "Internet for Every Home" to capture the Gen-Z vote.' },
-                                    { title: 'Town Hall Strategy', text: 'Schedule a meeting in Outer Ward B. Your support there has dipped by 4% in favor of undecided voters.' },
-                                    { title: 'Media Spend', text: 'Increase TikTok budget by 20% over the weekend. Traffic from that platform is converting to newsletter signups at a record rate.' }
-                                ].map((rec, i) => (
-                                    <div key={i} className="flex gap-4 p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl group hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all cursor-default">
-                                        <div className="w-8 h-8 shrink-0 bg-white dark:bg-slate-900 rounded-xl flex items-center justify-center font-black text-indigo-600 shadow-sm">{i+1}</div>
-                                        <div>
-                                            <h4 className="font-black text-[10px] uppercase tracking-widest text-indigo-600 mb-1">{rec.title}</h4>
-                                            <p className="text-sm text-slate-600 dark:text-slate-400 font-medium leading-relaxed">{rec.text}</p>
+                                    { label: 'Strong Supporters', count: voters.filter(v => v.status === 'supporter').length, color: 'bg-emerald-500', icon: '🔥' },
+                                    { label: 'Undecided / Potential', count: voters.filter(v => v.status === 'undecided' || v.status === 'uncontacted').length, color: 'bg-indigo-500', icon: '⏳' },
+                                    { label: 'Opposed / Rivals', count: voters.filter(v => v.status === 'opposed').length, color: 'bg-red-500', icon: '⚠️' }
+                                ].map((group, i) => (
+                                    <div key={i} className="space-y-2">
+                                        <div className="flex justify-between items-end">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xl">{group.icon}</span>
+                                                <span className="font-black text-[10px] uppercase tracking-widest text-slate-500">{group.label}</span>
+                                            </div>
+                                            <span className="font-black text-xl text-slate-900 dark:text-white">
+                                                {group.count.toLocaleString()}
+                                                <span className="text-[10px] text-slate-400 ml-1">({voters.length > 0 ? Math.round((group.count / voters.length) * 100) : 0}%)</span>
+                                            </span>
+                                        </div>
+                                        <div className="w-full bg-slate-100 dark:bg-slate-800 h-4 rounded-full overflow-hidden border border-slate-50 dark:border-slate-700">
+                                            <div className={`${group.color} h-full transition-all duration-1000`} style={{ width: `${voters.length > 0 ? (group.count / voters.length) * 100 : 0}%` }}></div>
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                        </div>
-                    </div>
 
-                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-12 shadow-2xl border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-indigo-500/20 transition-all"></div>
-                        
-                        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 mb-12">
-                            <div>
-                                <div className="flex items-center gap-3 mb-2">
-                                    <VideoCameraIcon className="w-10 h-10 text-indigo-600" />
-                                    <h3 className="text-4xl font-black uppercase tracking-tighter">AI Video Suite</h3>
-                                    <span className="px-4 py-1.5 bg-indigo-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse shadow-lg shadow-indigo-100">Pro Feature</span>
-                                </div>
-                                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest ml-14">Transform your manifesto into viral TikTok & Reels clips</p>
+                            <div className="mt-12 pt-8 border-t border-slate-50 dark:border-slate-800">
+                                <p className="text-sm font-medium text-slate-400 italic flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl">
+                                    <SparklesIcon className="w-10 h-10 text-emerald-400 shrink-0" />
+                                    "Your supporter conversion rate is currently {voters.length > 0 ? Math.round((voters.filter(v => v.status === 'supporter').length / voters.length) * 100) : 0}%. To reach your 2027 target, you need to recruit roughly {profile ? Math.max(0, Math.round((profile.targetVoterCount - voters.filter(v => v.status === 'supporter').length) / 100)) : 0} new supporters daily."
+                                </p>
                             </div>
+                        </div>
+
+                        <div className="bg-slate-900 text-white rounded-[3rem] p-12 shadow-2xl relative overflow-hidden flex flex-col justify-between">
+                            <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl"></div>
                             
-                            <div className="flex gap-4">
-                                <button className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all flex items-center gap-3 shadow-xl">
-                                    <PlusIcon className="w-4 h-4" /> Generate New Clip
-                                </button>
-                                <button className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-700 transition-all">
-                                    Studio Mode
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {[
-                                { title: 'Viral Manifesto', style: 'High-Impact Kinetic Typography', color: 'indigo', icon: SparklesIcon },
-                                { title: 'Townhall Highlight', style: 'Candid Event Recap with AI B-Roll', color: 'emerald', icon: CameraIcon },
-                                { title: 'Policy Breakdown', style: 'Educational Infographic Animation', color: 'orange', icon: ChartBarIcon }
-                            ].map((v, i) => (
-                                <div key={i} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 group/item hover:border-indigo-500 transition-all cursor-pointer">
-                                    <div className={`w-12 h-12 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center mb-6`}>
-                                        <v.icon className={`w-6 h-6 text-indigo-600`} />
-                                    </div>
-                                    <h4 className="font-black text-xl text-slate-900 dark:text-white uppercase mb-2 group-hover/item:text-indigo-600 transition-colors">{v.title}</h4>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed mb-6">{v.style}</p>
-                                    <div className="flex items-center gap-2">
-                                        <div className="flex -space-x-2">
-                                            {[1,2].map(j => <div key={j} className="w-5 h-5 rounded-full bg-slate-200 border border-white"></div>)}
+                            <div>
+                                <h3 className="text-3xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3">
+                                    <MapPinIcon className="w-8 h-8 text-indigo-400" /> Ward Hotspots
+                                </h3>
+                                <div className="space-y-6">
+                                    {Array.from(new Set(voters.map(v => v.ward).filter(Boolean))).slice(0, 5).map((wardName, i) => {
+                                        const wardSupporters = voters.filter(v => v.ward === wardName && v.status === 'supporter').length;
+                                        return (
+                                            <div key={i} className="flex justify-between items-center group">
+                                                <div>
+                                                    <h5 className="font-black text-xs uppercase tracking-widest text-white group-hover:text-indigo-400 transition-colors">{wardName}</h5>
+                                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{voters.filter(v => v.ward === wardName).length} Total Contacts</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="font-black text-indigo-400">{wardSupporters}</p>
+                                                    <p className="text-[8px] font-bold text-slate-500 uppercase">Supporters</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    {voters.filter(v => !v.ward).length > 0 && (
+                                        <div className="pt-4 border-t border-white/5">
+                                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{voters.filter(v => !v.ward).length} Supporters have no ward data</p>
                                         </div>
-                                        <span className="text-[8px] font-black text-slate-400 uppercase">Used 244 times</span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="mt-10 p-6 bg-indigo-50 dark:bg-indigo-900/20 rounded-[2rem] border border-indigo-100 dark:border-indigo-800/50 flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <DevicePhoneMobileIcon className="w-8 h-8 text-indigo-600" />
-                                <div>
-                                    <h5 className="font-black text-xs uppercase tracking-widest text-indigo-900 dark:text-indigo-100">Live TikTok Feed Integration</h5>
-                                    <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-tighter">Your clips are optimized for vertical viewing and 9:16 aspect ratios.</p>
+                                    )}
                                 </div>
                             </div>
-                            <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest cursor-pointer hover:underline">Verify Account</span>
+
+                            <button className="mt-12 bg-indigo-600 hover:bg-white hover:text-indigo-600 py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all shadow-xl shadow-indigo-500/20">
+                                View Full Voter Map
+                            </button>
                         </div>
                     </div>
                 </div>
