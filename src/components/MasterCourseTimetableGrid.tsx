@@ -165,7 +165,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                         }
                                                         return (
                                                             <td key={slotKey} colSpan={period.colSpan} className="p-1 border border-slate-100 dark:border-slate-800 text-center align-middle bg-slate-50/50 dark:bg-slate-900/30 print:bg-gray-50">
-                                                                <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest select-none block mx-auto" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>BREAK</span>
+                                                                <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest select-none block mx-auto" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>{period.label || 'BREAK'}</span>
                                                             </td>
                                                         );
                                                     }
@@ -237,12 +237,6 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                                                 c.day === day &&
                                                                                 c.conflictingEntries.some(ce => ce.id === entry.id)
                                                                             );
-
-                                                                            if (isBlockPart && idx === slotEntries.findIndex(e => e && e.courseLevelId === entry.courseLevelId)) {
-                                                                                // Only show BLOCK once per level group if needed?
-                                                                                // This is getting messy. Let's just follow the vertical layout pattern:
-                                                                                // If entries.length > 1 for the SAME group, it's a block.
-                                                                            }
 
                                                                             return (
                                                                                 <div key={entry.id} className={`flex-1 rounded-xl p-2 shadow-sm border ${isConflicting ? 'border-red-500 ring-2 ring-red-200 animate-pulse' : 'border-black/5'}`} style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
@@ -322,7 +316,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                                 }
                                                                 return (
                                                                     <td key={periodIndex} colSpan={period.colSpan} className="p-1 border-l border-slate-100 dark:border-slate-800 align-middle bg-slate-50/50 dark:bg-slate-900/40 text-center">
-                                                                        <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest block mx-auto" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>BREAK</span>
+                                                                        <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest block mx-auto" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>{period.label}</span>
                                                                     </td>
                                                                 );
                                                             }
@@ -330,10 +324,6 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                             const entries = getCellEntries(level, day, period);
                                                             if (entries && entries.length > 0) {
                                                                 const primaryEntry = entries[0];
-                                                                const subject = subjects.find(s => s.id === primaryEntry.subjectId);
-                                                                const lecturer = lecturers.find(l => l.id === primaryEntry.lecturerId);
-                                                                const room = rooms.find(r => r.id === primaryEntry.roomId);
-
                                                                 const duration = timeToMinutes(primaryEntry.endTime) - timeToMinutes(primaryEntry.startTime);
                                                                 const colSpan = Math.round(duration / cellSpanMinutes);
 

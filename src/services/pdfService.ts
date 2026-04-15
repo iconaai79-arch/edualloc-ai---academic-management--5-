@@ -1272,8 +1272,8 @@ export const generateMasterCourseTimetablePdf = async (
 
                             if (rowOccupiedSlots.has(slotStartMinutes)) continue;
 
-                            const isBreak = breaks.some(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
-                            const breakObj = breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
+                            const isBreak = !!slot.isBreak;
+                            const breakText = (slot.label || 'BREAK').split('').join('\n');
 
                             const entries = (generatedTimetable || []).filter(e =>
                                 e.day === day &&
@@ -1282,7 +1282,6 @@ export const generateMasterCourseTimetablePdf = async (
                             );
 
                             if (isBreak) {
-                                const breakText = (breakObj?.name || 'BREAK').split('').join('\n');
                                 row.push({ content: breakText, colSpan: 1, styles: { halign: 'center', valign: 'middle', fontSize: 9, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [150, 150, 150], cellPadding: 1 } });
                             } else if (entries.length > 0) {
                                 const isBlock = entries.length > 1;
@@ -1468,8 +1467,8 @@ export const generateMasterCourseTimetablePdf = async (
                             const slotStartMinutes = timeToMinutes(slot.start);
                             if (rowOccupiedSlots.has(slotStartMinutes)) continue;
 
-                            const isBreak = breaks.some(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
-                            const breakObj = breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
+                            const isBreak = !!slot.isBreak;
+                            const breakText = (slot.label || 'BREAK').split('').join('\n');
                             const entries = (generatedTimetable || []).filter(e =>
                                 e.day === day &&
                                 (String(e.courseLevelId) === String(level.id) || String((e as any).course_level_id) === String(level.id)) &&
@@ -1480,9 +1479,9 @@ export const generateMasterCourseTimetablePdf = async (
                                 if (dIndex === 0) {
                                     // Use rowSpan to create a single vertical break column across all days
                                     // Vertical text layout
-                                    const breakText = (breakObj?.name || 'BREAK').split('').join('\n');
+                                    const breakTxt = breakText;
                                     row.push({
-                                        content: breakText,
+                                        content: breakTxt,
                                         colSpan: 1,
                                         rowSpan: days.length,
                                         styles: {
