@@ -1,6 +1,34 @@
 -- Fuel Station Management Module Schema
 -- Supports multi-location stations, multi-tank, multi-pump configurations with shift-based tracking
 
+-- REPAIR BLOCK: Ensure institution_id exists on all tables (Fixes ERROR 42703 for existing tables)
+DO $$ 
+DECLARE 
+    tables TEXT[] := ARRAY[
+        'fuel_stations', 'fuel_tanks', 'fuel_pumps', 'fuel_prices', 'fuel_sales', 
+        'fuel_inventory_log', 'station_shifts', 'station_items', 'station_pos_sales', 
+        'station_pos_sale_items', 'carwash_services', 'carwash_sales', 
+        'car_servicing_packages', 'car_servicing_sales', 'fuel_station_customers', 
+        'fuel_transfers', 'fuel_fleet_accounts', 'fuel_fleet_cards', 
+        'fuel_price_history', 'fuel_etr_configs', 'fuel_reorder_predictions', 
+        'fuel_sms_logs', 'fuel_fleet_telemetry', 'fuel_financial_reports', 
+        'fuel_leak_alerts', 'fuel_staff_achievements', 'fuel_station_assets', 
+        'fuel_maintenance_logs', 'civil_yards', 'civil_products', 
+        'civil_batches', 'civil_sales'
+    ];
+    t TEXT;
+BEGIN 
+    FOREACH t IN ARRAY tables LOOP
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = t) THEN
+            BEGIN
+                EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE', t);
+            EXCEPTION WHEN others THEN
+                RAISE NOTICE 'Could not add institution_id to table %', t;
+            END;
+        END IF;
+    END LOOP;
+END $$;
+
 -- 0. Stations (Physical locations)
 CREATE TABLE IF NOT EXISTS fuel_stations (
     id TEXT PRIMARY KEY,
