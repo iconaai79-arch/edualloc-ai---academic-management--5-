@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS fuel_tanks (
 -- 2. Fuel Pumps (Dispensing units connected to tanks)
 CREATE TABLE IF NOT EXISTS fuel_pumps (
     id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
     tank_id TEXT REFERENCES fuel_tanks(id) ON DELETE CASCADE,
     station_id TEXT REFERENCES fuel_stations(id) ON DELETE CASCADE,
     pump_number TEXT NOT NULL,
@@ -78,6 +79,7 @@ CREATE TABLE IF NOT EXISTS fuel_sales (
 -- 5. Inventory Logs
 CREATE TABLE IF NOT EXISTS fuel_inventory_log (
     id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
     tank_id TEXT REFERENCES fuel_tanks(id) ON DELETE CASCADE,
     station_id TEXT REFERENCES fuel_stations(id) ON DELETE CASCADE,
     log_type TEXT NOT NULL CHECK (log_type IN ('delivery', 'manual_dip', 'adjustment')),
@@ -265,7 +267,7 @@ CREATE POLICY "Users can manage fuel systems" ON fuel_tanks FOR ALL TO authentic
 CREATE POLICY "Users can manage fuel pumps" ON fuel_pumps FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 CREATE POLICY "Users can manage fuel prices" ON fuel_prices FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 CREATE POLICY "Users can manage fuel sales" ON fuel_sales FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
-CREATE POLICY "Users can manage inventory logs" ON fuel_inventory_log FOR ALL TO authenticated USING (station_id IN (SELECT id FROM fuel_stations WHERE institution_id = auth.uid()::text) OR public.get_curr_user_role() = 'super_admin');
+CREATE POLICY "Users can manage inventory logs" ON fuel_inventory_log FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 CREATE POLICY "Users can manage station shifts" ON station_shifts FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 CREATE POLICY "Users can manage station items" ON station_items FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 CREATE POLICY "Users can manage POS sales" ON station_pos_sales FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
@@ -364,6 +366,8 @@ CREATE INDEX idx_etr_configs_station ON fuel_etr_configs(station_id);
 -- 18. Predictive Inventory & Logistics
 CREATE TABLE IF NOT EXISTS fuel_reorder_predictions (
     id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
+    station_id TEXT REFERENCES fuel_stations(id) ON DELETE CASCADE,
     tank_id TEXT REFERENCES fuel_tanks(id) ON DELETE CASCADE,
     predicted_depletion_date TIMESTAMP WITH TIME ZONE,
     recommended_order_date TIMESTAMP WITH TIME ZONE,
@@ -386,7 +390,7 @@ CREATE TABLE IF NOT EXISTS fuel_sms_logs (
 ALTER TABLE fuel_reorder_predictions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fuel_sms_logs ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can manage predictions" ON fuel_reorder_predictions FOR ALL TO authenticated USING (tank_id IN (SELECT id FROM fuel_tanks WHERE institution_id = auth.uid()::text) OR public.get_curr_user_role() = 'super_admin');
+CREATE POLICY "Users can manage predictions" ON fuel_reorder_predictions FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 CREATE POLICY "Users can manage SMS logs" ON fuel_sms_logs FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 
 -- Index
@@ -396,6 +400,7 @@ CREATE INDEX idx_sms_logs_institution ON fuel_sms_logs(institution_id);
 -- 20. Fleet Telemetry (GPS Validation)
 CREATE TABLE IF NOT EXISTS fuel_fleet_telemetry (
     id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
     card_id TEXT REFERENCES fuel_fleet_cards(id) ON DELETE CASCADE,
     latitude DECIMAL NOT NULL,
     longitude DECIMAL NOT NULL,
@@ -421,7 +426,7 @@ CREATE TABLE IF NOT EXISTS fuel_financial_reports (
 ALTER TABLE fuel_fleet_telemetry ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fuel_financial_reports ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can manage telemetry" ON fuel_fleet_telemetry FOR ALL TO authenticated USING (card_id IN (SELECT id FROM fuel_fleet_cards WHERE fleet_account_id IN (SELECT id FROM fuel_fleet_accounts WHERE institution_id = auth.uid()::text)) OR public.get_curr_user_role() = 'super_admin');
+CREATE POLICY "Users can manage telemetry" ON fuel_fleet_telemetry FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 CREATE POLICY "Users can manage financial reports" ON fuel_financial_reports FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 
 -- Index
@@ -431,6 +436,7 @@ CREATE INDEX idx_financial_reports_station ON fuel_financial_reports(station_id)
 -- 22. IoT Leak Detection (Environmental Compliance)
 CREATE TABLE IF NOT EXISTS fuel_leak_alerts (
     id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
     tank_id TEXT REFERENCES fuel_tanks(id) ON DELETE CASCADE,
     station_id TEXT REFERENCES fuel_stations(id) ON DELETE CASCADE,
     variance_liters DECIMAL NOT NULL,
@@ -442,6 +448,7 @@ CREATE TABLE IF NOT EXISTS fuel_leak_alerts (
 -- 23. Employee Gamification (Performance)
 CREATE TABLE IF NOT EXISTS fuel_staff_achievements (
     id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
     user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
     achievement_type TEXT NOT NULL,
     points_awarded INTEGER DEFAULT 0,
@@ -452,8 +459,8 @@ CREATE TABLE IF NOT EXISTS fuel_staff_achievements (
 ALTER TABLE fuel_leak_alerts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fuel_staff_achievements ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can manage leak alerts" ON fuel_leak_alerts FOR ALL TO authenticated USING (station_id IN (SELECT id FROM fuel_stations WHERE institution_id = auth.uid()::text) OR public.get_curr_user_role() = 'super_admin');
-CREATE POLICY "Users can manage achievements" ON fuel_staff_achievements FOR ALL TO authenticated USING (user_id IN (SELECT id FROM users WHERE institution_id = auth.uid()::text) OR public.get_curr_user_role() = 'super_admin');
+CREATE POLICY "Users can manage leak alerts" ON fuel_leak_alerts FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
+CREATE POLICY "Users can manage achievements" ON fuel_staff_achievements FOR ALL TO authenticated USING (institution_id = auth.uid()::text OR public.get_curr_user_role() = 'super_admin');
 
 -- Index
 CREATE INDEX idx_leak_alerts_tank ON fuel_leak_alerts(tank_id);
