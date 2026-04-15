@@ -543,162 +543,17 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-12 shadow-2xl border border-slate-100 dark:border-slate-800">
                         <div className="flex justify-between items-center mb-12">
                             <h3 className="text-3xl font-black uppercase tracking-tighter">Campaign Configuration</h3>
-                            <button 
-                                onClick={() => {
-                                    setEditProfile({ ...profile });
-                                    setShowProfileModal(true);
-                                }}
-                                className="bg-slate-100 dark:bg-slate-800 text-indigo-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all"
-                            >
-                                Edit Profile
-                            </button>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-12">
-                            <div className="space-y-4">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Candidate Name</label>
-                                <p className="text-xl font-black text-slate-900 dark:text-white uppercase">{profile.candidateName}</p>
-                                
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mt-6">Target Office</label>
-                                <p className="text-xl font-black text-slate-900 dark:text-white uppercase">{profile.position}</p>
-
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mt-6">Political Party</label>
-                                <p className="text-xl font-black text-slate-900 dark:text-white uppercase">{profile.partyName || 'Independent'}</p>
-                            </div>
-
-                            <div className="bg-slate-50 dark:bg-slate-800/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 relative group">
-                                <ChatBubbleLeftRightIcon className="w-12 h-12 text-indigo-600 mb-6" />
-                                <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white mb-2">Unique Invite Link</h4>
-                                <p className="text-slate-500 text-xs font-medium mb-6">
-                                    Share this link online. Supporters who click this can join your campaign and provide their contact details.
-                                </p>
-                                <div className="flex gap-2">
-                                    <input 
-                                        readOnly 
-                                        value={`${window.location.origin}/?view=join-campaign&id=${profile.inviteSlug || profile.id}`}
-                                        className="bg-white dark:bg-slate-900 border-none rounded-xl p-3 text-[10px] font-black text-indigo-500 w-full"
-                                    />
-                                    <button 
-                                        onClick={() => {
-                                            navigator.clipboard.writeText(`${window.location.origin}/?view=join-campaign&id=${profile.inviteSlug || profile.id}`);
-                                            alert("Link copied to clipboard!");
-                                        }}
-                                        className="bg-indigo-600 text-white px-4 rounded-xl font-black text-[10px] uppercase tracking-widest"
-                                    >
-                                        Copy
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="space-y-6">
-                             <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white mb-4">Core Agendas</h4>
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {(profile.agendas || []).length > 0 ? profile.agendas?.map((agenda, i) => (
-                                    <div key={i} className="flex gap-3 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-l-4 border-indigo-500">
-                                        <div className="w-6 h-6 shrink-0 bg-white dark:bg-slate-900 rounded-lg flex items-center justify-center font-black text-xs text-indigo-600 shadow-sm">{i+1}</div>
-                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight">{agenda}</p>
-                                    </div>
-                                )) : (
-                                    <p className="text-slate-400 text-[10px] font-black uppercase">No structured agendas defined. Edit profile to add some.</p>
-                                )}
-                             </div>
-                        </div>
-                    </div>
+                    <button 
+                        onClick={() => {
+                            setIsSetupModalOpen(true);
+                        }}
+                        className="bg-slate-100 dark:bg-slate-800 text-indigo-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all"
+                    >
+                        Edit Profile
+                    </button>
                 </div>
-            )}
 
-            {/* Profile Edit Modal */}
-            {showProfileModal && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-xl bg-slate-900/80">
-                    <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[3rem] p-12 shadow-2xl relative overflow-hidden animate-fade-in-up">
-                        <h3 className="text-3xl font-black uppercase tracking-tighter mb-8">Edit Campaign Information</h3>
-                        <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
-                            <div className="grid grid-cols-2 gap-6">
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Candidate Name</label>
-                                    <input 
-                                        value={editProfile.candidateName} 
-                                        onChange={e => setEditProfile({...editProfile, candidateName: e.target.value})}
-                                        className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold uppercase text-xs"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Post Running For</label>
-                                    <select 
-                                        value={editProfile.position} 
-                                        onChange={e => setEditProfile({...editProfile, position: e.target.value as any})}
-                                        className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold uppercase text-xs"
-                                    >
-                                        {['MCA', 'MP', 'Women Rep', 'Senator', 'Governor', 'President', 'Deputy'].map(p => (
-                                            <option key={p} value={p}>{p}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Political Party</label>
-                                <select 
-                                    value={editProfile.partyName} 
-                                    onChange={e => setEditProfile({...editProfile, partyName: e.target.value})}
-                                    className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold uppercase text-xs"
-                                >
-                                    <option value="">Choose Party...</option>
-                                    <option value="Independent">Independent</option>
-                                    {politicalParties.map(p => <option key={p.id} value={p.name}>{p.name} ({p.acronym})</option>)}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Constituency / Ward</label>
-                                <select 
-                                    value={editProfile.constituencyWard} 
-                                    onChange={e => setEditProfile({...editProfile, constituencyWard: e.target.value})}
-                                    className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold uppercase text-xs"
-                                >
-                                    <option value="">Choose Location...</option>
-                                    <optgroup label="Constituencies">
-                                        {politicalConstituencies.map(c => <option key={c.id} value={c.name}>{c.name} (Constituency)</option>)}
-                                    </optgroup>
-                                    <optgroup label="Wards">
-                                        {politicalWards.map(w => <option key={w.id} value={w.name}>{w.name} (Ward)</option>)}
-                                    </optgroup>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Key Agendas (Comma separated)</label>
-                                <textarea 
-                                    value={editProfile.agendas?.join(', ')} 
-                                    onChange={e => setEditProfile({...editProfile, agendas: e.target.value.split(',').map(s => s.trim()).filter(s => s)})}
-                                    className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold uppercase text-xs h-32"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex gap-4 mt-12">
-                            <button 
-                                onClick={async () => {
-                                    if (!editProfile.candidateName) return;
-                                    await apiService.saveModuleRecord('campaign_profiles', editProfile as CampaignProfile);
-                                    setProfile(editProfile as CampaignProfile);
-                                    setShowProfileModal(false);
-                                }}
-                                className="flex-1 bg-indigo-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-100"
-                            >
-                                Save Changes
-                            </button>
-                            <button 
-                                onClick={() => setShowProfileModal(false)}
-                                className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-500 py-5 rounded-2xl font-black uppercase tracking-widest text-xs"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-12">
 
             {/* Manifesto View */}
             {activeTab === 'manifesto' && (
