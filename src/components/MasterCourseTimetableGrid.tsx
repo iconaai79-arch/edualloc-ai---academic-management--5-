@@ -62,11 +62,21 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
         if (selectedLevelId && selectedLevelId !== 'all') {
             list = list.map(course => ({
                 ...course,
-                levels: (course.levels || []).filter(l => l && l.id === selectedLevelId)
+                levels: (course.levels || []).filter(l => l && String(l.id) === String(selectedLevelId))
             })).filter(course => (course.levels || []).length > 0);
         }
-        
-        return list;
+
+        // AUTO-FALLBACK: If a course has NO levels but we want to show it, 
+        // add a synthetic "General" level so the grid has a row to render.
+        return list.map(course => {
+            if (!course.levels || course.levels.length === 0) {
+                return {
+                    ...course,
+                    levels: [{ id: `gen_${course.id}`, name: 'General/Master', subjectIds: [] }]
+                };
+            }
+            return course;
+        });
     }, [courses, selectedCourseId, selectedLevelId]);
 
     const workloadData = useMemo(() => {
@@ -99,22 +109,40 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
     const getCellEntries = (level: CourseLevel, day: string, period: any) => {
         if (!level) return [];
         const lid = String(level.id);
-        return generatedTimetable.filter(e =>
-            e && e.day === day &&
-            (String(e.courseLevelId) === lid || String((e as any).course_level_id) === lid) &&
-            timeToMinutes(e.startTime) === timeToMinutes(period.startTime)
-        );
+        const isGeneral = lid.startsWith('gen_');
+        const courseId = isGeneral ? lid.split('_')[1] : null;
+
+        return generatedTimetable.filter(e => {
+            if (!e || e.day !== day) return false;
+            if (timeToMinutes(e.startTime) !== timeToMinutes(period.startTime)) return false;
+
+            if (isGeneral) {
+                const eCourseId = String(e.courseId || (e as any).course_id || '');
+                return eCourseId === courseId;
+            }
+
+            return (String(e.courseLevelId) === lid || String((e as any).course_level_id) === lid);
+        });
     };
 
     const renderHorizontalLayout = () => (
         <div className="space-y-12 animate-fade-in no-break">
             {relevantCourses.map((course) => {
                 const levelIds = (course.levels || []).filter(l => l).map(l => String(l.id));
-                const courseEntries = generatedTimetable.filter(e =>
-                    e && 
-                    (String(e.courseId) === String(course.id) || String((e as any).course_id) === String(course.id)) &&
-                    (levelIds.includes(String(e.courseLevelId)) || levelIds.includes(String((e as any).course_level_id)))
-                );
+                const courseEntries = generatedTimetable.filter(e => {
+                    if (!e) return false;
+                    const isCourseMatch = String(e.courseId) === String(course.id) || String((e as any).course_id) === String(course.id);
+                    if (!isCourseMatch) return false;
+
+                    // If we have specific streams/levels defined for this course in the registry, 
+                    // and the entry has a stream assigned, use strict matching.
+                    // Otherwise (if entry has no stream or it's a general course lesson), allow it.
+                    if (e.courseLevelId || (e as any).course_level_id) {
+                        const eid = String(e.courseLevelId || (e as any).course_level_id);
+                        return levelIds.includes(eid);
+                    }
+                    return true;
+                });
 
                 return (
                     <div key={course.id} className="space-y-4 break-inside-avoid">
