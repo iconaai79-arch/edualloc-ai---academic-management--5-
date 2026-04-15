@@ -2142,6 +2142,70 @@ export interface CarWashSettings {
 }
 
 // ============================================================================
+// FUEL STATION MODULE TYPES
+// ============================================================================
+
+export type FuelType = 'Petrol' | 'Diesel' | 'V-Power' | 'Kerosene' | 'LPG';
+export type FuelPaymentMethod = 'cash' | 'mpesa' | 'card' | 'fleet_card' | 'credit';
+
+export interface FuelTank {
+    id: string;
+    institutionId: string;
+    name: string;
+    fuelType: FuelType;
+    capacityLiters: number;
+    currentLevelLiters: number;
+    lowLevelThreshold: number;
+    createdAt: string;
+}
+
+export interface FuelPump {
+    id: string;
+    tankId: string;
+    pumpNumber: string;
+    nozzleCount: number;
+    currentTotalizerReading: number;
+    status: 'active' | 'maintenance' | 'out_of_service';
+    createdAt: string;
+}
+
+export interface FuelPrice {
+    id: string;
+    institutionId: string;
+    fuelType: FuelType;
+    pricePerLiter: number;
+    effectiveFrom: string;
+    isActive: boolean;
+}
+
+export interface FuelSale {
+    id: string;
+    institutionId: string;
+    pumpId: string;
+    attendantId?: string;
+    customerId?: string;
+    vehiclePlate?: string;
+    fuelType: FuelType;
+    litersSold: number;
+    pricePerLiter: number;
+    totalAmount: number;
+    paymentMethod: FuelPaymentMethod;
+    paymentStatus: 'pending' | 'completed' | 'refunded';
+    shiftId?: string;
+    createdAt: string;
+}
+
+export interface FuelInventoryLog {
+    id: string;
+    tankId: string;
+    logType: 'delivery' | 'manual_dip' | 'adjustment';
+    quantity: number;
+    recordedBy: string;
+    notes?: string;
+    createdAt: string;
+}
+
+// ============================================================================
 // AGROVET MODULE TYPES
 // ============================================================================
 
@@ -3622,5 +3686,350 @@ export interface CarAppraisal {
     offeredAmount?: number;
     status: 'pending' | 'approved' | 'declined';
     createdAt?: string;
+}
+
+export interface FuelStation {
+    id: string;
+    institutionId: string;
+    name: string;
+    location?: string;
+    contactNumber?: string;
+    isActive: boolean;
+    createdAt?: string;
+}
+
+export interface FuelTank {
+    id: string;
+    institutionId: string;
+    stationId: string;
+    name: string;
+    fuelType: FuelType;
+    capacityLiters: number;
+    currentLevelLiters: number;
+    lastTemperature?: number;
+    lowLevelThreshold: number;
+    sensorId?: string;
+    sensorVendor?: string;
+    createdAt?: string;
+}
+
+export interface FuelPump {
+    id: string;
+    tankId: string;
+    stationId: string;
+    pumpNumber: string;
+    nozzleCount: number;
+    currentTotalizerReading: number;
+    status: 'active' | 'maintenance' | 'out_of_service';
+    createdAt?: string;
+}
+
+export interface FuelPrice {
+    id: string;
+    institutionId: string;
+    stationId: string;
+    fuelType: FuelType;
+    pricePerLiter: number;
+    effectiveFrom?: string;
+    isActive: boolean;
+}
+
+export interface FuelSale {
+    id: string;
+    institutionId: string;
+    stationId: string;
+    pumpId?: string;
+    attendantId?: string;
+    customerId?: string;
+    vehiclePlate?: string;
+    fuelType: FuelType;
+    litersSold: number;
+    pricePerLiter: number;
+    totalAmount: number;
+    pointsEarned?: number;
+    commissionEarned?: number;
+    paymentMethod: 'cash' | 'mpesa' | 'card' | 'fleet_card' | 'credit';
+    paymentStatus: 'pending' | 'completed' | 'refunded';
+    shiftId?: string;
+    createdAt?: string;
+}
+
+export interface FuelInventoryLog {
+    id: string;
+    tankId: string;
+    stationId: string;
+    logType: 'delivery' | 'manual_dip' | 'adjustment';
+    quantity: number;
+    recordedBy?: string;
+    notes?: string;
+    createdAt?: string;
+}
+
+export interface StationShift {
+    id: string;
+    institutionId: string;
+    stationId: string;
+    attendantId?: string;
+    startTime: string;
+    endTime?: string;
+    status: 'active' | 'closed';
+    expectedCash: number;
+    actualCash: number;
+    discrepancy: number;
+    notes?: string;
+    createdAt?: string;
+
+    // Derived front-end helper properties
+    attendantName?: string;
+}
+
+export interface StationItem {
+    id: string;
+    institutionId: string;
+    stationId: string;
+    name: string;
+    category: 'lubricant' | 'snack' | 'drink' | 'car_care' | 'other';
+    sku?: string;
+    price: number;
+    stockQuantity: number;
+    lowStockThreshold: number;
+    isActive: boolean;
+    createdAt?: string;
+}
+
+export interface StationPosSale {
+    id: string;
+    institutionId: string;
+    stationId: string;
+    attendantId?: string;
+    shiftId?: string;
+    customerId?: string;
+    totalAmount: number;
+    pointsEarned?: number;
+    paymentMethod: 'cash' | 'mpesa' | 'card' | 'credit';
+    paymentStatus: 'pending' | 'completed' | 'refunded';
+    createdAt?: string;
+}
+
+export interface StationPosSaleItem {
+    id: string;
+    saleId: string;
+    itemId: string;
+    quantity: number;
+    unitPrice: number;
+    subtotal: number;
+}
+
+export interface CarwashService {
+    id: string;
+    institutionId: string;
+    stationId: string;
+    name: string;
+    description?: string;
+    price: number;
+    estimatedDurationMinutes: number;
+    createdAt?: string;
+}
+
+export interface CarwashSale {
+    id: string;
+    institutionId: string;
+    stationId: string;
+    attendantId?: string;
+    shiftId?: string;
+    serviceId: string;
+    vehiclePlate?: string;
+    customerId?: string;
+    totalAmount: number;
+    pointsEarned?: number;
+    paymentMethod: 'cash' | 'mpesa' | 'card';
+    paymentStatus: 'pending' | 'completed' | 'refunded';
+    status: 'pending' | 'in_progress' | 'completed';
+    createdAt?: string;
+}
+
+export interface CarServicingPackage {
+    id: string;
+    institutionId: string;
+    stationId: string;
+    name: string;
+    description?: string;
+    price: number;
+    estimatedDurationMinutes: number;
+    inventoryItemsRequired?: { itemId: string; quantity: number }[];
+    createdAt?: string;
+}
+
+export interface CarServicingSale {
+    id: string;
+    institutionId: string;
+    stationId: string;
+    mechanicId?: string;
+    shiftId?: string;
+    packageId: string;
+    vehiclePlate?: string;
+    vehicleModel?: string;
+    customerId?: string;
+    odometerReading?: number;
+    serviceIntervalKm?: number;
+    nextServiceOdometer?: number;
+    totalAmount: number;
+    pointsEarned?: number;
+    paymentMethod: 'cash' | 'mpesa' | 'card';
+    paymentStatus: 'pending' | 'completed' | 'refunded';
+    status: 'pending' | 'in_progress' | 'completed';
+    notes?: string;
+    createdAt?: string;
+}
+
+export interface FuelStationCustomer {
+    id: string;
+    institutionId: string;
+    name: string;
+    phone: string;
+    email?: string;
+    vehiclePlate?: string;
+    loyaltyPoints: number;
+    creditLimit: number;
+    currentBalance: number;
+    createdAt?: string;
+}
+
+export interface FuelTransfer {
+    id: string;
+    institutionId: string;
+    sourceStationId: string;
+    destinationStationId: string;
+    sourceTankId: string;
+    destinationTankId: string;
+    fuelType: FuelType;
+    quantity: number;
+    status: 'pending' | 'in_transit' | 'completed' | 'cancelled';
+    notes?: string;
+    createdAt?: string;
+}
+
+export interface FleetAccount {
+    id: string;
+    institutionId: string;
+    companyName: string;
+    contactPerson?: string;
+    phone?: string;
+    email?: string;
+    creditLimit: number;
+    currentBalance: number;
+    isActive: boolean;
+    createdAt?: string;
+}
+
+export interface FleetCard {
+    id: string;
+    fleetAccountId: string;
+    cardNumber: string;
+    vehiclePlate?: string;
+    dailyLimit?: number;
+    isBlocked: boolean;
+    createdAt?: string;
+}
+
+export interface PriceHistory {
+    id: string;
+    stationId: string;
+    fuelType: FuelType;
+    oldPrice: number;
+    newPrice: number;
+    changedAt: string;
+}
+
+export interface ETRConfig {
+    id: string;
+    institutionId: string;
+    stationId: string;
+    deviceSerial: string;
+    middlewareUrl?: string;
+    isActive: boolean;
+    lastSync?: string;
+}
+
+export interface ReorderPrediction {
+    id: string;
+    tankId: string;
+    predictedDepletionDate: string;
+    recommendedOrderDate: string;
+    recommendedQuantity: number;
+    confidenceScore: number;
+}
+
+export interface SMSLog {
+    id: string;
+    institutionId: string;
+    recipientPhone: string;
+    messageBody: string;
+    msgType: 'loyalty' | 'fleet_alert' | 'inventory_alert';
+    status: 'sent' | 'failed';
+    createdAt: string;
+}
+
+export interface FleetTelemetry {
+    id: string;
+    cardId: string;
+    latitude: number;
+    longitude: number;
+    distanceFromStation: number;
+    recordedAt: string;
+}
+
+export interface FinancialReport {
+    id: string;
+    stationId: string;
+    institutionId: string;
+    reportType: 'daily' | 'weekly' | 'monthly';
+    totalSales: number;
+    totalTax: number;
+    totalCommission: number;
+    netProfit: number;
+    periodStart: string;
+    periodEnd: string;
+}
+
+export interface LeakAlert {
+    id: string;
+    tankId: string;
+    stationId: string;
+    varianceLiters: number;
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    status: 'open' | 'resolved';
+    detectedAt: string;
+}
+
+export interface StaffAchievement {
+    id: string;
+    userId: string;
+    achievementType: string;
+    pointsAwarded: number;
+    badgeName?: string;
+    createdAt: string;
+}
+
+export interface StationAsset {
+    id: string;
+    stationId: string;
+    name: string;
+    assetType: string;
+    serialNumber: string;
+    status: 'operational' | 'faulty' | 'maintenance' | 'decommissioned';
+    healthScore: number;
+    lastCalibration?: string;
+    nextCalibrationDue?: string;
+}
+
+export interface MaintenanceLog {
+    id: string;
+    assetId: string;
+    issueDescription: string;
+    technicianName?: string;
+    maintenanceCost: number;
+    status: 'pending' | 'in_progress' | 'completed';
+    scheduledDate?: string;
 }
 

@@ -2,9 +2,9 @@
 -- Enforces one vote per category per user
 
 CREATE TABLE IF NOT EXISTS campaign_votes (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    voter_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    campaign_id UUID NOT NULL REFERENCES campaign_profiles(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY,
+    voter_id TEXT NOT NULL, -- References the system user ID (TEXT)
+    campaign_id TEXT NOT NULL REFERENCES campaign_profiles(id) ON DELETE CASCADE,
     position TEXT NOT NULL, -- e.g. President, Governor, MCA
     rating INTEGER CHECK (rating >= 1 AND rating <= 5),
     comment TEXT,
