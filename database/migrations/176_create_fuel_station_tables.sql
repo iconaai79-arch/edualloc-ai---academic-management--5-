@@ -1,7 +1,18 @@
 -- Fuel Station Management Module Schema
 -- Supports multi-location stations, multi-tank, multi-pump configurations with shift-based tracking
 
--- REPAIR BLOCK: Ensure institution_id exists on all tables (Fixes ERROR 42703 for existing tables)
+-- 0. Stations (Physical locations) - MUST EXIST FIRST FOR REFERENCES
+CREATE TABLE IF NOT EXISTS fuel_stations (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    location TEXT,
+    contact_number TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- REPAIR BLOCK: Ensure institution_id exists on all tables
 DO $$ 
 DECLARE 
     tables TEXT[] := ARRAY[
@@ -14,7 +25,8 @@ DECLARE
         'fuel_sms_logs', 'fuel_fleet_telemetry', 'fuel_financial_reports', 
         'fuel_leak_alerts', 'fuel_staff_achievements', 'fuel_station_assets', 
         'fuel_maintenance_logs', 'civil_yards', 'civil_products', 
-        'civil_batches', 'civil_sales'
+        'civil_batches', 'civil_sales', 'logistic_vehicles', 'logistic_drivers',
+        'logistic_trips', 'logistic_vehicle_maintenance'
     ];
     t TEXT;
 BEGIN 
@@ -29,7 +41,7 @@ BEGIN
     END LOOP;
 END $$;
 
--- REPAIR BLOCK: Ensure station_id exists where required (Fixes ERROR 42703 for station_id)
+-- REPAIR BLOCK: Ensure station_id exists where required
 DO $$ 
 DECLARE 
     station_tables TEXT[] := ARRAY[
@@ -52,17 +64,6 @@ BEGIN
         END IF;
     END LOOP;
 END $$;
-
--- 0. Stations (Physical locations)
-CREATE TABLE IF NOT EXISTS fuel_stations (
-    id TEXT PRIMARY KEY,
-    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    location TEXT,
-    contact_number TEXT,
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
 
 -- 1. Fuel Tanks (Physical storage)
 CREATE TABLE IF NOT EXISTS fuel_tanks (
