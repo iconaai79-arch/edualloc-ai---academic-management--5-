@@ -228,6 +228,7 @@ export const generateTimetable = async (
             - Course & Level Structure: ${JSON.stringify(courses.map(c => ({
             id: c.id,
             name: c.name,
+            profileId: c.scheduleProfileId,
             levels: c.levels.map(l => ({
                 id: l.id,
                 name: l.name,
@@ -247,7 +248,8 @@ export const generateTimetable = async (
                 id: p.id, 
                 name: p.name, 
                 periods: p.periods || [],
-                periodDurationMinutes: p.cellSpanMinutes || settings.cellSpanMinutes || 60
+                periodDurationMinutes: p.cellSpanMinutes || settings.cellSpanMinutes || 60,
+                breaks: p.breaks || []
             })))}
             - Global Institutional Breaks: ${JSON.stringify(settings.breaks)}
             - Subject Association Constraints: ${JSON.stringify((settings.constraints || []).map(c => ({ subjects: c.subjectIds, type: c.type })))}
@@ -256,75 +258,42 @@ export const generateTimetable = async (
             
             NON-NEGOTIABLE HEURISTICS - YOU MUST STRICTLY ENFORCE THESE RULES:
 
-            1. BLOCK SCHEDULING (CRITICAL):
-               - A "Double Period" (periods: 2) MUST be returned as ONE SINGLE JSON OBJECT with an endTime that is (2 * periodDuration) after its startTime.
-               - A "Triple Period" (periods: 3) MUST be returned as ONE SINGLE JSON OBJECT with an endTime that is (3 * periodDuration) after its startTime.
-               - DO NOT split blocks into separate 1-period entries.
+            1. SCHEDULE PROFILE ADHERENCE (CRITICAL): 
+               - Each course is linked to a 'profileId'. You MUST use the exact 'periods' (slots) defined in that profile.
+               - Every lesson must align exactly with the startTime and endTime of a slot in the associated profile.
+               - DO NOT schedule lessons during 'breaks' defined in the profile or global breaks.
 
-            2. INSTITUTIONAL PROFILES: 
-               - Every course follows a specific schedule profile. 
-               - You MUST use the exact start times, end times, and break windows defined in the profile associated with the course.
+            2. BLOCK SCHEDULING:
+               - A "Double Period" MUST be returned as ONE SINGLE JSON OBJECT with an endTime that is (2 * periodDuration) after its startTime.
+               - A "Triple Period" MUST be returned as ONE SINGLE JSON OBJECT with an endTime that is (3 * periodDuration) after its startTime.
+               - Multi-period blocks MUST start at the beginning of a valid profile slot.
 
-            3. FACULTY GOVERNANCE RULES (TEACHER LOGIC):
-               - max_consecutive_lessons: strict limit on back-to-back lessons. If limit is 2, a teacher CANNOT teach 3 consecutive slots.
-               - max_lessons_per_day: absolute daily cap.
-               - min_lessons_per_day: if a teacher is scheduled on a day, they must have at least this many lessons.
+            3. VERTICAL DISTRIBUTION (CRITICAL):
+               - YOU MUST spread lessons across the full day (Period 1 to Period 8).
+               - DO NOT cluster all lessons into the first few periods.
+               - STOCHASTIC SELECTION: Choose slots randomly from the pool of available valid slots to avoid "Top-Heavy" schedules.
 
-            4. SUBJECT CONSTRAINTS:
-               - consecutive_subjects: these subjects MUST be scheduled in immediate succession (back-to-back) for the same group.
-               - same_day_subjects: these subjects MUST appear on the same day.
-               - same_time_subjects: Option Block / Pathways / Electives. These subjects MUST be scheduled at the EXACT SAME TIME for their associated streams. The AI must create separate TimetableEntry objects for each subject in the block, ensuring they share the same day and time slot.
+            4. FACULTY GOVERNANCE & TIME-OFF (STRICT):
+               - TEACHER RULES: Respect max_consecutive_lessons and max_lessons_per_day.
+               - TIME-OFF: Never schedule a teacher during their approved time-off windows.
+               - WORKLOAD FAIRNESS: Spread a lecturer's lessons across multiple days.
 
-            5. TIME-OFF REQUESTS: 
-               - If a teacher has a "Time-Off Request" for a specific day/time, you CANNOT schedule them then.
+            5. SUBJECT & GROUP CONSTRAINTS:
+               - SPREAD RULE: Separate lessons of the same subject MUST NOT be scheduled back-to-back unless defined as a block.
+               - SINGLE PERIOD BAN: A subject with 'periods: 1' MUST NEVER appear more than once on the same day for a specific stream.
+               - SAME TIME SUBJECTS: Option Blocks/Electives must be scheduled at the EXACT SAME TIME.
 
             6. DOUBLE-BOOKING (ZERO TOLERANCE): 
-               - Lecturer overlap: A lecturer cannot be in two places at once.
-               - Room overlap: A room cannot host two lessons at once.
-               - GROUP OVERLAP: A Course Level (Stream/Group) cannot have two lessons at the same time. This is a FATAL conflict.
+               - No lecturer, room, or stream (group) overlap in absolute time. 
+               - Verify absolute time collisions across different profiles.
 
-            7. UNIT DISTRIBUTION (CRITICAL & NON-NEGOTIABLE):
-               - STRUCTURE OVERRIDES: If a subject has a 'structure' override defined within a specific course/level, you MUST ignore the default structure in the Subject Registry and use the override instead for that specific group.
-               - SPREAD RULE: Separate lessons of the same subject MUST NOT be scheduled back-to-back (consecutively) unless they are part of a single defined 'double' or 'triple' block.
-               - SINGLE PERIOD BAN: A subject with 'periods: 1' structure MUST NEVER appear more than once on the same day for a specific group.
-               - ONE LESSON PER PERIOD: For any given Course Level (Group), there must be EXACTLY ZERO or ONE lesson scheduled in any absolute time period, unless they are part of a 'same_time_subjects' block (e.g. electives).
-               - DEFAULT SPREAD: Mon/Wed/Fri is a VALID spread. Mon/Tue/Wed is a POOR spread. Mon/Mon/Tue is ILLEGAL. 
-
-            8. STREAM HOME ROOMS & DEDICATED ROOMS:
-               - If a stream (group) has a 'homeRoomId' defined, the AI MUST prioritize scheduling all lessons for that group in that specific room, UNLESS another room is explicitly required.
-
-            9. LECTURER WORKLOAD FAIRNESS (CRITICAL & NON-NEGOTIABLE):
-               - SPREAD THE LOAD: You MUST NOT schedule all of a lecturer's lessons on a single day.
-               - MAX 3 PER DAY: Unless a lecturer has > 15 lessons/week, NEVER schedule more than 3 lessons for them on a single day.
-               - TEACHER FATIGUE (NO BACK-TO-BACK): Avoid scheduling more than 2 consecutive lessons for the same teacher. Insert a gap after every 2 consecutive lessons.
-
-            10. MULTI-PROFILE COLLISION DETECTION (CRITICAL):
-                - Different courses follow different time profiles (e.g., Morning vs Afternoon streams).
-                - You MUST calculate the ABSOLUTE time (using start/end times) for every entry.
-                - A Lecturer, Room, or Group (Course Level) overlap in ABSOLUTE TIME is a fatal conflict, even if they belong to different profiles.
-
-            11. PROHIBITED - DO NOT EVER DO THESE:
-                - DO NOT return more than one lesson for any Course Level (Stream) at the same absolute time (unless it is a 'same_time_subjects' block).
-                - DO NOT return a lesson as separate 1-period entries if it is defined as a 2-period or 3-period block in the Subject Registry or Level Overrides.
-                - DO NOT ignore the 'structure' property. If it says 2 double periods, you MUST return EXACTLY TWO objects for that subject per group, each with a 2-period duration.
-                - DO NOT exceed teacher daily limits.
-
-            12. TEMPORAL DISTRIBUTION (CRITICAL):
-                - You MUST distribute lessons across all available periods in the day (e.g. from Period 1 to Period 8).
-                - DO NOT cluster all lessons in the first few hours of the day.
-                - Each group's schedule should be balanced, with lessons spread throughout the operating hours.
-
-            PLANNING STRATEGY:
-            - Use a "First-Pass" to place high-priority/constrained subjects first.
-            - RANDOMIZED VARIETY: Introduce stochastic variety in slot selection.
-
-            Output: JSON array of objects with these exact keys: { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }.
+            Output: JSON array of objects: { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }.
         `;
 
         const modelTier = aiModelTier === 'premium' ? 'pro' : 'flash';
         const response = await safeGenerateContent(prompt, { 
             responseMimeType: 'application/json',
-            temperature: 0.05 
+            temperature: 0.15 
         }, modelTier);
         const result = sanitizeAndParseJson(response.text || "[]");
         return (Array.isArray(result) ? result : []).map((entry: any) => ({
