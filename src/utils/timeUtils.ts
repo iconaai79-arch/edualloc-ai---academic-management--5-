@@ -1,9 +1,33 @@
 import type { TimetableSettings, TimetablePeriod } from '../types';
 
 export const timeToMinutes = (time: string): number => {
-  if (!time || typeof time !== 'string' || !time.includes(':')) return 0;
-  const [hours, minutes] = time.split(':').map(Number);
+  if (!time || typeof time !== 'string') return 0;
+  
+  // Clean string and handle AM/PM
+  const cleanTime = time.trim().toUpperCase();
+  const isPM = cleanTime.includes('PM');
+  const isAM = cleanTime.includes('AM');
+  
+  // Extract numbers only
+  const timePart = cleanTime.replace(/[APM\s]/g, '');
+  if (!timePart.includes(':')) {
+    const hours = parseInt(timePart);
+    if (isNaN(hours)) return 0;
+    let finalHours = hours;
+    if (isPM && hours < 12) finalHours += 12;
+    if (isAM && hours === 12) finalHours = 0;
+    return finalHours * 60;
+  }
+
+  const [hoursStr, minutesStr] = timePart.split(':');
+  let hours = parseInt(hoursStr);
+  let minutes = parseInt(minutesStr);
+  
   if (isNaN(hours) || isNaN(minutes)) return 0;
+
+  if (isPM && hours < 12) hours += 12;
+  if (isAM && hours === 12) hours = 0;
+
   return hours * 60 + minutes;
 };
 

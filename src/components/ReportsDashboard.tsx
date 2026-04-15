@@ -296,6 +296,26 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     const totalSubjectsCount = filteredSubjects.length;
     const allocatedSubjectsCount = filteredSubjects.filter(s => s && allocatedSubjectIds.has(s.id)).length;
 
+    const filteredTimetableEntries = useMemo(() => {
+        if (!allTimetableEntries) return [];
+        let filtered = [...allTimetableEntries];
+        
+        // Always filter by active period if available to ensure report relevance
+        if (activeSemester) {
+            filtered = filtered.filter(e => e.semesterId === activeSemester.id);
+        } else if (academicYears.length > 0) {
+            const activeYear = academicYears.find(y => y.status === 'active');
+            if (activeYear) {
+                filtered = filtered.filter(e => e.academicYearId === activeYear.id);
+            }
+        }
+        
+        if (departmentFilter === 'all') return filtered;
+        
+        const subjectIdsInDept = new Set(filteredSubjects.map(s => s.id));
+        return filtered.filter(e => e && subjectIdsInDept.has(e.subjectId));
+    }, [allTimetableEntries, activeSemester, academicYears, departmentFilter, filteredSubjects]);
+
     const filteredRequests = useMemo(() => {
         const reqList = Array.isArray(requests) ? requests.filter(r => r) : [];
         if (departmentFilter === 'all') return reqList;
@@ -506,7 +526,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             departments={departments || []}
                             requests={requests || []}
                             allocations={allocations || []}
-                            generatedTimetable={allTimetableEntries || []}
+                            generatedTimetable={filteredTimetableEntries || []}
                             courses={courses || []}
                             rooms={rooms || []}
                             visitors={visitors || []}
@@ -653,7 +673,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                         <CourseProgressReport
                             courses={courses}
                             subjects={subjects}
-                            allTimetableEntries={allTimetableEntries}
+                            allTimetableEntries={filteredTimetableEntries}
                             letterheadConfig={letterheadConfig}
                             footerImageUrl={footerImageUrl}
                             onPreviewPdf={(url, filename) => {
@@ -665,7 +685,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                     {subTab === 'enrollment_capacity' && (
                         <EnrollmentCapacityReport
                             rooms={rooms}
-                            allTimetableEntries={allTimetableEntries}
+                            allTimetableEntries={filteredTimetableEntries}
                             courseSizes={courseSizes}
                             courses={courses}
                             subjects={subjects}
@@ -696,7 +716,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                         <RoomUtilizationReport
                             buildings={buildings || []}
                             rooms={rooms || []}
-                            generatedTimetable={allTimetableEntries || []}
+                            generatedTimetable={filteredTimetableEntries || []}
                             timetableSettings={timetableSettings}
                             letterheadConfig={letterheadConfig}
                             logoUrl={logoUrl}
@@ -709,7 +729,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                     )}
                     {subTab === 'advisory' && (
                         <AdvisoryReportView
-                            generatedTimetable={allTimetableEntries || []}
+                            generatedTimetable={filteredTimetableEntries || []}
                             rooms={rooms || []}
                             letterheadConfig={letterheadConfig}
                             logoUrl={logoUrl}
@@ -735,7 +755,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             subjects={subjects || []}
                             departments={departments || []}
                             courses={courses || []}
-                            generatedTimetable={allTimetableEntries || []}
+                            generatedTimetable={filteredTimetableEntries || []}
                             studentAttendances={studentAttendances || []}
                             studentCheckIns={studentCheckIns || {}}
                             letterheadConfig={letterheadConfig}
@@ -781,7 +801,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                     )}
                     {subTab === 'generated_timetable' && (
                         <TimetablesView
-                            generatedTimetable={allTimetableEntries || []}
+                            generatedTimetable={filteredTimetableEntries || []}
                             subjects={subjects || []}
                             lecturers={lecturers || []}
                             departments={departments || []}
@@ -809,7 +829,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                 <h3 className="text-xl font-black uppercase tracking-tighter">Institutional Behavioral Patterns</h3>
                             </div>
                             <AttendanceAnalytics
-                                timetable={allTimetableEntries}
+                                timetable={filteredTimetableEntries}
                                 studentAttendances={studentAttendances}
                                 studentCheckIns={studentCheckIns}
                                 users={lecturers}

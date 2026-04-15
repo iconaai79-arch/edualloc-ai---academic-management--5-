@@ -66,7 +66,11 @@ export const RoomUtilizationReport: React.FC<RoomUtilizationReportProps> = ({
         const roomsInBuilding = rooms.filter(room => selectedBuildingId === 'all' || room.buildingId === selectedBuildingId);
 
         return roomsInBuilding.map(room => {
-            const roomTimetable = generatedTimetable.filter(entry => entry.roomId === room.id);
+            // Find entries for this room - match by ID, or fallback to name + building if AI halluncinated names
+            const roomTimetable = generatedTimetable.filter(entry => 
+                entry.roomId === room.id || 
+                (entry.roomId === room.name && buildings.find(b => b.id === room.buildingId)?.name === (entry as any).buildingName)
+            );
 
             const totalOccupiedMinutes = roomTimetable.reduce((acc, entry) => {
                 const start = timeToMinutes(entry.startTime);
