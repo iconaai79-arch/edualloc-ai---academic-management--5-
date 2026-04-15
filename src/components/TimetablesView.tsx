@@ -21,7 +21,7 @@ import { EnvelopeIcon } from './icons/EnvelopeIcon';
 import { PdfPreviewModal } from './PdfPreviewModal';
 import { generateMasterCourseTimetablePdf, generateMasterFacilityGridPdf, generateLecturerTimetablePdf, generateStudentTimetablePdf } from '../services/pdfService';
 import { apiService } from '../services/apiService';
-import { generatePeriodLabels, timeToMinutes } from '../utils/timeUtils';
+import { generatePeriodLabels, timeToMinutes, minutesToTime } from '../utils/timeUtils';
 import { getInstitutionEmailConfig } from '../services/emailService';
 import { MasterBuildingTimetable } from './MasterBuildingTimetable';
 import { LecturerTimetableList } from './LecturerTimetableList';
@@ -116,8 +116,24 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
         return list.filter(r => r && r.buildingId === selectedBuildingId);
     }, [rooms, selectedBuildingId]);
 
-    const periodHeaders = useMemo(() => generatePeriodLabels(timetableSettings, true), [timetableSettings]);
-    const cellSpanMinutes = timetableSettings?.cellSpanMinutes || 60;
+    const wideSettings = useMemo(() => {
+        let minStart = timeToMinutes(timetableSettings.startTime);
+        let maxEnd = timeToMinutes(timetableSettings.endTime);
+        
+        (currentInstitution?.scheduleProfiles || []).forEach(p => {
+            if (p.startTime) minStart = Math.min(minStart, timeToMinutes(p.startTime));
+            if (p.endTime) maxEnd = Math.max(maxEnd, timeToMinutes(p.endTime));
+        });
+        
+        return {
+            ...timetableSettings,
+            startTime: minutesToTime(minStart),
+            endTime: minutesToTime(maxEnd)
+        };
+    }, [timetableSettings, currentInstitution]);
+    
+    const periodHeaders = useMemo(() => generatePeriodLabels(wideSettings, true), [wideSettings]);
+    const cellSpanMinutes = wideSettings?.cellSpanMinutes || 60;
 
     const blobToBase64 = (blob: Blob): Promise<string> => {
         return new Promise((resolve, reject) => {

@@ -319,6 +319,23 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         return deptFiltered.length > 0 ? deptFiltered : filtered;
     }, [allTimetableEntries, activeSemester, academicYears, departmentFilter, filteredSubjects]);
 
+    const gridSettings = useMemo(() => {
+        let minStart = timeToMinutes(timetableSettings.startTime);
+        let maxEnd = timeToMinutes(timetableSettings.endTime);
+        
+        // Include any profile-specific bounds
+        (currentInstitution?.scheduleProfiles || []).forEach(p => {
+            if (p.startTime) minStart = Math.min(minStart, timeToMinutes(p.startTime));
+            if (p.endTime) maxEnd = Math.max(maxEnd, timeToMinutes(p.endTime));
+        });
+        
+        return {
+            ...timetableSettings,
+            startTime: minutesToTime(minStart),
+            endTime: minutesToTime(maxEnd)
+        };
+    }, [timetableSettings, currentInstitution]);
+    
     const filteredRequests = useMemo(() => {
         const reqList = Array.isArray(requests) ? requests.filter(r => r) : [];
         if (departmentFilter === 'all') return reqList;

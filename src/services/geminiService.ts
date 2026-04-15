@@ -236,8 +236,18 @@ export const generateTimetable = async (
                 overrides: (l.subjectMetadata || []).map(m => ({ subjectId: m.subjectId, structure: m.lessonStructure, dedicatedRoomId: m.dedicatedRoomId }))
             }))
         })))}
-            - Operating Parameters: ${JSON.stringify({ start: settings.startTime, end: settings.endTime, days: settings.operatingDays })}
-            - Curriculum Schedule Profiles: ${JSON.stringify(profiles.map(p => ({ id: p.id, name: p.name, periods: p.periods || [] })))}
+            - Operating Parameters: ${JSON.stringify({ 
+                start: settings.startTime, 
+                end: settings.endTime, 
+                days: settings.operatingDays,
+                periodDurationMinutes: settings.cellSpanMinutes || 60 
+            })}
+            - Curriculum Schedule Profiles: ${JSON.stringify(profiles.map(p => ({ 
+                id: p.id, 
+                name: p.name, 
+                periods: p.periods || [],
+                periodDurationMinutes: p.cellSpanMinutes || settings.cellSpanMinutes || 60
+            })))}
             - Global Institutional Breaks: ${JSON.stringify(settings.breaks)}
             - Subject Association Constraints: ${JSON.stringify((settings.constraints || []).map(c => ({ subjects: c.subjectIds, type: c.type })))}
             - Faculty Governance Rules (Teacher Logic): ${JSON.stringify(settings.teacherRules)}
@@ -245,69 +255,62 @@ export const generateTimetable = async (
             
             NON-NEGOTIABLE HEURISTICS - YOU MUST STRICTLY ENFORCE THESE RULES:
 
-            1. INSTITUTIONAL PROFILES: 
+            1. BLOCK SCHEDULING (CRITICAL):
+               - A "Double Period" (periods: 2) MUST be returned as ONE SINGLE JSON OBJECT with an endTime that is (2 * periodDuration) after its startTime.
+               - A "Triple Period" (periods: 3) MUST be returned as ONE SINGLE JSON OBJECT with an endTime that is (3 * periodDuration) after its startTime.
+               - DO NOT split blocks into separate 1-period entries.
+
+            2. INSTITUTIONAL PROFILES: 
                - Every course follows a specific schedule profile. 
                - You MUST use the exact start times, end times, and break windows defined in the profile associated with the course.
 
-            2. FACULTY GOVERNANCE RULES (TEACHER LOGIC):
+            3. FACULTY GOVERNANCE RULES (TEACHER LOGIC):
                - max_consecutive_lessons: strict limit on back-to-back lessons. If limit is 2, a teacher CANNOT teach 3 consecutive slots.
                - max_lessons_per_day: absolute daily cap.
                - min_lessons_per_day: if a teacher is scheduled on a day, they must have at least this many lessons.
-               - preferred_start_time: do not schedule lessons for this teacher before this time.
-               - preferred_end_time: do not schedule lessons for this teacher after this time.
-               - no_lessons_after: absolute hard stop time for the teacher.
 
-            3. SUBJECT CONSTRAINTS:
+            4. SUBJECT CONSTRAINTS:
                - consecutive_subjects: these subjects MUST be scheduled in immediate succession (back-to-back) for the same group.
                - same_day_subjects: these subjects MUST appear on the same day.
-               - same_day_must_subjects: STRICTer version of same_day.
-               - no_break_between_subjects: no break periods allowed between these specific subjects.
-               - subject_time_off: specific subject cannot be taught during restricted window.
-               - non_consecutive_subjects: these subjects MUST NOT be back-to-back.
-               - different_day_subjects: these subjects MUST be on different days.
                - same_time_subjects: Option Block / Pathways / Electives. These subjects MUST be scheduled at the EXACT SAME TIME for their associated streams. The AI must create separate TimetableEntry objects for each subject in the block, ensuring they share the same day and time slot.
 
-            4. TIME-OFF REQUESTS: 
+            5. TIME-OFF REQUESTS: 
                - If a teacher has a "Time-Off Request" for a specific day/time, you CANNOT schedule them then.
 
-            5. DOUBLE-BOOKING: 
+            6. DOUBLE-BOOKING: 
                - Zero tolerance for lecturer or room overlap. 
-               - STUDENT GROUP OVERLAP: Generally forbidden, EXCEPT for subjects in a 'same_time_subjects' block. For these blocks, it is expected that the student group (stream) is partitioned/split among the subjects, so they MUST occur concurrently.
 
-            6. UNIT DISTRIBUTION (CRITICAL & NON-NEGOTIABLE):
+            7. UNIT DISTRIBUTION (CRITICAL & NON-NEGOTIABLE):
                - STRUCTURE OVERRIDES: If a subject has a 'structure' override defined within a specific course/level, you MUST ignore the default structure in the Subject Registry and use the override instead for that specific group.
-               - EVEN DISTRIBUTION MANDATE: You MUST spread all subjects evenly throughout the week. If a subject has 3 lessons, they should be split across the week (e.g., Mon, Wed, Fri for a 5-day week). Do NOT cluster lessons on adjacent days if better spread is possible.
-               - DEFAULT NON-CONSECUTIVE RULE: Separate lessons of the same subject MUST NOT be scheduled back-to-back (consecutively) unless they are part of a single defined 'double' or 'triple' block (e.g., 'periods: 2'). If a subject has count: 3 and periods: 1, those 3 lessons MUST be on different days or separated by other subjects.
+               - SPREAD RULE: Separate lessons of the same subject MUST NOT be scheduled back-to-back (consecutively) unless they are part of a single defined 'double' or 'triple' block.
                - SINGLE PERIOD BAN: A subject with 'periods: 1' structure MUST NEVER appear more than once on the same day for a specific group.
-               - BLOCK INTEGRITY: Double or triple blocks (e.g., 'periods: 2' or 'periods: 3') MUST occupy consecutive time slots.
-               - SPREAD RULE: Minimize 'clustering'. Mon/Wed/Fri is a VALID spread. Mon/Tue/Wed is a POOR spread. Mon/Mon/Tue is ILLEGAL. 
-               - FATAL ERROR: Scheduling separate single-period lessons of the same subject on the same day or back-to-back (without a block structure) is a CRITICAL FAILURE.
+               - DEFAULT SPREAD: Mon/Wed/Fri is a VALID spread. Mon/Tue/Wed is a POOR spread. Mon/Mon/Tue is ILLEGAL. 
 
-            7. STREAM HOME ROOMS & DEDICATED ROOMS:
-               - If a stream (group) has a 'homeRoomId' defined, the AI MUST prioritize scheduling all lessons for that group in that specific room, UNLESS another room is explicitly required by subject-level overrides ('dedicatedRoomId').
-               - If a subject has a 'dedicatedRoomId' defined for a specific group/level, that room MUST be used for all lessons of that subject for that group.
-               - ROOM PRIORITY: Subject 'dedicatedRoomId' > Stream 'homeRoomId' > Global Room Allocation.
-               - CONFLICTS: If a 'homeRoomId' is occupied by another group, fall back to any other available room with sufficient capacity, but flag this as a soft-preference violation.
+            8. STREAM HOME ROOMS & DEDICATED ROOMS:
+               - If a stream (group) has a 'homeRoomId' defined, the AI MUST prioritize scheduling all lessons for that group in that specific room, UNLESS another room is explicitly required.
 
-            8. LECTURER WORKLOAD FAIRNESS (CRITICAL & NON-NEGOTIABLE):
-               - SPREAD THE LOAD: You MUST NOT schedule all of a lecturer's lessons on a single day. This is a FATAL COMPLIANCE ERROR.
+            9. LECTURER WORKLOAD FAIRNESS (CRITICAL & NON-NEGOTIABLE):
+               - SPREAD THE LOAD: You MUST NOT schedule all of a lecturer's lessons on a single day.
                - MAX 3 PER DAY: Unless a lecturer has > 15 lessons/week, NEVER schedule more than 3 lessons for them on a single day.
-               - DISTRIBUTE EVENLY: If a teacher has 5 lessons, scheduling 5 on Monday is FORBIDDEN. You MUST schedule 1 per day (Mon-Fri).
-               - TEACHER FATIGUE (NO BACK-TO-BACK): Avoid scheduling more than 2 consecutive lessons for the same teacher. Insert a gap (free period) after every 2 consecutive lessons to allow for rest, unless it is a single 3-period block of the SAME subject.
-               - DAILY PRESENCE: If total lessons >= operating days, the teacher MUST have at least one slot every day.
+               - TEACHER FATIGUE (NO BACK-TO-BACK): Avoid scheduling more than 2 consecutive lessons for the same teacher. Insert a gap after every 2 consecutive lessons.
+
+            10. MULTI-PROFILE COLLISION DETECTION (CRITICAL):
+               - Different courses follow different time profiles (e.g., Morning vs Afternoon streams).
+               - You MUST calculate the ABSOLUTE time (using start/end times) for every entry.
+               - A Lecturer or Room overlap in ABSOLUTE TIME is a fatal conflict, even if they belong to different profiles.
 
             PLANNING STRATEGY:
             - Use a "First-Pass" to place high-priority/constrained subjects first.
-            - RANDOMIZED VARIETY: Introduce stochastic variety in slot selection. Do not always pick the earliest possible slot; distribute lessons across all available valid windows to create a balanced, non-linear feel.
-            - Use a "Verification-Pass" to check every single entry against the Faculty Governance Rules and Unit Distribution Rules.
+            - RANDOMIZED VARIETY: Introduce stochastic variety in slot selection.
 
             Output: JSON array of objects with these exact keys: { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }.
         `;
 
+        const modelTier = aiModelTier === 'premium' ? 'pro' : 'flash';
         const response = await safeGenerateContent(prompt, { 
             responseMimeType: 'application/json',
             temperature: 0.1 
-        }, 'flash');
+        }, modelTier);
         const result = sanitizeAndParseJson(response.text || "[]");
         return (Array.isArray(result) ? result : []).map((entry: any) => ({
             ...entry,
