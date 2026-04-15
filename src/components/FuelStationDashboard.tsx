@@ -163,9 +163,6 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
     };
 
     const [isFleetVerifying, setIsFleetVerifying] = useState(false);
-    const [financialReports, setFinancialReports] = useState<FinancialReport[]>([
-        { id: 'rep1', stationId: 's1', institutionId: 'inst1', reportType: 'daily', totalSales: 245600, totalTax: 39296, totalCommission: 4912, netProfit: 201392, periodStart: new Date().toISOString(), periodEnd: new Date().toISOString() }
-    ]);
 
     const validateGeofence = (cardId: string): boolean => {
         // Mock GPS Validation
@@ -1035,7 +1032,6 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
                     </div>
 
                     {/* Variance Timeline */}
-                    </div>
 
                     {/* PREDICTIVE INVENTORY INTELLIGENCE */}
                     <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden group">
