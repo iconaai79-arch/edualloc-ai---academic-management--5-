@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { LogisticVehicle, LogisticDriver, LogisticTrip } from '../types';
 
-const LogisticsDashboard: React.FC = () => {
+export const LogisticsDashboard: React.FC = () => {
     const [activeView, setActiveView] = useState<'mission_control' | 'fleet' | 'drivers'>('mission_control');
 
     const [vehicles] = useState<LogisticVehicle[]>([

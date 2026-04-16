@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { CivilProduct, ManufacturingBatch, CivilSale, CivilYard } from '../types';
 
-const CivilWorksDashboard: React.FC = () => {
+export const CivilWorksDashboard: React.FC = () => {
     const [activeYardId, setActiveYardId] = useState('y1');
     const [yards] = useState<CivilYard[]>([
         { id: 'y1', institutionId: 'inst1', name: 'Westside Concrete Yard', location: 'Industrial Area, Block G', isActive: true },
