@@ -5152,3 +5152,137 @@ export const generatePharmacyReceiptPdf = async (
 
     return doc.output('datauristring');
 };
+
+/**
+ * Generates a comprehensive Sales Report and Analysis for the Pharmacy.
+ */
+export const generatePharmacySalesReportPdf = async (
+    sales: PharmacySale[],
+    saleItems: any[],
+    inventory: HISPharmacyInventory[],
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 14;
+
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text("PHARMACY SALES ANALYSIS & REVENUE REPORT", margin, yPos);
+    yPos += 12;
+
+    const totalRevenue = sales.reduce((sum, s) => sum + Number(s.totalAmount), 0);
+    const avgSale = sales.length > 0 ? totalRevenue / sales.length : 0;
+
+    // Executive Summary
+    doc.setFillColor(79, 70, 229, 0.05);
+    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 35, 3, 3, 'F');
+    
+    let summaryY = yPos + 10;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text("EXECUTIVE PERFORMANCE SUMMARY", margin + 5, summaryY);
+    summaryY += 8;
+    
+    doc.setFont('helvetica', 'normal');
+    const summaryData = [
+        [`Total Transactions: ${sales.length}`, `Gross Revenue: KES ${totalRevenue.toLocaleString()}`],
+        [`Average Order Value: KES ${avgSale.toLocaleString()}`, `Report Period: ${new Date().toLocaleDateString()} (Full History)`]
+    ];
+
+    summaryData.forEach(row => {
+        doc.text(row[0], margin + 5, summaryY);
+        doc.text(row[1], pageWidth / 2, summaryY);
+        summaryY += 6;
+    });
+
+    yPos += 45;
+
+    // Top Selling Products Analysis
+    const productStats = new Map<string, { qty: number, revenue: number }>();
+    saleItems.forEach(item => {
+        const stats = productStats.get(item.medicationId) || { qty: 0, revenue: 0 };
+        stats.qty += Number(item.quantity);
+        stats.revenue += Number(item.totalPrice);
+        productStats.set(item.medicationId, stats);
+    });
+
+    const topSelling = Array.from(productStats.entries())
+        .map(([id, stats]) => {
+            const medication = inventory.find(i => i.id === id);
+            return {
+                name: medication?.name || 'Unknown Medication',
+                qty: stats.qty,
+                revenue: stats.revenue
+            };
+        })
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 10);
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text("TOP 10 MEDICATIONS BY REVENUE", margin, yPos);
+    yPos += 8;
+
+    doc.autoTable({
+        startY: yPos,
+        head: [['Medication', 'Units Sold', 'Total Revenue (KES)', '% of Total']],
+        body: topSelling.map(p => [
+            p.name,
+            p.qty.toLocaleString(),
+            p.revenue.toLocaleString(),
+            ((p.revenue / totalRevenue) * 100).toFixed(1) + '%'
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] },
+        styles: { fontSize: 8 }
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 15;
+
+    // Daily Trends (Last 7 Days)
+    const dailyData = new Map<string, number>();
+    const last7Days = [...Array(7)].map((_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        return d.toISOString().split('T')[0];
+    }).reverse();
+
+    last7Days.forEach(date => dailyData.set(date, 0));
+    sales.forEach(sale => {
+        const date = sale.createdAt.split('T')[0];
+        if (dailyData.has(date)) {
+            dailyData.set(date, dailyData.get(date)! + Number(sale.totalAmount));
+        }
+    });
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text("DAILY REVENUE TREND (LAST 7 DAYS)", margin, yPos);
+    yPos += 8;
+
+    doc.autoTable({
+        startY: yPos,
+        head: [['Date', 'Daily Revenue (KES)']],
+        body: Array.from(dailyData.entries()).map(([date, rev]) => [
+            new Date(date).toDateString(),
+            rev.toLocaleString()
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [16, 185, 129] }, // Emerald
+        styles: { fontSize: 8 }
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};

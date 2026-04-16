@@ -3033,6 +3033,7 @@ export interface PharmacySettings {
     receiptFooter?: string;
     lowStockThreshold: number;
     enableSmsReminders: boolean;
+    autoPrintReceipt: boolean;
     theme?: 'indigo' | 'emerald' | 'rose' | 'amber' | 'cyan';
     updatedAt: string;
 }

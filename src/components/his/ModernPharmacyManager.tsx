@@ -11,7 +11,8 @@ import {
     generatePharmacyInventoryReportPdf,
     generatePharmacyExpiryReportPdf,
     generatePharmacyStaffPayslipPdf,
-    generatePharmacyReceiptPdf
+    generatePharmacyReceiptPdf,
+    generatePharmacySalesReportPdf
 } from '../../services/pdfService';
 import { 
     HISPharmacyInventory, 
@@ -100,6 +101,7 @@ export const ModernPharmacyManager: React.FC<{
                     pharmacyName: 'Modern Pharmacy Nexus',
                     lowStockThreshold: 10,
                     enableSmsReminders: true,
+                    autoPrintReceipt: true,
                     updatedAt: new Date().toISOString()
                 });
             }
@@ -199,6 +201,28 @@ export const ModernPharmacyManager: React.FC<{
         }
     };
 
+    const handleGenerateSalesReport = async () => {
+        setIsGeneratingReport(true);
+        try {
+            // Fetch detailed sale items for analysis
+            const saleItems = await apiService.fetchModuleRecords('his_pharmacy_sale_items', institutionId);
+            const dataUri = await generatePharmacySalesReportPdf(
+                sales, 
+                saleItems || [], 
+                inventory, 
+                currentInstitution!, 
+                undefined, 
+                null
+            );
+            setSelectedReportUrl(dataUri);
+        } catch (e) {
+            console.error(e);
+            alert("Sales report generation failed");
+        } finally {
+            setIsGeneratingReport(false);
+        }
+    };
+
     const metrics = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
         const todaySales = sales.filter(s => s.createdAt.startsWith(today));
@@ -288,17 +312,19 @@ export const ModernPharmacyManager: React.FC<{
 
             alert("Checkout Successful! Stock updated and Ledger entry created.");
             
-            // 5. Generate and Show Receipt Preview
-            const receiptData = await generatePharmacyReceiptPdf(
-                { id: saleId, createdAt: new Date().toISOString(), totalAmount: total, paymentMethod: 'Cash', paymentStatus: 'Paid' } as any,
-                posCart.map(item => ({ medicationId: item.id, quantity: item.quantity, totalPrice: item.unitPrice * item.quantity }) as any),
-                inventory,
-                settings,
-                currentInstitution as any,
-                undefined,
-                null
-            );
-            setSelectedReportUrl(receiptData);
+            // 5. Generate and Show Receipt Preview (ONLY if autoPrintReceipt is enabled)
+            if (settings?.autoPrintReceipt) {
+                const receiptData = await generatePharmacyReceiptPdf(
+                    { id: saleId, createdAt: new Date().toISOString(), totalAmount: total, paymentMethod: 'Cash', paymentStatus: 'Paid' } as any,
+                    posCart.map(item => ({ medicationId: item.id, quantity: item.quantity, totalPrice: item.unitPrice * item.quantity }) as any),
+                    inventory,
+                    settings,
+                    currentInstitution as any,
+                    undefined,
+                    null
+                );
+                setSelectedReportUrl(receiptData);
+            }
 
             setPosCart([]);
             loadData();
@@ -1252,6 +1278,23 @@ export const ModernPharmacyManager: React.FC<{
                                  </div>
                              </div>
                         </div>
+                        {/* Sales Logic Analysis */}
+                        <div className="glass-morphism-dark p-12 rounded-[4rem] border border-white/5 group hover:border-indigo-500/30 transition-all text-center space-y-8">
+                             <div className="w-24 h-24 rounded-[2.5rem] bg-indigo-500/10 flex items-center justify-center text-indigo-400 mx-auto">
+                                 <BanknotesIcon className="w-12 h-12" />
+                             </div>
+                             <div>
+                                 <h3 className="text-2xl font-black uppercase tracking-tighter italic">Sales <span className="text-emerald-400">Analysis</span></h3>
+                                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">Revenue trends & top medications breakdown</p>
+                             </div>
+                             <button 
+                                onClick={handleGenerateSalesReport}
+                                disabled={isGeneratingReport}
+                                className="w-full py-5 rounded-[2rem] bg-gradient-to-r from-indigo-500 to-emerald-500 text-white text-[10px] font-black uppercase tracking-[0.4em] shadow-xl hover:scale-105 transition-all disabled:opacity-50"
+                             >
+                                {isGeneratingReport ? 'Processing...' : 'Generate Analysis'}
+                             </button>
+                        </div>
                     </div>
 
                     {/* PDF Preview Frame */}
@@ -1398,6 +1441,19 @@ export const ModernPharmacyManager: React.FC<{
                                         <button 
                                             onClick={() => setSettings({...settings, enableSmsReminders: !settings.enableSmsReminders})}
                                             className={`w-12 h-6 rounded-full p-1 transition-all flex items-center ${settings.enableSmsReminders ? 'bg-indigo-500 justify-end' : 'bg-slate-800 justify-start'}`}
+                                        >
+                                            <div className="w-4 h-4 rounded-full bg-white shadow-lg"></div>
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center justify-between p-8 bg-black/40 rounded-[2.5rem] border border-white/5 group hover:border-emerald-500/30 transition-all">
+                                        <div>
+                                            <p className="text-xs font-black uppercase italic text-white">EPOS Auto-Print</p>
+                                            <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-1">Generate receipt after sale</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => setSettings({...settings, autoPrintReceipt: !settings.autoPrintReceipt})}
+                                            className={`w-12 h-6 rounded-full p-1 transition-all flex items-center ${settings.autoPrintReceipt ? 'bg-emerald-500 justify-end' : 'bg-slate-800 justify-start'}`}
                                         >
                                             <div className="w-4 h-4 rounded-full bg-white shadow-lg"></div>
                                         </button>
