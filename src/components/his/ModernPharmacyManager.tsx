@@ -14,7 +14,7 @@ import {
     generatePharmacyReceiptPdf,
     generatePharmacySalesReportPdf
 } from '../../services/pdfService';
-import { 
+import {
     HISPharmacyInventory, 
     HISPharmacyBatch, 
     HISPrescription,
@@ -24,7 +24,8 @@ import {
     PharmacyLedger,
     PharmacyStaff,
     PharmacySettings,
-    Institution
+    Institution,
+    User
 } from '../../types';
 import { AddPharmacyInventoryModal } from './AddPharmacyInventoryModal';
 import { SmartPharmacyInventoryImporterModal } from './SmartPharmacyInventoryImporterModal';
@@ -115,11 +116,11 @@ export const ModernPharmacyManager: React.FC<{
     const theme = useMemo(() => {
         const t = settings?.theme || 'indigo';
         const config = {
-            indigo: { accent: 'indigo-400', bg: 'indigo-500', shadow: 'shadow-indigo-500/20', glass: 'from-indigo-500/5', border: 'border-indigo-500/30' },
-            emerald: { accent: 'emerald-400', bg: 'emerald-500', shadow: 'shadow-emerald-500/20', glass: 'from-emerald-500/5', border: 'border-emerald-500/30' },
-            rose: { accent: 'rose-400', bg: 'rose-500', shadow: 'shadow-rose-500/20', glass: 'from-rose-500/5', border: 'border-rose-500/30' },
-            amber: { accent: 'amber-400', bg: 'amber-500', shadow: 'shadow-amber-500/20', glass: 'from-amber-500/5', border: 'border-amber-500/30' },
-            cyan: { accent: 'cyan-400', bg: 'cyan-500', shadow: 'shadow-cyan-500/20', glass: 'from-cyan-500/5', border: 'border-cyan-500/30' }
+            indigo: { accent: 'indigo-400', bg: 'indigo-500', shadow: 'shadow-indigo-500/20', glass: 'from-indigo-500/5', border: 'border-indigo-500/30', text: 'text-indigo-400' },
+            emerald: { accent: 'emerald-400', bg: 'emerald-500', shadow: 'shadow-emerald-500/20', glass: 'from-emerald-500/5', border: 'border-emerald-500/30', text: 'text-emerald-400' },
+            rose: { accent: 'rose-400', bg: 'rose-500', shadow: 'shadow-rose-500/20', glass: 'from-rose-500/5', border: 'border-rose-500/30', text: 'text-rose-400' },
+            amber: { accent: 'amber-400', bg: 'amber-500', shadow: 'shadow-amber-500/20', glass: 'from-amber-500/5', border: 'border-amber-500/30', text: 'text-amber-400' },
+            cyan: { accent: 'cyan-400', bg: 'cyan-500', shadow: 'shadow-cyan-500/20', glass: 'from-cyan-500/5', border: 'border-cyan-500/30', text: 'text-cyan-400' }
         };
         return config[t] || config.indigo;
     }, [settings?.theme]);

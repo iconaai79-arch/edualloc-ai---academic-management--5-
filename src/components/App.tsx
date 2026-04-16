@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
-import { LandingPage } from './LandingPage';
+import { MarketingLandingPage } from './public/MarketingLandingPage';
 import { CampaignCommandView } from './CampaignCommandView';
 import { LoginView } from './LoginView';
 import { Header } from './Header';
@@ -19,7 +19,6 @@ import { HealthCoreView } from './his/HealthCoreView';
 import { ModernPharmacyManager } from './his/ModernPharmacyManager';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
-import { MarketingLandingPage } from './public/MarketingLandingPage';
 import { BookDemoModal } from './public/BookDemoModal';
 import { AlumnaeRegistrationView } from './AlumnaeRegistrationView';
 import { AlumnaeActivationView } from './AlumnaeActivationView';
@@ -56,8 +55,8 @@ const HospitalityStorefront = lazy(() => import('./hospitality/HospitalityStoref
 const HospitalityMarketplace = lazy(() => import('./hospitality/HospitalityMarketplace').then(m => ({ default: m.HospitalityMarketplace })));
 const CampaignJoinPage = lazy(() => import('./public/CampaignJoinPage').then(m => ({ default: m.CampaignJoinPage })));
 const FuelStationDashboard = lazy(() => import('./FuelStationDashboard').then(m => ({ default: m.FuelStationDashboard })));
-const CivilWorksDashboard = lazy(() => import('./CivilWorksDashboard').then(m => ({ default: m.CivilWorksDashboard })));
-const LogisticsDashboard = lazy(() => import('./LogisticsDashboard').then(m => ({ default: m.LogisticsDashboard })));
+const CivilWorksDashboard = lazy(() => import('./CivilWorksDashboard'));
+const LogisticsDashboard = lazy(() => import('./LogisticsDashboard'));
 
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { getAdminRoleForInstitution } from '../utils/roleUtils';
@@ -1453,8 +1452,8 @@ export const App: React.FC = () => {
                     name: `Demo Administrator`,
                     phoneNumber: '+254700000000',
                     password: 'password123',
-                    status: 'active',
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
+                    expertise: []
                 };
                 
                 // Track this internal admin locally
@@ -1483,13 +1482,13 @@ export const App: React.FC = () => {
         setIsTransitioning(true);
         // Find an institution that matches the module type or use a fallback
         let targetInst = institutions.find(i => {
-           if (modId === 'property') return i.institutionType === 'Real Estate';
+           if (modId === 'property') return i.institutionType === 'Property Management';
            if (modId === 'coop') return i.institutionType === 'Cooperative';
-           if (modId === 'his') return i.institutionType === 'Clinic' || i.institutionType === 'Hospital';
+           if (modId === 'his') return i.institutionType === 'HIS';
            if (modId === 'retail') return i.institutionType === 'Business' && (i.businessSubType === 'Retail' || i.category === 'Retail');
            if (modId === 'fuel') return i.category === 'Fuel Station' || i.businessSubType === 'Fuel Station';
-           if (modId === 'campaign') return i.category === 'Politics' || i.institutionType === 'Campaign';
-           if (modId === 'legal') return i.institutionType === 'Law Firm';
+           if (modId === 'campaign') return i.institutionType === 'Political Campaign';
+           if (modId === 'legal') return i.institutionType === 'Legal';
            if (modId === 'ds') return i.institutionType === 'Driving School';
            if (modId === 'civil') return i.institutionType === 'Construction';
            return false;
@@ -1503,6 +1502,8 @@ export const App: React.FC = () => {
              const demoInst: Institution = {
                  id: instId,
                  name: `Demo ${modId.charAt(0).toUpperCase() + modId.slice(1)} System`,
+                 email: `demo@${modId}.eduai.io`,
+                 phoneNumber: '+254700000000',
                  institutionType: 'Business',
                  status: 'active',
                  trialEndsAt: new Date(Date.now() + 86400000).toISOString()
@@ -4185,19 +4186,12 @@ export const App: React.FC = () => {
                                 />
                             ) : (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('fuel station')) ? (
                                 <FuelStationDashboard 
-                                    currentInstitution={activeInstitution!}
-                                    onLogAction={handleLogAction}
+                                    institution={activeInstitution!}
                                 />
                             ) : (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('civil manufacturing')) ? (
-                                <CivilWorksDashboard 
-                                    currentInstitution={activeInstitution!}
-                                    onLogAction={handleLogAction}
-                                />
+                                <CivilWorksDashboard />
                             ) : (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('industrial logistics')) ? (
-                                <LogisticsDashboard 
-                                    currentInstitution={activeInstitution!}
-                                    onLogAction={handleLogAction}
-                                />
+                                <LogisticsDashboard />
                             ) : isAdminCatchAll ? (
                                 <AdminView
                                     currentUser={currentUser}
