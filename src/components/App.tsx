@@ -338,6 +338,8 @@ export const App: React.FC = () => {
         document.addEventListener('contextmenu', handleContextMenu);
         return () => document.removeEventListener('contextmenu', handleContextMenu);
     }, []);
+    
+    const onLoginAsAdminRef = useRef<any>(null);
 
     const [currentUser, setCurrentUser] = useState<User | null>(() => {
         try {
@@ -1476,6 +1478,10 @@ export const App: React.FC = () => {
             setIsTransitioning(false);
         }, 300);
     }, [users, institutions]);
+    
+    useEffect(() => {
+        onLoginAsAdminRef.current = onLoginAsAdmin;
+    }, [onLoginAsAdmin]);
 
     const handleLaunchSimulator = useCallback(async (role: Role, modId: string) => {
         setIsTransitioning(true);
@@ -1490,6 +1496,7 @@ export const App: React.FC = () => {
            if (modId === 'legal') return (i.institutionType as string) === 'Legal';
            if (modId === 'ds') return (i.institutionType as string) === 'Driving School';
            if (modId === 'civil') return (i.institutionType as string) === 'Construction';
+           if (modId === 'logistics') return (i.institutionType as string) === 'Logistics';
            return false;
         });
 
@@ -1503,7 +1510,18 @@ export const App: React.FC = () => {
                  name: `Demo ${modId.charAt(0).toUpperCase() + modId.slice(1)} System`,
                  email: `demo@${modId}.eduai.io`,
                  phoneNumber: '+254700000000',
-                 institutionType: 'Business',
+                 institutionType: (modId === 'property' ? 'Property Management' : 
+                                  modId === 'his' ? 'HIS' : 
+                                  modId === 'legal' ? 'Legal' : 
+                                  modId === 'coop' ? 'Cooperative' : 
+                                  modId === 'campaign' ? 'Political Campaign' : 
+                                  modId === 'ds' ? 'Driving School' : 
+                                  modId === 'civil' ? 'Construction' : 
+                                  modId === 'logistics' ? 'Logistics' : 'Business') as any,
+                 category: (modId === 'fuel' ? 'Fuel Station' : 
+                            modId === 'retail' ? 'Retail' : 'General'),
+                 businessSubType: (modId === 'fuel' ? 'Fuel Station' : 
+                                   modId === 'retail' ? 'Retail' : 'General'),
                  status: 'active',
                  trialEndsAt: new Date(Date.now() + 86400000).toISOString()
              };
@@ -1511,10 +1529,12 @@ export const App: React.FC = () => {
         }
 
         setTimeout(() => {
-            onLoginAsAdmin(instId, role);
+            if (onLoginAsAdminRef.current) {
+                onLoginAsAdminRef.current(instId, role);
+            }
             setShowMarketing(false);
         }, 500);
-    }, [institutions, onLoginAsAdmin]);
+    }, [institutions]);
 
     const onRestoreSuperAdminSession = () => {
         if (originalSuperAdminSession) {
