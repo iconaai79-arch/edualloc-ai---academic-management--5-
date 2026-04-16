@@ -30,44 +30,50 @@ interface ModuleProps {
   onLaunchSimulator?: () => void;
 }
 
-const ModuleCard: React.FC<ModuleProps> = ({ icon, imageUrl, title, description, advantages, link, onLaunchSimulator }) => (
-  <div 
-    className={`module-card animate-in ${link ? 'cursor-pointer hover:border-indigo-500/50' : ''}`}
-    onClick={() => {
-        if (link) {
-            if (link.startsWith('http')) window.open(link, '_blank');
-            else window.location.hash = link;
-        }
-    }}
-  >
-    <div className="module-icon overflow-hidden">
+const ModuleCard: React.FC<ModuleProps> = ({ icon, imageUrl, title, description, advantages, onLaunchSimulator }) => (
+  <div className="module-card animate-in">
+    <div className="module-image-container">
       {imageUrl ? (
-        <img src={imageUrl} alt={title} className="w-full h-full object-cover" />
+        <img src={imageUrl} alt={title} className="hover-target" />
       ) : (
-        icon || <Zap className="w-6 h-6" />
+        <div className="p-8 rounded-3xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+          <Zap className="w-12 h-12" />
+        </div>
       )}
-    </div>
-    <h3 className="module-title">{title}</h3>
-    <p className="module-desc">{description}</p>
-    {advantages && advantages.length > 0 && (
-      <div className="module-advantages">
-        {advantages.map((adv, i) => (
-          <span key={i} className="advantage-tag">{adv}</span>
-        ))}
+      <div className="absolute top-4 right-4 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[8px] font-black px-2 py-1 rounded-full uppercase tracking-widest">
+        Active Simulator
       </div>
-    )}
-    <button 
-      className="simulator-btn group"
-      onClick={(e) => {
-        e.stopPropagation();
-        if (onLaunchSimulator) onLaunchSimulator();
-      }}
-    >
-      <span className="flex items-center justify-center gap-2">
-        <Zap className="w-3 h-3 group-hover:animate-pulse" />
-        Launch Simulator
-      </span>
-    </button>
+    </div>
+    
+    <div className="module-card-body">
+      <div className="module-header">
+        <div className="module-mini-icon">
+          {icon || <Zap className="w-4 h-4" />}
+        </div>
+        <h3 className="module-title">{title}</h3>
+      </div>
+      
+      <p className="module-desc">{description}</p>
+      
+      {advantages && advantages.length > 0 && (
+        <div className="module-advantages">
+          {advantages.map((adv, i) => (
+            <span key={i} className="advantage-tag">{adv}</span>
+          ))}
+        </div>
+      )}
+      
+      <button 
+        className="simulator-btn group"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (onLaunchSimulator) onLaunchSimulator();
+        }}
+      >
+        <Zap className="w-4 h-4 fill-indigo-400/30 group-hover:fill-current" />
+        Launch Showcase
+      </button>
+    </div>
   </div>
 );
 
@@ -188,7 +194,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
           
           <div className="hero-visual relative mb-16 animate-in">
              <div className="absolute inset-0 bg-indigo-500/20 blur-[120px] rounded-full"></div>
-             <img src="/marketing/hero.png" alt="EduAI Ecosystem" className="relative z-10 w-full max-w-4xl mx-auto rounded-[3rem] shadow-2xl border border-white/10" />
+             <img src="/marketing/marketing_hero_render_1776312304333.png" alt="EduAI Ecosystem" className="relative z-10 w-full max-w-4xl mx-auto rounded-[3rem] shadow-2xl border border-white/10" />
           </div>
 
           <div className="flex flex-wrap justify-center gap-6">

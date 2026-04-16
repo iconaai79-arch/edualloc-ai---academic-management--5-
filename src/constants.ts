@@ -310,7 +310,8 @@ export const MODULES = [
     description: "Complete real estate automation from tenant onboarding to automated rent reconciliation.",
     advantages: ["Auto-Invoicing", "Maintenance Tracking", "Tenant Portal"],
     role: 'property_admin',
-    category: 'Real Estate'
+    category: 'Real Estate',
+    imageUrl: '/marketing/marketing_property_1776367197098.png'
   },
   {
     id: 'coop',
@@ -318,7 +319,8 @@ export const MODULES = [
     description: "The digital spine for agricultural cooperatives. Manage farmers, intake, and payouts seamlessly.",
     advantages: ["Daily Intake Log", "Batch Payouts", "Farmer SMS"],
     role: 'cooperative_manager',
-    category: 'Agriculture'
+    category: 'Agriculture',
+    imageUrl: '/marketing/marketing_coop_1776367214566.png'
   },
   {
     id: 'his',
@@ -326,7 +328,8 @@ export const MODULES = [
     description: "Advanced Health Information System for clinics and hospitals with integrated pharmacy.",
     advantages: ["Patient Records", "Prescription Flow", "Pharmacy Inventory"],
     role: 'his_admin',
-    category: 'Healthcare'
+    category: 'Healthcare',
+    imageUrl: '/marketing/marketing_his_1776367229035.png'
   },
   {
     id: 'retail',
@@ -334,7 +337,8 @@ export const MODULES = [
     description: "Specialized Point of Sale and inventory systems for retail stores and agricultural shops.",
     advantages: ["Batch Tracking", "Commission Ledger", "Smart Stock"],
     role: 'retail_agent',
-    category: 'Business'
+    category: 'Business',
+    imageUrl: '/marketing/marketing_retail_1776367249575.png'
   },
   {
     id: 'autoservice',
@@ -342,7 +346,8 @@ export const MODULES = [
     description: "Streamlined management for Car Washes and Service Centers with customer tracking.",
     advantages: ["Job Cards", "Service History", "Customer Rewards"],
     role: 'carwash_admin',
-    category: 'Automotive'
+    category: 'Automotive',
+    imageUrl: '/marketing/marketing_autoservice_1776367264534.png'
   },
   {
     id: 'edu',
@@ -350,7 +355,8 @@ export const MODULES = [
     description: "The most powerful academic management system for timetabling and student oversight.",
     advantages: ["Conflict Detection", "Library Master", "Exam Timetabling"],
     role: 'admin',
-    category: 'Education'
+    category: 'Education',
+    imageUrl: '/marketing/marketing_edu_1776367280172.png'
   },
   {
     id: 'fuel',
@@ -359,7 +365,7 @@ export const MODULES = [
     advantages: ["Live Tank Levels", "Pump Status", "Shift Closing"],
     role: 'fuel_admin',
     category: 'Energy',
-    imageUrl: '/marketing/fuel.png'
+    imageUrl: '/marketing/marketing_fuel_1776367300641.png'
   },
   {
     id: 'campaign',
@@ -367,7 +373,8 @@ export const MODULES = [
     description: "Strategic political campaign management tool with voter analytics and ward-level tracking.",
     advantages: ["Voter Registry", "Ward Mapping", "Campaign Analytics"],
     role: 'admin',
-    category: 'Politics'
+    category: 'Politics',
+    imageUrl: '/marketing/marketing_campaign_1776367315708.png'
   },
   {
     id: 'legal',
@@ -375,7 +382,8 @@ export const MODULES = [
     description: "Comprehensive law firm management covering matters, documents, and trust accounting.",
     advantages: ["Matter Management", "Trust Accounting", "Agreement Templates"],
     role: 'legal_admin',
-    category: 'Legal'
+    category: 'Legal',
+    imageUrl: '/marketing/marketing_legal_1776367332080.png'
   },
   {
     id: 'ds',
@@ -383,7 +391,8 @@ export const MODULES = [
     description: "Advanced Driving School system for student onboarding, lesson tracking, and skill mastery.",
     advantages: ["Lesson Scheduling", "Skill Tracking", "Instructor Logs"],
     role: 'driving_instructor',
-    category: 'Education'
+    category: 'Education',
+    imageUrl: '/marketing/marketing_ds_1776367354223.png'
   },
   {
     id: 'civil',
@@ -391,14 +400,16 @@ export const MODULES = [
     description: "Robust yard and civil works management for equipment, staff, and project logs.",
     advantages: ["Equipment Logs", "Staff Duty Rota", "Project Tracking"],
     role: 'admin',
-    category: 'Construction'
+    category: 'Construction',
+    imageUrl: '/marketing/marketing_civil_1776367369017.png'
   },
   {
     id: 'logistics',
     title: "Logistics Sync",
     description: "Smart logistics management for fleet operations, delivery tracking, and warehouse sync.",
     advantages: ["Fleet Dispatch", "Delivery Tracking", "Warehouse Sync"],
-    role: 'transport_admin',
-    category: 'Logistics'
+    role: 'admin',
+    category: 'Logistics',
+    imageUrl: '/marketing/marketing_logistics_1776367388474.png'
   }
 ];
