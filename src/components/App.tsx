@@ -735,7 +735,16 @@ export const App: React.FC = () => {
             }
 
             if (insts && insts.length > 0) {
-                setInstitutions(insts);
+                setInstitutions(prev => {
+                    const demoInsts = (prev || []).filter(i => i && i.id?.startsWith('demo_'));
+                    const combined = [...insts];
+                    demoInsts.forEach(di => {
+                        if (!combined.some(i => i.id === di.id)) {
+                            combined.push(di);
+                        }
+                    });
+                    return combined;
+                });
             }
             if (cnts && cnts.length > 0) setCounties(cnts);
             if (reg) setSchoolRegistry(reg);
@@ -1420,11 +1429,10 @@ export const App: React.FC = () => {
         }
     };
 
-
-    const onLoginAsAdmin = (institutionId: string, initialRole?: Role | null) => {
+    const onLoginAsAdmin = useCallback((institutionId: string, initialRole?: Role | null) => {
         setIsTransitioning(true);
         setTimeout(() => {
-            const adminRoles = ['admin', 'head_teacher', 'dos', 'deputy', 'hod', 'tto', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller'];
+            const adminRoles = ['admin', 'head_teacher', 'dos', 'deputy', 'hod', 'tto', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager'];
             let admin = users.find(u => u.institutionId === institutionId && adminRoles.includes(u.role));
 
             if (!admin) {
@@ -1435,36 +1443,41 @@ export const App: React.FC = () => {
             if (!admin) {
                 console.warn(`No users found for institution ${institutionId}. Creating temporary admin session.`);
                 const targetInstitution = institutions.find(i => i.id === institutionId);
-                const fallbackRole = targetInstitution?.institutionType === 'Reseller' ? 'reseller' : 'admin';
+                const fallbackRole = targetInstitution?.institutionType === 'Reseller' ? 'reseller' : (initialRole || 'admin');
 
                 admin = {
-                    id: `temp_admin_${institutionId}`,
-                    name: 'System Admin (Fallback)',
-                    email: 'admin@system.local',
-                    phoneNumber: '',
-                    role: fallbackRole,
+                    id: `temp_admin_${institutionId}_${Date.now()}`,
                     institutionId: institutionId,
-                    expertise: ['Administration']
+                    role: fallbackRole as Role,
+                    email: `admin@${institutionId.replace('demo_', '')}.eduai.io`,
+                    name: `Demo Administrator`,
+                    phoneNumber: '+254700000000',
+                    password: 'password123',
+                    status: 'active',
+                    createdAt: new Date().toISOString()
                 };
+                
+                // Track this internal admin locally
+                setUsers(prev => [...prev, admin!]);
             }
 
             if (admin) {
-                if (currentUser?.role === 'super_admin') {
-                    setOriginalSuperAdminSession(currentUser);
-                    localStorage.setItem('eduai_super_admin_session', JSON.stringify(currentUser));
-                }
-
-                const impersonatedUser = { ...admin, isImpersonated: true };
+                const impersonatedUser = {
+                    ...admin,
+                    institutionId: institutionId,
+                    role: (initialRole || admin.role) as Role
+                };
+                
+                console.log(`[Simulator] Impersonating ${impersonatedUser.role} for ${institutionId}`);
                 setCurrentUser(impersonatedUser);
                 apiService.storeSession(impersonatedUser);
                 setImpersonatedRole(initialRole || null);
             } else {
-                console.warn(`Admin lookup failed for institution ${institutionId}. Available users: `, users.filter(u => u.institutionId === institutionId));
-                alert("No admin account found for this institution.");
+                alert("Critical: Failed to generate administrative session.");
             }
             setIsTransitioning(false);
-        }, 100);
-    };
+        }, 300);
+    }, [users, institutions]);
 
     const handleLaunchSimulator = useCallback(async (role: Role, modId: string) => {
         setIsTransitioning(true);
