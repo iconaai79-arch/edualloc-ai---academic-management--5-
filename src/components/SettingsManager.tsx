@@ -1217,13 +1217,17 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div className="space-y-6">
-                                        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-700">
-                                            <h4 className="text-sm font-bold mb-4 uppercase tracking-tight">Visibility Settings</h4>
+                                        <div className="p-8 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-200 dark:border-slate-700">
+                                            <h4 className="text-sm font-black mb-6 uppercase tracking-tight flex items-center gap-2">
+                                                <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></div>
+                                                Platform Ecosystem Link
+                                            </h4>
+                                            
                                             <div className="space-y-4">
-                                                <div className="flex items-center justify-between">
+                                                <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/50">
                                                     <div>
-                                                        <h5 className="text-xs font-bold text-slate-700 dark:text-slate-300">Enable Marketing Page</h5>
-                                                        <p className="text-[10px] text-slate-500">Show the showcase to unauthenticated users.</p>
+                                                        <h5 className="text-xs font-bold text-slate-700 dark:text-slate-300">Public Showcase Visibility</h5>
+                                                        <p className="text-[10px] text-slate-500">Expose marketing page to external traffic.</p>
                                                     </div>
                                                     <button
                                                         onClick={() => setLocalCompanyInfo({ 
@@ -1236,36 +1240,73 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     </button>
                                                 </div>
 
-                                                <div className="flex items-center justify-between">
-                                                    <div>
-                                                        <h5 className="text-xs font-bold text-slate-700 dark:text-slate-300">Show Login Link</h5>
-                                                        <p className="text-[10px] text-slate-500">Include "Showcase" button on the login screen.</p>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => setLocalCompanyInfo({ 
-                                                            ...localCompanyInfo, 
-                                                            showcaseConfig: { ...localCompanyInfo.showcaseConfig, showLoginLink: !localCompanyInfo.showcaseConfig?.showLoginLink } as any 
-                                                        })}
-                                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${localCompanyInfo.showcaseConfig?.showLoginLink ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'}`}
-                                                    >
-                                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${localCompanyInfo.showcaseConfig?.showLoginLink ? 'translate-x-6' : 'translate-x-1'}`} />
-                                                    </button>
+                                                <div className="p-4 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100/50">
+                                                    <p className="text-[11px] font-bold text-indigo-700 dark:text-indigo-400 mb-2">Sync Status: Active</p>
+                                                    <p className="text-[10px] text-indigo-600/70 leading-relaxed italic">
+                                                        The business registry is currently automatically synchronizing 12 standard modules (including Fuel Station, Legal, and Logistics) to your public landing page.
+                                                    </p>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
 
                                     <div className="space-y-6">
-                                        <div className="p-6 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/30">
-                                            <h4 className="text-sm font-bold text-indigo-900 dark:text-indigo-200 mb-2 uppercase tracking-tight">Quick Actions</h4>
-                                            <p className="text-xs text-indigo-700 dark:text-indigo-300 mb-4">Preview the marketing landing page before going live.</p>
+                                        <div className="p-8 bg-indigo-600 rounded-[2rem] text-white shadow-2xl shadow-indigo-200 relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 blur-3xl rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-150 duration-700"></div>
+                                            <h4 className="text-sm font-black mb-2 uppercase tracking-tight">Experience Hub</h4>
+                                            <p className="text-xs text-indigo-100/80 mb-6 leading-relaxed">Launch the simulator engine to verify all integrated business modules in a sandbox environment.</p>
                                             <button 
                                                 onClick={() => window.open(window.location.origin + '?view=showcase', '_blank')}
-                                                className="w-full btn-secondary h-12 bg-white flex items-center justify-center gap-2 text-xs font-bold shadow-sm"
+                                                className="w-full h-12 bg-white text-indigo-600 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all"
                                             >
-                                                <EyeIcon className="w-4 h-4" /> Open Showcase Preview
+                                                <EyeIcon className="w-4 h-4" /> Verify Live Showcase
                                             </button>
                                         </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 ml-2">Legacy Custom Entries</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {(localCompanyInfo.showcaseConfig?.items || []).map((item: any, idx: number) => (
+                                            <div key={idx} className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 flex justify-between items-center group">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-lg bg-slate-50 dark:bg-slate-900 flex items-center justify-center overflow-hidden">
+                                                        {item.imageUrl ? <img src={item.imageUrl} className="w-full h-full object-cover" /> : <SparklesIcon className="w-4 h-4 text-slate-400" />}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{item.title}</p>
+                                                        <p className="text-[10px] text-slate-500 uppercase tracking-tight">{item.category || 'Legacy'}</p>
+                                                    </div>
+                                                </div>
+                                                <button 
+                                                    onClick={() => {
+                                                        const newItems = (localCompanyInfo.showcaseConfig?.items || []).filter((_: any, i: number) => i !== idx);
+                                                        setLocalCompanyInfo({ ...localCompanyInfo, showcaseConfig: { ...localCompanyInfo.showcaseConfig, items: newItems } as any });
+                                                    }}
+                                                    className="p-2 text-red-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 rounded-xl"
+                                                >
+                                                    <XIcon className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <button 
+                                            onClick={() => {
+                                                const title = prompt("Entry Title:");
+                                                if (title) {
+                                                    const desc = prompt("Description:");
+                                                    const newItem = { id: `st_${Date.now()}`, title, description: desc || '', imageUrl: '', category: 'Custom' };
+                                                    const items = [...(localCompanyInfo.showcaseConfig?.items || []), newItem];
+                                                    setLocalCompanyInfo({ ...localCompanyInfo, showcaseConfig: { ...localCompanyInfo.showcaseConfig, items } as any });
+                                                }
+                                            }}
+                                            className="p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2rem] flex flex-col items-center justify-center gap-2 hover:border-indigo-400 hover:bg-indigo-50/10 transition-all group"
+                                        >
+                                            <div className="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-900 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                <PlusIcon className="w-5 h-5 text-slate-400 group-hover:text-indigo-600" />
+                                            </div>
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-indigo-600">Add Custom Module</span>
+                                        </button>
                                     </div>
                                 </div>
 

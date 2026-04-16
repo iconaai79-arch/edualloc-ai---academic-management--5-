@@ -67,6 +67,20 @@
   line-height: 1.6;
 }
 
+.hero-visual {
+  perspective: 1000px;
+}
+
+.hero-visual img {
+  transform: rotateX(10deg) rotateY(-5deg) rotateZ(2deg);
+  transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+  mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+}
+
+.hero-visual:hover img {
+  transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(1.02);
+}
+
 /* Buttons */
 .cta-button {
   display: inline-flex;
@@ -124,6 +138,8 @@
   position: relative;
   overflow: hidden;
   text-align: left;
+  display: flex;
+  flex-direction: column;
 }
 
 .module-card::before {
@@ -158,6 +174,7 @@
   justify-content: center;
   margin-bottom: 24px;
   color: var(--marketing-primary);
+  flex-shrink: 0;
 }
 
 .module-title {
@@ -171,6 +188,7 @@
   color: #94a3b8;
   font-size: 0.95rem;
   line-height: 1.6;
+  flex-grow: 1;
 }
 
 .module-advantages {
@@ -180,6 +198,38 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  min-height: 40px;
+}
+
+.simulator-btn {
+  margin-top: 24px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(79, 70, 229, 0.1);
+  border: 1px solid rgba(79, 70, 229, 0.2);
+  color: #818cf8;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.simulator-btn:hover {
+  background: var(--marketing-primary);
+  color: #fff;
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.simulator-btn:active {
+  transform: scale(0.98);
 }
 
 .advantage-tag {

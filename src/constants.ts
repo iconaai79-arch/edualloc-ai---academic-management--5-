@@ -302,3 +302,103 @@ export const INITIAL_USERS: User[] = [
 export const RETAIL_SUBTYPES = ['Hardware', 'General', 'Retail', 'Retail Shop', 'Retail Agency', 'Boutique', 'Salon', 'Barber Shop', 'Electronics', 'Supermarket', 'Wholesale', 'General Retail', 'Restaurant', 'Cafe', 'Eatery', 'Pharmacy', 'Chemist', 'Fuel Station'];
 
 export const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'reseller', 'retail_agent', 'field_agent', 'customer', 'lead', 'pastor', 'deacon', 'elder', 'treasurer', 'secretary', 'worker', 'church_admin', 'fuel_admin', 'attendant'];
+ 
+export const MODULES = [
+  {
+    id: 'property',
+    title: "Property Hub",
+    description: "Complete real estate automation from tenant onboarding to automated rent reconciliation.",
+    advantages: ["Auto-Invoicing", "Maintenance Tracking", "Tenant Portal"],
+    role: 'property_admin',
+    category: 'Real Estate'
+  },
+  {
+    id: 'coop',
+    title: "Coop Connect",
+    description: "The digital spine for agricultural cooperatives. Manage farmers, intake, and payouts seamlessly.",
+    advantages: ["Daily Intake Log", "Batch Payouts", "Farmer SMS"],
+    role: 'cooperative_manager',
+    category: 'Agriculture'
+  },
+  {
+    id: 'his',
+    title: "HealthFirst HIS",
+    description: "Advanced Health Information System for clinics and hospitals with integrated pharmacy.",
+    advantages: ["Patient Records", "Prescription Flow", "Pharmacy Inventory"],
+    role: 'his_admin',
+    category: 'Healthcare'
+  },
+  {
+    id: 'retail',
+    title: "Retail & Agrovet",
+    description: "Specialized Point of Sale and inventory systems for retail stores and agricultural shops.",
+    advantages: ["Batch Tracking", "Commission Ledger", "Smart Stock"],
+    role: 'retail_agent',
+    category: 'Business'
+  },
+  {
+    id: 'autoservice',
+    title: "Auto Services",
+    description: "Streamlined management for Car Washes and Service Centers with customer tracking.",
+    advantages: ["Job Cards", "Service History", "Customer Rewards"],
+    role: 'carwash_admin',
+    category: 'Automotive'
+  },
+  {
+    id: 'edu',
+    title: "EduAlloc Engine",
+    description: "The most powerful academic management system for timetabling and student oversight.",
+    advantages: ["Conflict Detection", "Library Master", "Exam Timetabling"],
+    role: 'admin',
+    category: 'Education'
+  },
+  {
+    id: 'fuel',
+    title: "Fuel Command",
+    description: "Digital energy management for fuel stations with tank monitoring and shift reconciliation.",
+    advantages: ["Live Tank Levels", "Pump Status", "Shift Closing"],
+    role: 'fuel_admin',
+    category: 'Energy',
+    imageUrl: '/marketing/fuel.png'
+  },
+  {
+    id: 'campaign',
+    title: "Campaign AI",
+    description: "Strategic political campaign management tool with voter analytics and ward-level tracking.",
+    advantages: ["Voter Registry", "Ward Mapping", "Campaign Analytics"],
+    role: 'admin',
+    category: 'Politics'
+  },
+  {
+    id: 'legal',
+    title: "LexLink Legal",
+    description: "Comprehensive law firm management covering matters, documents, and trust accounting.",
+    advantages: ["Matter Management", "Trust Accounting", "Agreement Templates"],
+    role: 'legal_admin',
+    category: 'Legal'
+  },
+  {
+    id: 'ds',
+    title: "DS Pro Master",
+    description: "Advanced Driving School system for student onboarding, lesson tracking, and skill mastery.",
+    advantages: ["Lesson Scheduling", "Skill Tracking", "Instructor Logs"],
+    role: 'driving_instructor',
+    category: 'Education'
+  },
+  {
+    id: 'civil',
+    title: "CivicWorks Hub",
+    description: "Robust yard and civil works management for equipment, staff, and project logs.",
+    advantages: ["Equipment Logs", "Staff Duty Rota", "Project Tracking"],
+    role: 'admin',
+    category: 'Construction'
+  },
+  {
+    id: 'logistics',
+    title: "Logistics Sync",
+    description: "Smart logistics management for fleet operations, delivery tracking, and warehouse sync.",
+    advantages: ["Fleet Dispatch", "Delivery Tracking", "Warehouse Sync"],
+    role: 'transport_admin',
+    category: 'Logistics'
+  }
+];

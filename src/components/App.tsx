@@ -1466,6 +1466,43 @@ export const App: React.FC = () => {
         }, 100);
     };
 
+    const handleLaunchSimulator = useCallback(async (role: Role, modId: string) => {
+        setIsTransitioning(true);
+        // Find an institution that matches the module type or use a fallback
+        let targetInst = institutions.find(i => {
+           if (modId === 'property') return i.institutionType === 'Real Estate';
+           if (modId === 'coop') return i.institutionType === 'Cooperative';
+           if (modId === 'his') return i.institutionType === 'Clinic' || i.institutionType === 'Hospital';
+           if (modId === 'retail') return i.institutionType === 'Business' && (i.businessSubType === 'Retail' || i.category === 'Retail');
+           if (modId === 'fuel') return i.category === 'Fuel Station' || i.businessSubType === 'Fuel Station';
+           if (modId === 'campaign') return i.category === 'Politics' || i.institutionType === 'Campaign';
+           if (modId === 'legal') return i.institutionType === 'Law Firm';
+           if (modId === 'ds') return i.institutionType === 'Driving School';
+           if (modId === 'civil') return i.institutionType === 'Construction';
+           return false;
+        });
+
+        // If no real institution, use a system demo one or create a temp one
+        const instId = targetInst?.id || `demo_${modId}`;
+        
+        // Ensure the institution exists in state for AdminView to work
+        if (!targetInst) {
+             const demoInst: Institution = {
+                 id: instId,
+                 name: `Demo ${modId.charAt(0).toUpperCase() + modId.slice(1)} System`,
+                 institutionType: 'Business',
+                 status: 'active',
+                 trialEndsAt: new Date(Date.now() + 86400000).toISOString()
+             };
+             setInstitutions(prev => [...prev.filter(i => i.id !== instId), demoInst]);
+        }
+
+        setTimeout(() => {
+            onLoginAsAdmin(instId, role);
+            setShowMarketing(false);
+        }, 500);
+    }, [institutions, onLoginAsAdmin]);
+
     const onRestoreSuperAdminSession = () => {
         if (originalSuperAdminSession) {
             setIsTransitioning(true);
@@ -4652,6 +4689,7 @@ export const App: React.FC = () => {
                                 onLogin={() => setShowMarketing(false)}
                                 onBookDemo={() => setShowBookDemo(true)}
                                 onOpenStore={() => setShowMarketplace(true)}
+                                onLaunchSimulator={handleLaunchSimulator}
                             />
                         ) : (
                             <LoginView

@@ -14,14 +14,18 @@ async function uploadShowcaseImages() {
     const user = "eduaico1";
     const password = "A]i7s4v[5qZP5S";
 
-    const localDir = path.join(__dirname, "..", "showcase");
+    let localDir = path.join(__dirname, "..", "showcase");
+    const distDir = path.join(__dirname, "..", "dist");
+
+    const showcaseFiles = fs.existsSync(localDir) ? fs.readdirSync(localDir).filter(f => f !== '.keep') : [];
+
+    if (showcaseFiles.length === 0 && fs.existsSync(distDir)) {
+        console.log("Showcase directory is empty or missing. Using 'dist' directory as source...");
+        localDir = distDir;
+    }
 
     if (!fs.existsSync(localDir)) {
-        console.log(`Local directory ${localDir} does not exist. Creating it...`);
-        fs.mkdirSync(localDir, { recursive: true });
-        console.log("Please place your showcase images in the 'showcase' directory and run this script again.");
-        // We'll create a dummy file to ensure directory has at least something, though basic-ftp upload needs it.
-        fs.writeFileSync(path.join(localDir, ".keep"), "Keep file");
+        console.log(`Local source directory ${localDir} does not exist.`);
         return;
     }
 
