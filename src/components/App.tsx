@@ -1452,7 +1452,6 @@ export const App: React.FC = () => {
                     name: `Demo Administrator`,
                     phoneNumber: '+254700000000',
                     password: 'password123',
-                    createdAt: new Date().toISOString(),
                     expertise: []
                 };
                 
@@ -1482,15 +1481,15 @@ export const App: React.FC = () => {
         setIsTransitioning(true);
         // Find an institution that matches the module type or use a fallback
         let targetInst = institutions.find(i => {
-           if (modId === 'property') return i.institutionType === 'Property Management';
-           if (modId === 'coop') return i.institutionType === 'Cooperative';
-           if (modId === 'his') return i.institutionType === 'HIS';
+           if (modId === 'property') return (i.institutionType as string) === 'Property Management';
+           if (modId === 'coop') return (i.institutionType as string) === 'Cooperative';
+           if (modId === 'his') return (i.institutionType as string) === 'HIS';
            if (modId === 'retail') return i.institutionType === 'Business' && (i.businessSubType === 'Retail' || i.category === 'Retail');
            if (modId === 'fuel') return i.category === 'Fuel Station' || i.businessSubType === 'Fuel Station';
-           if (modId === 'campaign') return i.institutionType === 'Political Campaign';
-           if (modId === 'legal') return i.institutionType === 'Legal';
-           if (modId === 'ds') return i.institutionType === 'Driving School';
-           if (modId === 'civil') return i.institutionType === 'Construction';
+           if (modId === 'campaign') return (i.institutionType as string) === 'Political Campaign';
+           if (modId === 'legal') return (i.institutionType as string) === 'Legal';
+           if (modId === 'ds') return (i.institutionType as string) === 'Driving School';
+           if (modId === 'civil') return (i.institutionType as string) === 'Construction';
            return false;
         });
 

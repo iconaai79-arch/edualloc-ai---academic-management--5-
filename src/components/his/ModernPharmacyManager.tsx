@@ -127,7 +127,7 @@ export const ModernPharmacyManager: React.FC<{
 
     const canAccessTab = (tab: typeof activeTab) => {
         const role = currentUser.role;
-        const pharmRole = staff.find(s => s.fullName === currentUser.fullName)?.role || role; // Fallback to system role
+        const pharmRole = staff.find(s => s.fullName === currentUser.name)?.role || role; // Fallback to system role
 
         // Admin/Owner has full access
         if (role === 'retail_agent' || role === 'admin' || role === 'his_admin') return true;
