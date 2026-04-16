@@ -299,6 +299,6 @@ export const INITIAL_USERS: User[] = [
     }
 ];
 
-export const RETAIL_SUBTYPES = ['Hardware', 'General', 'Retail', 'Retail Shop', 'Retail Agency', 'Boutique', 'Salon', 'Barber Shop', 'Electronics', 'Supermarket', 'Wholesale', 'General Retail', 'Restaurant', 'Cafe', 'Eatery', 'Pharmacy', 'Chemist'];
+export const RETAIL_SUBTYPES = ['Hardware', 'General', 'Retail', 'Retail Shop', 'Retail Agency', 'Boutique', 'Salon', 'Barber Shop', 'Electronics', 'Supermarket', 'Wholesale', 'General Retail', 'Restaurant', 'Cafe', 'Eatery', 'Pharmacy', 'Chemist', 'Fuel Station'];
 
-export const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'reseller', 'retail_agent', 'field_agent', 'customer', 'lead', 'pastor', 'deacon', 'elder', 'treasurer', 'secretary', 'worker', 'church_admin'];
+export const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'reseller', 'retail_agent', 'field_agent', 'customer', 'lead', 'pastor', 'deacon', 'elder', 'treasurer', 'secretary', 'worker', 'church_admin', 'fuel_admin', 'attendant'];

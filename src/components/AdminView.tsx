@@ -93,6 +93,7 @@ const TransportManager = lazy(() => import('./TransportManager').then(m => ({ de
 import { apiService } from '../services/apiService';
 const RetailReportsDashboard = lazy(() => import('./retail/RetailReportsDashboard').then(m => ({ default: m.RetailReportsDashboard })));
 const ExternalModuleView = lazy(() => import('./ExternalModuleView').then(m => ({ default: m.ExternalModuleView })));
+const FuelStationDashboard = lazy(() => import('./FuelStationDashboard').then(m => ({ default: m.FuelStationDashboard })));
 import { isSchoolInstitution, isHigherEdInstitution, isEduInstitution } from '../utils/roleUtils';
 
 export interface AdminViewProps {
@@ -375,7 +376,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station'>('dashboard');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects' | 'registry'>('wizard');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
@@ -444,6 +445,12 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         return cat === 'Automotive Marketplace' || subType.includes('vehicle sales') || subType.includes('car sales') || subType.includes('motors') || name.includes('motors') || name.includes('car sales');
     }, [props.currentInstitution]);
 
+    const isFuelStation = useMemo(() => {
+        const cat = props.currentInstitution?.category;
+        const subType = props.currentInstitution?.businessSubType;
+        return cat === 'Fuel Station' || subType === 'Fuel Station' || institutionType === 'Fuel Station';
+    }, [props.currentInstitution, institutionType]);
+
     const isSchool = useMemo(() => {
         return isSchoolInstitution(props.currentInstitution);
     }, [props.currentInstitution]);
@@ -504,6 +511,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 setActiveTab('hospitality');
             } else if (isAutoMarket) {
                 setActiveTab('auto_marketplace');
+            } else if (isFuelStation) {
+                setActiveTab('fuel_station');
             }
             setHasSetDefaultTab(true);
         }
@@ -552,6 +561,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'alumni', label: 'Alumni Network', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
             { id: 'hospitality', label: 'Hospitality Hub', icon: <PalmTreeIcon className="w-5 h-5 mr-2" /> },
             { id: 'auto_marketplace', label: 'Car Sales', icon: <CarIcon className="w-5 h-5 mr-2" /> },
+            { id: 'fuel_station', label: 'Fuel Station', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
             { id: 'showcase', label: 'Digital Presence', icon: <GlobeAltIcon className="w-5 h-5 mr-2" /> },
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         ];
@@ -625,6 +635,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             if (tab.id === 'alumni') return isAlumni || roleToUse === 'alumni_admin';
             if (tab.id === 'hospitality') return isHospitality || roleToUse === 'hospitality_admin';
             if (tab.id === 'auto_marketplace') return isAutoMarket;
+            if (tab.id === 'fuel_station') return isFuelStation;
 
             if (tab.id === 'showcase') {
                 return (isSchool || isEdu) && ['admin', 'head_teacher', 'dos', 'super_admin'].includes(roleToUse || '');
@@ -676,7 +687,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         { role: 'sacco_officer', label: 'SACCO Module', icon: <CreditCardIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
         { role: 'agrovet_admin', label: 'Agrovet Module', icon: <BeakerIcon className="w-6 h-6" />, color: 'bg-green-50 text-green-600' },
         { role: 'customer', label: 'Customer Portal', icon: <SearchIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' },
-        { role: 'church_admin', label: 'Church System', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-700' }
+        { role: 'church_admin', label: 'Church System', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-700' },
+        { role: 'fuel_admin', label: 'Fuel Station Module', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-700' }
     ].filter(opt => {
         if (isRetailAgency) {
             return ['retail_agent', 'customer'].includes(opt.role);
@@ -837,6 +849,18 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                             </div>
                                             <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">{isChurch ? 'Workers Hub' : 'Staff Hub'}</span>
                                         </button>
+                                    {isFuelStation && (
+                                        <button
+                                            onClick={() => handleQuickAction('fuel_station')}
+                                            className="flex flex-col items-start p-6 bg-emerald-600 text-white rounded-3xl shadow-xl shadow-emerald-200 hover:shadow-emerald-300 transition-all group text-left hover:-translate-y-1"
+                                        >
+                                            <div className="p-3 bg-white/20 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
+                                                <TruckIcon className="w-6 h-6" />
+                                            </div>
+                                            <span className="font-black text-sm uppercase tracking-tight">Fuel Station </span>
+                                            <p className="text-[10px] opacity-80 uppercase mt-1">Command Hub</p>
+                                        </button>
+                                    )}
                                     {isEdu && (
                                         <>
                                             <button
@@ -1414,6 +1438,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         currentInstitution={props.currentInstitution!}
                         users={props.users || []}
                         allInstitutions={props.institutions || []}
+                    />
+                )}
+                {activeTab === 'fuel_station' && (
+                    <FuelStationDashboard 
+                        institution={props.currentInstitution!}
                     />
                 )}
                 {activeTab === 'hospitality' && (
