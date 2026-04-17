@@ -20,6 +20,7 @@ export const generateStandardTimetable = (
     const notifications: string[] = [];
     const lecturerOccupancy = new Set<string>();
     const roomOccupancy = new Set<string>();
+    const studentOccupancy = new Set<string>();
 
     // Capacity Tracking
     // courseLevelId -> totalDurationPlaced
@@ -126,7 +127,16 @@ export const generateStandardTimetable = (
                                 timeToMinutes(checkTime) < timeToMinutes(u.endTime)
                             );
 
-                            if (isBreak || isUnvailable || lecturerOccupancy.has(lecKey)) {
+                            // STUDENT (STREAM) OCCUPANCY CHECK
+                            let isStudentBusy = false;
+                            for (const lid of targetLevelIds) {
+                                if (studentOccupancy.has(`${day}-${checkTime}-${lid}`)) {
+                                    isStudentBusy = true;
+                                    break;
+                                }
+                            }
+
+                            if (isBreak || isUnvailable || lecturerOccupancy.has(lecKey) || isStudentBusy) {
                                 isPathClear = false;
                                 break;
                             }
@@ -134,7 +144,9 @@ export const generateStandardTimetable = (
 
                         if (!isPathClear) continue;
 
-                        let availableRoom = (rooms || []).find(room => {
+                        // RANDOMIZED ROOM SELECTION: Prevent facility bottlenecks
+                        const shuffledRooms = [...(rooms || [])].sort(() => Math.random() - 0.5);
+                        let availableRoom = shuffledRooms.find(room => {
                             if (!room || room.status !== 'active') return false;
                             if (structure.dedicatedRoomId && room.id !== structure.dedicatedRoomId) return false;
 
@@ -176,6 +188,10 @@ export const generateStandardTimetable = (
                                 const checkTime = minutesToTime(startTimeMin + (p * cellSpan));
                                 lecturerOccupancy.add(`${day}-${checkTime}-${alloc.lecturerId}`);
                                 roomOccupancy.add(`${day}-${checkTime}-${availableRoom.id}`);
+                                // MARK STUDENTS AS OCCUPIED
+                                targetLevelIds.forEach(lid => {
+                                    studentOccupancy.add(`${day}-${checkTime}-${lid}`);
+                                });
                             }
 
                             // Update Trackers
