@@ -124,10 +124,12 @@ export const RequestManager: React.FC<RequestManagerProps> = ({
             case 'change_request_pending': newTitle = 'Modification Requests'; break;
         }
 
-        const isHodViewingPending = currentUser && (currentUser.role === 'hod' || currentUser.role === 'tto') && (statusFilter === 'pending' || statusFilter === 'action_required');
-        const isAdminViewingFinal = currentUser && ['admin', 'head_teacher', 'deputy', 'dos', 'super_admin'].includes(currentUser.role) && (statusFilter === 'hod_approved' || statusFilter === 'action_required' || statusFilter === 'pending');
+        const standardPendingRequests = (Array.isArray(requests) ? requests : []).filter(r => r && (r.status === 'pending' || r.status === 'hod_approved'));
+        
+        // Ensure user sees the button even in 'all' view if they have permission to act on the pending items
+        const isHodViewingPending = currentUser && (currentUser.role === 'hod' || currentUser.role === 'tto');
+        const isAdminViewingFinal = currentUser && ['admin', 'head_teacher', 'deputy', 'dos', 'super_admin'].includes(currentUser.role);
 
-        const standardPendingRequests = sortedRequests.filter(r => r.status === 'pending' || r.status === 'hod_approved');
         const allowBulk = (isHodViewingPending || isAdminViewingFinal) && standardPendingRequests.length > 0;
 
         return {
