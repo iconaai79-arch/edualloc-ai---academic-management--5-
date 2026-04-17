@@ -21,8 +21,12 @@ export const generateInstitutionalDemoData = (instId: string, adminId: string) =
     // 2. Buildings & Rooms
     const bldg: Building = { id: `bldg_main_${instId}`, name: 'Main Campus', institutionId: instId };
     const rooms: Room[] = [
-        { id: `room_1_${instId}`, name: 'Class 1A', capacity: 45, buildingId: bldg.id, institutionId: instId, status: 'active' },
-        { id: `room_lab_${instId}`, name: 'Physics Lab', capacity: 30, buildingId: bldg.id, institutionId: instId, status: 'active', equipment: ['Burners', 'Kits'] },
+        { id: `room_101_${instId}`, name: 'Class 101', capacity: 45, buildingId: bldg.id, institutionId: instId, status: 'active' },
+        { id: `room_102_${instId}`, name: 'Class 102', capacity: 45, buildingId: bldg.id, institutionId: instId, status: 'active' },
+        { id: `room_103_${instId}`, name: 'Class 103', capacity: 45, buildingId: bldg.id, institutionId: instId, status: 'active' },
+        { id: `room_lab_1_${instId}`, name: 'Modern Physics Lab', capacity: 30, buildingId: bldg.id, institutionId: instId, status: 'active', equipment: ['Oscilloscope', 'Lasers', 'Spectrometer'] },
+        { id: `room_chem_${instId}`, name: 'Chemistry Lab', capacity: 30, buildingId: bldg.id, institutionId: instId, status: 'active', equipment: ['Fume Hood', 'Beakers'] },
+        { id: `room_comp_${instId}`, name: 'IT Hub', capacity: 50, buildingId: bldg.id, institutionId: instId, status: 'active', equipment: ['Desktop PCs', 'Fiber Link'] },
     ];
 
     // 3. Academic Levels
@@ -53,14 +57,20 @@ export const generateInstitutionalDemoData = (instId: string, adminId: string) =
 
     // 5. Faculty & Staff
     const staff: User[] = [
-        { id: `u_dos_${instId}`, name: 'Director of Studies', email: `dos@demo-${instId}.edu`, phoneNumber: '0711000001', role: 'dos', roles: ['dos'], institutionId: instId, departmentId: depts[0].id, expertise: ['Curriculum'], password: 'password123' },
-        { id: `u_tea1_${instId}`, name: 'Mr. James Maxwell', email: `james@demo-${instId}.edu`, phoneNumber: '0711000002', role: 'teacher', roles: ['teacher'], institutionId: instId, departmentId: depts[0].id, expertise: ['Physics'], password: 'password123' },
+        { id: `u_admin_${instId}`, name: 'Institutional Administrator', email: `admin@demo-${instId}.edu`, phoneNumber: '0711000000', role: 'admin', roles: ['admin'], institutionId: instId, password: 'password123' },
+        { id: `u_dos_${instId}`, name: 'Dr. Sarah Peterson (DOS)', email: `dos@demo-${instId}.edu`, phoneNumber: '0711000001', role: 'dos', roles: ['dos'], institutionId: instId, departmentId: depts[0].id, expertise: ['Curriculum Strategy'], password: 'password123' },
+        { id: `u_tea1_${instId}`, name: 'Mr. James Maxwell', email: `james@demo-${instId}.edu`, phoneNumber: '0711000002', role: 'teacher', roles: ['teacher'], institutionId: instId, departmentId: depts[0].id, expertise: ['Quantum Physics'], password: 'password123' },
+        { id: `u_tea2_${instId}`, name: 'Ms. Ada Lovelace', email: `ada@demo-${instId}.edu`, phoneNumber: '0711000003', role: 'teacher', roles: ['teacher'], institutionId: instId, departmentId: depts[2].id, expertise: ['Computer Science'], password: 'password123' },
+        { id: `u_tea3_${instId}`, name: 'Prof. Isaac Newton', email: `isaac@demo-${instId}.edu`, phoneNumber: '0711000004', role: 'teacher', roles: ['teacher'], institutionId: instId, departmentId: depts[0].id, expertise: ['Calculus'], password: 'password123' },
     ];
 
     // 6. Subjects & Courses
     const subjs: Subject[] = [
-        { id: `sub1_${instId}`, code: 'PHY-01', name: 'General Physics', departmentId: depts[0].id, institutionId: instId, lessonStructure: [{ count: 5, periods: 1 }] },
-        { id: `sub2_${instId}`, code: 'MAT-01', name: 'Pure Mathematics', departmentId: depts[0].id, institutionId: instId, lessonStructure: [{ count: 6, periods: 1 }] }
+        { id: `sub1_${instId}`, code: 'PHY-101', name: 'General Physics', departmentId: depts[0].id, institutionId: instId, lessonStructure: [{ count: 5, periods: 1 }] },
+        { id: `sub2_${instId}`, code: 'MAT-101', name: 'Pure Mathematics', departmentId: depts[0].id, institutionId: instId, lessonStructure: [{ count: 6, periods: 1 }] },
+        { id: `sub3_${instId}`, code: 'BIO-101', name: 'Biological Sciences', departmentId: depts[0].id, institutionId: instId, lessonStructure: [{ count: 4, periods: 1 }] },
+        { id: `sub4_${instId}`, code: 'CS-201', name: 'Advanced Algorithms', departmentId: depts[2].id, institutionId: instId, lessonStructure: [{ count: 5, periods: 1 }] },
+        { id: `sub5_${instId}`, code: 'ENG-101', name: 'English Literature', departmentId: depts[1].id, institutionId: instId, lessonStructure: [{ count: 5, periods: 1 }] },
     ];
 
     const courses: Course[] = [
@@ -135,7 +145,25 @@ export const generateInstitutionalDemoData = (instId: string, adminId: string) =
 
     const coopCollections: any[] = [
         { id: `coll_1_${instId}`, farmerId: coopFarmers[0].id, quantity: 45.5, unit: 'kg', type: 'Milk', pricePerUnit: 48, totalAmount: 2184, status: 'confirmed', date: todayStr, institutionId: instId },
-        { id: `coll_2_${instId}`, farmerId: coopFarmers[1].id, quantity: 120.0, unit: 'kg', type: 'Maize', pricePerUnit: 35, totalAmount: 4200, status: 'pending', date: todayStr, institutionId: instId }
+        { id: `coll_2_${instId}`, farmerId: coopFarmers[1].id, quantity: 120.0, unit: 'kg', type: 'Maize', pricePerUnit: 35, totalAmount: 4200, status: 'pending', date: todayStr, institutionId: instId },
+        { id: `coll_3_${instId}`, farmerId: coopFarmers[0].id, quantity: 38.0, unit: 'kg', type: 'Milk', pricePerUnit: 48, totalAmount: 1824, status: 'confirmed', date: new Date(Date.now() - 86400000).toISOString().split('T')[0], institutionId: instId },
+        { id: `coll_4_${instId}`, farmerId: coopFarmers[1].id, quantity: 85.0, unit: 'kg', type: 'Wheat', pricePerUnit: 55, totalAmount: 4675, status: 'confirmed', date: new Date(Date.now() - 86400000 * 2).toISOString().split('T')[0], institutionId: instId }
+    ];
+
+    const inventory: InventoryItem[] = [
+        { id: `inv_1_${instId}`, name: 'Refined Chalk', category: 'Stationery', quantity: 500, unit: 'Boxes', status: 'available', institutionId: instId, minThreshold: 50 },
+        { id: `inv_2_${instId}`, name: 'A4 Printing Paper', category: 'Office', quantity: 200, unit: 'Reams', status: 'available', institutionId: instId, minThreshold: 20 },
+        { id: `inv_3_${instId}`, name: 'Detergent 5L', category: 'Cleaning', quantity: 15, unit: 'Jerricans', status: 'low_stock', institutionId: instId, minThreshold: 10 }
+    ];
+
+    const visitors: Visitor[] = [
+        { id: `vis_1_${instId}`, fullName: 'Alice Wonder', idNumber: '12345678', phoneNumber: '0711111111', purpose: 'Consultation', hostId: staff[1].id, checkIn: now.toISOString(), institutionId: instId },
+        { id: `vis_2_${instId}`, fullName: 'Bob Builder', idNumber: '87654321', phoneNumber: '0722222222', purpose: 'Maintenance', hostId: staff[0].id, checkIn: now.toISOString(), institutionId: instId }
+    ];
+
+    const securityAlerts: SecurityAlert[] = [
+        { id: `sec_1_${instId}`, title: 'Unauthorized Parking', severity: 'Low', status: 'resolved', description: 'Vehicle at Gate B moved', timestamp: now.toISOString(), institutionId: instId },
+        { id: `sec_2_${instId}`, title: 'Tailgating Detected', severity: 'Medium', status: 'open', description: 'Pedestrian gate scan error', timestamp: now.toISOString(), institutionId: instId }
     ];
 
     // 10. Law Firm & Matter Management Data
@@ -183,9 +211,9 @@ export const generateInstitutionalDemoData = (instId: string, adminId: string) =
         courses,
         allocations,
         timetable: [],
-        inventory: [],
-        visitors: [],
-        securityAlerts: [],
+        inventory: inventory,
+        visitors: visitors,
+        securityAlerts: securityAlerts,
         hisStaff,
         hisPatients,
         hisWards,

@@ -490,6 +490,7 @@ export const App: React.FC = () => {
     });
 
 
+    const [isSimulatorMode, setIsSimulatorMode] = useState(false);
     const [isGeneratingDemoData, setIsGeneratingDemoData] = useState(false);
     const [demoDataGenerationProgress, setDemoDataGenerationProgress] = useState(0);
     const [demoDataGenerationMessage, setDemoDataGenerationMessage] = useState("");
@@ -1108,6 +1109,9 @@ export const App: React.FC = () => {
         setCurrentUser(null);
         setImpersonatedRole(null);
         setOriginalSuperAdminSession(null);
+        setIsSimulatorMode(false);
+        setIsHealthSystemOpen(false);
+        setIsPharmacySystemOpen(false);
         localStorage.removeItem('eduai_super_admin_session');
     };
 
@@ -1484,6 +1488,7 @@ export const App: React.FC = () => {
     }, [onLoginAsAdmin]);
 
     const handleLaunchSimulator = useCallback(async (role: Role, modId: string) => {
+        setIsSimulatorMode(true);
         setIsTransitioning(true);
         // Find an institution that matches the module type or use a fallback
         let targetInst = institutions.find(i => {
@@ -1600,6 +1605,10 @@ export const App: React.FC = () => {
         }
 
         setTimeout(() => {
+            if (modId === 'his' || modId === 'pharmacy') {
+                setIsHealthSystemOpen(true);
+                setIsPharmacySystemOpen(modId === 'pharmacy');
+            }
             if (onLoginAsAdminRef.current) {
                 onLoginAsAdminRef.current(instId, role);
             }
@@ -1614,6 +1623,9 @@ export const App: React.FC = () => {
                 const saUser = originalSuperAdminSession;
                 setOriginalSuperAdminSession(null);
                 setImpersonatedRole(null);
+                setIsSimulatorMode(false);
+                setIsHealthSystemOpen(false);
+                setIsPharmacySystemOpen(false);
                 localStorage.removeItem('eduai_super_admin_session');
                 setCurrentUser(saUser);
                 apiService.storeSession(saUser);
@@ -2918,7 +2930,7 @@ export const App: React.FC = () => {
                 />
             );
         }
-        if (!currentUser.passwordLastUpdated && !currentUser.id.startsWith('demo_') && !currentUser.id.startsWith('temp_admin_')) {
+        if (!currentUser.passwordLastUpdated && !currentUser.id.startsWith('demo_') && !currentUser.id.startsWith('temp_admin_') && currentUser.role !== 'super_admin' && !originalSuperAdminSession && !isSimulatorMode) {
             return <MandatoryUpdateView user={currentUser} onUpdate={async (pData, passData) => {
                 try {
                     const updated = { ...currentUser, ...pData, password: passData.newPassword, passwordLastUpdated: new Date().toISOString() };
