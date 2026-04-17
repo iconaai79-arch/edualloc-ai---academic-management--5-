@@ -134,7 +134,7 @@ export const generateStandardTimetable = (
 
                         if (!isPathClear) continue;
 
-                        const availableRoom = (rooms || []).find(room => {
+                        let availableRoom = (rooms || []).find(room => {
                             if (!room || room.status !== 'active') return false;
                             if (structure.dedicatedRoomId && room.id !== structure.dedicatedRoomId) return false;
 
@@ -148,6 +148,27 @@ export const generateStandardTimetable = (
                             }
                             return roomFree;
                         });
+
+                        // EMERGENCY FALLBACK: If no room is found, use a Virtual Overflow Room
+                        if (!availableRoom) {
+                            const virtualRooms = ['VR-1', 'VR-2', 'VR-3', 'VR-4', 'VR-5'];
+                            for (const vr of virtualRooms) {
+                                let vrFree = true;
+                                for (let p = 0; p < requiredPeriods; p++) {
+                                    const checkTime = minutesToTime(startTimeMin + (p * cellSpan));
+                                    if (roomOccupancy.has(`${day}-${checkTime}-${vr}`)) {
+                                        vrFree = false;
+                                        break;
+                                    }
+                                }
+                                if (vrFree) {
+                                    availableRoom = { id: vr, name: `Virtual Room ${vr.split('-')[1]}`, status: 'active', institutionId: alloc.institutionId } as any;
+                                    const msg = `Institutional Saturation: ${subject.name} assigned to Virtual Room to prevent generation cutoff.`;
+                                    if (!notifications.includes(msg)) notifications.push(msg);
+                                    break;
+                                }
+                            }
+                        }
 
                         if (availableRoom) {
                             // Place entry
