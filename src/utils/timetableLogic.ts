@@ -210,7 +210,33 @@ export const generateStandardTimetable = (
                             });
 
                             placed = true;
-                            break;
+                        if (placed) break;
+                    }
+
+                    // ZERO-SKIP POLICY: If still not placed after checking all days/slots
+                    if (!placed) {
+                        const safetyDay = shuffledDays[0] || 'Monday';
+                        const safetySlot = displaySlots.find(s => !activeBreaks.some(b => b.status === 'active' && timeToMinutes(s.start) >= timeToMinutes(b.startTime) && timeToMinutes(s.start) < timeToMinutes(b.endTime))) || displaySlots[0];
+                        
+                        if (safetySlot) {
+                            entries.push({
+                                id: `entry_f_${Date.now()}_${entries.length}_${Math.random().toString(36).substr(2, 4)}`,
+                                day: safetyDay,
+                                startTime: safetySlot.start,
+                                endTime: minutesToTime(timeToMinutes(safetySlot.start) + requiredDuration),
+                                subjectId: subject.id,
+                                lecturerId: alloc.lecturerId,
+                                roomId: `VR-OVERFLOW-${Math.floor(Math.random() * 50)}`,
+                                institutionId: alloc.institutionId,
+                                academicYearId: academicYearId,
+                                semesterId: semesterId,
+                                courseId: linkedCourse?.id || 'unknown',
+                                courseLevelId: alloc.courseLevelIds?.[0] || 'unknown',
+                                duration: requiredDuration,
+                                hasConflict: true
+                            });
+                            notifications.push(`Workload Integrity Force: ${subject.name} (Lecturer: ${alloc.lecturerId}) forced into timetable to guarantee 100% completion.`);
+                            placed = true;
                         }
                     }
                 }
@@ -219,4 +245,4 @@ export const generateStandardTimetable = (
     });
 
     return { entries, notifications };
-};
+}
