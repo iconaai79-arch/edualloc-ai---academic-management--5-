@@ -889,13 +889,23 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
 
         const standardGrades = useMemo(() => {
             if (isPrimary) {
-                return Array.from({ length: 9 }, (_, i) => ({ name: `Grade ${i + 1}`, code: `G${i + 1}` }));
+                return [
+                    { name: 'Playgroup', code: 'PG' },
+                    { name: 'PP1', code: 'PP1' },
+                    { name: 'PP2', code: 'PP2' },
+                    ...Array.from({ length: 9 }, (_, i) => ({ name: `Grade ${i + 1}`, code: `G${i + 1}` }))
+                ];
             }
             if (isSecondary) {
                 return [
-                    { name: 'Grade 10', code: 'G10' },
+                    { name: 'Grade 7', code: 'G7' },
+                    { name: 'Grade 8', code: 'G8' },
+                    { name: 'Grade 9', code: 'G9' },
+                    { name: 'Form 1', code: 'F1' },
+                    { name: 'Form 2', code: 'F2' },
                     { name: 'Form 3', code: 'F3' },
                     { name: 'Form 4', code: 'F4' },
+                    { name: 'Grade 10', code: 'G10' },
                     { name: 'Grade 11', code: 'G11' },
                     { name: 'Grade 12', code: 'G12' },
                 ];
@@ -1285,7 +1295,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                         <MagnifyingGlassIcon className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
                     </div>
                 </div>
-                {!isSchool && (
+                {departments.length > 0 && (
                     <div>
                         <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Department View</label>
                         <select value={departmentFilter} onChange={e => setDepartmentFilter(e.target.value)} className="form-select">

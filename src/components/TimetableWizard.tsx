@@ -108,7 +108,8 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                         courses,
                         timeOffRequests,
                         currentInstitution?.scheduleProfiles || [],
-                        'premium'
+                        'premium',
+                        currentInstitution
                     );
                 } else {
                     result = generateStandardTimetable(

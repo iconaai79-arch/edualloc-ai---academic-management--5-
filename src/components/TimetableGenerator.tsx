@@ -15,6 +15,7 @@ import { TimetablesView } from './TimetablesView';
 import { TimetableImporter } from './TimetableImporter';
 import { Tooltip } from './Tooltip';
 import { ExamTimetableGrid } from './ExamTimetableGrid';
+import { isSchoolInstitution } from '../utils/roleUtils';
 
 import * as XLSX from 'xlsx';
 
@@ -105,7 +106,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
         setIsLoading(true);
         setError(null);
         try {
-            const rawTimetable = await generateTimetable(allocations, subjects, lecturers, rooms, timetableSettings, courseSizes, courses, timeOffRequests, currentInstitution?.scheduleProfiles || [], currentInstitution?.aiModelTier);
+            const rawTimetable = await generateTimetable(allocations, subjects, lecturers, rooms, timetableSettings, courseSizes, courses, timeOffRequests, currentInstitution?.scheduleProfiles || [], currentInstitution?.aiModelTier, currentInstitution);
             await onTimetableGenerated?.(rawTimetable as any, activeAcademicYear.id, activeSemester.id);
             onLogAction?.('Generated New Timetable');
         } catch (err: any) {
@@ -252,7 +253,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
         };
     }, [timetableConflicts]);
 
-    const isSchool = (currentInstitution?.institutionType === 'Education' && (currentInstitution?.category === 'Primary' || currentInstitution?.category === 'Secondary')) || (currentInstitution as any)?.institutionType === 'Primary' || (currentInstitution as any)?.institutionType === 'Secondary';
+    const isSchool = isSchoolInstitution(currentInstitution);
 
     return (
         <div className="space-y-8">

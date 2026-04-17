@@ -107,7 +107,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
         let list = subjects;
         if (currentUser.role === 'tto' && currentUser.departmentId) list = list.filter(s => s.departmentId === currentUser.departmentId);
         return list.filter(s => {
-            const matchesDept = isSchoolInstitution(currentInstitution) ? true : departmentFilter === 'all' || s.departmentId === departmentFilter;
+            const matchesDept = departmentFilter === 'all' || s.departmentId === departmentFilter;
             const matchesComp = completionFilter === 'all' || (completionFilter === 'complete' && s.isComplete) || (completionFilter === 'incomplete' && !s.isComplete);
             const q = searchQuery.toLowerCase();
             const matchesSearch = s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q);
@@ -198,7 +198,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                         <MagnifyingGlassIcon className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
                     </div>
                 </div>
-                {!isSchool && (
+                {departments.length > 0 && (
                     <div>
                         <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Department Filter</label>
                         <select value={departmentFilter} onChange={e => setDepartmentFilter(e.target.value)} className="form-select" disabled={currentUser.role === 'tto'}>

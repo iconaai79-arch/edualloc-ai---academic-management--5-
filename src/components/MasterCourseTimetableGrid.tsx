@@ -431,7 +431,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                     <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800 print:divide-slate-300">
                         <thead className="bg-slate-50 dark:bg-slate-900/50 print:bg-gray-100">
                             <tr>
-                                <th className="px-8 py-4 text-left text-[10px] font-black uppercase text-slate-500 tracking-widest print:text-black">{isSchoolInstitution(currentInstitution) ? 'Grade' : 'Course'}</th>
+                                <th className="px-8 py-4 text-left text-[10px] font-black uppercase text-slate-500 tracking-widest print:text-black">{isSchool ? 'Grade' : 'Course'}</th>
                                 <th className="px-8 py-4 text-left text-[10px] font-black uppercase text-slate-500 tracking-widest print:text-black">Units Count</th>
                                 <th className="px-8 py-4 text-left text-[10px] font-black uppercase text-slate-500 tracking-widest print:text-black">Contact Periods</th>
                                 <th className="px-8 py-4 text-left text-[10px] font-black uppercase text-slate-500 tracking-widest print:text-black">Total Hours/wk</th>

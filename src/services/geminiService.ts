@@ -213,7 +213,8 @@ export const generateTimetable = async (
     courses: Course[],
     timeOffRequests: TimeOffRequest[],
     profiles: ScheduleProfile[],
-    aiModelTier?: string
+    aiModelTier?: string,
+    institution?: any
 ): Promise<TimetableEntry[]> => {
     try {
         checkAiAvailable();
@@ -251,12 +252,26 @@ export const generateTimetable = async (
                 breaks: p.breaks || []
             })))}
             
+            - Institutional Identity: ${JSON.stringify({
+                name: institution?.name,
+                type: institution?.institutionType,
+                category: institution?.category
+            })}
+            
             STRICT ARCHITECTURAL DIRECTIVES:
             1. GRADE COVERAGE (ZERO EXCLUSION):
                - EVERY Grade/Level defined in the hierarchy MUST have its assigned subjects scheduled according to their intendedStructure.
                - DO NOT omit any grade that has valid allocations.
             
-            2. LESSON STRUCTURE INTEGRITY:
+            2. INSTITUTIONAL SPECIALIZATION:
+               ${institution?.category === 'Primary' ? `
+               - PRIMARY SCHOOL OPTIMIZATION: Prioritize "Home-Room Stability". Students should ideally remain in their base baseRoomId for the majority of core subjects.
+               - Move the Teacher, not the class, unless a specialized facility (Lab, Field, Music Room) is required.
+               ` : institution?.category === 'Secondary' ? `
+               - SECONDARY SCHOOL OPTIMIZATION: Support specialized movement. Subjects with high equipment needs MUST use their assigned laboratory or specialized facility.
+               ` : ''}
+
+            3. LESSON STRUCTURE INTEGRITY:
                - intendedStructure contains [{ periods: N, count: M }] (e.g., {periods: 2, count: 2} means 2 groups of double periods).
                - DOUBLE/BLOCK LESSONS: If 'periods' > 1, those N lessons MUST be scheduled CONSECUTIVELY in neighboring slots on the same day.
                - SINGLE LESSONS: If 'periods' = 1, they MUST NOT be blocked.
