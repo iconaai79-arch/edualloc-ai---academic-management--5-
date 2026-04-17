@@ -76,7 +76,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
     const [isBulkEmailing, setIsBulkEmailing] = useState(false);
     const [bulkEmailProgress, setBulkEmailProgress] = useState({ current: 0, total: 0 });
     const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
-    const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('vertical'); // List Layout by default to match PDF default
+    const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical' | 'weekly'>('weekly'); // Default to Weekly for ASC style
 
     const activeAcademicYear = useMemo(() => (academicYears || []).find(y => y && y.status === 'active'), [academicYears]);
     const isSchool = isSchoolInstitution(currentInstitution);
@@ -466,6 +466,12 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                     {viewMode === 'lecturer_schedule' && (
                         <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 h-11 items-center gap-1">
                             <button
+                                onClick={() => setLayoutMode('weekly')}
+                                className={`flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${layoutMode === 'weekly' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+                            >
+                                <RectangleStackIcon className="w-3.5 h-3.5" /> Weekly
+                            </button>
+                            <button
                                 onClick={() => setLayoutMode('horizontal')}
                                 className={`flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${layoutMode === 'horizontal' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-500'}`}
                             >
@@ -513,6 +519,12 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                     {viewMode === 'master_course' && (
                         <>
                             <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 h-11 items-center gap-1">
+                                <button
+                                    onClick={() => setLayoutMode('weekly')}
+                                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${layoutMode === 'weekly' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+                                >
+                                    <RectangleStackIcon className="w-3.5 h-3.5" /> Weekly
+                                </button>
                                 <button
                                     onClick={() => setLayoutMode('horizontal')}
                                     className={`flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${layoutMode === 'horizontal' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-500'}`}
@@ -613,6 +625,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                                 onLayoutModeChange={setLayoutMode}
                                 selectedDay={selectedDay}
                                 allocations={allocations}
+                                onMoveLesson={onMoveTimetableEntry}
                             />
                         );
                     })()

@@ -446,6 +446,15 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                     .filter(Boolean)
                     .join(', ');
                 const totalHours = (allocatedPeriods * (timetableSettings?.periodLengthMinutes || 60)) / 60;
+
+                const roomNames = [...new Set(lecturerAllocations.flatMap(a => 
+                    (a.courseLevelIds || []).map(levelId => {
+                        const level = (courses || []).flatMap(c => c.levels || []).find(l => l.id === levelId);
+                        const room = rooms.find(r => r.id === level?.roomId);
+                        return room?.name;
+                    }).filter(Boolean)
+                ))].join(', ');
+
                 return {
                     id: lecturer.id,
                     name: lecturer.name,
@@ -453,6 +462,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                     totalPeriods: allocatedPeriods,
                     totalHours: totalHours,
                     subjectNames: subjectNames,
+                    roomNames: roomNames || 'N/A'
                 };
             })
             .filter((l): l is NonNullable<typeof l> => l !== null)
@@ -722,7 +732,10 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                         {lecturerWorkload.map(lec => (
                                             <tr key={lec.id}>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{lec.name}</td>
-                                                <td className="px-6 py-4 max-w-sm whitespace-normal text-sm text-slate-500 dark:text-slate-400">{lec.subjectNames}</td>
+                                                <td className="px-6 py-4 max-w-sm whitespace-normal text-sm text-slate-500 dark:text-slate-400">
+                                                    <div>{lec.subjectNames}</div>
+                                                    <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mt-1">Rooms: {lec.roomNames}</div>
+                                                </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{lec.subjectCount}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{lec.totalPeriods}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{lec.totalHours.toFixed(1)}</td>

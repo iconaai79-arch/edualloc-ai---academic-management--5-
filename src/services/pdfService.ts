@@ -855,10 +855,11 @@ export const generateWorkloadStatisticsPdf = async (
     doc.text("Faculty Workload Summary", margin, yPos);
     yPos += 5;
 
-    const workloadHead = [['Faculty Member', 'Allocated Units', 'Cnt', 'Periods', 'Hrs/Wk']];
+    const workloadHead = [['Faculty Member', 'Allocated Units', 'Rooms', 'Cnt', 'Periods', 'Hrs/Wk']];
     const workloadBody = (lecturerWorkload || []).map(lec => [
         lec.name,
         lec.subjectNames || 'None',
+        lec.roomNames || 'N/A',
         lec.subjectCount,
         lec.totalPeriods,
         lec.totalHours.toFixed(1)
@@ -875,14 +876,15 @@ export const generateWorkloadStatisticsPdf = async (
         headStyles: { fillColor: [45, 55, 72], textColor: 255, fontSize: 8, fontStyle: 'bold' },
         styles: { fontSize: 8, cellPadding: 3 },
         columnStyles: {
-            0: { cellWidth: 40 },
+            0: { cellWidth: 35 },
             1: { cellWidth: 'auto' },
-            2: { cellWidth: 15, halign: 'center' },
-            3: { cellWidth: 20, halign: 'center' },
-            4: { cellWidth: 20, halign: 'center' }
+            2: { cellWidth: 30 },
+            3: { cellWidth: 10, halign: 'center' },
+            4: { cellWidth: 15, halign: 'center' },
+            5: { cellWidth: 15, halign: 'center' }
         },
         foot: [[
-            { content: 'GRAND TOTAL', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } },
+            { content: 'GRAND TOTAL', colSpan: 4, styles: { halign: 'right', fontStyle: 'bold' } },
             { content: String(grandTotalPeriods), styles: { halign: 'center', fontStyle: 'bold' } },
             { content: `${grandTotalHours.toFixed(1)} Hrs`, styles: { halign: 'center', fontStyle: 'bold' } }
         ]],

@@ -25,10 +25,11 @@ interface MasterCourseTimetableGridProps {
     isSchool?: boolean;
     currentInstitution?: Institution | null;
     timetableConflicts?: Conflict[];
-    layoutMode: 'horizontal' | 'vertical';
-    onLayoutModeChange: (mode: 'horizontal' | 'vertical') => void;
+    layoutMode: 'horizontal' | 'vertical' | 'weekly';
+    onLayoutModeChange: (mode: 'horizontal' | 'vertical' | 'weekly') => void;
     selectedDay?: string;
     allocations?: AllocationRequest[];
+    onMoveLesson?: (entryId: string, newDay: string, newStartTime: string) => void;
 }
 
 export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps> = ({
@@ -48,13 +49,49 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
     onLayoutModeChange,
     selectedDay = 'Monday',
     selectedLevelId = 'all',
-    allocations = []
+    allocations = [],
+    onMoveLesson
 }) => {
     const isSchool = isSchoolInstitution(currentInstitution);
-    // const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal'); // LIFTED TO PARENT
+    const [draggedEntryId, setDraggedEntryId] = useState<string | null>(null);
+    const [hoveredSlot, setHoveredSlot] = useState<{ levelId: string, day: string, startTime: string } | null>(null);
+
     const daysOfWeek = timetableSettings.operatingDays;
-    const periodHeaders = useMemo(() => generatePeriodLabels(timetableSettings, true), [timetableSettings]); // ENABLE BREAKS
+    const periodLabels = useMemo(() => generatePeriodLabels(timetableSettings, true), [timetableSettings]); 
     const cellSpanMinutes = timetableSettings.cellSpanMinutes || 60;
+
+    const handleDragStart = (e: React.DragEvent, entry: TimetableEntry) => {
+        if (!onMoveLesson) return;
+        setDraggedEntryId(entry.id);
+        e.dataTransfer.setData('text/plain', entry.id);
+        e.dataTransfer.effectAllowed = 'move';
+        (e.target as HTMLElement).style.opacity = '0.5';
+    };
+
+    const handleDragEnd = (e: React.DragEvent) => {
+        setDraggedEntryId(null);
+        setHoveredSlot(null);
+        (e.target as HTMLElement).style.opacity = '1';
+    };
+
+    const handleDragOver = (e: React.DragEvent, levelId: string, day: string, startTime: string) => {
+        if (!onMoveLesson) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (hoveredSlot?.day !== day || hoveredSlot?.startTime !== startTime || hoveredSlot?.levelId !== levelId) {
+            setHoveredSlot({ levelId, day, startTime });
+        }
+    };
+
+    const handleDrop = (e: React.DragEvent, levelId: string, day: string, startTime: string) => {
+        if (!onMoveLesson) return;
+        e.preventDefault();
+        const entryId = e.dataTransfer.getData('text/plain');
+        setHoveredSlot(null);
+        if (entryId) {
+            onMoveLesson(entryId, day, startTime);
+        }
+    };
 
     const relevantCourses = useMemo(() => {
         let list = courses || [];
@@ -221,8 +258,14 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                         }
 
                                                         return (
-                                                            <td key={slotKey} colSpan={colSpan} className="p-1 border border-slate-100 dark:border-slate-800 text-center align-middle">
-                                                                <div className="flex flex-col h-full gap-1">
+                                                            <td 
+                                                                key={slotKey} 
+                                                                colSpan={colSpan} 
+                                                                className={`p-0.5 border border-slate-100 dark:border-slate-800 text-center align-middle relative transition-all duration-200 ${hoveredSlot?.levelId === level.id && hoveredSlot?.day === selectedDay && hoveredSlot?.startTime === period.startTime ? 'bg-indigo-50/50 ring-2 ring-inset ring-indigo-500 z-10' : ''}`}
+                                                                onDragOver={(e) => handleDragOver(e, String(level.id), selectedDay, period.startTime)}
+                                                                onDrop={(e) => handleDrop(e, String(level.id), selectedDay, period.startTime)}
+                                                            >
+                                                                <div className="flex flex-col h-full gap-0.5 min-h-[50px]">
                                                                     {slotEntries.map((entry) => {
                                                                         const subject = getSubjectById(entry.subjectId);
                                                                         const lecturer = getLecturerById(entry.lecturerId);
@@ -233,17 +276,28 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                                         );
 
                                                                         return (
-                                                                            <div key={entry.id} className={`flex-1 rounded-xl p-2 shadow-sm border ${isConflicting ? 'border-red-500 ring-2 ring-red-200 animate-pulse' : 'border-black/5'}`} style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
-                                                                                <div className="flex justify-between items-start mb-1 gap-1">
-                                                                                    <span className="text-[7px] font-black bg-black/10 px-1 rounded text-slate-700 truncate max-w-[40px]">{getSubjectById(entry.subjectId)?.shortName || 'SUBJ'}</span>
-                                                                                    <span className="text-[7px] font-black bg-white/40 px-1 rounded text-slate-500 truncate" title="Assigned Level">{course.levels.find(l => String(l.id) === String(entry.courseLevelId || (entry as any).course_level_id))?.name || 'Class'}</span>
+                                                                            <div 
+                                                                                key={entry.id} 
+                                                                                draggable={!!onMoveLesson}
+                                                                                onDragStart={(e) => handleDragStart(e, entry)}
+                                                                                onDragEnd={handleDragEnd}
+                                                                                className={`flex-1 rounded-md p-1.5 shadow-sm border-l-2 transition-all group/card relative ${onMoveLesson ? 'cursor-grab active:cursor-grabbing hover:shadow-md hover:scale-[1.02]' : ''} ${isConflicting ? 'border-red-500 ring-1 ring-red-200' : 'border-black/10'}`} 
+                                                                                style={{ 
+                                                                                    backgroundColor: generatePastelColor(entry.subjectId),
+                                                                                    borderLeftColor: isConflicting ? '#ef4444' : generatePastelColor(entry.subjectId + 'border').replace('80%', '40%'),
+                                                                                    opacity: draggedEntryId === entry.id ? 0.4 : 1
+                                                                                }}
+                                                                            >
+                                                                                <div className="flex justify-between items-start mb-0.5">
+                                                                                    <span className="text-[8px] font-black text-slate-800/60 uppercase tracking-tighter truncate max-w-[30px]">{subject?.code}</span>
+                                                                                    <span className="text-[7px] font-mono bg-black/5 px-1 rounded text-slate-600 truncate">{room?.shortName || room?.name || 'N/R'}</span>
                                                                                 </div>
-                                                                                <div className="text-[10px] leading-tight text-slate-900 dark:text-white font-black uppercase tracking-tighter flex items-center justify-center gap-1">
-                                                                                    {isConflicting && <span title="Constraint Violation" className="text-red-600 text-[8px]">⚠️</span>}
-                                                                                    <span className="block text-center truncate">{subject?.name || 'N/A'}</span>
+                                                                                <div className="text-[10px] leading-none text-slate-900 font-black uppercase tracking-tighter mb-1 px-0.5 truncate">
+                                                                                    {subject?.name}
                                                                                 </div>
-                                                                                <div className="text-[9px] text-slate-600 font-bold mt-1 opacity-80 flex flex-col items-center">
-                                                                                    <span className="block whitespace-nowrap">{getInitials(lecturer?.name || '')} • {room?.shortName || room?.name}</span>
+                                                                                <div className="flex items-center justify-between mt-auto pt-0.5 border-t border-black/5">
+                                                                                    <span className="text-[7px] font-bold text-slate-500 uppercase truncate">{lecturer?.name?.split(' ').pop()}</span>
+                                                                                    {isConflicting && <span className="text-red-600 animate-pulse text-[8px]">⚠️</span>}
                                                                                 </div>
                                                                             </div>
                                                                         );
@@ -381,10 +435,159 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
         </div>
     );
 
+    const renderWeeklyLayout = () => (
+        <div className="animate-fade-in no-break border border-slate-200 dark:border-slate-800 rounded-[2rem] overflow-hidden bg-white dark:bg-slate-900 shadow-xl">
+            <div className="overflow-x-auto custom-scrollbar">
+                <table className="min-w-full border-collapse table-fixed">
+                    <thead>
+                        {/* Day Headers row */}
+                        <tr className="bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
+                            <th className="p-4 text-left text-[11px] font-black uppercase text-slate-500 tracking-[0.2em] border-r border-slate-200 dark:border-slate-800 w-32 sticky left-0 bg-slate-100 dark:bg-slate-950 z-30">
+                                Curriculum Map
+                            </th>
+                            {daysOfWeek.map(day => (
+                                <th key={day} colSpan={periodLabels.length} className="p-2 text-center text-[10px] font-black uppercase tracking-[0.3em] text-indigo-600 border-l border-slate-200 dark:border-slate-800 bg-indigo-50/30">
+                                    {day}
+                                </th>
+                            ))}
+                        </tr>
+                        {/* Periods row */}
+                        <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+                            <th className="sticky left-0 bg-slate-50 dark:bg-slate-900 z-30 border-r border-slate-200 dark:border-slate-800" />
+                            {daysOfWeek.map(day => (
+                                periodLabels.map((p, i) => (
+                                    <th key={`${day}-${i}`} className={`p-1 text-center text-[8px] font-black uppercase tracking-tighter border-l border-slate-100 dark:border-slate-800 w-24 ${p.isBreak ? 'text-slate-300' : 'text-slate-500'}`}>
+                                        <div className="flex flex-col items-center">
+                                            <span>{p.label}</span>
+                                            <span className="opacity-40 font-mono scale-90">{p.startTime.split(':')[0]}<sup>{p.startTime.split(':')[1]}</sup></span>
+                                        </div>
+                                    </th>
+                                ))
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {relevantCourses.flatMap(course => (course.levels || []).map(level => {
+                            if (!level) return null;
+                            const levelEntries = generatedTimetable.filter(e => 
+                                String(e.courseLevelId) === String(level.id) || String((e as any).course_level_id) === String(level.id)
+                            );
+
+                            return (
+                                <tr key={level.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors h-24">
+                                    <td className="p-3 sticky left-0 bg-white dark:bg-slate-900 z-20 border-r border-slate-100 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-tight">{level.name}</span>
+                                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{course.code}</span>
+                                        </div>
+                                    </td>
+                                    {daysOfWeek.map(day => {
+                                        const occupiedSlots = new Set<string>();
+                                        return periodLabels.map((period, periodIndex) => {
+                                            const slotKey = `${level.id}-${day}-${period.startTime}`;
+                                            if (occupiedSlots.has(period.startTime)) return null;
+
+                                            const periodStartMinutes = timeToMinutes(period.startTime);
+                                            const periodEndMinutes = timeToMinutes(period.endTime);
+                                            const slotEntries = levelEntries.filter(e =>
+                                                e.day === day &&
+                                                timeToMinutes(e.startTime) >= periodStartMinutes &&
+                                                timeToMinutes(e.startTime) < periodEndMinutes
+                                            );
+
+                                            if (period.isBreak) {
+                                                return (
+                                                    <td key={slotKey} className="p-0.5 border-l border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-950/20 text-center align-middle">
+                                                        <div className="w-1 h-full bg-slate-100 dark:bg-slate-800 mx-auto rounded-full" />
+                                                    </td>
+                                                );
+                                            }
+
+                                            if (slotEntries.length > 0) {
+                                                // Simplified colSpan logic for weekly view to keep it compact
+                                                let colSpan = 1; 
+                                                // (In true aSC style, cards usually fit in their assigned period box)
+
+                                                return (
+                                                    <td 
+                                                        key={slotKey} 
+                                                        colSpan={colSpan} 
+                                                        className={`p-0.5 border-l border-slate-100 dark:border-slate-800 relative group/slot transition-all duration-200 ${hoveredSlot?.levelId === level.id && hoveredSlot?.day === day && hoveredSlot?.startTime === period.startTime ? 'bg-indigo-50 ring-2 ring-inset ring-indigo-500' : ''}`}
+                                                        onDragOver={(e) => handleDragOver(e, String(level.id), day, period.startTime)}
+                                                        onDrop={(e) => handleDrop(e, String(level.id), day, period.startTime)}
+                                                    >
+                                                        <div className="flex h-full gap-0.5">
+                                                            {slotEntries.map(entry => {
+                                                                const subject = getSubjectById(entry.subjectId);
+                                                                const lecturer = getLecturerById(entry.lecturerId);
+                                                                const room = getRoomById(entry.roomId);
+                                                                const isConflicting = (timetableConflicts || []).some(c =>
+                                                                    c.day === day && c.conflictingEntries.some(ce => ce.id === entry.id)
+                                                                );
+
+                                                                return (
+                                                                    <div 
+                                                                        key={entry.id}
+                                                                        draggable={!!onMoveLesson}
+                                                                        onDragStart={(e) => handleDragStart(e, entry)}
+                                                                        onDragEnd={handleDragEnd}
+                                                                        className={`flex-1 rounded shadow-sm border-l-2 p-1 flex flex-col justify-between overflow-hidden transition-all ${onMoveLesson ? 'cursor-grab active:cursor-grabbing hover:scale-105 hover:z-50 hover:shadow-lg' : ''} ${isConflicting ? 'border-red-500 ring-1 ring-red-200' : 'border-black/10'}`}
+                                                                        style={{ 
+                                                                            backgroundColor: generatePastelColor(entry.subjectId),
+                                                                            borderLeftColor: isConflicting ? '#ef4444' : generatePastelColor(entry.subjectId + 'border').replace('80%', '40%'),
+                                                                            opacity: draggedEntryId === entry.id ? 0.3 : 1
+                                                                        }}
+                                                                        title={`${subject?.name}\n${lecturer?.name}\n${room?.name}`}
+                                                                    >
+                                                                        <div className="text-[9px] font-black text-slate-900 truncate tracking-tighter leading-none">{subject?.shortName || subject?.code}</div>
+                                                                        <div className="flex justify-between items-center mt-1">
+                                                                            <span className="text-[6px] font-bold text-slate-600 truncate max-w-[50%]">{room?.shortName || room?.name}</span>
+                                                                            <span className="text-[6px] font-mono font-bold text-slate-500">{getInitials(lecturer?.name || '')}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </td>
+                                                );
+                                            }
+
+                                            return (
+                                                <td 
+                                                    key={slotKey} 
+                                                    className={`p-0.5 border-l border-slate-100 dark:border-slate-800 transition-colors duration-150 ${hoveredSlot?.levelId === level.id && hoveredSlot?.day === day && hoveredSlot?.startTime === period.startTime ? 'bg-indigo-50 ring-2 ring-inset ring-indigo-500' : 'hover:bg-slate-50/50'}`}
+                                                    onDragOver={(e) => handleDragOver(e, String(level.id), day, period.startTime)}
+                                                    onDrop={(e) => handleDrop(e, String(level.id), day, period.startTime)}
+                                                />
+                                            );
+                                        })
+                                    })}
+                                </tr>
+                            );
+                        }))}
+                    </tbody>
+                </table>
+            </div>
+            <style jsx>{`
+                .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+                .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; }
+            `}</style>
+        </div>
+    );
+
     return (
         <div className="space-y-8">
             <div className="flex justify-between items-center no-print">
                 <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <button
+                        onClick={() => onLayoutModeChange('weekly')}
+                        className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${layoutMode === 'weekly' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-xl' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <RectangleStackIcon className="w-4 h-4" />
+                        Weekly Master
+                    </button>
                     <button
                         onClick={() => onLayoutModeChange('horizontal')}
                         className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${layoutMode === 'horizontal' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-xl' : 'text-slate-500 hover:text-slate-700'}`}
@@ -402,7 +605,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                 </div>
             </div>
 
-            {layoutMode === 'horizontal' ? renderHorizontalLayout() : renderVerticalLayout()}
+            {layoutMode === 'weekly' ? renderWeeklyLayout() : layoutMode === 'horizontal' ? renderHorizontalLayout() : renderVerticalLayout()}
 
             {relevantCourses.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-40 bg-white dark:bg-slate-800 rounded-[3rem] border-2 border-dashed border-slate-100 dark:border-slate-800 text-center opacity-40">
