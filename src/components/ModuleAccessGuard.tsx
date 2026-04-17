@@ -26,6 +26,9 @@ export const ModuleAccessGuard: React.FC<ModuleAccessGuardProps> = ({
     // Resellers are exempt from module-specific trials
     if (institution.institutionType === 'Reseller') return <>{children}</>;
 
+    // Demo institutions (simulators) are always active for testing
+    if (institution.id.startsWith('demo_')) return <>{children}</>;
+
     const moduleState = institution.moduleStates?.find(m => m.moduleId === moduleId);
 
     const isExpired = (state: InstitutionModuleState) => {

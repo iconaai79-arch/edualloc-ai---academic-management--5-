@@ -1500,32 +1500,103 @@ export const App: React.FC = () => {
            return false;
         });
 
-        // If no real institution, use a system demo one or create a temp one
+        // Use standard demo ID if no matching institution found
         const instId = targetInst?.id || `demo_${modId}`;
         
-        // Ensure the institution exists in state for AdminView to work
-        if (!targetInst) {
-             const demoInst: Institution = {
-                 id: instId,
-                 name: `Demo ${modId.charAt(0).toUpperCase() + modId.slice(1)} System`,
-                 email: `demo@${modId}.eduai.io`,
-                 phoneNumber: '+254700000000',
-                 institutionType: (modId === 'property' ? 'Property Management' : 
-                                  modId === 'his' ? 'HIS' : 
-                                  modId === 'legal' ? 'Legal' : 
-                                  modId === 'coop' ? 'Cooperative' : 
-                                  modId === 'campaign' ? 'Political Campaign' : 
-                                  modId === 'ds' ? 'Driving School' : 
-                                  modId === 'civil' ? 'Construction' : 
-                                  modId === 'logistics' ? 'Logistics' : 'Business') as any,
-                 category: (modId === 'fuel' ? 'Fuel Station' : 
-                            modId === 'retail' ? 'Retail' : 'General'),
-                 businessSubType: (modId === 'fuel' ? 'Fuel Station' : 
-                                   modId === 'retail' ? 'Retail' : 'General'),
-                 status: 'active',
-                 trialEndsAt: new Date(Date.now() + 86400000).toISOString()
-             };
-             setInstitutions(prev => [...prev.filter(i => i.id !== instId), demoInst]);
+        // Construct a fresh active configuration for the simulator
+        const demoConfig: Institution = {
+            id: instId,
+            name: targetInst?.name || `Demo ${modId.charAt(0).toUpperCase() + modId.slice(1)} System`,
+            email: targetInst?.email || `demo@${modId}.eduai.io`,
+            phoneNumber: targetInst?.phoneNumber || '+254700000000',
+            institutionType: targetInst?.institutionType || (
+                             modId === 'property' ? 'Property Management' : 
+                             modId === 'his' ? 'HIS' : 
+                             modId === 'legal' ? 'Legal' : 
+                             modId === 'coop' ? 'Cooperative' : 
+                             modId === 'campaign' ? 'Political Campaign' : 
+                             modId === 'ds' ? 'Driving School' : 
+                             modId === 'civil' ? 'Construction' : 
+                             modId === 'logistics' ? 'Logistics' : 'Business') as any,
+            category: targetInst?.category || (modId === 'fuel' ? 'Fuel Station' : 
+                       modId === 'retail' ? 'Retail' : 'General'),
+            businessSubType: targetInst?.businessSubType || (modId === 'fuel' ? 'Fuel Station' : 
+                              modId === 'retail' ? 'Retail' : 'General'),
+            status: 'active',
+            trialEndsAt: new Date(Date.now() + 86400000 * 30).toISOString(),
+            moduleStates: [
+                {
+                    moduleId: modId,
+                    status: 'active',
+                    subscriptionEndsAt: new Date(Date.now() + 86400000 * 365).toISOString()
+                }
+            ]
+        };
+
+        // Always update the institutions list to ensure it's reactivated in state
+        setInstitutions(prev => {
+            const listWithoutCurrent = prev.filter(i => i.id !== instId);
+            return [...listWithoutCurrent, demoConfig];
+        });
+        
+        // Generate Demo Data automagically for simulators
+        try {
+            const demoUserId = `demo_user_${instId}`;
+            const demoData = generateInstitutionalDemoData(instId, demoUserId);
+            
+            // Extract the table map from handleGenerateDemoData logic
+            const tableMap: Record<string, string> = {
+                departments: 'departments',
+                buildings: 'buildings',
+                rooms: 'rooms',
+                academicLevels: 'academic_levels',
+                academicYears: 'academic_years',
+                semesters: 'semesters',
+                users: 'users',
+                subjects: 'subjects',
+                courses: 'courses',
+                allocations: 'allocation_requests',
+                timetable: 'timetable_entries',
+                inventory: 'inventory',
+                visitors: 'visitors',
+                securityAlerts: 'security_alerts',
+                hisStaff: 'his_staff',
+                hisPatients: 'his_patients',
+                hisWards: 'his_wards',
+                hisBeds: 'his_beds',
+                hisAppointments: 'his_appointments',
+                hisAttendance: 'his_staff_attendance',
+                hisFinancials: 'his_financial_records',
+                hisVitals: 'his_vital_statistics',
+                hisEvents: 'his_clinical_events',
+                coopFarmers: 'coop_farmers',
+                coopCollections: 'coop_collections',
+                lawClients: 'law_clients',
+                lawMatters: 'law_matters',
+                pmProperties: 'property_management_properties',
+                pmUnits: 'property_management_units',
+                fuelTanks: 'fuel_tanks',
+                fuelPumps: 'fuel_pumps'
+            };
+
+            const dataKeys = Object.keys(demoData).filter(k => k !== 'institutionUpdates');
+            
+            // Process data generation in the background
+            Promise.all(dataKeys.map(async (key) => {
+                const records = (demoData as any)[key];
+                const tableName = tableMap[key] || key;
+                if (Array.isArray(records) && records.length > 0) {
+                    for (const record of records) {
+                        await apiService.saveModuleRecord(tableName, record);
+                    }
+                }
+            })).then(() => {
+                console.log(`[Simulator] Demo data seeded successfully for ${instId}`);
+                loadData();
+            });
+
+        } catch (err) {
+            console.error("[Simulator] Auto-generation of demo data failed:", err);
         }
 
         setTimeout(() => {
@@ -2244,7 +2315,15 @@ export const App: React.FC = () => {
                 hisAttendance: 'his_staff_attendance',
                 hisFinancials: 'his_financial_records',
                 hisVitals: 'his_vital_statistics',
-                hisEvents: 'his_clinical_events'
+                hisEvents: 'his_clinical_events',
+                coopFarmers: 'coop_farmers',
+                coopCollections: 'coop_collections',
+                lawClients: 'law_clients',
+                lawMatters: 'law_matters',
+                pmProperties: 'property_management_properties',
+                pmUnits: 'property_management_units',
+                fuelTanks: 'fuel_tanks',
+                fuelPumps: 'fuel_pumps'
             };
 
             const dataKeys = Object.keys(demoData).filter(k => k !== 'institutionUpdates');
@@ -2839,7 +2918,7 @@ export const App: React.FC = () => {
                 />
             );
         }
-        if (!currentUser.passwordLastUpdated) {
+        if (!currentUser.passwordLastUpdated && !currentUser.id.startsWith('demo_') && !currentUser.id.startsWith('temp_admin_')) {
             return <MandatoryUpdateView user={currentUser} onUpdate={async (pData, passData) => {
                 try {
                     const updated = { ...currentUser, ...pData, password: passData.newPassword, passwordLastUpdated: new Date().toISOString() };

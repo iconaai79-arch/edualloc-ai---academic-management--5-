@@ -127,6 +127,50 @@ export const generateInstitutionalDemoData = (instId: string, adminId: string) =
         { id: `his_e3_${instId}`, patientId: hisPatients[0].id, date: 'Sep 15', time: '09:00', event: 'General Consultation', dept: 'OPD', provider: 'Dr. Jane', institutionId: instId }
     ];
 
+    // 9. Cooperative & Farming Data
+    const coopFarmers: any[] = [
+        { id: `f_1_${instId}`, name: 'Samuel Mwangi', phone: '+254711223344', location: 'Nyeri North', farmSize: 5.5, institutionId: instId, status: 'active', createdAt: todayStr },
+        { id: `f_2_${instId}`, name: 'Grace Atieno', phone: '+254722334455', location: 'Kisumu Sub-county', farmSize: 3.2, institutionId: instId, status: 'active', createdAt: todayStr }
+    ];
+
+    const coopCollections: any[] = [
+        { id: `coll_1_${instId}`, farmerId: coopFarmers[0].id, quantity: 45.5, unit: 'kg', type: 'Milk', pricePerUnit: 48, totalAmount: 2184, status: 'confirmed', date: todayStr, institutionId: instId },
+        { id: `coll_2_${instId}`, farmerId: coopFarmers[1].id, quantity: 120.0, unit: 'kg', type: 'Maize', pricePerUnit: 35, totalAmount: 4200, status: 'pending', date: todayStr, institutionId: instId }
+    ];
+
+    // 10. Law Firm & Matter Management Data
+    const lawClients: any[] = [
+        { id: `lc_1_${instId}`, name: 'Alpha Corp Ltd', industry: 'Real Estate', contactPerson: 'John Doe', email: 'legal@alphacorp.com', institutionId: instId, createdAt: todayStr },
+        { id: `lc_2_${instId}`, name: 'Estate of Peter Pan', industry: 'Private', contactPerson: 'Wendy Darling', email: 'wendy@neverland.com', institutionId: instId, createdAt: todayStr }
+    ];
+
+    const lawMatters: any[] = [
+        { id: `lm_1_${instId}`, clientId: lawClients[0].id, title: 'Land Acquisition - Runda Phase 2', caseNumber: 'MAT-2025-001', status: 'Active', category: 'Conveyancing', institutionId: instId, openDate: todayStr },
+        { id: `lm_2_${instId}`, clientId: lawClients[1].id, title: 'Probate & Administration', caseNumber: 'MAT-2025-002', status: 'Pending', category: 'Succession', institutionId: instId, openDate: todayStr }
+    ];
+
+    // 11. Property Management Data
+    const pmProperties: any[] = [
+        { id: `prop_1_${instId}`, name: 'Serene Heights', location: 'Kileleshwa', type: 'Residential', totalUnits: 24, institutionId: instId, createdAt: todayStr },
+        { id: `prop_2_${instId}`, name: 'Capital Plaza', location: 'Upper Hill', type: 'Commercial', totalUnits: 15, institutionId: instId, createdAt: todayStr }
+    ];
+
+    const pmUnits: any[] = [
+        { id: `unit_A1_${instId}`, propertyId: pmProperties[0].id, unitNumber: 'A1', type: '3 Bedroom', rentAmount: 85000, status: 'Occupied', institutionId: instId },
+        { id: `unit_B2_${instId}`, propertyId: pmProperties[0].id, unitNumber: 'B2', type: '2 Bedroom', rentAmount: 65000, status: 'Vacant', institutionId: instId }
+    ];
+
+    // 12. Fuel Station Data
+    const fuelTanks: any[] = [
+        { id: `tank_p_${instId}`, name: 'Petrol Main', fuelType: 'Petrol', capacityLiters: 20000, currentLevelLiters: 14500, institutionId: instId, createdAt: todayStr },
+        { id: `tank_d_${instId}`, name: 'Diesel North', fuelType: 'Diesel', capacityLiters: 15000, currentLevelLiters: 4200, institutionId: instId, createdAt: todayStr }
+    ];
+
+    const fuelPumps: any[] = [
+        { id: `pump_1_${instId}`, tankId: fuelTanks[0].id, pumpNumber: 'P01', status: 'active', institutionId: instId, createdAt: todayStr },
+        { id: `pump_2_${instId}`, tankId: fuelTanks[1].id, pumpNumber: 'D02', status: 'active', institutionId: instId, createdAt: todayStr }
+    ];
+
     return {
         departments: depts,
         buildings: [bldg],
@@ -151,6 +195,17 @@ export const generateInstitutionalDemoData = (instId: string, adminId: string) =
         hisFinancials,
         hisVitals,
         hisEvents,
+        
+        // Extended Industrial Data
+        coopFarmers,
+        coopCollections,
+        lawClients,
+        lawMatters,
+        pmProperties,
+        pmUnits,
+        fuelTanks,
+        fuelPumps,
+
         institutionUpdates: {
             scheduleProfiles: DEFAULT_SECONDARY_PROFILES,
             timetableSettings: INITIAL_TIMETABLE_SETTINGS,
