@@ -1,10 +1,11 @@
 
 import React, { useState, useMemo } from 'react';
-import type { Building, Room, TimetableEntry, TimetableSettings, LetterheadConfig } from '../types';
+import type { Building, Room, TimetableEntry, TimetableSettings, LetterheadConfig, Course } from '../types';
 import { timeToMinutes } from '../utils/timeUtils';
 import { PrinterIcon } from './icons/PrinterIcon';
 import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 import { EyeIcon } from './icons/EyeIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
 
 import { generateRoomUtilizationPdf } from '../services/pdfService';
 
