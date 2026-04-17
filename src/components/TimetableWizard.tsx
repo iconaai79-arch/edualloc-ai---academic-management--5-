@@ -43,7 +43,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
     timeOffRequests, onTimetableGenerated, onNavigateToSettings, onLogAction
 }) => {
     const [step, setStep] = useState(1);
-    const [mode, setMode] = useState<'ai' | 'standard'>('ai');
+    const [mode, setMode] = useState<'ai' | 'flash' | 'standard'>('ai');
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [notifications, setNotifications] = useState<string[]>([]);
@@ -98,7 +98,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
             try {
                 let result: any[] = [];
 
-                if (mode === 'ai') {
+                if (mode === 'ai' || mode === 'flash') {
                     const { entries, notifications: resultNotifications } = await generateTimetable(
                         allocations.filter(a => a.status === 'approved'),
                         subjects,
@@ -109,7 +109,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                         courses,
                         timeOffRequests,
                         currentInstitution?.scheduleProfiles || [],
-                        'premium',
+                        mode === 'ai' ? 'premium' : 'standard',
                         currentInstitution
                     );
                     result = entries;
@@ -303,24 +303,36 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                             <p className="text-sm text-slate-500 dark:text-slate-400">Select your engine and start the generation process.</p>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <button
                                 onClick={() => setMode('ai')}
-                                className={`p-6 rounded-2xl border-2 text-center transition-all ${mode === 'ai' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-200'}`}
+                                className={`p-6 rounded-3xl border-2 text-center transition-all relative overflow-hidden ${mode === 'ai' ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-800 hover:border-indigo-200'}`}
                             >
+                                {mode === 'ai' && <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[8px] px-3 py-1 font-black uppercase tracking-widest rounded-bl-xl">Selected</div>}
                                 <SparklesIcon className={`w-8 h-8 mx-auto mb-3 ${mode === 'ai' ? 'text-indigo-600' : 'text-slate-400'}`} />
-                                <h5 className={`font-bold ${mode === 'ai' ? 'text-indigo-700' : 'text-slate-600 dark:text-slate-300'}`}>AI Neural Engine (Gemini 3.0 Pro)</h5>
-                                <p className="text-[10px] text-slate-400 mt-1 italic text-indigo-500 font-bold uppercase tracking-tight">Enterprise Logical Core</p>
-                                <p className="text-[10px] text-slate-400 mt-1">Best for complex, constraint-heavy schedules. Optimizes for conflict resolution.</p>
+                                <h5 className={`font-black text-xs uppercase tracking-tight ${mode === 'ai' ? 'text-indigo-700' : 'text-slate-600 dark:text-slate-300'}`}>AI Premium Engine</h5>
+                                <p className="text-[11px] font-black text-indigo-500 uppercase tracking-tighter mb-2">Gemini 3.0 Pro</p>
+                                <p className="text-[10px] text-slate-400 leading-relaxed">Best for complex, constraint-heavy schedules. Deep logical reasoning.</p>
                             </button>
 
                             <button
-                                onClick={() => setMode('standard')}
-                                className={`p-6 rounded-2xl border-2 text-center transition-all ${mode === 'standard' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-200'}`}
+                                onClick={() => setMode('flash')}
+                                className={`p-6 rounded-3xl border-2 text-center transition-all relative overflow-hidden ${mode === 'flash' ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-800 hover:border-indigo-200'}`}
                             >
-                                <CommandLineIcon className={`w-8 h-8 mx-auto mb-3 ${mode === 'standard' ? 'text-indigo-600' : 'text-slate-400'}`} />
-                                <h5 className={`font-bold ${mode === 'standard' ? 'text-indigo-700' : 'text-slate-600 dark:text-slate-300'}`}>Standard Algorithm</h5>
-                                <p className="text-[10px] text-slate-400 mt-1">Faster, deterministic generation. Best for simple, linear schedules.</p>
+                                {mode === 'flash' && <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[8px] px-3 py-1 font-black uppercase tracking-widest rounded-bl-xl">Selected</div>}
+                                <ArrowPathIcon className={`w-8 h-8 mx-auto mb-3 ${mode === 'flash' ? 'text-indigo-600' : 'text-slate-400'}`} />
+                                <h5 className={`font-black text-xs uppercase tracking-tight ${mode === 'flash' ? 'text-indigo-700' : 'text-slate-600 dark:text-slate-300'}`}>AI Standard Engine</h5>
+                                <p className="text-[11px] font-black text-indigo-500 uppercase tracking-tighter mb-2">Gemini 3.0 Flash</p>
+                                <p className="text-[10px] text-slate-400 leading-relaxed">High-speed intelligent generation. 90% accuracy with extreme velocity.</p>
+                            </button>
+                        </div>
+
+                        <div className="flex justify-center">
+                            <button
+                                onClick={() => setMode('standard')}
+                                className={`text-[10px] font-black uppercase tracking-[0.2em] transition-all px-6 py-2 rounded-full border ${mode === 'standard' ? 'bg-slate-900 text-white border-slate-900' : 'text-slate-400 border-slate-100 hover:bg-slate-50'}`}
+                            >
+                                Use Legacy Procedural Algorithm
                             </button>
                         </div>
 
@@ -330,7 +342,9 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                         {isGenerating && (
                             <div className="flex flex-col items-center justify-center py-4 animate-pulse">
                                 <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Gemini 3.0 Pro is Processing Logic Matrix...</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600">
+                                    {mode === 'ai' ? 'Gemini 3.0 Pro' : mode === 'flash' ? 'Gemini 3.0 Flash' : 'Legacy Engine'} is Processing Logic Matrix...
+                                </p>
                             </div>
                         )}
                     </div>
