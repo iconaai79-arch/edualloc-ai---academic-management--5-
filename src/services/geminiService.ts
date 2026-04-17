@@ -226,8 +226,8 @@ export const generateTimetable = async (
             courseProfileId: c.scheduleProfileId 
         })));
         
-        // BATCHING STRATEGY: 3 levels per pass ensures high fidelity and avoids output truncation
-        const BATCH_SIZE = 3;
+        // BATCHING STRATEGY: 2 levels per pass ensures maximum focus and avoids output truncation
+        const BATCH_SIZE = 2;
         const cohorts: any[][] = [];
         for (let i = 0; i < allLevels.length; i += BATCH_SIZE) {
             cohorts.push(allLevels.slice(i, i + BATCH_SIZE));
@@ -236,52 +236,61 @@ export const generateTimetable = async (
         let allGeneratedEntries: any[] = [];
         const modelTier = aiModelTier === 'premium' ? 'pro' : 'flash';
 
-        console.log(`[Batch Engine] Initializing generation sequence for ${allLevels.length} levels in ${cohorts.length} passes...`);
+        console.log(`[Batch Engine] Sequence Initialized: ${allLevels.length} levels, ${cohorts.length} passes expected.`);
 
         for (let i = 0; i < cohorts.length; i++) {
             const currentCohort = cohorts[i];
             const cohortLevelIds = currentCohort.map(l => l.id);
             
-            // Extract allocations for this batch only
-            const cohortAllocations = allocations.filter(a => 
-                (a.courseLevelIds || []).some(lid => cohortLevelIds.includes(lid))
-            ).map(a => ({
+            // Comprehensive Allocation Extraction
+            const cohortAllocations = allocations.filter(a => {
+                const levelIds = a.courseLevelIds || [];
+                const targetId = (a as any).targetCourseLevelId;
+                return levelIds.some(lid => cohortLevelIds.includes(lid)) || cohortLevelIds.includes(targetId);
+            }).map(a => ({
                 subjectId: a.subjectId,
                 lecturerId: a.lecturerId,
-                courseLevelIds: (a.courseLevelIds || []).filter(lid => cohortLevelIds.includes(lid))
+                levelIds: (a.courseLevelIds || []).filter(lid => cohortLevelIds.includes(lid)).length > 0 
+                           ? (a.courseLevelIds || []).filter(lid => cohortLevelIds.includes(lid))
+                           : [(a as any).targetCourseLevelId].filter(id => cohortLevelIds.includes(id))
             }));
 
-            if (cohortAllocations.length === 0) continue;
+            if (cohortAllocations.length === 0) {
+                console.log(`[Batch Engine] Pass ${i+1}: No allocations found for ${currentCohort.map(l => l.name).join(', ')}. Skipping.`);
+                continue;
+            }
+
+            // High-Density Constraint Compression
+            const committedContext = allGeneratedEntries.map(e => 
+                `${e.day}|${e.startTime}|${e.endTime}|L:${e.lecturerId}|R:${e.roomId}`
+            ).join('; ');
 
             const prompt = `
-                ROLE: Master Academic Scheduling Architect (Sequence ${i + 1} of ${cohorts.length})
-                MISSION: Generate a PERFECT, COMPLETED timetable for Grades: ${currentCohort.map(l => l.name).join(', ')}.
+                ROLE: Master Academic Scheduling Architect (Pass ${i + 1} of ${cohorts.length})
+                MISSION: Schedule 100% of these allocations for Grades: ${currentCohort.map(l => l.name).join(', ')}.
                 
-                RESOURCES:
-                - Target Levels: ${JSON.stringify(currentCohort.map(l => ({ id: l.id, name: l.name, roomId: l.roomId })))}
+                RESOURCES & ALLOCATIONS:
+                - Levels: ${JSON.stringify(currentCohort.map(l => ({ id: l.id, name: l.name, roomId: l.roomId })))}
                 - Assignments: ${JSON.stringify(cohortAllocations)}
-                - Subject Registry: ${JSON.stringify(subjects.map(s => ({ id: s.id, name: s.name, structure: s.lessonStructure, room: s.roomId })))}
-                - Faculty Registry: ${JSON.stringify(lecturers.map(u => ({ id: u.id, name: u.name })))}
-                - Facilities Registry: ${JSON.stringify(rooms.map(r => ({ id: r.id, name: r.name, cap: r.capacity })))}
+                - Subjects: ${JSON.stringify(subjects.map(s => ({ id: s.id, name: s.name, structure: s.lessonStructure, room: s.roomId })))}
+                - Faculty: ${JSON.stringify(lecturers.map(u => ({ id: u.id, name: u.name })))}
+                - Facilities: ${JSON.stringify(rooms.map(r => ({ id: r.id, name: r.name, cap: r.capacity })))}
                 
                 TEMPORAL ARCHITECTURE:
-                - Profile Library: ${JSON.stringify(profiles.map(p => ({ id: p.id, slots: p.periods, breaks: p.breaks })))}
                 - Global Params: ${JSON.stringify({ start: settings.startTime, end: settings.endTime, days: settings.operatingDays })}
+                - Profiles: ${JSON.stringify(profiles.map(p => ({ id: p.id, slots: p.periods, breaks: p.breaks })))}
 
-                *** MANDATORY NON-CONFLICT CONSTRAINTS (ALREADY SCHEDULED): ***
-                The following resources are LOCKED by previous passes. You MUST NOT use these lecturers or rooms at these times:
-                - COMMITTED: ${JSON.stringify(allGeneratedEntries.map(e => ({ 
-                    d: e.day, s: e.startTime, e: e.endTime, l: e.lecturerId, r: e.roomId 
-                }))).substring(0, 15000)}
+                *** NON-NEGOTIABLE CONSTRAINTS (ALREADY COMMITTED): ***
+                The following sessions are LOCKED. You MUST NOT schedule any lesson in this batch that overlaps with these resources (Day, Start, Lecturer, or Room):
+                - COMMITTED: ${committedContext.substring(0, 100000)}
 
-                CORE ARCHITECTURAL DIRECTIVES:
-                1. 100% COMPLETION: Fulfill every period*count for every level in this cohort. No exceptions.
-                2. RESOURCE SEPARATION: Zero overlap with COMMITTED slots.
-                3. SEQUENTIAL LOGIC: Double periods (periods > 1) MUST be consecutive.
+                DIRECTIVES:
+                1. FULL FULFILLMENT: You MUST generate (periods * count) entries for every single allocation in this cohort.
+                2. ZERO OVERLAP: No collisions with COMMITTED sessions.
+                3. COHORT FOCUS: ONLY return JSON for the ${currentCohort.map(l => l.name).join(', ')} cohort.
                 
                 OUTPUT:
-                - JSON Array: { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }.
-                - Only return NEW entries.
+                - Return a flat JSON Array: { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }.
             `;
 
             const response = await safeGenerateContent(prompt, { 
