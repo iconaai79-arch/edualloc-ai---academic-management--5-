@@ -222,7 +222,11 @@ export const generateTimetable = async (
             Task: Architect a precise, conflict-free academic timetable matrix.
             
             Contextual Inputs:
-            - Approved Instructional Allocations: ${JSON.stringify(allocations.map(a => ({ subjectId: a.subjectId, coordinatorId: a.lecturerId, targetGrades: a.courseLevelIds })))}
+            - Approved Instructional Allocations: ${JSON.stringify(allocations.flatMap(a => (a.courseLevelIds || []).map(lid => ({
+                subjectId: a.subjectId,
+                coordinatorId: a.lecturerId,
+                targetGradeId: lid
+            }))))}
             - Subject Specification Registry: ${JSON.stringify(subjects.map(s => ({ id: s.id, code: s.code, name: s.name, intendedStructure: s.lessonStructure })))}
             - Faculty Resource Registry: ${JSON.stringify(lecturers.map(u => ({ id: u.id, name: u.name })))}
             - Spatial Assets (Rooms): ${JSON.stringify(rooms.map(r => ({ id: r.id, name: r.name, cap: r.capacity })))}
@@ -261,7 +265,8 @@ export const generateTimetable = async (
             STRICT ARCHITECTURAL DIRECTIVES:
             1. GRADE COVERAGE (ZERO EXCLUSION):
                - EVERY Grade/Level defined in the hierarchy MUST have its assigned subjects scheduled according to their intendedStructure.
-               - DO NOT omit any grade that has valid allocations.
+               - Separate requirements (targetGradeId) derived from the same allocation MUST be scheduled at DIFFERENT times if they share the same lecturer, unless they are explicitly merged (which is not permitted here).
+               - "Teacher AGR on 4N and 4S" means two SEPARATE lessons at DIFFERENT times.
             
             2. INSTITUTIONAL SPECIALIZATION:
                ${institution?.category === 'Primary' ? `
