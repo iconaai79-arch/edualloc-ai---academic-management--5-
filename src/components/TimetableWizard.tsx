@@ -17,6 +17,7 @@ import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
 import { RectangleStackIcon } from './icons/RectangleStackIcon';
 import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
 
 interface TimetableWizardProps {
     onClose?: () => void;
