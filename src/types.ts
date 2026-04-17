@@ -990,6 +990,7 @@ export interface Conflict {
     day: string;
     startTime: string;
     conflictingEntries: TimetableEntry[];
+    message?: string;
 }
 
 export interface ExtensionRequest {

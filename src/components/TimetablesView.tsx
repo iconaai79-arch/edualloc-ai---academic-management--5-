@@ -372,7 +372,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                     getLecturerById,
                     getRoomById,
                     false,
-                    layoutMode
+                    layoutMode === 'horizontal' ? 'horizontal' : 'vertical'
                 );
             }
 
