@@ -75,16 +75,16 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
     }, [rooms, lecturers, subjects, courses]);
 
     const workloadStatus = useMemo(() => {
-            const pending = allocations.filter(a => a.status === 'pending' || a.status === 'hod_approved').length;
-            const approvedAllocations = allocations.filter(a => a.status === 'approved');
-            const approvedPeriods = approvedAllocations.reduce((sum, a) => {
-                const subject = subjects.find(s => s.id === a.subjectId);
-                const periods = subject?.lessonStructure?.reduce((s, ls) => s + (ls.periods || 0) * (ls.count || 0), 0) || 0;
-                const streams = (a.courseLevelIds || []).length || 1;
-                return sum + (periods * streams);
-            }, 0);
-            return { approved: approvedAllocations.length, pending, approvedPeriods };
-        }, [allocations, subjects]);
+        const pending = allocations.filter(a => a.status === 'pending').length;
+        const approvedAllocations = allocations.filter(a => a.status === 'approved' || a.status === 'hod_approved');
+        const approvedPeriods = approvedAllocations.reduce((sum, a) => {
+            const subject = subjects.find(s => s.id === a.subjectId);
+            const periods = subject?.lessonStructure?.reduce((s: number, ls: any) => s + (ls.periods || 0) * (ls.count || 0), 0) || 0;
+            const streams = (a.courseLevelIds || []).length || 1;
+            return sum + (periods * streams);
+        }, 0);
+        return { approved: approvedAllocations.length, pending, approvedPeriods };
+    }, [allocations, subjects]);
 
         const canProceedStep1 = contextStatus.year && contextStatus.semester && contextStatus.settings;
         const canProceedStep2 = resourceStatus.rooms > 0 && resourceStatus.lecturers > 0 && resourceStatus.subjects > 0;
@@ -267,30 +267,45 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                         </div>
                     )}
 
-                    {step === 3 && (
-                        <div className="space-y-6 animate-fade-in">
-                            <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">3. Registry Load Check</h4>
+                            {step === 3 && (
+                                <div className="space-y-6 animate-fade-in">
+                                    <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">3. Registry Load Check</h4>
 
-                            <div className="flex flex-col gap-4">
-                                <div className="flex justify-between items-center p-5 bg-white dark:bg-slate-800 border-2 border-green-100 dark:border-green-900 rounded-2xl">
-                                    <div>
-                                        <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Ready for Scheduling</p>
-                                        <p className="text-3xl font-black text-green-600 dark:text-green-400 mt-1">{workloadStatus.approved}</p>
-                                        <p className="text-[10px] text-slate-400 uppercase tracking-widest text-indigo-500 font-black">{workloadStatus.approvedPeriods} Total Periods</p>
-                                        <p className="text-[10px] text-slate-400 uppercase tracking-widest">Approved Allocations</p>
+                                    <div className="flex flex-col gap-4">
+                                        <div className="flex justify-between items-center p-5 bg-white dark:bg-slate-800 border-2 border-green-100 dark:border-green-900 rounded-2xl">
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Ready for Scheduling</p>
+                                                <p className="text-3xl font-black text-green-600 dark:text-green-400 mt-1">{workloadStatus.approved}</p>
+                                                <p className="text-[10px] text-indigo-500 font-black uppercase tracking-widest">{workloadStatus.approvedPeriods} Total Periods</p>
+                                                <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Approved & HOD Approved</p>
+                                            </div>
+                                            <CheckCircleIcon className="w-10 h-10 text-green-500 opacity-20" />
+                                        </div>
+
+                                        {/* CRITICAL: Workload Leak Diagnostic */}
+                                        {allocations.filter(a => (a.status === 'approved' || a.status === 'hod_approved') && (!subjects.find(s => s.id === a.subjectId)?.lessonStructure || (subjects.find(s => s.id === a.subjectId)?.lessonStructure?.length || 0) === 0)).length > 0 && (
+                                            <div className="p-5 bg-rose-50 dark:bg-rose-900/20 border-2 border-rose-100 dark:border-rose-800 rounded-2xl flex items-start gap-4 animate-shake">
+                                                <div className="p-2 bg-rose-100 dark:bg-rose-900 rounded-xl text-rose-600">
+                                                    <ExclamationTriangleIcon className="w-6 h-6" />
+                                                </div>
+                                                <div>
+                                                    <h5 className="text-sm font-black text-rose-800 dark:text-rose-200 uppercase tracking-tight">Workload Leak Detected</h5>
+                                                    <p className="text-xs text-rose-700 dark:text-rose-300 mt-1">
+                                                        {allocations.filter(a => (a.status === 'approved' || a.status === 'hod_approved') && (!subjects.find(s => s.id === a.subjectId)?.lessonStructure || (subjects.find(s => s.id === a.subjectId)?.lessonStructure?.length || 0) === 0)).length} Subjects have <span className="underline font-bold">0 periods</span> defined in their structure. They will not be scheduled.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="flex justify-between items-center p-5 bg-white dark:bg-slate-800 border-2 border-yellow-100 dark:border-yellow-900 rounded-2xl opacity-60">
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Still Pending</p>
+                                                <p className="text-3xl font-black text-yellow-600 dark:text-yellow-400 mt-1">{workloadStatus.pending}</p>
+                                                <p className="text-[10px] text-slate-400 uppercase tracking-widest">Excluded from generation</p>
+                                            </div>
+                                            <ExclamationTriangleIcon className="w-10 h-10 text-yellow-500 opacity-20" />
+                                        </div>
                                     </div>
-                                    <CheckCircleIcon className="w-10 h-10 text-green-500 opacity-20" />
-                                </div>
-
-                            <div className="flex justify-between items-center p-5 bg-white dark:bg-slate-800 border-2 border-yellow-100 dark:border-yellow-900 rounded-2xl">
-                                <div>
-                                    <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Pending Approval</p>
-                                    <p className="text-3xl font-black text-yellow-600 dark:text-yellow-400 mt-1">{workloadStatus.pending}</p>
-                                    <p className="text-[10px] text-slate-400 uppercase tracking-widest">Excluded from generation</p>
-                                </div>
-                                <ExclamationTriangleIcon className="w-10 h-10 text-yellow-500 opacity-20" />
-                            </div>
-                        </div>
 
                         {!canProceedStep3 && <p className="text-center text-xs text-red-500 font-bold uppercase tracking-widest mt-2">No approved allocations found. Go to 'Registry' to approve requests.</p>}
                         {workloadStatus.pending > 0 && <p className="text-center text-xs text-yellow-600 font-bold uppercase tracking-widest mt-2">Note: Only approved allocations will be scheduled.</p>}
