@@ -1337,6 +1337,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                 <th className="px-8 py-5 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">System</th>
                                 <th className="px-8 py-5 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Profile</th>
                                 <th className="px-8 py-5 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Count</th>
+                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Workload</th>
                                 <th className="px-8 py-5 text-right text-[10px] font-black text-slate-500 uppercase tracking-widest">Actions</th>
                             </tr>
                         </thead>
@@ -1367,6 +1368,21 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                             <div className="flex flex-col">
                                                 <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">{(course.levels || []).length} {streamOrLevelLabelPlural}</span>
                                                 <span className="text-[10px] text-slate-400">{[...new Set((course.levels || []).flatMap(l => l.subjectIds || []))].length} Units</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-5 whitespace-nowrap">
+                                            <div className="flex flex-col">
+                                                <span className="text-[11px] font-black text-indigo-600 dark:text-indigo-400">
+                                                    {Math.max(0, ...(course.levels || []).map(l => 
+                                                        (l.subjectIds || []).reduce((acc, sid) => {
+                                                            const s = subjectMap.get(sid);
+                                                            const meta = (l.subjectMetadata || []).find(m => m.subjectId === sid);
+                                                            const structure = meta?.lessonStructure || s?.lessonStructure || [];
+                                                            return acc + structure.reduce((sum, ls) => sum + (ls.periods || 0) * (ls.count || 0), 0);
+                                                        }, 0)
+                                                    ))} Pds/wk
+                                                </span>
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Max Load</span>
                                             </div>
                                         </td>
                                         <td className="px-8 py-5 whitespace-nowrap text-right">
@@ -1722,7 +1738,18 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                                     .filter(l => l.courseId === managingLessonsForCourse.id)
                                                     .filter(l => !managingLessonsForStreamId || l.levelId === managingLessonsForStreamId),
                                                 pathwayConstraints
-                                            )} Total
+                                            )} Units
+                                        </span>
+                                        <span className="bg-slate-900 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                                            {(() => {
+                                                const targetLessons = lessonsList
+                                                    .filter(l => l.courseId === managingLessonsForCourse.id)
+                                                    .filter(l => !managingLessonsForStreamId || l.levelId === managingLessonsForStreamId);
+                                                return targetLessons.reduce((acc, l) => {
+                                                    const structure = l.structureSource || [];
+                                                    return acc + structure.reduce((sum: number, ls: any) => sum + (ls.periods || 0) * (ls.count || 0), 0);
+                                                }, 0);
+                                            })()} Pds Workload
                                         </span>
                                     </div>
                                 </div>
