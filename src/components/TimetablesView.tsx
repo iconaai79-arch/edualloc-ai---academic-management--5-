@@ -535,10 +535,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                                 className="form-select text-[10px] font-black uppercase tracking-widest h-11 lg:min-w-40"
                             >
                                 <option value="all">All {isSchool ? 'Grades' : 'Courses'}</option>
-                                {(() => {
-                                    const allocatedCourseIds = new Set(allocations.map(a => a.courseId).filter(Boolean));
-                                    return (courses || []).filter(c => allocatedCourseIds.has(c.id)).map(c => c && <option key={c.id} value={c.id}>{c.name}</option>);
-                                })()}
+                                {(courses || []).map(c => c && <option key={c.id} value={c.id}>{c.name}</option>)}
                             </select>
 
                             {selectedCourseForMasterView !== 'all' && (
@@ -550,8 +547,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                                     <option value="all">All {isSchool ? 'Streams' : 'Levels'}</option>
                                     {(() => {
                                         const course = (courses || []).find(c => c && c.id === selectedCourseForMasterView);
-                                        const allocatedLevelIds = new Set(allocations.filter(a => a.courseId === selectedCourseForMasterView).flatMap(a => a.courseLevelIds || []));
-                                        return (course?.levels || []).filter(l => allocatedLevelIds.has(l.id)).map(l => l && <option key={l.id} value={l.id}>{l.name}</option>);
+                                        return (course?.levels || []).map(l => l && <option key={l.id} value={l.id}>{l.name}</option>);
                                     })()}
                                 </select>
                             )}

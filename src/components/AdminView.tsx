@@ -378,7 +378,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station'>('dashboard');
 
-    const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects' | 'registry'>('wizard');
+    const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'registry'>('wizard');
+    const [coursesSubTab, setCoursesSubTab] = useState<'registry' | 'calendar' | 'subjects' | 'settings'>('registry');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
     const [requestedSettingsTab, setRequestedSettingsTab] = useState<string | undefined>(undefined);
     const [isPerspectiveModalOpen, setIsPerspectiveModalOpen] = useState(false);
@@ -940,8 +941,6 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit">
                             <button onClick={() => setTimetableSubTab('wizard')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timetableSubTab === 'wizard' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Wizard</button>
                             <button onClick={() => setTimetableSubTab('scheduler')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timetableSubTab === 'scheduler' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Lesson Scheduler</button>
-                            <button onClick={() => setTimetableSubTab('calendar')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timetableSubTab === 'calendar' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Academic Calendar</button>
-                            <button onClick={() => setTimetableSubTab('subjects')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timetableSubTab === 'subjects' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Subject Registry</button>
                             <button onClick={() => setTimetableSubTab('registry')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timetableSubTab === 'registry' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>
                                 Registry
                                 {stats.totalActionable > 0 && (
@@ -970,25 +969,14 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     onTimetableGenerated={props.onTimetableGenerated as any}
                                     onLogAction={props.onLogAction}
                                     onNavigateToSettings={(tab) => {
-                                        if (tab === 'calendar') {
-                                            setTimetableSubTab('calendar');
+                                        if (tab === 'calendar' || tab === 'academic_settings') {
+                                            setActiveTab('courses');
+                                            setCoursesSubTab(tab === 'calendar' ? 'calendar' : 'settings');
                                         } else {
                                             setActiveTab('settings');
                                             if (tab) setRequestedSettingsTab(tab);
                                         }
                                     }}
-                                />
-                            ) : timetableSubTab === 'calendar' ? (
-                                <AcademicYearManager
-                                    academicYears={props.academicYears || []}
-                                    semesters={props.semesters || []}
-                                    onAddAcademicYear={props.onAddAcademicYear}
-                                    onUpdateAcademicYear={props.onUpdateAcademicYear}
-                                    onDeleteAcademicYear={props.onDeleteAcademicYear}
-                                    onAddSemester={props.onAddSemester}
-                                    onUpdateSemester={props.onUpdateSemester}
-                                    onDeleteSemester={props.onDeleteSemester}
-                                    currentInstitution={props.currentInstitution}
                                 />
                             ) : timetableSubTab === 'scheduler' ? (
                                 <TimetablesView
@@ -1015,18 +1003,6 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     currentInstitution={props.currentInstitution}
                                     onMoveTimetableEntry={props.onMoveTimetableEntry}
                                     onLogAction={props.onLogAction}
-                                />
-                            ) : timetableSubTab === 'subjects' ? (
-                                <SubjectManager
-                                    {...props}
-                                    onAddSubject={props.onAddSubject}
-                                    onUpdateSubject={props.onUpdateSubject}
-                                    onDeleteSubject={props.onDeleteSubject}
-                                    onEditSubject={props.onEditSubject}
-                                    onSaveTimetableSettings={props.onSaveTimetableSettings!}
-                                    onUpdateCourse={props.onUpdateCourse}
-                                    onImportSubjectsAndAssociate={props.onImportSubjectsAndAssociate}
-                                    currentUser={props.currentUser}
                                 />
                             ) : timetableSubTab === 'registry' ? (
                                 <InteractionsManager
@@ -1100,19 +1076,65 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 )}
 
                 {activeTab === 'courses' && (
-                    <CourseManager
-                        {...props}
-                        courses={props.courses || []}
-                        onAddCourse={props.onAddCourse}
-                        onImportCourses={props.onImportCourses}
-                        onUpdateCourse={props.onUpdateCourse}
-                        onDeleteCourse={props.onDeleteCourse}
-                        allocations={props.allocations || []}
-                        allTimetableEntries={props.allTimetableEntries || []}
-                        currentUser={props.currentUser}
-                        timetableSettings={props.timetableSettings}
-                        onSaveTimetableSettings={props.onSaveTimetableSettings}
-                    />
+                    <div className="space-y-6">
+                        <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit">
+                            <button onClick={() => setCoursesSubTab('registry')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${coursesSubTab === 'registry' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>{isSchool ? 'Registry' : 'Grading Registry'}</button>
+                            <button onClick={() => setCoursesSubTab('calendar')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${coursesSubTab === 'calendar' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Academic Calendar</button>
+                            <button onClick={() => setCoursesSubTab('subjects')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${coursesSubTab === 'subjects' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Subject Registry</button>
+                            <button onClick={() => setCoursesSubTab('settings')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${coursesSubTab === 'settings' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Academic Settings</button>
+                        </div>
+
+                        <div className="animate-fade-in-up">
+                            {coursesSubTab === 'registry' ? (
+                                <CourseManager
+                                    courses={courses}
+                                    buildings={props.buildings || []}
+                                    rooms={rooms}
+                                    subjects={subjects}
+                                    onAddCourse={props.onAddCourse}
+                                    onUpdateCourse={props.onUpdateCourse}
+                                    onDeleteCourse={props.onDeleteCourse}
+                                    onImportCourses={props.onImportCourses}
+                                    onAddAcademicLevel={props.onAddAcademicLevel}
+                                    onUpdateAcademicLevel={props.onUpdateAcademicLevel}
+                                    onDeleteAcademicLevel={props.onDeleteAcademicLevel}
+                                    academicLevels={props.academicLevels || []}
+                                    onAssociateSubjectToCourseLevel={props.onAssociateSubjectToCourseLevel}
+                                    onDisassociateSubjectFromCourseLevel={props.onDisassociateSubjectFromCourseLevel}
+                                    currentInstitution={currentInstitution}
+                                />
+                            ) : coursesSubTab === 'calendar' ? (
+                                <AcademicYearManager
+                                    academicYears={props.academicYears || []}
+                                    semesters={props.semesters || []}
+                                    onAddAcademicYear={props.onAddAcademicYear}
+                                    onUpdateAcademicYear={props.onUpdateAcademicYear}
+                                    onDeleteAcademicYear={props.onDeleteAcademicYear}
+                                    onAddSemester={props.onAddSemester}
+                                    onUpdateSemester={props.onUpdateSemester}
+                                    onDeleteSemester={props.onDeleteSemester}
+                                    currentInstitution={props.currentInstitution}
+                                />
+                            ) : coursesSubTab === 'subjects' ? (
+                                <SubjectManager
+                                    {...props}
+                                    onAddSubject={props.onAddSubject}
+                                    onUpdateSubject={props.onUpdateSubject}
+                                    onDeleteSubject={props.onDeleteSubject}
+                                    onEditSubject={props.onEditSubject}
+                                    onSaveTimetableSettings={props.onSaveTimetableSettings!}
+                                    onUpdateCourse={props.onUpdateCourse}
+                                    onImportSubjectsAndAssociate={props.onImportSubjectsAndAssociate}
+                                    currentUser={props.currentUser}
+                                />
+                            ) : (
+                                <AcademicConfigManager
+                                    currentInstitution={currentInstitution}
+                                    onUpdateInstitution={props.onUpdateInstitution}
+                                />
+                            )}
+                        </div>
+                    </div>
                 )}
 
                 {activeTab === 'comms' && (

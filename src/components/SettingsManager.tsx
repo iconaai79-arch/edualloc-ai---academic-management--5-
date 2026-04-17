@@ -1728,7 +1728,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     }
                                     return filtered;
                                 }
-                                const subs = ['profile', 'academic_settings', 'grading', 'security_policy', 'location', 'branding'];
+                                const subs = ['profile', 'grading', 'security_policy', 'location', 'branding'];
                                  if (props.currentUser.role === 'admin') { 
                                     subs.push('billing'); 
                                     subs.push('integrations');
@@ -1846,9 +1846,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 </div>
                             </div>
                         )}
-                        {generalSubTab === 'academic_settings' && (
-                            <AcademicConfigManager currentInstitution={props.currentInstitution} onUpdateInstitution={props.onUpdateInstitution} />
-                        )}
+
                         {generalSubTab === 'security_policy' && (
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in">
                                 <h4 className="font-bold text-lg mb-6 flex items-center gap-2">

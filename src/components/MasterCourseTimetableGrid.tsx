@@ -58,29 +58,20 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
 
     const relevantCourses = useMemo(() => {
         let list = courses || [];
+        // Filter out courses that don't match the selected course ID
         if (selectedCourseId && selectedCourseId !== 'all') {
             list = list.filter(c => c && c.id === selectedCourseId);
         }
         
-        const allocatedLevelIds = new Set(allocations.flatMap(a => a.courseLevelIds || []));
-
-        // If a specific level is selected, we only want to show that level within the courses
+        // If a specific level is selected, filter to show only that level within its course
         if (selectedLevelId && selectedLevelId !== 'all') {
             list = list.map(course => ({
                 ...course,
                 levels: (course.levels || []).filter(l => l && String(l.id) === String(selectedLevelId))
             })).filter(course => (course.levels || []).length > 0);
-        } else {
-            // General filter: Only show levels that have allocations
-            list = list.map(course => ({
-                ...course,
-                levels: (course.levels || []).filter(l => l && allocatedLevelIds.has(l.id))
-            })).filter(course => (course.levels || []).length > 0);
         }
-
-        // AUTO-FALLBACK: If a course has NO levels but we want to show it, 
-        // add a synthetic "General" level so the grid has a row to render.
-        // DISABLED IF FILTERING BY ALLOCATIONS
+        
+        // Return the full list without filtering by allocations to ensure visibility of all grades
         return list;
     }, [courses, selectedCourseId, selectedLevelId, allocations]);
 
