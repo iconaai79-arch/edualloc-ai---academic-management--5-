@@ -549,11 +549,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
 
             if (!greq.ok) {
-                const err = await greq.json();
+                const err = await greq.json() as any;
                 throw new Error(`Google Auth Refresh Failed: ${err.error_description || err.error || 'Unknown error'}`);
             }
 
-            return await greq.json();
+            return await greq.json() as any;
         }
 
         if (action === 'googleDriveUpload') {
@@ -596,11 +596,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
 
                 if (!uploadRes.ok) {
-                    const errorJson = await uploadRes.json();
+                    const errorJson = await uploadRes.json() as any;
                     throw new Error(`Google Drive API: ${errorJson.error?.message || 'Upload failed'}`);
                 }
 
-                return res.status(200).json({ success: true, message: 'Success', fileId: (await uploadRes.json()).id });
+                const uploadData = await uploadRes.json() as any;
+                return res.status(200).json({ success: true, message: 'Success', fileId: uploadData.id });
             } catch (err: any) {
                 return res.status(500).json({ success: false, message: err.message });
             }
