@@ -237,9 +237,13 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
 
                                                                         return (
                                                                             <div key={entry.id} className={`flex-1 rounded-xl p-2 shadow-sm border ${isConflicting ? 'border-red-500 ring-2 ring-red-200 animate-pulse' : 'border-black/5'}`} style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
+                                                                                <div className="flex justify-between items-start mb-1 gap-1">
+                                                                                    <span className="text-[7px] font-black bg-black/10 px-1 rounded text-slate-700 truncate max-w-[40px]">{getSubjectById(entry.subjectId)?.shortName || 'SUBJ'}</span>
+                                                                                    <span className="text-[7px] font-black bg-white/40 px-1 rounded text-slate-500 truncate" title="Assigned Level">{course.levels.find(l => String(l.id) === String(entry.courseLevelId || (entry as any).course_level_id))?.name || 'Class'}</span>
+                                                                                </div>
                                                                                 <div className="text-[10px] leading-tight text-slate-900 dark:text-white font-black uppercase tracking-tighter flex items-center justify-center gap-1">
                                                                                     {isConflicting && <span title="Constraint Violation" className="text-red-600 text-[8px]">⚠️</span>}
-                                                                                    <span className="block text-center">{subject?.shortName || subject?.code || 'N/A'}</span>
+                                                                                    <span className="block text-center truncate">{subject?.name || 'N/A'}</span>
                                                                                 </div>
                                                                                 <div className="text-[9px] text-slate-600 font-bold mt-1 opacity-80 flex flex-col items-center">
                                                                                     <span className="block whitespace-nowrap">{getInitials(lecturer?.name || '')} • {room?.shortName || room?.name}</span>

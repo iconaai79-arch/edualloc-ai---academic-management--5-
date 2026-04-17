@@ -308,6 +308,10 @@ export const generateTimetable = async (
             7. FACULTY RESOURCE SEPARATION:
                - NO LECTURER DOUBLE-BOOKING: A lecturer ID MUST NOT be scheduled for two different gradeLevels at overlapping times.
                - Treat every (subjectId, lecturerId, targetGradeId) triplet as a distinct requirement that occupies its own physical and temporal space.
+
+            8. GRADE LEVEL INTEGRITY (ZERO GRADE COLLISION):
+               - NO GRADE DOUBLE-BOOKING: A specific Grade/Level ID (targetGradeId) MUST NOT be scheduled for more than one lesson at the same day/time.
+               - Every class (e.g., 5S) is a singular entity; it cannot be in two places or subjects at once.
                - Avoid "Day-Clustering": Spread a subject's lessons across different days of the week.
             
             6. HARD CONSTRAINTS (NO CONFLICTS):
