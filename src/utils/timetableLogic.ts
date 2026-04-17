@@ -53,7 +53,7 @@ export const generateStandardTimetable = (
         const days = activeDays.length || 0;
         const periodCount = displaySlots.length || 0;
         const totalSlots = days * periodCount;
-        const capacityInSesh = totalSlots; 
+        const capacityInSesh = totalSlots * 1.5; // Added 50% buffer to account for overlapping/parallel lessons in large institutions
 
         // Pre-initialize tracking maps
         if (!lecturerDailyCounts.has(alloc.lecturerId)) {
@@ -99,7 +99,7 @@ export const generateStandardTimetable = (
                     if (placed) break;
 
                     const currentDailyCount = lecturerDailyCounts.get(alloc.lecturerId)?.get(day) || 0;
-                    if (currentDailyCount >= 5) continue;
+                    if (currentDailyCount >= 10) continue; // Increased from 5 to 10 to support high-density schedules
 
                     const shuffledSlots = [...displaySlots].sort(() => Math.random() - 0.5);
 

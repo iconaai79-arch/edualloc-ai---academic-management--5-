@@ -261,9 +261,8 @@ export const generateTimetable = async (
                 const profile = profiles.find(p => p.id === l.courseProfileId);
                 const days = profile?.hours?.operatingDays?.length || settings.operatingDays?.length || 0;
                 const periodCount = profile?.periods?.length || settings.periods?.length || 0;
-                const totalSlots = days * periodCount;
-
                 const levelAllocations = cohortAllocations.filter(a => a.levelIds.includes(l.id));
+                const totalSlots = (days * periodCount) * 1.5; // Added 50% buffer to support high-density/parallel schedules
                 let runningTotal = 0;
                 const targets = levelAllocations.map(a => {
                     const sub = subjects.find(s => s.id === a.subjectId);
@@ -337,7 +336,7 @@ export const generateTimetable = async (
             const response = await safeGenerateContent(prompt, { 
                 responseMimeType: 'application/json',
                 temperature: 0.1,
-                maxOutputTokens: 8192
+                maxOutputTokens: 16384 // Increased from 8192 to prevent truncation in large cohorts
             }, modelTier);
 
             const shardResult = sanitizeAndParseJson(response.text || "[]");
