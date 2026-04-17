@@ -271,7 +271,8 @@ export const generateTimetable = async (
             STRICT ARCHITECTURAL DIRECTIVES:
             1. GRADE COVERAGE (ZERO EXCLUSION):
                - EVERY Grade/Level defined in the hierarchy MUST have its assigned subjects scheduled according to their intendedStructure.
-               - Separate requirements (targetGradeId) derived from the same allocation MUST be scheduled at DIFFERENT times if they share the same lecturer, unless they are explicitly merged (which is not permitted here).
+               - ABSOLUTE COMPLETION: For every 'Approved Instructional Allocation' provided, you MUST generate the exact number of entries required (periods * count).
+               - DO NOT TRUNCATE: If the school is large, ensure you continue generating until every single subject for every single class is placed.
                - "Teacher AGR on 4N and 4S" means two SEPARATE lessons at DIFFERENT times.
             
             2. INSTITUTIONAL SPECIALIZATION:
@@ -321,12 +322,14 @@ export const generateTimetable = async (
 
             10. OUTPUT SPECIFICATION:
                - Return a flat JSON Array of objects: { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }.
+               - CRITICAL: Do NOT truncate the output. Generate the full timetable for ALL levels/grades.
         `;
 
         const modelTier = aiModelTier === 'premium' ? 'pro' : 'flash';
         const response = await safeGenerateContent(prompt, { 
             responseMimeType: 'application/json',
-            temperature: 0.15 
+            temperature: 0.15,
+            maxOutputTokens: 8192
         }, modelTier);
         const result = sanitizeAndParseJson(response.text || "[]");
         return (Array.isArray(result) ? result : []).map((entry: any) => ({
