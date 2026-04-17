@@ -2161,20 +2161,35 @@ export interface CarWashSettings {
 export type FuelType = 'Petrol' | 'Diesel' | 'V-Power' | 'Kerosene' | 'LPG';
 export type FuelPaymentMethod = 'cash' | 'mpesa' | 'card' | 'fleet_card' | 'credit';
 
+export interface FuelStation {
+    id: string;
+    institutionId: string;
+    name: string;
+    location?: string;
+    contactNumber?: string;
+    isActive: boolean;
+    createdAt: string;
+}
+
 export interface FuelTank {
     id: string;
     institutionId: string;
+    stationId?: string;
     name: string;
     fuelType: FuelType;
     capacityLiters: number;
     currentLevelLiters: number;
+    lastTemperature?: number;
     lowLevelThreshold: number;
+    sensorId?: string;
+    sensorVendor?: string;
     createdAt: string;
 }
 
 export interface FuelPump {
     id: string;
     tankId: string;
+    stationId?: string;
     pumpNumber: string;
     nozzleCount: number;
     currentTotalizerReading: number;
@@ -2185,6 +2200,7 @@ export interface FuelPump {
 export interface FuelPrice {
     id: string;
     institutionId: string;
+    stationId?: string;
     fuelType: FuelType;
     pricePerLiter: number;
     effectiveFrom: string;
@@ -2194,6 +2210,7 @@ export interface FuelPrice {
 export interface FuelSale {
     id: string;
     institutionId: string;
+    stationId?: string;
     pumpId: string;
     attendantId?: string;
     customerId?: string;
@@ -2202,8 +2219,10 @@ export interface FuelSale {
     litersSold: number;
     pricePerLiter: number;
     totalAmount: number;
+    pointsEarned?: number;
+    commissionEarned?: number;
     paymentMethod: FuelPaymentMethod;
-    paymentStatus: 'pending' | 'completed' | 'refunded';
+    paymentStatus: 'completed' | 'pending' | 'refunded';
     shiftId?: string;
     createdAt: string;
 }
@@ -2211,6 +2230,7 @@ export interface FuelSale {
 export interface FuelInventoryLog {
     id: string;
     tankId: string;
+    stationId?: string;
     logType: 'delivery' | 'manual_dip' | 'adjustment';
     quantity: number;
     recordedBy: string;
@@ -3702,82 +3722,6 @@ export interface CarAppraisal {
     createdAt?: string;
 }
 
-export interface FuelStation {
-    id: string;
-    institutionId: string;
-    name: string;
-    location?: string;
-    contactNumber?: string;
-    isActive: boolean;
-    createdAt?: string;
-}
-
-export interface FuelTank {
-    id: string;
-    institutionId: string;
-    stationId: string;
-    name: string;
-    fuelType: FuelType;
-    capacityLiters: number;
-    currentLevelLiters: number;
-    lastTemperature?: number;
-    lowLevelThreshold: number;
-    sensorId?: string;
-    sensorVendor?: string;
-    createdAt?: string;
-}
-
-export interface FuelPump {
-    id: string;
-    tankId: string;
-    stationId: string;
-    pumpNumber: string;
-    nozzleCount: number;
-    currentTotalizerReading: number;
-    status: 'active' | 'maintenance' | 'out_of_service';
-    createdAt?: string;
-}
-
-export interface FuelPrice {
-    id: string;
-    institutionId: string;
-    stationId: string;
-    fuelType: FuelType;
-    pricePerLiter: number;
-    effectiveFrom?: string;
-    isActive: boolean;
-}
-
-export interface FuelSale {
-    id: string;
-    institutionId: string;
-    stationId: string;
-    pumpId?: string;
-    attendantId?: string;
-    customerId?: string;
-    vehiclePlate?: string;
-    fuelType: FuelType;
-    litersSold: number;
-    pricePerLiter: number;
-    totalAmount: number;
-    pointsEarned?: number;
-    commissionEarned?: number;
-    paymentMethod: 'cash' | 'mpesa' | 'card' | 'fleet_card' | 'credit';
-    paymentStatus: 'pending' | 'completed' | 'refunded';
-    shiftId?: string;
-    createdAt?: string;
-}
-
-export interface FuelInventoryLog {
-    id: string;
-    tankId: string;
-    stationId: string;
-    logType: 'delivery' | 'manual_dip' | 'adjustment';
-    quantity: number;
-    recordedBy?: string;
-    notes?: string;
-    createdAt?: string;
-}
 
 export interface StationShift {
     id: string;
