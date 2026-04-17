@@ -5,6 +5,8 @@ import { LecturerInteractionManager } from './LecturerInteractionManager';
 import { StudentInteractionManager } from './StudentInteractionManager';
 import { UserGroupIcon } from './icons/UserGroupIcon';
 import { AcademicCapIcon } from './icons/AcademicCapIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ClockIcon } from './icons/ClockIcon';
 
 
 interface InteractionsManagerProps {
