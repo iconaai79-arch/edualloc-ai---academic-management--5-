@@ -242,7 +242,7 @@ export const generateTimetable = async (
             const currentCohort = cohorts[i];
             const cohortLevelIds = currentCohort.map(l => l.id);
             
-            // Comprehensive Allocation Extraction
+            // Comprehensive Allocation Extraction for THIS COHORT
             const cohortAllocations = allocations.filter(a => {
                 const levelIds = a.courseLevelIds || [];
                 const targetId = (a as any).targetCourseLevelId;
@@ -255,42 +255,46 @@ export const generateTimetable = async (
                            : [(a as any).targetCourseLevelId].filter(id => cohortLevelIds.includes(id))
             }));
 
-            if (cohortAllocations.length === 0) {
-                console.log(`[Batch Engine] Pass ${i+1}: No allocations found for ${currentCohort.map(l => l.name).join(', ')}. Skipping.`);
+            // Pre-calculate exact fulfillment targets for this cohort to assure the user
+            const fulfillmentTargets = currentCohort.map(l => {
+                const levelAllocations = cohortAllocations.filter(a => a.levelIds.includes(l.id));
+                const targets = levelAllocations.map(a => {
+                    const sub = subjects.find(s => s.id === a.subjectId);
+                    const totalRequired = (sub?.lessonStructure || []).reduce((acc, s) => acc + ((s.periods || 0) * (s.count || 0)), 0);
+                    return { subject: sub?.name, id: a.subjectId, count: totalRequired };
+                }).filter(t => t.count > 0);
+                return { level: l.name, id: l.id, targets };
+            });
+
+            if (fulfillmentTargets.every(f => f.targets.length === 0)) {
+                console.log(`[Batch Engine] Pass ${i+1}: No workload targets for ${currentCohort.map(l => l.name).join(', ')}. Skipping.`);
                 continue;
             }
 
-            // High-Density Constraint Compression
-            const committedContext = allGeneratedEntries.map(e => 
-                `${e.day}|${e.startTime}|${e.endTime}|L:${e.lecturerId}|R:${e.roomId}`
+            // Compressed constraints for efficiency
+            const committedContext = allGeneratedEntries.slice(-200).map(e => 
+                `${e.day.substring(0,3)}|${e.startTime}|L:${e.lecturerId.substring(0,6)}|R:${e.roomId.substring(0,6)}`
             ).join('; ');
 
             const prompt = `
-                ROLE: Master Academic Scheduling Architect (Pass ${i + 1} of ${cohorts.length})
-                MISSION: Schedule 100% of these allocations for Grades: ${currentCohort.map(l => l.name).join(', ')}.
+                ACT AS: Master Academic Scheduling Logic Engine (Pass ${i + 1} of ${cohorts.length})
                 
-                RESOURCES & ALLOCATIONS:
-                - Levels: ${JSON.stringify(currentCohort.map(l => ({ id: l.id, name: l.name, roomId: l.roomId })))}
-                - Assignments: ${JSON.stringify(cohortAllocations)}
-                - Subjects: ${JSON.stringify(subjects.map(s => ({ id: s.id, name: s.name, structure: s.lessonStructure, room: s.roomId })))}
-                - Faculty: ${JSON.stringify(lecturers.map(u => ({ id: u.id, name: u.name })))}
-                - Facilities: ${JSON.stringify(rooms.map(r => ({ id: r.id, name: r.name, cap: r.capacity })))}
+                MANDATORY TARGETS FOR THIS COHORT:
+                ${JSON.stringify(fulfillmentTargets)}
                 
-                TEMPORAL ARCHITECTURE:
-                - Global Params: ${JSON.stringify({ start: settings.startTime, end: settings.endTime, days: settings.operatingDays })}
-                - Profiles: ${JSON.stringify(profiles.map(p => ({ id: p.id, slots: p.periods, breaks: p.breaks })))}
-
-                *** NON-NEGOTIABLE CONSTRAINTS (ALREADY COMMITTED): ***
-                The following sessions are LOCKED. You MUST NOT schedule any lesson in this batch that overlaps with these resources (Day, Start, Lecturer, or Room):
-                - COMMITTED: ${committedContext.substring(0, 100000)}
+                *** HARD INSTRUCTION ***: You MUST generate EXACTLY the numbers of entries specified above. 
+                For example, if Grade 1 MATH has count 6, you return 6 objects for it.
+                
+                CONTEXT: [Resource Registries Provided Internally]
+                CONSTRAINTS: ${committedContext || 'None'}
 
                 DIRECTIVES:
-                1. FULL FULFILLMENT: You MUST generate (periods * count) entries for every single allocation in this cohort.
-                2. ZERO OVERLAP: No collisions with COMMITTED sessions.
-                3. COHORT FOCUS: ONLY return JSON for the ${currentCohort.map(l => l.name).join(', ')} cohort.
+                1. ABSOLUTE FULFILLMENT: Fulfill 100% of the targets listed above. DO NOT TRUNCATE.
+                2. NO COLLISION: Check against COMMITTED slots. Use different Lecturers/Rooms for same time.
+                3. GRANULARITY: 1 Entry = 1 Lesson Period.
                 
                 OUTPUT:
-                - Return a flat JSON Array: { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }.
+                - JSON Array: [ { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }, ... ]
             `;
 
             const response = await safeGenerateContent(prompt, { 
@@ -301,11 +305,11 @@ export const generateTimetable = async (
 
             const shardResult = sanitizeAndParseJson(response.text || "[]");
             const finalShard = (Array.isArray(shardResult) ? shardResult : []).map((entry: any) => {
-                const levelData = currentCohort.find(l => l.id === entry.courseLevelId);
+                const levelData = currentCohort.find(l => String(l.id) === String(entry.courseLevelId));
                 return {
                     ...entry,
                     courseId: entry.courseId || levelData?.courseId,
-                    id: `entry_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+                    id: `entry_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
                 };
             });
 
