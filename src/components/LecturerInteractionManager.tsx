@@ -94,13 +94,12 @@ const TimeOffRequestManager: React.FC<{
 };
 
 const ContractStatusManager: React.FC<{
-    contracts: LecturerContract[];
-    users: User[];
-    currentInstitution?: Institution | null;
     letterheadConfig: LetterheadConfig;
     footerImageUrl: string | null;
     activeSemester?: Semester | null;
-}> = ({ contracts, users, currentInstitution, letterheadConfig, footerImageUrl, activeSemester }) => {
+    allocations: AllocationRequest[];
+    subjects: Subject[];
+}> = ({ contracts, users, currentInstitution, letterheadConfig, footerImageUrl, activeSemester, allocations, subjects }) => {
     
     const [previewingContract, setPreviewingContract] = useState<LecturerContract | null>(null);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -177,7 +176,36 @@ const ContractStatusManager: React.FC<{
                             return (
                                 <tr key={contract.id}>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{lecturer?.name || 'Unknown'}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{contract.workloadSummary.totalPeriods} periods / {contract.workloadSummary.totalHours} hrs</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                                        {(() => {
+                                            const lecturerId = contract.lecturerId;
+                                            const lecturerAllocations = (allocations || []).filter(a => a.lecturerId === lecturerId && (a.status === 'approved' || a.status === 'hod_approved'));
+                                            const plannedPeriods = lecturerAllocations.reduce((sum, a) => {
+                                                const subject = subjects.find(s => s.id === a.subjectId);
+                                                const levelCount = a.courseLevelIds?.length || 0;
+                                                const structureTotal = (subject?.lessonStructure || []).reduce((acc, s) => acc + ((s.periods || 0) * (s.count || 0)), 0);
+                                                return sum + (structureTotal * levelCount);
+                                            }, 0);
+                                            
+                                            const contractPeriods = contract.workloadSummary.totalPeriods;
+                                            const diff = plannedPeriods - contractPeriods;
+                                            
+                                            return (
+                                                <div className="flex flex-col">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-slate-900 dark:text-white">{plannedPeriods} Planned</span>
+                                                        <span className="text-slate-400">/</span>
+                                                        <span>{contractPeriods} Contract</span>
+                                                    </div>
+                                                    {diff !== 0 && (
+                                                        <span className={`text-[10px] font-black uppercase tracking-widest ${diff > 0 ? 'text-red-500' : 'text-amber-500'}`}>
+                                                            {diff > 0 ? `+${diff} Overloaded` : `${diff} Underload`}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
+                                    </td>
                                     <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={contract.status} /></td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{contract.acceptanceTimestamp ? new Date(contract.acceptanceTimestamp).toLocaleString() : 'N/A'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium flex gap-2">
@@ -291,6 +319,8 @@ export const LecturerInteractionManager: React.FC<LecturerInteractionManagerProp
                     currentInstitution={currentInstitution}
                     letterheadConfig={letterheadConfig}
                     footerImageUrl={footerImageUrl}
+                    allocations={allocations}
+                    subjects={subjects}
                 />
             )}
         </div>
