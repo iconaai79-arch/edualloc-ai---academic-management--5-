@@ -271,8 +271,8 @@ export const generateTimetable = async (
                 continue;
             }
 
-            // Compressed constraints for efficiency
-            const committedContext = allGeneratedEntries.slice(-200).map(e => 
+            // Full Context Contextualization: Provide ALL previously scheduled sessions for absolute collision avoidance
+            const committedContext = allGeneratedEntries.map(e => 
                 `${e.day.substring(0,3)}|${e.startTime}|L:${e.lecturerId.substring(0,6)}|R:${e.roomId.substring(0,6)}`
             ).join('; ');
 
@@ -287,15 +287,18 @@ export const generateTimetable = async (
                 MANDATORY TARGETS FOR THIS COHORT:
                 ${JSON.stringify(fulfillmentTargets)}
                 
-                *** HARD INSTRUCTION ***: You MUST generate EXACTLY the numbers of entries specified above. 
-                For each level, ensure you use the Operating Hours and Periods defined in its associated Profile (if applicable).
+                *** CRITICAL REQUIREMENT ***: 
+                - You MUST generate EXACTLY the number of objects specified in the 'count' for each subject.
+                - GRANULARITY: 1 JSON object = 1 Single Period (e.g., if a subject has count 6, you MUST return 6 separate objects).
+                - DO NOT combine double periods into a single object. Each period must have its own 'startTime' and 'endTime' matching the period registry.
                 
-                COMMITTED SLOTS (DO NOT DOUBLE BOOK): ${committedContext || 'None'}
+                COMMITTED SLOTS (ABSOLUTE FORBIDDEN LIST): 
+                ${committedContext || 'None'}
 
                 DIRECTIVES:
-                1. ABSOLUTE FULFILLMENT: Fulfill 100% of the targets listed above. DO NOT TRUNCATE.
-                2. NO COLLISION: Check against COMMITTED slots. Use different Lecturers/Rooms for same time.
-                3. GRANULARITY: 1 Entry = 1 Lesson Period. Match 'startTime' and 'endTime' to the period registry.
+                1. FULL FULFILLMENT: Every target count must be matched 1:1 by a JSON object.
+                2. NO COLLISION: Use different Lecturers/Rooms for same time as COMMITTED slots.
+                3. TIME VALIDITY: Match 'startTime' and 'endTime' PRECISELY to the period registry.
                 4. DAYS: Only use days defined in the schedule.
                 
                 OUTPUT:
