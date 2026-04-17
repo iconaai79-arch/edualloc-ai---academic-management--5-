@@ -183,9 +183,12 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                     const slotKey = `${level.id}-${period.startTime}`;
                                                     if (occupiedSlots.has(period.startTime)) return null;
 
+                                                    const periodStartMinutes = timeToMinutes(period.startTime);
+                                                    const periodEndMinutes = timeToMinutes(period.endTime);
                                                     const slotEntries = (levelEntries || []).filter(e =>
                                                         e.day === selectedDay &&
-                                                        timeToMinutes(e.startTime) === timeToMinutes(period.startTime)
+                                                        timeToMinutes(e.startTime) >= periodStartMinutes &&
+                                                        timeToMinutes(e.startTime) < periodEndMinutes
                                                     );
 
                                                     if (period.isBreak) {

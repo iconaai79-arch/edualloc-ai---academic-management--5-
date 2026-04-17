@@ -136,9 +136,11 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
                                 continue;
                             }
 
+                            const slotEndMinutes = timeToMinutes(slot.end);
                             const entriesStartingInSlot = entries.filter(entry =>
                                 entry.day === day &&
-                                timeToMinutes(entry.startTime) === slotStartMinutes
+                                timeToMinutes(entry.startTime) >= slotStartMinutes &&
+                                timeToMinutes(entry.startTime) < slotEndMinutes
                             );
 
                             const isBreakSlot = timetableSettings.breaks.some(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);

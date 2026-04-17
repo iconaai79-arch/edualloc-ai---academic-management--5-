@@ -385,6 +385,7 @@ export interface CourseLevel {
     subjectMetadata?: LevelSubjectMetadata[];
     classTeacherId?: string;
     roomId?: string;
+    scheduleProfileId?: string;
 }
 
 export interface Course {

@@ -244,7 +244,8 @@ export const generateTimetable = async (
                     id: l.id,
                     name: l.name,
                     assignedSubjectIds: l.subjectIds,
-                    baseRoomId: l.roomId
+                    baseRoomId: l.roomId,
+                    activeProfileId: l.scheduleProfileId || c.scheduleProfileId
                 }))
             })))}
             - Temporal Parameters: ${JSON.stringify({ 
