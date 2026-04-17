@@ -112,7 +112,12 @@ export const RoomUtilizationReport: React.FC<RoomUtilizationReportPropsFixed> = 
             const utilizationPercentage = (totalOccupiedHours / totalAvailableWeeklyHours) * 100;
 
             const usageBreakdown = roomTimetable.reduce((acc, entry) => {
-                const className = courses.flatMap(c => c.levels || []).find(l => l.id === entry.courseLevelId)?.name || 'Unknown Class';
+                const course = courses.find(c => 
+                    (c.levels || []).some(l => l.id === entry.courseLevelId)
+                );
+                const level = (course?.levels || []).find(l => l.id === entry.courseLevelId);
+                
+                const className = course ? `${course.name} ${level?.name || ''}`.trim() : (level?.name || 'Unknown Class');
                 acc[className] = (acc[className] || 0) + (timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime)) / 60;
                 return acc;
             }, {} as Record<string, number>);
