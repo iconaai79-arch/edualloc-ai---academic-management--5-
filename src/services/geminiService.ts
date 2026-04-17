@@ -263,7 +263,7 @@ export const generateTimetable = async (
                     const totalRequired = (sub?.lessonStructure || []).reduce((acc, s) => acc + ((s.periods || 0) * (s.count || 0)), 0);
                     return { subject: sub?.name, id: a.subjectId, count: totalRequired };
                 }).filter(t => t.count > 0);
-                return { level: l.name, id: l.id, targets };
+                return { level: l.name, id: l.id, homeRoomId: l.roomId, targets };
             });
 
             if (fulfillmentTargets.every(f => f.targets.length === 0)) {
@@ -283,6 +283,7 @@ export const generateTimetable = async (
                 - General Schedule: ${JSON.stringify(settings.hours)}
                 - Period Structure: ${JSON.stringify(settings.periods)}
                 - Profiles: ${JSON.stringify(profiles.map(p => ({ id: p.id, name: p.name, hours: p.hours, periods: p.periods })))}
+                - Available Rooms: ${JSON.stringify(rooms.map(r => ({ id: r.id, name: r.name, buildingId: r.buildingId })))}
                 
                 MANDATORY TARGETS FOR THIS COHORT:
                 ${JSON.stringify(fulfillmentTargets)}
@@ -299,7 +300,8 @@ export const generateTimetable = async (
                 1. FULL FULFILLMENT: Every target count must be matched 1:1 by a JSON object.
                 2. NO COLLISION: Use different Lecturers/Rooms for same time as COMMITTED slots.
                 3. TIME VALIDITY: Match 'startTime' and 'endTime' PRECISELY to the period registry.
-                4. DAYS: Only use days defined in the schedule.
+                4. HOME ROOM PREFERENCE: For each level, prioritize assigning the 'homeRoomId' provided in the targets list. If 'homeRoomId' is null or a specialized room is needed, use any available room.
+                5. DAYS: Only use days defined in the schedule.
                 
                 OUTPUT:
                 - JSON Array: [ { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }, ... ]
