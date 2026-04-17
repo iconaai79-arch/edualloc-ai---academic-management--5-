@@ -155,5 +155,6 @@ export const InteractionsManager: React.FC<InteractionsManagerProps> = (props) =
                 />}
             </main>
         </div>
+    </div>
     );
 };
