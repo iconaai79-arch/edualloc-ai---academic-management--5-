@@ -227,7 +227,13 @@ export const generateTimetable = async (
                 coordinatorId: a.lecturerId,
                 targetGradeId: lid
             }))))}
-            - Subject Specification Registry: ${JSON.stringify(subjects.map(s => ({ id: s.id, code: s.code, name: s.name, intendedStructure: s.lessonStructure })))}
+            - Subject Specification Registry: ${JSON.stringify(subjects.map(s => ({ 
+                id: s.id, 
+                code: s.code, 
+                name: s.name, 
+                intendedStructure: s.lessonStructure,
+                dedicatedRoomId: s.roomId // Include the primary specialized facility if defined
+            })))}
             - Faculty Resource Registry: ${JSON.stringify(lecturers.map(u => ({ id: u.id, name: u.name })))}
             - Spatial Assets (Rooms): ${JSON.stringify(rooms.map(r => ({ id: r.id, name: r.name, cap: r.capacity })))}
             - Institutional Grade & Level Hierarchy: ${JSON.stringify(courses.map(c => ({
@@ -292,6 +298,16 @@ export const generateTimetable = async (
             
             5. VERTICAL LOGIC (DISTRIBUTION):
                - Avoid "Front-Loading": Spread lessons across the entire day (Morning to Evening).
+               - Avoid "Back-to-Back" for same subject: Do not schedule two sessions of the same subject on the same day unless it's a block.
+
+            6. SPATIAL ASSIGNMENT (ZERO SPATIAL OVERLAP):
+               - NO ROOM DOUBLE-BOOKING: A room ID MUST NOT appear twice for the same day/time unless the lessons are for the same grade/level.
+               - DEDICATED FACILITIES: If a subject has 'dedicatedRoomId', you MUST assign that roomId to the lesson.
+               - BASE ROOM PRIORITY: For subjects without specialized requirements in Primary schools, prioritize the grade's 'baseRoomId'.
+
+            7. FACULTY RESOURCE SEPARATION:
+               - NO LECTURER DOUBLE-BOOKING: A lecturer ID MUST NOT be scheduled for two different gradeLevels at overlapping times.
+               - Treat every (subjectId, lecturerId, targetGradeId) triplet as a distinct requirement that occupies its own physical and temporal space.
                - Avoid "Day-Clustering": Spread a subject's lessons across different days of the week.
             
             6. HARD CONSTRAINTS (NO CONFLICTS):

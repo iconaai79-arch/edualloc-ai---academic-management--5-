@@ -27,6 +27,7 @@ interface MasterCourseTimetableGridProps {
     timetableConflicts?: Conflict[];
     layoutMode: 'horizontal' | 'vertical';
     onLayoutModeChange: (mode: 'horizontal' | 'vertical') => void;
+    selectedDay?: string;
 }
 
 export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps> = ({
@@ -44,6 +45,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
     timetableConflicts,
     layoutMode,
     onLayoutModeChange,
+    selectedDay = 'Monday',
     selectedLevelId = 'all'
 }) => {
     const isSchool = isSchoolInstitution(currentInstitution);
@@ -134,9 +136,6 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                     const isCourseMatch = String(e.courseId) === String(course.id) || String((e as any).course_id) === String(course.id);
                     if (!isCourseMatch) return false;
 
-                    // If we have specific streams/levels defined for this course in the registry, 
-                    // and the entry has a stream assigned, use strict matching.
-                    // Otherwise (if entry has no stream or it's a general course lesson), allow it.
                     if (e.courseLevelId || (e as any).course_level_id) {
                         const eid = String(e.courseLevelId || (e as any).course_level_id);
                         return levelIds.includes(eid);
@@ -157,7 +156,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                             <table className="min-w-full border-collapse">
                                 <thead>
                                     <tr className="bg-slate-100/80 dark:bg-slate-950/50">
-                                        <th className="p-3 text-left text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] border-r border-slate-200 dark:border-slate-800 w-24">Class / Time</th>
+                                        <th className="p-3 text-left text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] border-r border-slate-200 dark:border-slate-800 w-24">Class</th>
                                         {periodHeaders.map((p, i) => (
                                             <th key={i} colSpan={p.colSpan} className={`p-2 text-center text-[10px] font-black uppercase tracking-widest border-l border-slate-200/50 dark:border-slate-800/50 ${p.isBreak ? 'text-slate-400 bg-slate-50/50' : 'text-slate-500'}`}>
                                                 {p.label}
@@ -167,21 +166,25 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800">
-                                    {daysOfWeek.map(day => {
+                                    {(course.levels || []).map(level => {
                                         const occupiedSlots = new Set<string>();
+                                        const levelEntries = (courseEntries || []).filter(e => 
+                                            String(e.courseLevelId) === String(level.id) || String((e as any).course_level_id) === String(level.id)
+                                        );
+
                                         return (
-                                            <tr key={day} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                                            <tr key={level.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
                                                 <td className="p-3 bg-slate-50/30 dark:bg-slate-950/20 border-r border-slate-100 dark:border-slate-800">
-                                                    <div className="text-[10px] font-black text-indigo-600/70 dark:text-indigo-400/70 uppercase tracking-widest leading-none rotate-0">
-                                                        {day.substring(0, 3)}
+                                                    <div className="text-[10px] font-black text-indigo-600/70 dark:text-indigo-400/70 uppercase tracking-widest leading-tight">
+                                                        {level.name}
                                                     </div>
                                                 </td>
                                                 {periodHeaders.map((period, periodIndex) => {
-                                                    const slotKey = `${day}-${period.startTime}`;
+                                                    const slotKey = `${level.id}-${period.startTime}`;
                                                     if (occupiedSlots.has(period.startTime)) return null;
 
-                                                    const slotEntries = (courseEntries || []).filter(e =>
-                                                        e.day === day &&
+                                                    const slotEntries = (levelEntries || []).filter(e =>
+                                                        e.day === selectedDay &&
                                                         timeToMinutes(e.startTime) === timeToMinutes(period.startTime)
                                                     );
 
@@ -202,9 +205,8 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                         const slotEndMinutes = timeToMinutes(period.endTime);
                                                         const maxEntryEndMinutes = Math.max(...slotEntries.map(e => timeToMinutes(e.endTime)));
                                                         
-                                                        // Calculate colSpan based on how many periods this lesson actually covers
+                                                        // Calculate colSpan
                                                         let colSpan = 1;
-                                                        // Only span if the lesson ends significantly after the first slot
                                                         if (maxEntryEndMinutes > slotEndMinutes + 10) { 
                                                             for (let k = periodIndex + 1; k < periodHeaders.length; k++) {
                                                                 if (timeToMinutes(periodHeaders[k].startTime) < maxEntryEndMinutes - 5) {
@@ -223,50 +225,33 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
 
                                                         return (
                                                             <td key={slotKey} colSpan={colSpan} className="p-1 border border-slate-100 dark:border-slate-800 text-center align-middle">
-                                                                <div className="flex h-full gap-1">
-                                                                    {(() => {
-                                                                        const levelCounts: Record<string, number> = {};
-                                                                        slotEntries.forEach(e => {
-                                                                            if (!e) return;
-                                                                            const lid = String(e.courseLevelId || (e as any).course_level_id || '');
-                                                                            levelCounts[lid] = (levelCounts[lid] || 0) + 1;
-                                                                        });
+                                                                <div className="flex flex-col h-full gap-1">
+                                                                    {slotEntries.map((entry) => {
+                                                                        const subject = getSubjectById(entry.subjectId);
+                                                                        const lecturer = getLecturerById(entry.lecturerId);
+                                                                        const room = getRoomById(entry.roomId);
+                                                                        const isConflicting = (timetableConflicts || []).some(c =>
+                                                                            c.day === selectedDay &&
+                                                                            c.conflictingEntries.some(ce => ce.id === entry.id)
+                                                                        );
 
-                                                                        return slotEntries.map((entry) => {
-                                                                            if (!entry) return null;
-                                                                            const entryLid = String(entry.courseLevelId || (entry as any).course_level_id || '');
-                                                                            const level = course.levels.find(l => String(l.id) === entryLid);
-                                                                            
-                                                                            const subject = getSubjectById(entry.subjectId);
-                                                                            const lecturer = getLecturerById(entry.lecturerId);
-                                                                            const room = getRoomById(entry.roomId);
-                                                                            const isConflicting = (timetableConflicts || []).some(c =>
-                                                                                c.type === 'consecutive_subject' &&
-                                                                                c.day === day &&
-                                                                                c.conflictingEntries.some(ce => ce.id === entry.id)
-                                                                            );
-
-                                                                            return (
-                                                                                <div key={entry.id} className={`flex-1 rounded-xl p-2 shadow-sm border ${isConflicting ? 'border-red-500 ring-2 ring-red-200 animate-pulse' : 'border-black/5'}`} style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
-                                                                                    <div className="flex justify-between items-start mb-1">
-                                                                                        <span className="text-[8px] font-black bg-black/10 px-1 rounded text-slate-700">{level?.name || 'Class'}</span>
-                                                                                    </div>
-                                                                                    <div className="text-[10px] leading-tight text-slate-900 dark:text-white font-black uppercase tracking-tighter flex items-center justify-start gap-1">
-                                                                                        {isConflicting && <span title="Consecutive Lesson Violation" className="text-red-600">⚠️</span>}
-                                                                                        <span className="block">{subject?.shortName || subject?.code}</span>
-                                                                                    </div>
-                                                                                    <div className="text-[9px] text-slate-600 font-bold mt-1 opacity-70">
-                                                                                        <span className="block">{getInitials(lecturer?.name || '')} • {room?.shortName || room?.name}</span>
-                                                                                    </div>
+                                                                        return (
+                                                                            <div key={entry.id} className={`flex-1 rounded-xl p-2 shadow-sm border ${isConflicting ? 'border-red-500 ring-2 ring-red-200 animate-pulse' : 'border-black/5'}`} style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
+                                                                                <div className="text-[10px] leading-tight text-slate-900 dark:text-white font-black uppercase tracking-tighter flex items-center justify-center gap-1">
+                                                                                    {isConflicting && <span title="Constraint Violation" className="text-red-600 text-[8px]">⚠️</span>}
+                                                                                    <span className="block text-center">{subject?.shortName || subject?.code || 'N/A'}</span>
                                                                                 </div>
-                                                                            );
-                                                                        });
-                                                                    })()}
+                                                                                <div className="text-[9px] text-slate-600 font-bold mt-1 opacity-80 flex flex-col items-center">
+                                                                                    <span className="block whitespace-nowrap">{getInitials(lecturer?.name || '')} • {room?.shortName || room?.name}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    })}
                                                                 </div>
                                                             </td>
                                                         );
                                                     }
-                                                    return <td key={slotKey} className="border border-slate-100 dark:border-slate-800"></td>
+                                                    return <td key={slotKey} className="p-1 border border-slate-100 dark:border-slate-800" />;
                                                 })}
                                             </tr>
                                         );

@@ -443,7 +443,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                    {(viewMode === 'grid' || viewMode === 'master_staff') && (
+                    {(viewMode === 'grid' || viewMode === 'master_staff' || (viewMode === 'master_course' && layoutMode === 'horizontal')) && (
                         <>
                             <select
                                 value={selectedDay}
@@ -611,6 +611,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                                 timetableConflicts={timetableConflicts}
                                 layoutMode={layoutMode}
                                 onLayoutModeChange={setLayoutMode}
+                                selectedDay={selectedDay}
                             />
                         );
                     })()

@@ -1325,7 +1325,11 @@ export const generateMasterCourseTimetablePdf = async (
                                     }
 
                                     const r = getRoomById(effectiveRoomId);
-                                    return [s?.shortName || s?.code || 'N/A', r?.name || ''].filter(Boolean).join(' ');
+                                    const lecturerInitials = l ? l.name.split(' ').map((n: string) => n[0]).join('') : '';
+                                    return [
+                                        s?.shortName || s?.code || 'N/A',
+                                        lecturerInitials ? `${lecturerInitials} • ${r?.name || ''}` : r?.name || ''
+                                    ].filter(Boolean).join('\n');
                                 }).join('\n---\n');
 
                                 const slotEndMinutes = timeToMinutes(displaySlots[i].end);
