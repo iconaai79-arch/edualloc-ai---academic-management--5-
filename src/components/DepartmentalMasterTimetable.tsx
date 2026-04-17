@@ -16,7 +16,7 @@ interface DepartmentalMasterTimetableProps {
 
 export const DepartmentalMasterTimetable: React.FC<DepartmentalMasterTimetableProps> = ({ departments, courses, subjects, lecturers, rooms, generatedTimetable, timetableSettings }) => {
     const daysOfWeek = timetableSettings.operatingDays;
-    const periodHeaders = useMemo(() => generatePeriodLabels(timetableSettings), [timetableSettings]);
+    const periodHeaders = useMemo(() => generatePeriodLabels(timetableSettings, true), [timetableSettings]);
     const cellSpanMinutes = timetableSettings.cellSpanMinutes || 60;
 
     const getCellEntries = (level: CourseLevel, day: string, period: { startTime: string; endTime: string; }) => {

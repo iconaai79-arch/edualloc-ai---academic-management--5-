@@ -118,19 +118,48 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
         return list.filter(r => r && r.buildingId === selectedBuildingId);
     }, [rooms, selectedBuildingId]);
 
+    const getEffectiveSettings = (courseId?: string) => {
+        let base = { ...timetableSettings };
+        const course = courses.find(c => c.id === courseId);
+        const profileId = course?.scheduleProfileId || timetableSettings.defaultScheduleProfileId;
+        const profile = (currentInstitution?.scheduleProfiles || []).find(p => p.id === profileId);
+
+        if (profile) {
+            return {
+                ...base,
+                operatingDays: profile.operatingDays || base.operatingDays,
+                startTime: profile.startTime || base.startTime,
+                endTime: profile.endTime || base.endTime,
+                periods: (profile.periods && profile.periods.length > 0) ? profile.periods : (base.periods || []),
+                breaks: (profile.breaks && profile.breaks.length > 0) ? profile.breaks : (base.breaks || []),
+                cellSpanMinutes: profile.cellSpanMinutes || base.cellSpanMinutes
+            };
+        }
+        return base;
+    };
+
     const wideSettings = useMemo(() => {
         let minStart = timeToMinutes(timetableSettings.startTime);
         let maxEnd = timeToMinutes(timetableSettings.endTime);
+        const allBreaks = [...(timetableSettings.breaks || [])];
         
         (currentInstitution?.scheduleProfiles || []).forEach(p => {
             if (p.startTime) minStart = Math.min(minStart, timeToMinutes(p.startTime));
             if (p.endTime) maxEnd = Math.max(maxEnd, timeToMinutes(p.endTime));
+            if (p.breaks) {
+                p.breaks.forEach(pb => {
+                    if (!allBreaks.find(b => b.startTime === pb.startTime && b.endTime === pb.endTime)) {
+                        allBreaks.push(pb);
+                    }
+                });
+            }
         });
         
         return {
             ...timetableSettings,
             startTime: minutesToTime(minStart),
-            endTime: minutesToTime(maxEnd)
+            endTime: minutesToTime(maxEnd),
+            breaks: allBreaks
         };
     }, [timetableSettings, currentInstitution]);
     
@@ -197,10 +226,12 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                     const level = studentCourse?.levels?.find(l => l.id === recipient.courseLevelId);
                     if (!studentCourse || !level) continue;
 
-                    const studentEntries = generatedTimetable.filter(e => {
+                    const studentEntries = (generatedTimetable || []).filter(e => {
                         const subject = getSubjectById(e.subjectId);
                         return subject && (level.subjectIds || []).includes(e.subjectId);
                     });
+
+                    const studentSettings = getEffectiveSettings(studentCourse.id);
 
                     const dataUri = await generateStudentTimetablePdf(
                         recipient,
@@ -212,7 +243,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                         footerImageUrl,
                         studentCourse,
                         level,
-                        timetableSettings
+                        studentSettings
                     );
 
                     const base64 = dataUri.split(',')[1];
@@ -290,6 +321,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
             } else {
                 const isSingleCourse = selectedCourseForMasterView !== 'all';
                 const isSingleLevel = isSingleCourse && selectedLevelIdForMasterView !== 'all';
+                const effectiveSettings = getEffectiveSettings(isSingleCourse ? selectedCourseForMasterView : undefined);
                 
                 let coursesToInclude = isSingleCourse
                     ? (courses || []).filter(c => c && c.id === selectedCourseForMasterView)
@@ -303,38 +335,6 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                         ...c,
                         levels: (c.levels || []).filter(l => l.id === selectedLevelIdForMasterView)
                     }));
-                }
-
-                // Determine effective settings for the PDF
-                let effectiveSettings = timetableSettings;
-                if (isSingleCourse && coursesToInclude.length > 0) {
-                    const singleCourse = coursesToInclude[0];
-                    const profileId = singleCourse.scheduleProfileId;
-                    const profile = (currentInstitution?.scheduleProfiles || []).find(p => p.id === profileId);
-                    
-                    if (profile) {
-                        effectiveSettings = {
-                            ...timetableSettings,
-                            operatingDays: profile.operatingDays || timetableSettings.operatingDays,
-                            startTime: profile.startTime || timetableSettings.startTime,
-                            endTime: profile.endTime || timetableSettings.endTime,
-                            periods: (profile.periods && profile.periods.length > 0) ? profile.periods : (timetableSettings.periods || []),
-                            cellSpanMinutes: profile.cellSpanMinutes || timetableSettings.cellSpanMinutes
-                        };
-                    }
-                } else if (timetableSettings.defaultScheduleProfileId) {
-                    // Fallback to Institutional Default Profile for "All Courses" view
-                    const defaultProfile = (currentInstitution?.scheduleProfiles || []).find(p => p.id === timetableSettings.defaultScheduleProfileId);
-                    if (defaultProfile) {
-                        effectiveSettings = {
-                            ...timetableSettings,
-                            operatingDays: defaultProfile.operatingDays || timetableSettings.operatingDays,
-                            startTime: defaultProfile.startTime || timetableSettings.startTime,
-                            endTime: defaultProfile.endTime || timetableSettings.endTime,
-                            periods: (defaultProfile.periods && defaultProfile.periods.length > 0) ? defaultProfile.periods : (timetableSettings.periods || []),
-                            cellSpanMinutes: defaultProfile.cellSpanMinutes || timetableSettings.cellSpanMinutes
-                        };
-                    }
                 }
 
                 const filteredEntriesForPdf = (generatedTimetable || []).filter(e => {
@@ -385,7 +385,6 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
     const handleDownloadFacilityPdf = async () => {
         setIsGeneratingPdf(true);
         try {
-            // Helper for course lookup
             const getCourseById = (id: string) => (courses || []).find(c => c.id === id);
 
             const blob = await generateMasterFacilityGridPdf(
@@ -398,13 +397,13 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                 logoUrl,
                 activeAcademicYear?.name || 'Academic Period',
                 activeSemester?.name || '',
-                timetableSettings,
+                wideSettings,
                 selectedDay,
                 getSubjectById,
                 getLecturerById,
                 getCourseById,
-                courses || [], // Pass courses for strict room lookup
-                false // Full document mode
+                courses || [],
+                false
             );
             const url = URL.createObjectURL(blob);
             setPreviewPdfUrl(url);
@@ -576,35 +575,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                 {viewMode === 'master_course' ? (
                     (() => {
                         const isSingleCourse = selectedCourseForMasterView !== 'all';
-                        let effectiveSettings = timetableSettings;
-                        if (isSingleCourse) {
-                            const singleCourse = (courses || []).find(c => c && c.id === selectedCourseForMasterView);
-                            const profileId = singleCourse?.scheduleProfileId;
-                            const profile = (currentInstitution?.scheduleProfiles || []).find(p => p.id === profileId);
-                            if (profile) {
-                                effectiveSettings = {
-                                    ...timetableSettings,
-                                    operatingDays: profile.operatingDays || timetableSettings.operatingDays,
-                                    startTime: profile.startTime || timetableSettings.startTime,
-                                    endTime: profile.endTime || timetableSettings.endTime,
-                                    periods: (profile.periods && profile.periods.length > 0) ? profile.periods : (timetableSettings.periods || []),
-                                    cellSpanMinutes: profile.cellSpanMinutes || timetableSettings.cellSpanMinutes
-                                };
-                            }
-                        } else if (timetableSettings.defaultScheduleProfileId) {
-                            // Fallback to Institutional Default Profile for "All Courses" grid
-                            const defaultProfile = (currentInstitution?.scheduleProfiles || []).find(p => p.id === timetableSettings.defaultScheduleProfileId);
-                            if (defaultProfile) {
-                                effectiveSettings = {
-                                    ...timetableSettings,
-                                    operatingDays: defaultProfile.operatingDays || timetableSettings.operatingDays,
-                                    startTime: defaultProfile.startTime || timetableSettings.startTime,
-                                    endTime: defaultProfile.endTime || timetableSettings.endTime,
-                                    periods: (defaultProfile.periods && defaultProfile.periods.length > 0) ? defaultProfile.periods : (timetableSettings.periods || []),
-                                    cellSpanMinutes: defaultProfile.cellSpanMinutes || timetableSettings.cellSpanMinutes
-                                };
-                            }
-                        }
+                        const effectiveSettings = getEffectiveSettings(isSingleCourse ? selectedCourseForMasterView : undefined);
                         const filteredEntries = (generatedTimetable || []).filter(e => {
                             if (!e) return false;
                             const courseId = String(e.courseId || (e as any).course_id || '');
@@ -754,7 +725,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                                     getLecturerById={getLecturerById}
                                     getRoomById={getRoomById}
                                     courses={courses || []}
-                                    timetableSettings={timetableSettings}
+                                    timetableSettings={wideSettings}
                                 />
                             ) : (
                                 <TimetableGrid
@@ -765,7 +736,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                                     getSubjectById={getSubjectById}
                                     getLecturerById={getLecturerById}
                                     getRoomById={getRoomById}
-                                    timetableSettings={timetableSettings}
+                                    timetableSettings={wideSettings}
                                     onMoveLesson={onMoveTimetableEntry}
                                     isEditable={!!onMoveTimetableEntry}
                                 />
