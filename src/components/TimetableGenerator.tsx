@@ -273,7 +273,9 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                     }
                 });
                 const generated = generatedTimetable.filter(e => String(e.courseLevelId) === String(levelId)).length;
-                results.push({ name: l.name, intended: levelIntended, generated });
+                if (levelIntended > 0 || generated > 0) {
+                    results.push({ name: l.name, intended: levelIntended, generated });
+                }
             });
         });
         return results;

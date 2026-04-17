@@ -28,6 +28,7 @@ interface MasterCourseTimetableGridProps {
     layoutMode: 'horizontal' | 'vertical';
     onLayoutModeChange: (mode: 'horizontal' | 'vertical') => void;
     selectedDay?: string;
+    allocations?: AllocationRequest[];
 }
 
 export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps> = ({
@@ -46,7 +47,8 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
     layoutMode,
     onLayoutModeChange,
     selectedDay = 'Monday',
-    selectedLevelId = 'all'
+    selectedLevelId = 'all',
+    allocations = []
 }) => {
     const isSchool = isSchoolInstitution(currentInstitution);
     // const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal'); // LIFTED TO PARENT
@@ -60,26 +62,27 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
             list = list.filter(c => c && c.id === selectedCourseId);
         }
         
+        const allocatedLevelIds = new Set(allocations.flatMap(a => a.courseLevelIds || []));
+
         // If a specific level is selected, we only want to show that level within the courses
         if (selectedLevelId && selectedLevelId !== 'all') {
             list = list.map(course => ({
                 ...course,
                 levels: (course.levels || []).filter(l => l && String(l.id) === String(selectedLevelId))
             })).filter(course => (course.levels || []).length > 0);
+        } else {
+            // General filter: Only show levels that have allocations
+            list = list.map(course => ({
+                ...course,
+                levels: (course.levels || []).filter(l => l && allocatedLevelIds.has(l.id))
+            })).filter(course => (course.levels || []).length > 0);
         }
 
         // AUTO-FALLBACK: If a course has NO levels but we want to show it, 
         // add a synthetic "General" level so the grid has a row to render.
-        return list.map(course => {
-            if (!course.levels || course.levels.length === 0) {
-                return {
-                    ...course,
-                    levels: [{ id: `gen_${course.id}`, name: 'General/Master', subjectIds: [] }]
-                };
-            }
-            return course;
-        });
-    }, [courses, selectedCourseId, selectedLevelId]);
+        // DISABLED IF FILTERING BY ALLOCATIONS
+        return list;
+    }, [courses, selectedCourseId, selectedLevelId, allocations]);
 
     const workloadData = useMemo(() => {
         return relevantCourses.map(course => {
