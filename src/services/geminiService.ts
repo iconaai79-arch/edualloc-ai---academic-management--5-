@@ -306,11 +306,11 @@ export const generateTimetable = async (
                 continue;
             }
 
-            // Full Context Contextualization: Focus only on most relevant collisions to keep prompt size efficient
-            const recentContext = allGeneratedEntries.slice(-150); // Focus on last 150 entries to keep tokens lean
+            // Ultra-Lean Context: Only send last 100 entries and use minimal ID matching to stay under timeout limits
+            const recentContext = allGeneratedEntries.slice(-100); 
             const committedContext = recentContext.map(e => 
-                `${e.day.substring(0,3)}|${e.startTime}|L:${e.lecturerId.substring(0,4)}|R:${e.roomId.substring(0,4)}`
-            ).join('; ');
+                `${e.day.substring(0,2)}|${e.startTime}|L:${e.lecturerId.substring(0,3)}|R:${e.roomId.substring(0,3)}`
+            ).join(';');
 
             const prompt = `
                 ACT AS: Master Academic Scheduling Logic Engine (Pass ${i + 1} of ${cohorts.length})
@@ -320,23 +320,8 @@ export const generateTimetable = async (
                 - Profiles: ${JSON.stringify(compactProfiles)}
                 - Rooms: ${JSON.stringify(compactRooms)}
                 
-                MANDATORY TARGETS FOR THIS COHORT:
-                ${JSON.stringify(fulfillmentTargets)}
-                
-                *** CRITICAL REQUIREMENT ***: 
-                - You MUST generate EXACTLY the number of objects specified in the 'count' for each subject.
-                - GRANULARITY: 1 JSON object = 1 Single Period (e.g., if a subject has count 6, you MUST return 6 separate objects).
-                - DO NOT combine double periods into a single object. Each period must have its own 'startTime' and 'endTime' matching the period registry.
-                
-                COMMITTED SLOTS (ABSOLUTE FORBIDDEN LIST): 
-                ${committedContext || 'None'}
-
-                DIRECTIVES:
-                1. FULL FULFILLMENT: Every target count must be matched 1:1 by a JSON object.
-                2. NO COLLISION: Use different Lecturers/Rooms for same time as COMMITTED slots.
-                3. TIME VALIDITY: Match 'startTime' and 'endTime' PRECISELY to the period registry.
-                4. HOME ROOM PREFERENCE: For each level, prioritize assigning the 'homeRoomId' provided in the targets list. If 'homeRoomId' is null or a specialized room is needed, use any available room.
-                5. DAYS: Only use days defined in the schedule.
+                MANDATORY TARGETS:
+                ${JSON.stringify(fulfillmentTargets.map(f => ({ l: f.level, i: f.id, r: f.homeRoomId, t: f.targets.map((t: any) => ({ i: t.id, c: t.count })) })))}
                 
                 OUTPUT:
                 - JSON Array: [ { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }, ... ]
