@@ -240,9 +240,15 @@ export const generateTimetable = async (
         const allNotifications: string[] = [];
         const modelTier = aiModelTier === 'premium' ? 'pro' : 'flash';
 
+        // Optimized Global Context (Pre-calculated to reduce repetitive JSON overhead)
+        const compactRooms = rooms.map(r => ({ i: r.id.substring(0,6), n: r.name, b: r.buildingId?.substring(0,4) }));
+        const compactProfiles = profiles.map(p => ({ i: p.id.substring(0,4), n: p.name, p: (p.periods || []).length }));
+
         console.log(`[Batch Engine] Sequence Initialized: ${allLevels.length} levels, ${cohorts.length} passes expected.`);
 
         for (let i = 0; i < cohorts.length; i++) {
+            // Anti-Concurrency Surge: Small delay to prevent backend bottleneck
+            if (i > 0) await new Promise(resolve => setTimeout(resolve, 1500));
             const currentCohort = cohorts[i];
             const cohortLevelIds = currentCohort.map(l => l.id);
             
@@ -310,10 +316,9 @@ export const generateTimetable = async (
                 ACT AS: Master Academic Scheduling Logic Engine (Pass ${i + 1} of ${cohorts.length})
                 
                 OPERATING BOUNDS:
-                - General Schedule: ${JSON.stringify(settings.hours)}
-                - Period Structure: ${JSON.stringify(settings.periods)}
-                - Profiles: ${JSON.stringify(profiles.map(p => ({ id: p.id, name: p.name, hours: p.hours, periods: p.periods })))}
-                - Available Rooms: ${JSON.stringify(rooms.map(r => ({ id: r.id, name: r.name, buildingId: r.buildingId })))}
+                - General: ${JSON.stringify(settings.hours)}
+                - Profiles: ${JSON.stringify(compactProfiles)}
+                - Rooms: ${JSON.stringify(compactRooms)}
                 
                 MANDATORY TARGETS FOR THIS COHORT:
                 ${JSON.stringify(fulfillmentTargets)}
