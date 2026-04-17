@@ -65,6 +65,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
     const [error, setError] = useState<string | null>(null);
     const [isPublishing, setIsPublishing] = useState(false);
     const [publishSuccess, setPublishSuccess] = useState(false);
+    const [notifications, setNotifications] = useState<string[]>([]);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [publishFile, setPublishFile] = useState<File | null>(null);
     const [isUploading, setIsUploading] = useState(false);
@@ -106,8 +107,9 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
         setIsLoading(true);
         setError(null);
         try {
-            const rawTimetable = await generateTimetable(allocations, subjects, lecturers, rooms, timetableSettings, courseSizes, courses, timeOffRequests, currentInstitution?.scheduleProfiles || [], currentInstitution?.aiModelTier, currentInstitution);
-            await onTimetableGenerated?.(rawTimetable as any, activeAcademicYear.id, activeSemester.id);
+            const { entries, notifications: resultNotifications } = await generateTimetable(allocations, subjects, lecturers, rooms, timetableSettings, courseSizes, courses, timeOffRequests, currentInstitution?.scheduleProfiles || [], currentInstitution?.aiModelTier, currentInstitution);
+            setNotifications(resultNotifications || []);
+            await onTimetableGenerated?.(entries as any, activeAcademicYear.id, activeSemester.id);
             onLogAction?.('Generated New Timetable');
         } catch (err: any) {
             setError(err.message || "An unknown error occurred during timetable generation.");
@@ -414,6 +416,19 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                         )}
 
                         {error && <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-2xl border border-red-100 text-xs font-black uppercase tracking-widest flex items-center gap-3"><ExclamationTriangleIcon className="w-5 h-5" /> {error}</div>}
+
+                        {notifications.length > 0 && (
+                            <div className="mb-6 p-6 bg-amber-50 rounded-[2rem] border border-amber-100 animate-fade-in shadow-sm">
+                                <h4 className="flex items-center gap-2 text-amber-700 font-black text-xs uppercase tracking-widest mb-3">
+                                    <ExclamationTriangleIcon className="w-5 h-5 text-amber-500" /> Temporal Capacity Notifications
+                                </h4>
+                                <ul className="space-y-2">
+                                    {notifications.map((n, i) => (
+                                        <li key={i} className="text-[11px] font-bold text-amber-600 list-disc list-inside uppercase leading-relaxed">{n}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
 
                         {!isLoading && generatedTimetable.length > 0 && (
                             <div className="space-y-4 mb-6 animate-fade-in">

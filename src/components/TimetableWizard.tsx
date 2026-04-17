@@ -46,6 +46,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
     const [mode, setMode] = useState<'ai' | 'standard'>('ai');
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [notifications, setNotifications] = useState<string[]>([]);
     const [generatedCount, setGeneratedCount] = useState(0);
 
     const steps = [
@@ -98,7 +99,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                 let result: any[] = [];
 
                 if (mode === 'ai') {
-                    result = await generateTimetable(
+                    const { entries, notifications: resultNotifications } = await generateTimetable(
                         allocations.filter(a => a.status === 'approved'),
                         subjects,
                         lecturers,
@@ -111,8 +112,10 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                         'premium',
                         currentInstitution
                     );
+                    result = entries;
+                    setNotifications(resultNotifications || []);
                 } else {
-                    result = generateStandardTimetable(
+                    const { entries: stdEntries, notifications: stdNotifications } = generateStandardTimetable(
                         allocations.filter(a => a.status === 'approved'),
                         subjects,
                         lecturers,
@@ -123,6 +126,8 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                         courses,
                         currentInstitution?.scheduleProfiles || []
                     );
+                    result = stdEntries;
+                    setNotifications(stdNotifications || []);
                 }
 
                 if (result && result.length > 0) {
@@ -347,6 +352,19 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                 {error && (
                     <div className="mt-6 p-4 bg-red-50 dark:bg-red-900/30 text-red-600 text-xs font-bold rounded-xl border border-red-200 dark:border-red-800 text-center animate-shake">
                         {error}
+                    </div>
+                )}
+
+                {notifications.length > 0 && (
+                    <div className="mt-6 p-5 bg-amber-50 rounded-3xl border border-amber-100 animate-fade-in shadow-sm">
+                        <h4 className="flex items-center gap-2 text-amber-700 font-black text-[10px] uppercase tracking-widest mb-3">
+                            <ExclamationTriangleIcon className="w-4 h-4 text-amber-500" /> Lesson Capacity Reconciled
+                        </h4>
+                        <ul className="space-y-1.5 ml-2">
+                            {notifications.map((n, i) => (
+                                <li key={i} className="text-[10px] font-bold text-amber-600 list-disc list-inside uppercase leading-relaxed">{n}</li>
+                            ))}
+                        </ul>
                     </div>
                 )}
             </div>

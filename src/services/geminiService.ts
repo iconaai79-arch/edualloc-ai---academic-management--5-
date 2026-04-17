@@ -215,7 +215,7 @@ export const generateTimetable = async (
     profiles: ScheduleProfile[],
     aiModelTier?: string,
     institution?: any
-): Promise<TimetableEntry[]> => {
+): Promise<{ entries: TimetableEntry[], notifications: string[] }> => {
     try {
         checkAiAvailable();
         
@@ -234,6 +234,7 @@ export const generateTimetable = async (
         }
 
         let allGeneratedEntries: any[] = [];
+        const allNotifications: string[] = [];
         const modelTier = aiModelTier === 'premium' ? 'pro' : 'flash';
 
         console.log(`[Batch Engine] Sequence Initialized: ${allLevels.length} levels, ${cohorts.length} passes expected.`);
@@ -257,13 +258,35 @@ export const generateTimetable = async (
 
             // Pre-calculate exact fulfillment targets for this cohort to assure the user
             const fulfillmentTargets = currentCohort.map(l => {
+                const profile = profiles.find(p => p.id === l.courseProfileId);
+                const days = profile?.hours?.operatingDays?.length || settings.operatingDays?.length || 0;
+                const periodCount = profile?.periods?.length || settings.periods?.length || 0;
+                const totalSlots = days * periodCount;
+
                 const levelAllocations = cohortAllocations.filter(a => a.levelIds.includes(l.id));
+                let runningTotal = 0;
                 const targets = levelAllocations.map(a => {
                     const sub = subjects.find(s => s.id === a.subjectId);
                     const totalRequired = (sub?.lessonStructure || []).reduce((acc, s) => acc + ((s.periods || 0) * (s.count || 0)), 0);
+                    
+                    if (runningTotal + totalRequired > totalSlots && totalSlots > 0) {
+                        const allowedForThisSub = Math.max(0, totalSlots - runningTotal);
+                        if (allowedForThisSub < totalRequired) {
+                            allNotifications.push(`Capacity exceeded for ${l.name}: Subject ${sub?.name} (${totalRequired} sessions) was trimmed to ${allowedForThisSub} sessions to fit into ${totalSlots} available slots.`);
+                        }
+                        runningTotal += allowedForThisSub;
+                        return { subject: sub?.name, id: a.subjectId, count: allowedForThisSub };
+                    }
+
+                    runningTotal += totalRequired;
                     return { subject: sub?.name, id: a.subjectId, count: totalRequired };
                 }).filter(t => t.count > 0);
-                return { level: l.name, id: l.id, homeRoomId: l.roomId, targets };
+
+                if (runningTotal > totalSlots && totalSlots > 0) {
+                    console.warn(`[Batch Engine] Level ${l.name} workload (${runningTotal}) exceeds total slots (${totalSlots}). Pruning applied.`);
+                }
+
+                return { level: l.name, id: l.id, homeRoomId: l.roomId, targets, availableSlots: totalSlots };
             });
 
             if (fulfillmentTargets.every(f => f.targets.length === 0)) {
@@ -327,7 +350,7 @@ export const generateTimetable = async (
             console.log(`[Batch Engine] Sequence ${i+1}/${cohorts.length} finished. Added ${finalShard.length} sessions.`);
         }
 
-        return allGeneratedEntries;
+        return { entries: allGeneratedEntries, notifications: Array.from(new Set(allNotifications)) };
     } catch (error) {
         console.error("Critical Failure in Batch Timetable Engine:", error);
         throw error;
