@@ -57,7 +57,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
     const [hoveredSlot, setHoveredSlot] = useState<{ levelId: string, day: string, startTime: string } | null>(null);
 
     const daysOfWeek = timetableSettings.operatingDays;
-    const periodLabels = useMemo(() => generatePeriodLabels(timetableSettings, true), [timetableSettings]); 
+    const periodHeaders = useMemo(() => generatePeriodLabels(timetableSettings, true), [timetableSettings]); 
     const cellSpanMinutes = timetableSettings.cellSpanMinutes || 60;
 
     const handleDragStart = (e: React.DragEvent, entry: TimetableEntry) => {
@@ -446,7 +446,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                 Curriculum Map
                             </th>
                             {daysOfWeek.map(day => (
-                                <th key={day} colSpan={periodLabels.length} className="p-2 text-center text-[10px] font-black uppercase tracking-[0.3em] text-indigo-600 border-l border-slate-200 dark:border-slate-800 bg-indigo-50/30">
+                                <th key={day} colSpan={periodHeaders.length} className="p-2 text-center text-[10px] font-black uppercase tracking-[0.3em] text-indigo-600 border-l border-slate-200 dark:border-slate-800 bg-indigo-50/30">
                                     {day}
                                 </th>
                             ))}
@@ -455,7 +455,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                         <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
                             <th className="sticky left-0 bg-slate-50 dark:bg-slate-900 z-30 border-r border-slate-200 dark:border-slate-800" />
                             {daysOfWeek.map(day => (
-                                periodLabels.map((p, i) => (
+                                periodHeaders.map((p, i) => (
                                     <th key={`${day}-${i}`} className={`p-1 text-center text-[8px] font-black uppercase tracking-tighter border-l border-slate-100 dark:border-slate-800 w-24 ${p.isBreak ? 'text-slate-300' : 'text-slate-500'}`}>
                                         <div className="flex flex-col items-center">
                                             <span>{p.label}</span>
@@ -483,7 +483,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                     </td>
                                     {daysOfWeek.map(day => {
                                         const occupiedSlots = new Set<string>();
-                                        return periodLabels.map((period, periodIndex) => {
+                                        return periodHeaders.map((period, periodIndex) => {
                                             const slotKey = `${level.id}-${day}-${period.startTime}`;
                                             if (occupiedSlots.has(period.startTime)) return null;
 
