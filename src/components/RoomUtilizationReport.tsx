@@ -6,6 +6,7 @@ import { PrinterIcon } from './icons/PrinterIcon';
 import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 import { EyeIcon } from './icons/EyeIcon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
 
 import { generateRoomUtilizationPdf } from '../services/pdfService';
 
@@ -74,17 +75,38 @@ export const RoomUtilizationReport: React.FC<RoomUtilizationReportPropsFixed> = 
         const roomsInBuilding = rooms.filter(room => selectedBuildingId === 'all' || room.buildingId === selectedBuildingId);
 
         return roomsInBuilding.map(room => {
-            // Find entries for this room - match by ID, or fallback to name + building if AI halluncinated names
+            // Find entries for this room - STRICT filtering to ignore Virtual/Overflow rooms in physical stats
             const roomTimetable = generatedTimetable.filter(entry => 
-                entry.roomId === room.id || 
-                (entry.roomId === room.name && buildings.find(b => b.id === room.buildingId)?.name === (entry as any).buildingName)
+                entry.roomId === room.id && !entry.roomId.startsWith('VR-')
             );
 
+            // Calculate total duration
             const totalOccupiedMinutes = roomTimetable.reduce((acc, entry) => {
                 const start = timeToMinutes(entry.startTime);
                 const end = timeToMinutes(entry.endTime);
                 return acc + (end - start);
             }, 0);
+
+            // COLLISION DETECTION: Check for overlapping entries in the same room at the same time
+            let overlapMinutes = 0;
+            const sortedEntries = [...roomTimetable].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+            
+            for (let i = 0; i < sortedEntries.length; i++) {
+                for (let j = i + 1; j < sortedEntries.length; j++) {
+                    const a = sortedEntries[i];
+                    const b = sortedEntries[j];
+                    if (a.day !== b.day) continue;
+
+                    const aStart = timeToMinutes(a.startTime);
+                    const aEnd = timeToMinutes(a.endTime);
+                    const bStart = timeToMinutes(b.startTime);
+                    const bEnd = timeToMinutes(b.endTime);
+
+                    if (Math.max(aStart, bStart) < Math.min(aEnd, bEnd)) {
+                        overlapMinutes += (Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
+                    }
+                }
+            }
 
             const totalOccupiedHours = totalOccupiedMinutes / 60;
             const utilizationPercentage = (totalOccupiedHours / totalAvailableWeeklyHours) * 100;
@@ -99,7 +121,8 @@ export const RoomUtilizationReport: React.FC<RoomUtilizationReportPropsFixed> = 
                 room,
                 totalOccupiedHours,
                 utilizationPercentage,
-                usageBreakdown
+                usageBreakdown,
+                overlapCount: overlapMinutes / 60
             };
         }).sort((a, b) => b.utilizationPercentage - a.utilizationPercentage);
 
@@ -224,10 +247,17 @@ export const RoomUtilizationReport: React.FC<RoomUtilizationReportPropsFixed> = 
                                         <div className="flex items-center gap-4">
                                             <div className="flex-grow">
                                                 <UtilizationBar percentage={utilizationPercentage} />
+                                                {overlapCount > 0 && (
+                                                    <p className="text-[9px] font-black text-rose-600 uppercase mt-2 animate-pulse flex items-center gap-1">
+                                                        <ExclamationTriangleIcon className="w-3 h-3" /> Critical: {overlapCount.toFixed(1)} hrs of temporal collisions detected (Double Booking)
+                                                    </p>
+                                                )}
                                             </div>
                                             <div className="w-28 text-right flex-shrink-0">
-                                                <p className="font-black text-xl text-indigo-600">{utilizationPercentage.toFixed(1)}%</p>
-                                                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">{totalOccupiedHours.toFixed(1)} Total Hrs/Week</p>
+                                                <p className={`font-black text-xl ${utilizationPercentage > 100 ? 'text-rose-600' : 'text-indigo-600'}`}>
+                                                    {utilizationPercentage.toFixed(1)}%
+                                                </p>
+                                                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">{totalOccupiedHours.toFixed(1)} Active Hrs/Week</p>
                                             </div>
                                         </div>
                                     </div>
