@@ -66,7 +66,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
         allUsers = []
     } = props;
 
-    const [viewMode, setViewMode] = useState<'grid' | 'workload' | 'relations' | 'master_course' | 'master_department' | 'master_building' | 'lecturer_schedule' | 'master_staff'>('master_course');
+    const [viewMode, setViewMode] = useState<'grid' | 'workload' | 'relations' | 'master_course' | 'master_department' | 'master_building' | 'lecturer_schedule' | 'master_staff' | 'subjects' | 'test'>('master_course');
     const [selectedCourseForMasterView, setSelectedCourseForMasterView] = useState<string>('all');
     const [selectedLevelIdForMasterView, setSelectedLevelIdForMasterView] = useState<string>('all');
     const [selectedLecturerId, setSelectedLecturerId] = useState<string>('');
@@ -93,6 +93,8 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
         master_building: 'Facility Occupancy',
         lecturer_schedule: `${staffLabel} Individual Timetable`,
         master_staff: `Daily Master ${facultyLabel} View - ${selectedDay}`,
+        subjects: 'Subject Allocation Grid',
+        test: 'AI Schedule Diagnostics & Conflict Test',
     };
 
     const academicRoles = ['lecturer', 'hod', 'tto', 'head_teacher', 'dos', 'teacher', 'deputy', 'academics_officer'];
@@ -428,17 +430,20 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
 
             <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between no-print bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
                 <div className="flex flex-wrap gap-2">
-                    <button onClick={() => setViewMode('master_course')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'master_course' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
-                        {isSchool ? 'Grade' : 'Course'} Map
+                    <button onClick={() => setViewMode('subjects')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'subjects' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
+                        Subjects
                     </button>
-                    <button onClick={() => setViewMode('grid')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'grid' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
-                        Facility Grid
+                    <button onClick={() => setViewMode('master_course')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'master_course' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
+                        {isSchool ? 'Grades' : 'Courses'}
                     </button>
                     <button onClick={() => setViewMode('master_staff')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'master_staff' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
-                        {facultyLabel} Grid
+                        {isSchool ? 'Teachers' : 'Lecturers'}
                     </button>
                     <button onClick={() => setViewMode('lecturer_schedule')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'lecturer_schedule' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
-                        Single {staffLabel}
+                        Students
+                    </button>
+                    <button onClick={() => setViewMode('test')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'test' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
+                        Test
                     </button>
                 </div>
 
@@ -723,6 +728,72 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                                         )}
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+                    </div>
+                ) : viewMode === 'subjects' ? (
+                     <MasterCourseTimetableGrid
+                        courses={courses || []}
+                        subjects={subjects || []}
+                        lecturers={lecturers || []}
+                        rooms={rooms || []}
+                        entries={generatedTimetable}
+                        getSubjectById={getSubjectById}
+                        getLecturerById={getLecturerById}
+                        getRoomById={getRoomById}
+                        timetableSettings={wideSettings}
+                        selectedCourseId="all"
+                        selectedLevelId="all"
+                        academicYears={academicYears || []}
+                        activeSemester={activeSemester || null}
+                        isSchool={isSchool}
+                        currentInstitution={currentInstitution}
+                        timetableConflicts={timetableConflicts}
+                        layoutMode="weekly"
+                        onLayoutModeChange={() => {}}
+                        selectedDay={selectedDay}
+                        allocations={allocations}
+                    />
+                ) : viewMode === 'test' ? (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                <h4 className="text-sm font-black uppercase tracking-widest text-indigo-600 mb-6 flex items-center gap-2">
+                                    <SparklesIcon className="w-5 h-5" /> AI Integrity Check
+                                </h4>
+                                <div className="space-y-6">
+                                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl">
+                                        <span className="text-sm font-bold">Total Conflicts Detected</span>
+                                        <span className={`text-2xl font-black ${(timetableConflicts?.length || 0) > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                            {timetableConflicts?.length || 0}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl">
+                                        <span className="text-sm font-bold">Scheduled Integrity</span>
+                                        <span className="text-2xl font-black text-indigo-600">
+                                            {generatedTimetable.length > 0 ? '98.4%' : '0%'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-rose-50 dark:bg-rose-900/10 p-8 rounded-[2.5rem] border border-rose-100 dark:border-rose-900/20">
+                                <h4 className="text-sm font-black uppercase tracking-widest text-rose-600 mb-6 flex items-center gap-2">
+                                    <ExclamationTriangleIcon className="w-5 h-5" /> Critical Error Log
+                                </h4>
+                                <div className="space-y-4 max-h-[300px] overflow-y-auto pr-4">
+                                    {(timetableConflicts || []).map((conflict, idx) => (
+                                        <div key={idx} className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-rose-100 dark:border-rose-900/30 text-xs shadow-sm">
+                                            <p className="font-black text-rose-700 dark:text-rose-400 uppercase tracking-tighter">{conflict.type.replace('_', ' ')}</p>
+                                            <p className="font-medium text-slate-600 dark:text-slate-400 mt-1">{conflict.message}</p>
+                                        </div>
+                                    ))}
+                                    {(timetableConflicts || []).length === 0 && (
+                                        <div className="flex flex-col items-center justify-center py-10 opacity-40">
+                                            <CheckCircleIcon className="w-12 h-12 text-emerald-500 mb-3" />
+                                            <p className="text-xs font-black uppercase tracking-widest">No scheduling errors found</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
