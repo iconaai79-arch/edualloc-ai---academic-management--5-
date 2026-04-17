@@ -291,14 +291,14 @@ export const generateTimetable = async (
             3. ONE ENTRY = ONE SLOT (GRANULARITY):
                - Your JSON output MUST be a flat array where EACH object represents EXACTLY ONE period (slot).
                - Even for a double lesson (2 periods), you return TWO separate objects with matching subjectId but different slot times.
-            
             4. PROFILE SYNCRONIZATION:
                - Use the 'activeProfileId' for the grade. If empty, use 'institutionDefaultProfileId'. If both empty, use 'globalSlots'.
                - Lessons MUST align perfectly with the resolved profile's startTime and endTime.
             
-            5. VERTICAL LOGIC (DISTRIBUTION):
+            5. VERTICAL LOGIC (DISTRIBUTION & DENSITY):
                - Avoid "Front-Loading": Spread lessons across the entire day (Morning to Evening).
                - Avoid "Back-to-Back" for same subject: Do not schedule two sessions of the same subject on the same day unless it's a block.
+               - TEMPORAL BREATHING: Avoid packing all grades/sections into the same few periods. Spread different grades across the day to minimize simultaneous activity (e.g., if Grade 4 has SST at 8 AM, try to schedule Grade 5 for AGN at 9 AM or 10 AM, rather than 8 AM, unless resource limits force concurrency).
 
             6. SPATIAL ASSIGNMENT (ZERO SPATIAL OVERLAP):
                - NO ROOM DOUBLE-BOOKING: A room ID MUST NOT appear twice for the same day/time unless the lessons are for the same grade/level.
@@ -311,15 +311,16 @@ export const generateTimetable = async (
 
             8. GRADE LEVEL INTEGRITY (ZERO GRADE COLLISION):
                - NO GRADE DOUBLE-BOOKING: A specific Grade/Level ID (targetGradeId) MUST NOT be scheduled for more than one lesson at the same day/time.
-               - Every class (e.g., 5S) is a singular entity; it cannot be in two places or subjects at once.
-               - Avoid "Day-Clustering": Spread a subject's lessons across different days of the week.
-            
-            6. HARD CONSTRAINTS (NO CONFLICTS):
+               - SINGULAR FOCUS: Every class (e.g., 5S) is a singular entity; it cannot be in two places or subjects at once.
+               - Avoid "Day-Clustering": Spread a subject's lessons across different days in the week.
+
+            9. HARD CONSTRAINTS (NO CONFLICTS):
                - No lecturer in two places at once.
                - No room with two different classes at once.
                - No grade/level group with two different lessons at once.
 
-            Output Format: JSON Array of objects: { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }.
+            10. OUTPUT SPECIFICATION:
+               - Return a flat JSON Array of objects: { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }.
         `;
 
         const modelTier = aiModelTier === 'premium' ? 'pro' : 'flash';
