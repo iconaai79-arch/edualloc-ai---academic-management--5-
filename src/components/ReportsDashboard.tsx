@@ -373,7 +373,9 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                         (level.subjectIds || []).forEach(sid => {
                             const sj = subjects.find(s => s.id === sid);
                             if (sj) {
-                                totalPeriodsTarget += calculateTotalPeriods(sj.lessonStructure);
+                                const meta = (level.subjectMetadata || []).find(m => m.subjectId === sid);
+                                const structure = meta?.lessonStructure || sj.lessonStructure || [];
+                                totalPeriodsTarget += calculateTotalPeriods(structure);
                             }
                         });
                     });
@@ -383,7 +385,9 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                         (level.subjectIds || []).forEach(sid => {
                             const sj = subjects.find(s => s.id === sid && s.departmentId === dept.id);
                             if (sj) {
-                                totalPeriodsTarget += calculateTotalPeriods(sj.lessonStructure);
+                                const meta = (level.subjectMetadata || []).find(m => m.subjectId === sid);
+                                const structure = meta?.lessonStructure || sj.lessonStructure || [];
+                                totalPeriodsTarget += calculateTotalPeriods(structure);
                             }
                         });
                     });
@@ -398,8 +402,16 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
 
             const allocatedPeriods = allocatedDeptSubjects.reduce((sum, a) => {
                 const subject = (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === a.subjectId);
-                const streamMultiplier = (a.courseLevelIds || []).length || 1;
-                return sum + (subject ? calculateTotalPeriods(subject.lessonStructure) * streamMultiplier : 0);
+                if (!subject) return sum;
+                
+                const periods = (a.courseLevelIds || []).reduce((acc, levelId) => {
+                    const level = (courses || []).flatMap(c => c.levels || []).find(l => l.id === levelId);
+                    const meta = (level?.subjectMetadata || []).find(m => m.subjectId === a.subjectId);
+                    const structure = meta?.lessonStructure || subject.lessonStructure || [];
+                    return acc + calculateTotalPeriods(structure);
+                }, 0) || calculateTotalPeriods(subject.lessonStructure); // Fallback to 1 stream default if no levels linked (rare)
+                
+                return sum + periods;
             }, 0);
 
             return {
@@ -418,8 +430,16 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                 const lecturerAllocations = (Array.isArray(allocations) ? allocations : []).filter(a => a && a.lecturerId === lecturer.id);
                 const allocatedPeriods = lecturerAllocations.reduce((sum, a) => {
                     const subject = (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === a.subjectId);
-                    const streamMultiplier = (a.courseLevelIds || []).length || 1;
-                    return sum + (subject ? calculateTotalPeriods(subject.lessonStructure) * streamMultiplier : 0);
+                    if (!subject) return sum;
+
+                    const periods = (a.courseLevelIds || []).reduce((acc, levelId) => {
+                        const level = (courses || []).flatMap(c => c.levels || []).find(l => l.id === levelId);
+                        const meta = (level?.subjectMetadata || []).find(m => m.subjectId === a.subjectId);
+                        const structure = meta?.lessonStructure || subject.lessonStructure || [];
+                        return acc + calculateTotalPeriods(structure);
+                    }, 0) || calculateTotalPeriods(subject.lessonStructure);
+
+                    return sum + periods;
                 }, 0);
                 const subjectNames = lecturerAllocations
                     .map(a => (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === a.subjectId)?.name)
