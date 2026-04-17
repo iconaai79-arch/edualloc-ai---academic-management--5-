@@ -16,7 +16,7 @@ interface RoomUtilizationReportProps {
     courses: Course[];
     generatedTimetable: TimetableEntry[];
     timetableSettings: TimetableSettings;
-    letterheadConfig: RoomUtilizationReportProps['letterheadConfig']; // Keep existing type
+    letterheadConfig: LetterheadConfig | null;
     logoUrl: string | null;
     footerImageUrl: string | null;
     onPreviewPdf?: (url: string, filename: string) => void;
@@ -236,7 +236,7 @@ export const RoomUtilizationReport: React.FC<RoomUtilizationReportPropsFixed> = 
                 <h3 className="text-xl font-semibold p-4 hidden print:block print:text-black border-b print:border-slate-300">Room Utilization Report</h3>
                 <ul className="divide-y divide-slate-200 dark:divide-slate-700">
                     {utilizationData.length > 0 ? (
-                        utilizationData.map(({ room, totalOccupiedHours, utilizationPercentage, usageBreakdown }) => (
+                        utilizationData.map(({ room, totalOccupiedHours, utilizationPercentage, usageBreakdown, overlapCount }) => (
                             <li key={room.id} className="p-4 sm:p-6 space-y-4 page-break-inside-avoid">
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
                                     <div>
