@@ -15,6 +15,7 @@ import { MegaphoneIcon as Megaphone } from '../icons/MegaphoneIcon';
 import { ScaleIcon as Scale } from '../icons/ScaleIcon';
 import { WrenchIcon as Wrench } from '../icons/WrenchIcon';
 import { ArrowsRightLeftIcon as Logistics } from '../icons/ArrowsRightLeftIcon';
+import { ShareIcon } from '../icons/ShareIcon';
 import './MarketingLanding.css';
 import { apiService } from '../../services/apiService';
 import { CompanyDetails } from '../../types';
@@ -27,6 +28,7 @@ interface ModuleProps {
   description: string;
   advantages?: string[];
   link?: string;
+  modId?: string;
   onLaunchSimulator?: () => void;
 }
 
@@ -63,16 +65,30 @@ const ModuleCard: React.FC<ModuleProps> = ({ icon, imageUrl, title, description,
         </div>
       )}
       
-      <button 
-        className="simulator-btn group"
-        onClick={(e) => {
-          e.stopPropagation();
-          if (onLaunchSimulator) onLaunchSimulator();
-        }}
-      >
-        <Zap className="w-4 h-4 fill-indigo-400/30 group-hover:fill-current" />
-        Launch Showcase
-      </button>
+      <div className="flex items-center gap-2">
+        <button 
+          className="simulator-btn group flex-1"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onLaunchSimulator) onLaunchSimulator();
+          }}
+        >
+          <Zap className="w-4 h-4 fill-indigo-400/30 group-hover:fill-current" />
+          Launch Showcase
+        </button>
+        <button 
+          title="Share simulator link"
+          className="p-3.5 bg-white/5 border border-white/10 text-slate-400 hover:text-indigo-400 hover:bg-white/10 rounded-2xl transition-all"
+          onClick={(e) => {
+            e.stopPropagation();
+            const shareUrl = `${window.location.origin}${window.location.pathname}?showcaseModId=${modId || title.toLowerCase().replace(/\s+/g, '_')}`;
+            navigator.clipboard.writeText(shareUrl);
+            alert("Simulator link copied to clipboard!");
+          }}
+        >
+          <ShareIcon className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   </div>
 );
@@ -131,6 +147,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
     title: m.title,
     description: m.description,
     advantages: m.advantages,
+    modId: m.id,
     onLaunchSimulator: () => onLaunchSimulator?.(m.role, m.id)
   }));
 
