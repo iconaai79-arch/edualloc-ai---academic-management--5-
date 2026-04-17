@@ -225,7 +225,7 @@ export const generateTimetable = async (
             - Approved Instructional Allocations: ${JSON.stringify(allocations.flatMap(a => (a.courseLevelIds || []).map(lid => ({
                 subjectId: a.subjectId,
                 coordinatorId: a.lecturerId,
-                targetGradeId: lid
+                courseLevelId: lid
             }))))}
             - Subject Specification Registry: ${JSON.stringify(subjects.map(s => ({ 
                 id: s.id, 
@@ -307,10 +307,10 @@ export const generateTimetable = async (
 
             7. FACULTY RESOURCE SEPARATION:
                - NO LECTURER DOUBLE-BOOKING: A lecturer ID MUST NOT be scheduled for two different gradeLevels at overlapping times.
-               - Treat every (subjectId, lecturerId, targetGradeId) triplet as a distinct requirement that occupies its own physical and temporal space.
+               - Treat every (subjectId, lecturerId, courseLevelId) triplet as a distinct requirement that occupies its own physical and temporal space.
 
             8. GRADE LEVEL INTEGRITY (ZERO GRADE COLLISION):
-               - NO GRADE DOUBLE-BOOKING: A specific Grade/Level ID (targetGradeId) MUST NOT be scheduled for more than one lesson at the same day/time.
+               - NO GRADE DOUBLE-BOOKING: A specific Grade/Level ID (courseLevelId) MUST NOT be scheduled for more than one lesson at the same day/time.
                - SINGULAR FOCUS: Every class (e.g., 5S) is a singular entity; it cannot be in two places or subjects at once.
                - Avoid "Day-Clustering": Spread a subject's lessons across different days in the week.
 
