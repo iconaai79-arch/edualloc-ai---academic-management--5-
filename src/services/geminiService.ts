@@ -267,7 +267,11 @@ export const generateTimetable = async (
                 let runningTotal = 0;
                 const targets = levelAllocations.map(a => {
                     const sub = subjects.find(s => s.id === a.subjectId);
-                    const totalRequired = (sub?.lessonStructure || []).reduce((acc, s) => acc + ((s.periods || 0) * (s.count || 0)), 0);
+                    
+                    // Check for stream-level override in metadata
+                    const meta = (l.subjectMetadata || []).find(m => m.subjectId === a.subjectId);
+                    const structure = meta?.lessonStructure || sub?.lessonStructure || [];
+                    const totalRequired = structure.reduce((acc: number, s: any) => acc + ((s.periods || 0) * (s.count || 0)), 0);
                     
                     if (runningTotal + totalRequired > totalSlots && totalSlots > 0) {
                         const allowedForThisSub = Math.max(0, totalSlots - runningTotal);
