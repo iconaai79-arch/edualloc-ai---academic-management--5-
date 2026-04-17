@@ -30,10 +30,7 @@ export const generateStandardTimetable = (
     // lecturerId -> day -> lastEndTimeMinutes
     const lecturerSlotEnds = new Map<string, Map<string, Set<number>>>();
 
-    const sortedAllocations = [...(allocations || [])].sort((a, b) => {
-        const priorityWeight = { 'High': 0, 'Medium': 1, 'Low': 2 };
-        return priorityWeight[a.priority] - priorityWeight[b.priority];
-    });
+    const sortedAllocations = [...(allocations || [])].sort(() => Math.random() - 0.5); // Global shuffle to prevent priority-clogging in high-density schedules
 
     sortedAllocations.forEach(alloc => {
         const subject = (subjects || []).find(s => s && s.id === alloc.subjectId);
@@ -53,7 +50,7 @@ export const generateStandardTimetable = (
         const days = activeDays.length || 0;
         const periodCount = displaySlots.length || 0;
         const totalSlots = days * periodCount;
-        const capacityInSesh = totalSlots * 3.0; // Increased to 3.0 to support massive 2000+ period workloads and parallel sessions
+        const capacityInSesh = 99999; // Effectively removed pruning for Legacy generator to allow maximum institutional density
 
         // Pre-initialize tracking maps
         if (!lecturerDailyCounts.has(alloc.lecturerId)) {
@@ -99,7 +96,7 @@ export const generateStandardTimetable = (
                     if (placed) break;
 
                     const currentDailyCount = lecturerDailyCounts.get(alloc.lecturerId)?.get(day) || 0;
-                    if (currentDailyCount >= 14) continue; // Increased to 14 to support extreme faculty density
+                    if (currentDailyCount >= 20) continue; // Further increased to 20 for absolute faculty utilization
 
                     const shuffledSlots = [...displaySlots].sort(() => Math.random() - 0.5);
 
