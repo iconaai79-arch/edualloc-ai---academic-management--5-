@@ -945,11 +945,38 @@ export const generateRoomUtilizationPdf = async (
     const doc = new lib.jsPDF();
     const [headerImg, footerImg] = await Promise.all([loadImage(letterheadConfig?.headerImageUrl), loadImage(footerImageUrl)]);
     let yPos = setupPdfHeader(doc, headerImg);
+    
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
     doc.text(title, 14, yPos);
     yPos += 10;
-    const head = [['Room', 'Capacity', 'Utilization %']];
-    const body = (data || []).map(d => [d.room.name, d.room.capacity, `${d.utilizationPercentage.toFixed(1)}%`]);
-    doc.autoTable({ startY: yPos, head, body, theme: 'grid' });
+
+    const head = [['Room / Facility', 'Capacity', 'Utilization %', 'Occupancy Attribution']];
+    const body = (data || []).map(d => {
+        const attribution = Object.entries(d.usageBreakdown || {})
+            .map(([cls, hrs]) => `${cls}: ${Number(hrs).toFixed(1)}h`)
+            .join(', ');
+
+        return [
+            d.room.name, 
+            d.room.capacity, 
+            `${d.utilizationPercentage.toFixed(1)}%`,
+            attribution || 'No active sessions'
+        ];
+    });
+
+    doc.autoTable({ 
+        startY: yPos, 
+        head, 
+        body, 
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255, fontSize: 9 },
+        styles: { fontSize: 8 },
+        columnStyles: {
+            3: { cellWidth: 80 } // Give more space for attribution strings
+        }
+    });
+
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
 };

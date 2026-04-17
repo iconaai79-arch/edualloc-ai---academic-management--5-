@@ -11,12 +11,18 @@ import { generateRoomUtilizationPdf } from '../services/pdfService';
 interface RoomUtilizationReportProps {
     buildings: Building[];
     rooms: Room[];
+    courses: Course[];
     generatedTimetable: TimetableEntry[];
     timetableSettings: TimetableSettings;
-    letterheadConfig: LetterheadConfig;
+    letterheadConfig: RoomUtilizationReportProps['letterheadConfig']; // Keep existing type
     logoUrl: string | null;
     footerImageUrl: string | null;
     onPreviewPdf?: (url: string, filename: string) => void;
+}
+
+// Fixed type for letterheadConfig
+interface RoomUtilizationReportPropsFixed extends Omit<RoomUtilizationReportProps, 'letterheadConfig'> {
+     letterheadConfig: LetterheadConfig;
 }
 
 const UtilizationBar: React.FC<{ percentage: number }> = ({ percentage }) => {
@@ -37,9 +43,10 @@ const UtilizationBar: React.FC<{ percentage: number }> = ({ percentage }) => {
     );
 };
 
-export const RoomUtilizationReport: React.FC<RoomUtilizationReportProps> = ({
+export const RoomUtilizationReport: React.FC<RoomUtilizationReportPropsFixed> = ({
     buildings,
     rooms,
+    courses,
     generatedTimetable,
     timetableSettings,
     letterheadConfig,
@@ -81,10 +88,17 @@ export const RoomUtilizationReport: React.FC<RoomUtilizationReportProps> = ({
             const totalOccupiedHours = totalOccupiedMinutes / 60;
             const utilizationPercentage = (totalOccupiedHours / totalAvailableWeeklyHours) * 100;
 
+            const usageBreakdown = roomTimetable.reduce((acc, entry) => {
+                const className = courses.flatMap(c => c.levels || []).find(l => l.id === entry.courseLevelId)?.name || 'Unknown Class';
+                acc[className] = (acc[className] || 0) + (timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime)) / 60;
+                return acc;
+            }, {} as Record<string, number>);
+
             return {
                 room,
                 totalOccupiedHours,
                 utilizationPercentage,
+                usageBreakdown
             };
         }).sort((a, b) => b.utilizationPercentage - a.utilizationPercentage);
 
@@ -171,27 +185,66 @@ export const RoomUtilizationReport: React.FC<RoomUtilizationReportProps> = ({
                 </div>
             </div>
 
+            <div className="bg-indigo-50 dark:bg-indigo-900/20 p-8 rounded-[2.5rem] border border-indigo-100 dark:border-indigo-800 no-print">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-indigo-600 rounded-xl text-white">
+                        <UserGroupIcon className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h4 className="text-lg font-black uppercase text-slate-900 dark:text-white leading-tight">Class Registry Audit</h4>
+                        <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest italic">Synchronized Available Classes in Database</p>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                    {courses.flatMap(c => c.levels || []).map(l => {
+                        const roomName = rooms.find(r => r.id === l.roomId)?.name || 'N/A';
+                        return (
+                            <div key={l.id} className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm text-center">
+                                <p className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase truncate">{l.name}</p>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Room: {roomName}</p>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
             <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg printable-area">
                 <h3 className="text-xl font-semibold p-4 hidden print:block print:text-black border-b print:border-slate-300">Room Utilization Report</h3>
                 <ul className="divide-y divide-slate-200 dark:divide-slate-700">
                     {utilizationData.length > 0 ? (
-                        utilizationData.map(({ room, totalOccupiedHours, utilizationPercentage }) => (
-                            <li key={room.id} className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 items-center page-break-inside-avoid">
-                                <div>
-                                    <p className="font-bold text-slate-800 dark:text-slate-100">{room.name}</p>
-                                    <p className="text-sm text-slate-500 dark:text-slate-400">Capacity: {room.capacity}</p>
-                                </div>
-                                <div className="md:col-span-2">
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex-grow">
-                                            <UtilizationBar percentage={utilizationPercentage} />
-                                        </div>
-                                        <div className="w-28 text-right flex-shrink-0">
-                                            <p className="font-semibold text-lg">{utilizationPercentage.toFixed(1)}%</p>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400">{totalOccupiedHours.toFixed(1)} hrs/week</p>
+                        utilizationData.map(({ room, totalOccupiedHours, utilizationPercentage, usageBreakdown }) => (
+                            <li key={room.id} className="p-4 sm:p-6 space-y-4 page-break-inside-avoid">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                                    <div>
+                                        <p className="font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight text-lg">{room.name}</p>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Facility Capacity: {room.capacity}</p>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex-grow">
+                                                <UtilizationBar percentage={utilizationPercentage} />
+                                            </div>
+                                            <div className="w-28 text-right flex-shrink-0">
+                                                <p className="font-black text-xl text-indigo-600">{utilizationPercentage.toFixed(1)}%</p>
+                                                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">{totalOccupiedHours.toFixed(1)} Total Hrs/Week</p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
+                                
+                                {Object.keys(usageBreakdown).length > 0 && (
+                                    <div className="pt-4 border-t border-slate-50 dark:border-slate-700/50">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Occupancy Attribution Breakdown</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {Object.entries(usageBreakdown).map(([cls, hrs]) => (
+                                                <div key={cls} className="px-3 py-1.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center gap-2">
+                                                    <span className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase">{cls}</span>
+                                                    <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-900/40 px-1.5 rounded">{hrs.toFixed(1)}h</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </li>
                         ))
                     ) : (

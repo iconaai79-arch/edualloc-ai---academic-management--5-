@@ -765,6 +765,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                         <RoomUtilizationReport
                             buildings={buildings || []}
                             rooms={rooms || []}
+                            courses={courses || []}
                             generatedTimetable={filteredTimetableEntries || []}
                             timetableSettings={timetableSettings}
                             letterheadConfig={letterheadConfig}
