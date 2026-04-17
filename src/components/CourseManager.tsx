@@ -491,7 +491,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                     if (subject) {
                         const relatedAllocations = (allocations || []).filter(a =>
                             a.subjectId === subject.id &&
-                            a.status === 'approved' &&
+                            (a.status === 'approved' || a.status === 'hod_approved' || a.status === 'change_request_pending' || a.status === 'deallocation_pending') &&
                             (!a.courseLevelIds || a.courseLevelIds.length === 0 || a.courseLevelIds.includes(level.id))
                         );
 
