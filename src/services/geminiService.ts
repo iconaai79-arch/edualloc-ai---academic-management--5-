@@ -56,24 +56,27 @@ const safeGenerateContent = async (prompt: string, config: any = {}, preferredMo
             })
         });
 
+        const contentType = response.headers.get('content-type') || '';
+        
         if (!response.ok) {
-            const responseClone = response.clone();
-            let errorText = '';
-            try {
+            if (contentType.includes('application/json')) {
                 const errorData = await response.json();
                 throw new Error(errorData.message || errorData.error || `AI Service Error: ${response.status}`);
-            } catch (e: any) {
-                // If JSON fails, get text from clone
-                errorText = await responseClone.text().catch(() => 'Unable to read error text');
+            } else {
+                const errorText = await response.text();
                 console.error("[System Debug] Server returned Non-JSON Error Response:", errorText.substring(0, 500));
                 
-                // If it's a Vercel/Edge timeout or error page, distill it
                 if (errorText.includes('<html>')) {
                     throw new Error(`Cloud Infrastructure Error: ${response.status} (The server took too long to respond or encountered a gateway issue).`);
                 }
-                
-                throw new Error(e.message || `AI Service Error: ${response.status} - ${errorText.substring(0, 100)}`);
+                throw new Error(`AI Service Error: ${response.status} - ${errorText.substring(0, 100)}`);
             }
+        }
+
+        if (!contentType.includes('application/json')) {
+            const rawText = await response.text();
+            console.error("[System Debug] Expected JSON but got:", rawText.substring(0, 200));
+            throw new Error("Gemini 3.0 Pro: The response returned an invalid format. This usually occurs during server-side timeouts.");
         }
 
         const data = await response.json();
