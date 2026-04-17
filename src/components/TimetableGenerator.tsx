@@ -462,8 +462,16 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
 
                         {generatedTimetable.length > 0 && !isLoading && (
                             <div className="animate-fade-in-up">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h4 className="font-black text-xs uppercase tracking-widest text-slate-400">Generation Preview Matrix</h4>
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                                    <div className="flex items-center gap-4">
+                                        <h4 className="font-black text-xs uppercase tracking-widest text-slate-400">Generation Preview Matrix</h4>
+                                        <div className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/40 rounded-full border border-indigo-100 dark:border-indigo-800 flex items-center gap-2">
+                                            <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse"></div>
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
+                                                Generated: {generatedTimetable.length} / {intendedLessonCount}
+                                            </span>
+                                        </div>
+                                    </div>
                                     <div className="flex gap-2">
                                         <div className="flex gap-2">
                                             <button onClick={async () => {
