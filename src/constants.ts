@@ -189,6 +189,27 @@ export const INITIAL_EXAM_TIMETABLE_SETTINGS: ExamTimetableSettings = {
     rules: ['No student shall sit for more than two exams a day.']
 };
 
+export const DEFAULT_GRADING_SYSTEMS: GradingSystem[] = [
+    {
+        id: 'gs_standard',
+        name: 'Secondary Standard',
+        definitions: [
+            { id: 'A', grade: 'A', minScore: 80, maxScore: 100, points: 12, comment: 'Plain' },
+            { id: 'Am', grade: 'A-', minScore: 75, maxScore: 79, points: 11, comment: 'Minus' },
+            { id: 'Bp', grade: 'B+', minScore: 70, maxScore: 74, points: 10, comment: 'Plus' },
+            { id: 'B', grade: 'B', minScore: 65, maxScore: 69, points: 9, comment: 'Plain' },
+            { id: 'Bm', grade: 'B-', minScore: 60, maxScore: 64, points: 8, comment: 'Minus' },
+            { id: 'Cp', grade: 'C+', minScore: 55, maxScore: 59, points: 7, comment: 'Plus' },
+            { id: 'C', grade: 'C', minScore: 50, maxScore: 54, points: 6, comment: 'Plain' },
+            { id: 'Cm', grade: 'C-', minScore: 45, maxScore: 49, points: 5, comment: 'Minus' },
+            { id: 'Dp', grade: 'D+', minScore: 40, maxScore: 44, points: 4, comment: 'Plus' },
+            { id: 'D', grade: 'D', minScore: 35, maxScore: 39, points: 3, comment: 'Plain' },
+            { id: 'Dm', grade: 'D-', minScore: 30, maxScore: 34, points: 2, comment: 'Minus' },
+            { id: 'E', grade: 'E', minScore: 0, maxScore: 29, points: 1, comment: 'Fail' },
+        ]
+    }
+];
+
 export const INITIAL_INSTITUTIONS: Institution[] = [
     {
         id: 'SYSTEM',
@@ -225,6 +246,7 @@ export const INITIAL_INSTITUTIONS: Institution[] = [
     }
 ];
 
+
 export const INITIAL_ACADEMIC_LEVELS: AcademicLevel[] = [
     { id: 'ug', name: 'Undergraduate', institutionId: INST_DEMO },
     { id: 'senior', name: 'Senior Secondary', institutionId: INST_DEMO }
@@ -236,27 +258,6 @@ export const INITIAL_ACADEMIC_YEARS: AcademicYear[] = [
 
 export const INITIAL_SEMESTERS: Semester[] = [
     { id: 'sem_1_2024', name: 'Term 1', academicYearId: 'ay_2024', institutionId: INST_DEMO, startDate: '2024-09-01', endDate: '2024-12-20', status: 'active' }
-];
-
-export const DEFAULT_GRADING_SYSTEMS: GradingSystem[] = [
-    {
-        id: 'gs_standard',
-        name: 'Secondary Standard',
-        definitions: [
-            { id: 'A', grade: 'A', minScore: 80, maxScore: 100, points: 12, comment: 'Plain' },
-            { id: 'Am', grade: 'A-', minScore: 75, maxScore: 79, points: 11, comment: 'Minus' },
-            { id: 'Bp', grade: 'B+', minScore: 70, maxScore: 74, points: 10, comment: 'Plus' },
-            { id: 'B', grade: 'B', minScore: 65, maxScore: 69, points: 9, comment: 'Plain' },
-            { id: 'Bm', grade: 'B-', minScore: 60, maxScore: 64, points: 8, comment: 'Minus' },
-            { id: 'Cp', grade: 'C+', minScore: 55, maxScore: 59, points: 7, comment: 'Plus' },
-            { id: 'C', grade: 'C', minScore: 50, maxScore: 54, points: 6, comment: 'Plain' },
-            { id: 'Cm', grade: 'C-', minScore: 45, maxScore: 49, points: 5, comment: 'Minus' },
-            { id: 'Dp', grade: 'D+', minScore: 40, maxScore: 44, points: 4, comment: 'Plus' },
-            { id: 'D', grade: 'D', minScore: 35, maxScore: 39, points: 3, comment: 'Plain' },
-            { id: 'Dm', grade: 'D-', minScore: 30, maxScore: 34, points: 2, comment: 'Minus' },
-            { id: 'E', grade: 'E', minScore: 0, maxScore: 29, points: 1, comment: 'Fail' },
-        ]
-    }
 ];
 
 export const INITIAL_USERS: User[] = [

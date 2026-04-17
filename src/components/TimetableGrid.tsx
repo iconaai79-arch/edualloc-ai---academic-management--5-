@@ -62,9 +62,10 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
             entries,
             rooms,
             courses,
-            subjects
+            subjects,
+            timetableSettings
         );
-    }, [draggedEntryId, hoveredSlot, entries, rooms, courses, subjects]);
+    }, [draggedEntryId, hoveredSlot, entries, rooms, courses, subjects, timetableSettings]);
 
     const handleDragStart = (e: React.DragEvent, entry: TimetableEntry) => {
         if (!isEditable) return;
@@ -147,19 +148,22 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
                             const breakObj = timetableSettings.breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
 
                             if (entriesStartingInSlot.length > 0) {
-                                // Calculate max duration among all entries in this slot to determine colSpan
-                                const slotEndMinutes = timeToMinutes(displaySlots[i].end);
                                 const maxEntryEndMinutes = Math.max(...entriesStartingInSlot.map(e => timeToMinutes(e.endTime)));
-
-                                // Calculate colSpan based on how many periods this lesson actually covers
+                                const isBlocked = entriesStartingInSlot.length > 1;
                                 let colSpan = 1;
+
                                 if (maxEntryEndMinutes > slotEndMinutes) {
-                                    for (let k = i + 1; k < displaySlots.length; k++) {
-                                        if (timeToMinutes(displaySlots[k].start) < maxEntryEndMinutes) {
-                                            colSpan++;
-                                        } else {
-                                            break;
+                                    if (isBlocked) {
+                                        for (let k = i + 1; k < displaySlots.length; k++) {
+                                            if (timeToMinutes(displaySlots[k].start) < maxEntryEndMinutes) {
+                                                colSpan++;
+                                            } else {
+                                                break;
+                                            }
                                         }
+                                    } else {
+                                        // Enforce one-period fidelity for single entries as requested
+                                        colSpan = 1;
                                     }
                                 }
 

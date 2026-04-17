@@ -43,9 +43,18 @@ export const ConflictReport: React.FC<ConflictReportProps> = ({ conflicts, getLe
 
             <div className="space-y-4">
                 {conflicts.map((conflict, index) => {
-                    const resourceName = conflict.type === 'room'
-                        ? `Room: ${getRoomById(conflict.resourceId)?.name || 'Unknown'}`
-                        : `Lecturer: ${getLecturerById(conflict.resourceId)?.name || 'Unknown'}`;
+                    let resourceName = 'Unknown Resource';
+                    if (conflict.type === 'room') {
+                        resourceName = `Room: ${getRoomById(conflict.resourceId)?.name || 'Unknown'}`;
+                    } else if (conflict.type === 'lecturer') {
+                        resourceName = `Lecturer: ${getLecturerById(conflict.resourceId)?.name || 'Unknown'}`;
+                    } else if (conflict.type === 'period_alignment') {
+                        resourceName = `Period Alignment Violation`;
+                    } else if (conflict.type === 'group_overlap') {
+                        resourceName = `Stream Overlap`;
+                    } else if (conflict.type === 'consecutive_subject') {
+                        resourceName = `Duplicate Subject Block`;
+                    }
 
                     return (
                         <div key={index} className="bg-white dark:bg-slate-800 shadow-sm rounded-lg overflow-hidden">

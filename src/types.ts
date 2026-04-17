@@ -985,7 +985,7 @@ export interface ExamTimetableEntry {
 }
 
 export interface Conflict {
-    type: 'room' | 'lecturer' | 'consecutive_subject' | 'group_overlap';
+    type: 'room' | 'lecturer' | 'consecutive_subject' | 'group_overlap' | 'period_alignment';
     resourceId: string;
     day: string;
     startTime: string;

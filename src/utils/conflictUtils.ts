@@ -1,32 +1,71 @@
-import type { TimetableEntry, Conflict, Room, Course, Subject } from '../types';
+import type { TimetableEntry, Conflict, Room, Course, Subject, TimetableSettings, TimetablePeriod } from '../types';
 import { timeToMinutes, minutesToTime } from './timeUtils';
 
 export const detectTimetableConflicts = (
     timetable: TimetableEntry[],
     rooms: Room[],
     courses: Course[] = [],
-    subjects: Subject[] = []
+    subjects: Subject[] = [],
+    settings?: TimetableSettings
 ): Conflict[] => {
     const conflicts: Conflict[] = [];
     const roomMap = new Map<string, Room>(rooms.map(r => [r.id, r]));
 
-    // Group entries by day for efficiency
+    // Group entries by day and Level for efficient "blocked" check
     const entriesByDay: Record<string, TimetableEntry[]> = {};
     for (const entry of timetable) {
         if (!entriesByDay[entry.day]) entriesByDay[entry.day] = [];
         entriesByDay[entry.day].push(entry);
     }
 
+    // Pre-calculate groups for "blocked" detection (Optimized)
+    const dayLevelSlotMap = new Map<string, TimetableEntry[]>();
+    for (const entry of timetable) {
+        const key = `${entry.day}-${entry.courseLevelId}-${entry.startTime}`;
+        if (!dayLevelSlotMap.has(key)) dayLevelSlotMap.set(key, []);
+        dayLevelSlotMap.get(key)!.push(entry);
+    }
+
     for (const day in entriesByDay) {
         const dayEntries = entriesByDay[day];
 
         // --- Room and Lecturer Overlap Checks ---
-        // For each day, we check all pairs for overlaps if they share a resource
         for (let i = 0; i < dayEntries.length; i++) {
             const e1 = dayEntries[i];
             const s1 = timeToMinutes(e1.startTime);
             const d1 = e1.duration || (timeToMinutes(e1.endTime) - s1);
             const f1 = s1 + d1;
+
+            // --- Period Alignment Enforcement (One period per slot) ---
+            if (settings && settings.periods && settings.periods.length > 0) {
+                const key = `${day}-${e1.courseLevelId}-${e1.startTime}`;
+                const siblings = dayLevelSlotMap.get(key) || [];
+                const isBlocked = siblings.length > 1;
+
+                if (!isBlocked) {
+                    // This is a single entry slot. It MUST match exactly ONE period in the registry.
+                    const matchingPeriod = settings.periods.find(p => p.startTime === e1.startTime);
+                    
+                    if (!matchingPeriod) {
+                        conflicts.push({
+                            type: 'period_alignment',
+                            resourceId: e1.id,
+                            day,
+                            startTime: e1.startTime,
+                            conflictingEntries: [e1]
+                        });
+                    } else if (e1.endTime !== matchingPeriod.endTime) {
+                        // Duration mismatch (e.g. double period combined into one object, or manual stretch)
+                        conflicts.push({
+                            type: 'period_alignment',
+                            resourceId: e1.id,
+                            day,
+                            startTime: e1.startTime,
+                            conflictingEntries: [e1]
+                        });
+                    }
+                }
+            }
 
             for (let j = i + 1; j < dayEntries.length; j++) {
                 const e2 = dayEntries[j];
@@ -58,19 +97,21 @@ export const detectTimetableConflicts = (
                                 startTime: e1.startTime,
                                 conflictingEntries: [e1, e2]
                             });
-                        } else {
                         }
                     }
 
                     // Group (Stream) Conflict
                     if (e1.courseLevelId === e2.courseLevelId) {
-                        conflicts.push({
-                            type: 'group_overlap',
-                            resourceId: e1.courseLevelId,
-                            day,
-                            startTime: e1.startTime,
-                            conflictingEntries: [e1, e2]
-                        });
+                        // Special check: If they start at the same time, it's a "block" (Pathway), not a conflict
+                        if (e1.startTime !== e2.startTime) {
+                            conflicts.push({
+                                type: 'group_overlap',
+                                resourceId: e1.courseLevelId,
+                                day,
+                                startTime: e1.startTime,
+                                conflictingEntries: [e1, e2]
+                            });
+                        }
                     }
                 }
             }
@@ -116,7 +157,8 @@ export const checkMoveValidity = (
     timetable: TimetableEntry[],
     rooms: Room[],
     courses: Course[] = [],
-    subjects: Subject[] = []
+    subjects: Subject[] = [],
+    settings?: TimetableSettings
 ): { isValid: boolean, conflicts: Conflict[] } => {
     const entry = timetable.find(e => e.id === entryId);
     if (!entry) return { isValid: true, conflicts: [] };
@@ -130,7 +172,7 @@ export const checkMoveValidity = (
             : e
     );
 
-    const allConflicts = detectTimetableConflicts(tempTimetable, rooms, courses, subjects);
+    const allConflicts = detectTimetableConflicts(tempTimetable, rooms, courses, subjects, settings);
 
     const relevantConflicts = allConflicts.filter(c =>
         c.day === newDay &&

@@ -825,6 +825,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             letterheadConfig={letterheadConfig}
                             logoUrl={logoUrl}
                             footerImageUrl={footerImageUrl}
+                            currentInstitution={currentInstitution}
                         />
                     )}
                     {subTab === 'exam_timetable' && (

@@ -68,7 +68,7 @@ import { generateInstitutionalDemoData } from '../utils/demoData';
 import {
     INITIAL_USERS, INITIAL_INSTITUTIONS, INITIAL_COMPANY_DETAILS,
     INITIAL_ACADEMIC_LEVELS, INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS,
-    INITIAL_ACADEMIC_YEARS, INITIAL_SEMESTERS
+    INITIAL_ACADEMIC_YEARS, INITIAL_SEMESTERS, DEFAULT_GRADING_SYSTEMS
 } from '../constants';
 import type {
     User, Role, Institution, AllocationRequest, TimetableEntry,
@@ -676,7 +676,7 @@ export const App: React.FC = () => {
 
     const allocations = useMemo(() => (Array.isArray(requests) ? requests : []).filter(r => r && (r.status === 'approved' || r.status === 'change_request_pending' || r.status === 'deallocation_pending')), [requests]);
 
-    const timetableConflicts = useMemo(() => detectTimetableConflicts(generatedTimetable, rooms, courses, subjects), [generatedTimetable, rooms, courses, subjects]);
+    const timetableConflicts = useMemo(() => detectTimetableConflicts(generatedTimetable, rooms, courses, subjects, timetableSettings), [generatedTimetable, rooms, courses, subjects, timetableSettings]);
 
     const courseSizes = useMemo(() => {
         const sizes = new Map<string, number>();
