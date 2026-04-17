@@ -346,6 +346,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     const [departmentFilter, setDepartmentFilter] = useState('all');
     const [academicLevelFilter, setAcademicLevelFilter] = useState('all');
     const [deletingCourse, setDeletingCourse] = useState<{ id: string; name: string } | null>(null);
+    const [editingLecturerFor, setEditingLecturerFor] = useState<{ lessonId: string, allocationId: string | null } | null>(null);
 
     const [newStreamCourseId, setNewStreamCourseId] = useState('');
     const [newStreamName, setNewStreamName] = useState('');
@@ -516,7 +517,8 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                             structure: structure,
                             isOverride: !!meta?.lessonStructure,
                             structureSource: structureSource,
-                            departmentId: course.departmentId
+                            departmentId: course.departmentId,
+                            allocationId: relatedAllocations[0]?.id || null
                         });
                     }
                 });
@@ -1901,12 +1903,47 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                                 <div className="hidden md:block text-right">
                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Assigned To</p>
                                                     <div className="flex items-center justify-end gap-2">
-                                                        <span className={`text-xs font-bold ${lesson.lecturerId ? 'text-indigo-600' : 'text-slate-400 italic'}`}>
-                                                            {lesson.lecturer}
-                                                        </span>
-                                                        {lesson.lecturerId && (
-                                                            <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-black text-slate-500">
-                                                                {getInitials(lesson.lecturer)}
+                                                        {editingLecturerFor?.lessonId === lesson.id ? (
+                                                            <div className="flex items-center gap-2 animate-fade-in">
+                                                                <select 
+                                                                    autoFocus
+                                                                    className="form-select h-8 text-[10px] font-bold py-1 w-40"
+                                                                    value={lesson.lecturerId || ''}
+                                                                    onChange={async (e) => {
+                                                                        const newLecturerId = e.target.value;
+                                                                        if (newLecturerId && lesson.allocationId && onUpdateRequest) {
+                                                                            await onUpdateRequest(lesson.allocationId, { lecturerId: newLecturerId });
+                                                                            setEditingLecturerFor(null);
+                                                                        } else if (newLecturerId && !lesson.allocationId && onDirectAssign) {
+                                                                            // Create new direct assignment if none exists
+                                                                            await onDirectAssign(newLecturerId, [lesson.subjectId], 'Medium', 'Internal curriculum update', { [lesson.levelId]: [lesson.subjectId] });
+                                                                            setEditingLecturerFor(null);
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <option value="">-- Unassigned --</option>
+                                                                    {(users || [])
+                                                                        .filter(u => u && u.role !== 'student' && u.role !== 'super_admin')
+                                                                        .map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                                                </select>
+                                                                <button onClick={() => setEditingLecturerFor(null)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400"><XIcon className="w-4 h-4" /></button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center justify-end gap-2 group/assigned">
+                                                                <span className={`text-xs font-bold ${lesson.lecturerId ? 'text-indigo-600' : 'text-slate-400 italic'}`}>
+                                                                    {lesson.lecturer}
+                                                                </span>
+                                                                <button 
+                                                                    onClick={() => setEditingLecturerFor({ lessonId: lesson.id, allocationId: lesson.allocationId })}
+                                                                    className="p-1.5 bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-lg opacity-0 group-hover/assigned:opacity-100 transition-all"
+                                                                >
+                                                                    <PencilIcon className="w-3 h-3" />
+                                                                </button>
+                                                                {lesson.lecturerId && (
+                                                                    <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-black text-slate-500">
+                                                                        {getInitials(lesson.lecturer)}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         )}
                                                     </div>
