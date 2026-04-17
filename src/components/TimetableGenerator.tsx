@@ -242,6 +242,43 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
         return [courses, subjects, departments];
     }, [currentUser, courses, subjects, departments]);
 
+    const intendedLessonCount = useMemo(() => {
+        let total = 0;
+        allocations.forEach(a => {
+            const levelCount = a.courseLevelIds?.length || 0;
+            const structureTotal = (a.lessonStructure || []).reduce((acc, s) => acc + ((s.periods || 0) * (s.count || 0)), 0);
+            total += (structureTotal * levelCount);
+        });
+        return total;
+    }, [allocations]);
+
+    const generationFidelity = useMemo(() => {
+        if (!intendedLessonCount) return 0;
+        if (!generatedTimetable.length) return 0;
+        return Math.min(100, Math.round((generatedTimetable.length / intendedLessonCount) * 100));
+    }, [generatedTimetable, intendedLessonCount]);
+
+    const classPerformance = useMemo(() => {
+        if (!generatedTimetable.length) return [];
+        const results: { name: string, intended: number, generated: number }[] = [];
+        
+        courses.forEach(c => {
+            (c.levels || []).forEach(l => {
+                const levelId = l.id;
+                // Calculate intended for this level
+                let levelIntended = 0;
+                allocations.forEach(a => {
+                    if ((a.courseLevelIds || []).includes(levelId)) {
+                        levelIntended += (a.lessonStructure || []).reduce((acc, s) => acc + ((s.periods || 0) * (s.count || 0)), 0);
+                    }
+                });
+                const generated = generatedTimetable.filter(e => String(e.courseLevelId) === String(levelId)).length;
+                results.push({ name: l.name, intended: levelIntended, generated });
+            });
+        });
+        return results;
+    }, [generatedTimetable, courses, allocations]);
+
     const conflictSummary = useMemo(() => {
         if (!timetableConflicts) return { total: 0, room: 0, lecturer: 0, consecutive: 0, group: 0 };
         return {
@@ -358,39 +395,68 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                             <div className="mb-6 p-12 bg-white dark:bg-slate-800 rounded-[3rem] shadow-sm border text-center border-slate-100 dark:border-slate-700">
                                 <div className="w-20 h-20 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
                                 <h4 className="text-xl font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">Consulting AI Knowledge Base</h4>
-                                <p className="text-sm text-slate-500 mt-2 font-medium">Resolving multi-resource constraints and workload balancing...</p>
+                                <p className="text-sm text-slate-500 mt-2 font-medium">Resolving {intendedLessonCount} intended sessions... Balancing multi-resource constraints...</p>
                             </div>
                         )}
 
                         {error && <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-2xl border border-red-100 text-xs font-black uppercase tracking-widest flex items-center gap-3"><ExclamationTriangleIcon className="w-5 h-5" /> {error}</div>}
 
                         {!isLoading && generatedTimetable.length > 0 && (
-                            <div className={`mb-6 p-6 rounded-[2.5rem] border-2 shadow-sm animate-fade-in ${conflictSummary.total > 0 ? 'bg-red-50/50 border-red-100' : 'bg-green-50/50 border-green-100'}`}>
-                                <div className="flex items-start gap-5">
-                                    <div className="flex-shrink-0">
-                                        {conflictSummary.total > 0 ? (
-                                            <ExclamationTriangleIcon className="h-10 w-10 text-red-500" />
-                                        ) : (
-                                            <CheckCircleIcon className="h-10 w-10 text-green-500" />
-                                        )}
-                                    </div>
-                                    <div>
-                                        <h3 className={`text-lg font-black uppercase tracking-tight ${conflictSummary.total > 0 ? 'text-red-800' : 'text-green-800'}`}>
-                                            {conflictSummary.total > 0 ? `Logical Conflicts Detected (${conflictSummary.total})` : 'Validated Optimal Solution'}
-                                        </h3>
-                                        <div className="mt-1 text-sm text-slate-500 font-medium">
-                                            {conflictSummary.total > 0 ? (
-                                                <p>
-                                                    Overlaps found: {conflictSummary.lecturer} staff, {conflictSummary.room} facilities, {conflictSummary.group} groups
-                                                    {conflictSummary.consecutive > 0 && `, ${conflictSummary.consecutive} consecutive subject violations`}.
-                                                    Please refine constraints.
-                                                </p>
+                            <div className="space-y-4 mb-6 animate-fade-in">
+                                <div className={`p-6 rounded-[2.5rem] border-2 shadow-sm ${conflictSummary.total > 0 || generationFidelity < 100 ? 'bg-red-50/50 border-red-100' : 'bg-green-50/50 border-green-100'}`}>
+                                    <div className="flex items-start gap-5">
+                                        <div className="flex-shrink-0">
+                                            {conflictSummary.total > 0 || generationFidelity < 100 ? (
+                                                <ExclamationTriangleIcon className="h-10 w-10 text-red-500" />
                                             ) : (
-                                                <p>Generated plan satisfies 100% of institutional and resource availability parameters.</p>
+                                                <CheckCircleIcon className="h-10 w-10 text-green-500" />
                                             )}
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <h3 className={`text-lg font-black uppercase tracking-tight ${conflictSummary.total > 0 || generationFidelity < 100 ? 'text-red-800' : 'text-green-800'}`}>
+                                                    {generationFidelity < 100 ? `Generation Fidelity: ${generationFidelity}%` : conflictSummary.total > 0 ? `Logical Conflicts Detected (${conflictSummary.total})` : 'Validated Optimal Solution'}
+                                                </h3>
+                                                {generationFidelity < 100 && (
+                                                    <span className="text-[10px] bg-red-600 text-white px-2 py-0.5 rounded-full font-black uppercase tracking-widest">Truncated</span>
+                                                )}
+                                            </div>
+                                            <div className="text-sm text-slate-500 font-medium">
+                                                {generationFidelity < 100 ? (
+                                                    <p>AI only generated {generatedTimetable.length} out of {intendedLessonCount} required sessions. Partial success.</p>
+                                                ) : conflictSummary.total > 0 ? (
+                                                    <p>
+                                                        Overlaps found: {conflictSummary.lecturer} staff, {conflictSummary.room} facilities, {conflictSummary.group} groups
+                                                        {conflictSummary.consecutive > 0 && `, ${conflictSummary.consecutive} consecutive subject violations`}.
+                                                        Please refine constraints.
+                                                    </p>
+                                                ) : (
+                                                    <p>Plan satisfies 100% of institutional and resource parameters ({generatedTimetable.length} sessions).</p>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
+
+                                {generationFidelity < 100 && (
+                                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2rem] p-6 shadow-sm">
+                                        <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 px-2">Completion Audit Report</h5>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                                            {classPerformance.map((res, idx) => {
+                                                const perf = res.intended > 0 ? Math.round((res.generated / res.intended) * 100) : 100;
+                                                return (
+                                                    <div key={idx} className={`p-3 rounded-2xl border text-center ${perf < 100 ? 'bg-amber-50/50 border-amber-100' : 'bg-slate-50/50 border-slate-100'}`}>
+                                                        <div className="text-[10px] font-black text-slate-500 truncate mb-1 uppercase" title={res.name}>{res.name}</div>
+                                                        <div className={`text-xs font-black ${perf < 100 ? 'text-amber-600' : 'text-slate-900'}`}>{res.generated}/{res.intended}</div>
+                                                        <div className="w-full h-1 bg-slate-200 mt-2 rounded-full overflow-hidden">
+                                                            <div className={`h-full ${perf < 100 ? 'bg-amber-500' : 'bg-indigo-500'}`} style={{ width: `${perf}%` }}></div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 
