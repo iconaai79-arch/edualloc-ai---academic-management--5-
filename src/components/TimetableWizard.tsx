@@ -101,7 +101,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
 
                 if (mode === 'ai' || mode === 'flash') {
                     const { entries, notifications: resultNotifications } = await generateTimetable(
-                        allocations.filter(a => a.status === 'approved'),
+                        allocations.filter(a => a.status === 'approved' || a.status === 'hod_approved'),
                         subjects,
                         lecturers,
                         rooms,
@@ -117,7 +117,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                     setNotifications(resultNotifications || []);
                 } else {
                     const { entries: stdEntries, notifications: stdNotifications } = generateStandardTimetable(
-                        allocations.filter(a => a.status === 'approved'),
+                        allocations.filter(a => a.status === 'approved' || a.status === 'hod_approved'),
                         subjects,
                         lecturers,
                         rooms,
