@@ -279,19 +279,24 @@ export const generateTimetable = async (
             const prompt = `
                 ACT AS: Master Academic Scheduling Logic Engine (Pass ${i + 1} of ${cohorts.length})
                 
+                OPERATING BOUNDS:
+                - General Schedule: ${JSON.stringify(settings.hours)}
+                - Period Structure: ${JSON.stringify(settings.periods)}
+                - Profiles: ${JSON.stringify(profiles.map(p => ({ id: p.id, name: p.name, hours: p.hours, periods: p.periods })))}
+                
                 MANDATORY TARGETS FOR THIS COHORT:
                 ${JSON.stringify(fulfillmentTargets)}
                 
                 *** HARD INSTRUCTION ***: You MUST generate EXACTLY the numbers of entries specified above. 
-                For example, if Grade 1 MATH has count 6, you return 6 objects for it.
+                For each level, ensure you use the Operating Hours and Periods defined in its associated Profile (if applicable).
                 
-                CONTEXT: [Resource Registries Provided Internally]
-                CONSTRAINTS: ${committedContext || 'None'}
+                COMMITTED SLOTS (DO NOT DOUBLE BOOK): ${committedContext || 'None'}
 
                 DIRECTIVES:
                 1. ABSOLUTE FULFILLMENT: Fulfill 100% of the targets listed above. DO NOT TRUNCATE.
                 2. NO COLLISION: Check against COMMITTED slots. Use different Lecturers/Rooms for same time.
-                3. GRANULARITY: 1 Entry = 1 Lesson Period.
+                3. GRANULARITY: 1 Entry = 1 Lesson Period. Match 'startTime' and 'endTime' to the period registry.
+                4. DAYS: Only use days defined in the schedule.
                 
                 OUTPUT:
                 - JSON Array: [ { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }, ... ]

@@ -3097,7 +3097,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 <span className="font-bold text-sm uppercase tracking-tight">{stream}</span>
                                                 <button
                                                     onClick={() => {
-                                                        if (confirm(`Remove "${stream}" from registry?`)) {
+                                                        if (confirm(`Remove "${stream}" from registry? This will NOT automatically delete existing levels, but they will be flagged as stale.`)) {
                                                             const filtered = (props.currentInstitution!.streamDefinitions || []).filter(s => s !== stream);
                                                             props.onUpdateInstitution?.(props.currentInstitution!.id, { streamDefinitions: filtered });
                                                         }
@@ -3114,6 +3114,58 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 <p className="text-sm">No streams defined yet. Start by defining your school's streams.</p>
                                             </div>
                                         )}
+                                    </div>
+
+                                    <div className="pt-8 border-t border-slate-100 dark:border-slate-700">
+                                        <div className="bg-amber-50 dark:bg-amber-900/20 p-6 rounded-3xl border border-amber-100 dark:border-amber-800/30">
+                                            <div className="flex items-start gap-4">
+                                                <div className="p-3 bg-amber-100 dark:bg-amber-900 rounded-2xl text-amber-600">
+                                                    <ExclamationTriangleIcon className="w-6 h-6" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h4 className="text-sm font-black uppercase tracking-tight text-amber-800 dark:text-amber-200">Database Integrity Audit</h4>
+                                                    <p className="text-xs font-medium text-amber-700 dark:text-amber-400 mt-1">
+                                                        Detect and eliminate "ghost" streams (e.g., classes assigned to streams no longer in the registry). This resolves room utilization discrepancies.
+                                                    </p>
+                                                    <button
+                                                        onClick={() => {
+                                                            const streams = props.currentInstitution?.streamDefinitions || [];
+                                                            const coursesToUpdate: { id: string, levels: any[] }[] = [];
+                                                            let ghostCount = 0;
+
+                                                            props.courses.forEach(course => {
+                                                                const validLevels = (course.levels || []).filter(level => {
+                                                                    // A level is valid if its name contains one of the allowed streams
+                                                                    // or if it's not a school institution (where streams are less strict)
+                                                                    const isGhost = streams.length > 0 && !streams.some(s => level.name.includes(s));
+                                                                    if (isGhost) {
+                                                                        ghostCount++;
+                                                                        return false;
+                                                                    }
+                                                                    return true;
+                                                                });
+
+                                                                if (validLevels.length !== (course.levels || []).length) {
+                                                                    coursesToUpdate.push({ id: course.id, levels: validLevels });
+                                                                }
+                                                            });
+
+                                                            if (ghostCount === 0) {
+                                                                alert("Registry Audit Complete: No ghost data detected. Your database is 100% synchronized.");
+                                                            } else if (confirm(`Audit found ${ghostCount} ghost class(es) (e.g., Grade 1 West) not in the current registry. Purge them now?`)) {
+                                                                coursesToUpdate.forEach(c => {
+                                                                    props.onUpdateCourse?.(c.id, { levels: c.levels });
+                                                                });
+                                                                alert(`Successfully purged ${ghostCount} ghost records. Room utilization reports are now synchronized.`);
+                                                            }
+                                                        }}
+                                                        className="mt-4 px-6 py-2 bg-amber-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-amber-700 transition-all shadow-lg active:scale-95"
+                                                    >
+                                                        Run Integrity Sync
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             )}

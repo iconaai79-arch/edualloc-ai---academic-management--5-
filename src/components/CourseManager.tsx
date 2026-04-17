@@ -1245,14 +1245,28 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                         </div>
                         <div>
                             <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 ml-1">{streamOrLevelLabel} Title</label>
-                            <input
-                                type="text"
-                                value={newStreamName}
-                                onChange={e => setNewStreamName(e.target.value)}
-                                placeholder={`e.g. ${isSchool ? 'West' : 'Level 1'}`}
-                                required
-                                className="form-input"
-                            />
+                            {isSchool && (currentInstitution?.streamDefinitions || []).length > 0 ? (
+                                <select
+                                    value={newStreamName}
+                                    onChange={e => setNewStreamName(e.target.value)}
+                                    required
+                                    className="form-select"
+                                >
+                                    <option value="">-- Select from Registry --</option>
+                                    {(currentInstitution?.streamDefinitions || []).map(s => (
+                                        <option key={s} value={s}>{s}</option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <input
+                                    type="text"
+                                    value={newStreamName}
+                                    onChange={e => setNewStreamName(e.target.value)}
+                                    placeholder={`e.g. ${isSchool ? 'West' : 'Level 1'}`}
+                                    required
+                                    className="form-input"
+                                />
+                            )}
                         </div>
                         <div>
                             <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 ml-1">Home Room (Optional)</label>
@@ -1393,17 +1407,34 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                     <td className="px-8 py-5 whitespace-nowrap text-sm font-bold text-slate-700 dark:text-slate-300">
                                         {editingStream?.streamId === stream.streamId ? (
                                             <div className="flex gap-2 items-center">
-                                                <input
-                                                    type="text"
-                                                    value={editingStream ? editingStream.name : ''}
-                                                    onChange={e => {
-                                                        if (editingStream) {
-                                                            setEditingStream({ ...editingStream, name: e.target.value });
-                                                        }
-                                                    }}
-                                                    className="form-input py-1 h-8 text-xs font-bold"
-                                                    autoFocus
-                                                />
+                                                {isSchool && (currentInstitution?.streamDefinitions || []).length > 0 ? (
+                                                    <select
+                                                        value={editingStream ? editingStream.name : ''}
+                                                        onChange={e => {
+                                                            if (editingStream) {
+                                                                setEditingStream({ ...editingStream, name: e.target.value });
+                                                            }
+                                                        }}
+                                                        className="form-select py-1 h-8 text-xs font-black uppercase tracking-widest"
+                                                        autoFocus
+                                                    >
+                                                        {(currentInstitution?.streamDefinitions || []).map(s => (
+                                                            <option key={s} value={s}>{s}</option>
+                                                        ))}
+                                                    </select>
+                                                ) : (
+                                                    <input
+                                                        type="text"
+                                                        value={editingStream ? editingStream.name : ''}
+                                                        onChange={e => {
+                                                            if (editingStream) {
+                                                                setEditingStream({ ...editingStream, name: e.target.value });
+                                                            }
+                                                        }}
+                                                        className="form-input py-1 h-8 text-xs font-bold"
+                                                        autoFocus
+                                                    />
+                                                )}
                                                 <button onClick={handleUpdateStream} className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100"><CheckIcon className="w-3 h-3" /></button>
                                                 <button onClick={() => setEditingStream(null)} className="p-1.5 bg-slate-50 text-slate-500 rounded-lg hover:bg-slate-100"><XIcon className="w-3 h-3" /></button>
                                             </div>
