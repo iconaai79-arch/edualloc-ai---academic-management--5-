@@ -370,15 +370,27 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                     </section>
 
                     <section className="animate-fade-in-up">
-                        <div className="flex flex-wrap gap-4 justify-between items-center mb-6">
-                            <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">AI Generation Hub</h3>
+                        <div className="flex flex-wrap gap-4 justify-between items-end mb-8">
+                            <div>
+                                <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900 dark:text-white mb-2">Neural Generation Hub</h3>
+                                <div className="flex gap-4">
+                                    <div className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 rounded-xl border border-indigo-100 dark:border-indigo-800">
+                                        <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
+                                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-700 dark:text-indigo-400">Target Workload: {intendedLessonCount} Sessions</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/40 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                                        <CalendarDaysIcon className="w-3.5 h-3.5 text-slate-400" />
+                                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Cycle: {activeSemester?.name || '---'}</span>
+                                    </div>
+                                </div>
+                            </div>
                             <div className="flex flex-wrap gap-3">
                                 <button
                                     onClick={() => setIsImportModalOpen(true)}
                                     disabled={isLoading || !activeAcademicYear || !activeSemester}
                                     className="btn-secondary h-11 flex items-center gap-2 text-xs font-black uppercase"
                                 >
-                                    <ArrowUpTrayIcon className="w-5 h-5" /> Import Datalink
+                                    <ArrowUpTrayIcon className="w-5 h-5 text-indigo-500 group-hover:scale-110 transition-transform" /> Import Datalink
                                 </button>
                                 <Tooltip text={isSchool ? "AI generates an optimal grade-based schedule." : "AI optimizes lecturer and room allocations."}>
                                     <button
@@ -405,37 +417,38 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
 
                         {!isLoading && generatedTimetable.length > 0 && (
                             <div className="space-y-4 mb-6 animate-fade-in">
-                                <div className={`p-6 rounded-[2.5rem] border-2 shadow-sm ${conflictSummary.total > 0 || generationFidelity < 100 ? 'bg-red-50/50 border-red-100' : 'bg-green-50/50 border-green-100'}`}>
-                                    <div className="flex items-start gap-5">
+                                <div className={`p-8 rounded-[3rem] border-2 shadow-sm ${conflictSummary.total > 0 || generationFidelity < 100 ? 'bg-red-50/30 border-red-100' : 'bg-green-50/30 border-green-100'}`}>
+                                    <div className="flex flex-col md:flex-row items-center gap-8">
+                                        <div className="flex flex-col items-center justify-center p-6 bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-w-[200px]">
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Execution Fidelity</p>
+                                            <div className="flex items-baseline gap-2">
+                                                <h4 className={`text-4xl font-black tracking-tighter ${generationFidelity < 100 ? 'text-red-600' : 'text-green-600'}`}>{generatedTimetable.length}</h4>
+                                                <span className="text-lg font-bold text-slate-300">/ {intendedLessonCount}</span>
+                                            </div>
+                                            <p className={`text-[10px] font-black uppercase mt-2 ${generationFidelity < 100 ? 'text-red-500' : 'text-green-500'}`}>
+                                                {generationFidelity}% Fulfilled
+                                            </p>
+                                        </div>
+                                        <div className="flex-1 text-center md:text-left">
+                                            <h3 className={`text-2xl font-black uppercase tracking-tight mb-2 ${conflictSummary.total > 0 || generationFidelity < 100 ? 'text-red-800' : 'text-green-800'}`}>
+                                                {generationFidelity < 100 ? 'Neural Output Deficit Detected' : conflictSummary.total > 0 ? 'Logical Schedule Conflicts' : 'Master Matrix Finalized'}
+                                            </h3>
+                                            <p className="text-sm text-slate-500 font-medium">
+                                                {generationFidelity < 100 ? (
+                                                    `The AI engine generated ${generatedTimetable.length} sessions, leaving a deficit of ${intendedLessonCount - generatedTimetable.length} sessions. This usually happens due to extreme resource constraints or output truncation at the AI level.`
+                                                ) : conflictSummary.total > 0 ? (
+                                                    `Full fulfillment achieved, but ${conflictSummary.total} logical collisions remain (Staff: ${conflictSummary.lecturer}, Rooms: ${conflictSummary.room}). Manual adjustment recommended.`
+                                                ) : (
+                                                    `Perfect synchronization achieved. All ${generatedTimetable.length} intended sessions have been successfully mapped to the institution's temporal matrix without conflicts.`
+                                                )}
+                                            </p>
+                                        </div>
                                         <div className="flex-shrink-0">
                                             {conflictSummary.total > 0 || generationFidelity < 100 ? (
-                                                <ExclamationTriangleIcon className="h-10 w-10 text-red-500" />
+                                                <ExclamationTriangleIcon className="h-16 w-16 text-red-500/20" />
                                             ) : (
-                                                <CheckCircleIcon className="h-10 w-10 text-green-500" />
+                                                <CheckCircleIcon className="h-16 w-16 text-green-500/20" />
                                             )}
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex justify-between items-center mb-1">
-                                                <h3 className={`text-lg font-black uppercase tracking-tight ${conflictSummary.total > 0 || generationFidelity < 100 ? 'text-red-800' : 'text-green-800'}`}>
-                                                    {generationFidelity < 100 ? `Generation Fidelity: ${generationFidelity}%` : conflictSummary.total > 0 ? `Logical Conflicts Detected (${conflictSummary.total})` : 'Validated Optimal Solution'}
-                                                </h3>
-                                                {generationFidelity < 100 && (
-                                                    <span className="text-[10px] bg-red-600 text-white px-2 py-0.5 rounded-full font-black uppercase tracking-widest">Truncated</span>
-                                                )}
-                                            </div>
-                                            <div className="text-sm text-slate-500 font-medium">
-                                                {generationFidelity < 100 ? (
-                                                    <p>AI only generated {generatedTimetable.length} out of {intendedLessonCount} required sessions. Partial success.</p>
-                                                ) : conflictSummary.total > 0 ? (
-                                                    <p>
-                                                        Overlaps found: {conflictSummary.lecturer} staff, {conflictSummary.room} facilities, {conflictSummary.group} groups
-                                                        {conflictSummary.consecutive > 0 && `, ${conflictSummary.consecutive} consecutive subject violations`}.
-                                                        Please refine constraints.
-                                                    </p>
-                                                ) : (
-                                                    <p>Plan satisfies 100% of institutional and resource parameters ({generatedTimetable.length} sessions).</p>
-                                                )}
-                                            </div>
                                         </div>
                                     </div>
                                 </div>
