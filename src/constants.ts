@@ -203,7 +203,8 @@ export const INITIAL_INSTITUTIONS: Institution[] = [
         timetableSettings: INITIAL_TIMETABLE_SETTINGS,
         examTimetableSettings: INITIAL_EXAM_TIMETABLE_SETTINGS,
         useAllocationRequests: false,
-        isOtpEnabled: false
+        isOtpEnabled: false,
+        gradingSystems: DEFAULT_GRADING_SYSTEMS
     },
     {
         id: INST_DEMO,
@@ -219,7 +220,8 @@ export const INITIAL_INSTITUTIONS: Institution[] = [
         timetableSettings: INITIAL_TIMETABLE_SETTINGS,
         examTimetableSettings: INITIAL_EXAM_TIMETABLE_SETTINGS,
         useAllocationRequests: true,
-        isOtpEnabled: false
+        isOtpEnabled: false,
+        gradingSystems: DEFAULT_GRADING_SYSTEMS
     }
 ];
 
@@ -245,7 +247,14 @@ export const DEFAULT_GRADING_SYSTEMS: GradingSystem[] = [
             { id: 'Am', grade: 'A-', minScore: 75, maxScore: 79, points: 11, comment: 'Minus' },
             { id: 'Bp', grade: 'B+', minScore: 70, maxScore: 74, points: 10, comment: 'Plus' },
             { id: 'B', grade: 'B', minScore: 65, maxScore: 69, points: 9, comment: 'Plain' },
+            { id: 'Bm', grade: 'B-', minScore: 60, maxScore: 64, points: 8, comment: 'Minus' },
+            { id: 'Cp', grade: 'C+', minScore: 55, maxScore: 59, points: 7, comment: 'Plus' },
             { id: 'C', grade: 'C', minScore: 50, maxScore: 54, points: 6, comment: 'Plain' },
+            { id: 'Cm', grade: 'C-', minScore: 45, maxScore: 49, points: 5, comment: 'Minus' },
+            { id: 'Dp', grade: 'D+', minScore: 40, maxScore: 44, points: 4, comment: 'Plus' },
+            { id: 'D', grade: 'D', minScore: 35, maxScore: 39, points: 3, comment: 'Plain' },
+            { id: 'Dm', grade: 'D-', minScore: 30, maxScore: 34, points: 2, comment: 'Minus' },
+            { id: 'E', grade: 'E', minScore: 0, maxScore: 29, points: 1, comment: 'Fail' },
         ]
     }
 ];

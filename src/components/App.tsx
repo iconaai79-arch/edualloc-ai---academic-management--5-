@@ -92,7 +92,25 @@ import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
 import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
+import { SimulatorLeadModal } from './public/SimulatorLeadModal';
 
+
+
+const SIMULATOR_NAMES: Record<string, string> = {
+    'property': 'Property Management',
+    'coop': 'Cooperative Management',
+    'his': 'Health Information System',
+    'pharmacy': 'Pharmacy Management',
+    'retail': 'Retail POS & Inventory',
+    'fuel': 'Fuel Station Management',
+    'campaign': 'Political Campaign Command',
+    'legal': 'Law Firm Management',
+    'ds': 'Driving School Management',
+    'civil': 'Construction & Civil Works',
+    'logistics': 'Logistics & Fleet Management',
+    'autoservice': 'Car Wash & Auto Service',
+    'edu': 'Academic Management'
+};
 
 const SystemPulseLoader: React.FC<{ message: string; onRetry?: () => void; status?: string }> = ({ message, onRetry, status }) => (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 font-sans relative overflow-hidden">
@@ -597,6 +615,8 @@ export const App: React.FC = () => {
     const [currentOtp, setCurrentOtp] = useState<string | null>(null);
 
     const initialLoadDone = useRef(false);
+    const [showSimulatorLeadModal, setShowSimulatorLeadModal] = useState(false);
+    const [pendingSimulatorLaunch, setPendingSimulatorLaunch] = useState<{role: Role, modId: string} | null>(null);
 
     // App Initialization monitoring
     useEffect(() => {
@@ -1488,62 +1508,88 @@ export const App: React.FC = () => {
     }, [onLoginAsAdmin]);
 
     const handleLaunchSimulator = useCallback(async (role: Role, modId: string) => {
+        // If not logged in and hasn't captured lead in this session, show modal
+        const leadCaptured = localStorage.getItem('eduai_simulator_lead_captured');
+        if (!currentUser && !leadCaptured) {
+            setPendingSimulatorLaunch({ role, modId });
+            setShowSimulatorLeadModal(true);
+            return;
+        }
+
         setIsSimulatorMode(true);
         setIsTransitioning(true);
+        setIsGeneratingDemoData(true);
+        setDemoDataGenerationProgress(10);
+        setDemoDataGenerationMessage(`Initializing ${modId} environment...`);
+
         // Find an institution that matches the module type or use a fallback
         let targetInst = institutions.find(i => {
-           if (modId === 'property') return (i.institutionType as string) === 'Property Management';
+           if (modId === 'property') return (i.institutionType as string) === 'Property Management' || (i.businessSubType as string) === 'Property Management';
            if (modId === 'coop') return (i.institutionType as string) === 'Cooperative';
-           if (modId === 'his') return (i.institutionType as string) === 'HIS';
-           if (modId === 'retail') return i.institutionType === 'Business' && (i.businessSubType === 'Retail' || i.category === 'Retail');
+           if (modId === 'his' || modId === 'pharmacy') return (i.institutionType as string) === 'HIS' || (i.institutionType as string) === 'Healthcare' || (i.institutionType as string) === 'Pharmacy';
+           if (modId === 'retail') return i.institutionType === 'Business' && (i.businessSubType === 'Retail' || i.category === 'Retail' || (i.institutionType as string) === 'Retail');
            if (modId === 'fuel') return i.category === 'Fuel Station' || i.businessSubType === 'Fuel Station';
-           if (modId === 'campaign') return (i.institutionType as string) === 'Political Campaign';
-           if (modId === 'legal') return (i.institutionType as string) === 'Legal';
+           if (modId === 'campaign') return (i.institutionType as string) === 'Political Campaign' || (i.institutionType as string) === 'Political' || (i.category as string) === 'Campaign';
+           if (modId === 'legal') return (i.institutionType as string) === 'Legal' || (i.institutionType as string) === 'Law Firm';
            if (modId === 'ds') return (i.institutionType as string) === 'Driving School';
            if (modId === 'civil') return (i.institutionType as string) === 'Construction';
            if (modId === 'logistics') return (i.institutionType as string) === 'Logistics';
+           if (modId === 'autoservice') return (i.institutionType as string) === 'Car Wash' || (i.businessSubType as string) === 'Car Wash';
+           if (modId === 'edu') return (i.institutionType as string) === 'Education' || (i.institutionType as string) === 'Primary' || (i.institutionType as string) === 'Secondary';
            return false;
         });
 
         // Use standard demo ID if no matching institution found
-        const instId = targetInst?.id || `demo_${modId}`;
+        const instId = targetInst?.id || `demo_${modId}_${Date.now()}`;
         
-        // Construct a fresh active configuration for the simulator
-        const demoConfig: Institution = {
-            id: instId,
-            name: targetInst?.name || `Demo ${modId.charAt(0).toUpperCase() + modId.slice(1)} System`,
-            email: targetInst?.email || `demo@${modId}.eduai.io`,
-            phoneNumber: targetInst?.phoneNumber || '+254700000000',
-            institutionType: targetInst?.institutionType || (
-                             modId === 'property' ? 'Property Management' : 
-                             modId === 'his' ? 'HIS' : 
-                             modId === 'legal' ? 'Legal' : 
-                             modId === 'coop' ? 'Cooperative' : 
-                             modId === 'campaign' ? 'Political Campaign' : 
-                             modId === 'ds' ? 'Driving School' : 
-                             modId === 'civil' ? 'Construction' : 
-                             modId === 'logistics' ? 'Logistics' : 'Business') as any,
-            category: targetInst?.category || (modId === 'fuel' ? 'Fuel Station' : 
-                       modId === 'retail' ? 'Retail' : 'General'),
-            businessSubType: targetInst?.businessSubType || (modId === 'fuel' ? 'Fuel Station' : 
-                              modId === 'retail' ? 'Retail' : 'General'),
-            status: 'active',
-            trialEndsAt: new Date(Date.now() + 86400000 * 30).toISOString(),
-            moduleStates: [
-                {
-                    moduleId: modId,
-                    status: 'active',
-                    subscriptionEndsAt: new Date(Date.now() + 86400000 * 365).toISOString()
-                }
-            ]
-        };
+        if (!targetInst) {
+            // Construct a fresh active configuration for the simulator
+            const demoConfig: Institution = {
+                ...INITIAL_INSTITUTIONS[0],
+                id: instId,
+                name: `${SIMULATOR_NAMES[modId] || modId.charAt(0).toUpperCase() + modId.slice(1)} Simulator`,
+                email: `demo@${modId}.eduai.io`,
+                phoneNumber: '+254700000000',
+                institutionType: (
+                                 modId === 'property' ? 'Property Management' : 
+                                 (modId === 'his' || modId === 'pharmacy') ? 'HIS' : 
+                                 modId === 'legal' ? 'Law Firm' : 
+                                 modId === 'coop' ? 'Cooperative' : 
+                                 modId === 'campaign' ? 'Political Campaign' : 
+                                 modId === 'ds' ? 'Driving School' : 
+                                 modId === 'civil' ? 'Construction' : 
+                                 modId === 'logistics' ? 'Logistics' : 
+                                 modId === 'retail' ? 'Retail' :
+                                 modId === 'autoservice' ? 'Car Wash' :
+                                 modId === 'edu' ? 'Education' : 'Business') as any,
+                category: (modId === 'fuel' ? 'Fuel Station' : 
+                           modId === 'retail' ? 'Retail' : 'General'),
+                businessSubType: (modId === 'fuel' ? 'Fuel Station' : 
+                                  modId === 'retail' ? 'Retail' : 
+                                  modId === 'autoservice' ? 'Car Wash' : 
+                                  modId === 'property' ? 'Property Management' : 'General'),
+                status: 'active',
+                trialEndsAt: new Date(Date.now() + 86400000 * 30).toISOString(),
+                slug: `sim-${modId}-${Date.now()}`,
+                moduleStates: [
+                    {
+                        moduleId: modId,
+                        status: 'active',
+                        subscriptionEndsAt: new Date(Date.now() + 86400000 * 365).toISOString()
+                    }
+                ],
+                gradingSystems: DEFAULT_GRADING_SYSTEMS
+            };
 
-        // Always update the institutions list to ensure it's reactivated in state
-        setInstitutions(prev => {
-            const listWithoutCurrent = prev.filter(i => i.id !== instId);
-            return [...listWithoutCurrent, demoConfig];
-        });
+            await apiService.saveInstitution(demoConfig);
+            // Update the institutions list to ensure it's reactivated in state
+            setInstitutions(prev => [...prev, demoConfig]);
+            targetInst = demoConfig;
+        }
         
+        setDemoDataGenerationProgress(30);
+        setDemoDataGenerationMessage("Seeding simulation data...");
+
         // Generate Demo Data automagically for simulators
         try {
             const demoUserId = `demo_user_${instId}`;
@@ -1586,8 +1632,9 @@ export const App: React.FC = () => {
 
             const dataKeys = Object.keys(demoData).filter(k => k !== 'institutionUpdates');
             
+            setDemoDataGenerationProgress(50);
             // Process data generation in the background
-            Promise.all(dataKeys.map(async (key) => {
+            await Promise.all(dataKeys.map(async (key) => {
                 const records = (demoData as any)[key];
                 const tableName = tableMap[key] || key;
                 if (Array.isArray(records) && records.length > 0) {
@@ -1595,13 +1642,16 @@ export const App: React.FC = () => {
                         await apiService.saveModuleRecord(tableName, record);
                     }
                 }
-            })).then(() => {
-                console.log(`[Simulator] Demo data seeded successfully for ${instId}`);
-                loadData();
-            });
+            }));
+            
+            console.log(`[Simulator] Demo data seeded successfully for ${instId}`);
+            setDemoDataGenerationProgress(90);
+            setDemoDataGenerationMessage("Finalizing environment...");
+            await loadData();
 
         } catch (err) {
             console.error("[Simulator] Auto-generation of demo data failed:", err);
+            setIsGeneratingDemoData(false);
         }
 
         setTimeout(() => {
@@ -1613,8 +1663,10 @@ export const App: React.FC = () => {
                 onLoginAsAdminRef.current(instId, role);
             }
             setShowMarketing(false);
+            setIsGeneratingDemoData(false);
+            setDemoDataGenerationProgress(0);
         }, 500);
-    }, [institutions]);
+    }, [institutions, currentUser]);
 
     const onRestoreSuperAdminSession = () => {
         if (originalSuperAdminSession) {
@@ -4955,15 +5007,32 @@ export const App: React.FC = () => {
                     hasCurrentUser={!!currentUser}
                     isPublicView={showMarketplace || showMarketing || showGuestPortal || showGuestFeedback || showTenantStore}
                     onReturn={() => {
+                        handleLogout();
                         setImpersonatedRole(null);
                         setShowGuestFeedback(false);
                         setShowMarketplace(false);
                         setShowCommunityHub(false);
-                        setShowMarketing(false);
+                        setShowMarketing(true);
                     }}
                     onRestoreSession={onRestoreSuperAdminSession}
                 />
                 {showBookDemo && <BookDemoModal onClose={() => setShowBookDemo(false)} />}
+                {showSimulatorLeadModal && pendingSimulatorLaunch && (
+                    <SimulatorLeadModal 
+                        moduleName={SIMULATOR_NAMES[pendingSimulatorLaunch.modId] || pendingSimulatorLaunch.modId}
+                        onClose={() => {
+                            setShowSimulatorLeadModal(false);
+                            setPendingSimulatorLaunch(null);
+                        }}
+                        onSuccess={() => {
+                            localStorage.setItem('eduai_simulator_lead_captured', 'true');
+                            const { role, modId } = pendingSimulatorLaunch;
+                            setShowSimulatorLeadModal(false);
+                            setPendingSimulatorLaunch(null);
+                            handleLaunchSimulator(role, modId);
+                        }}
+                    />
+                )}
             </div>
         </AppErrorBoundary>
     );

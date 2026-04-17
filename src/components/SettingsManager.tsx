@@ -1747,7 +1747,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     {sub === 'integrations' && <ArrowsRightLeftIcon className="w-4 h-4 text-slate-500" />}
                                     {sub === 'sms' && <PaperAirplaneIcon className="w-4 h-4 text-sky-500" />}
 
-                                    {sub === 'integrations' ? 'Billing Map' : sub.replace('_', ' ')}
+                                    {sub === 'grading' ? 'Grade Map' : sub === 'integrations' ? 'Billing Map' : sub.replace('_', ' ')}
                                 </button>
                             ))}
                         </div>

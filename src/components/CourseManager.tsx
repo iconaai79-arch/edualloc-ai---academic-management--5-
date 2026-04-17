@@ -1341,44 +1341,61 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {filteredCourses.map(course => (
-                                <tr key={course.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors group">
-                                    <td className="px-8 py-5 whitespace-nowrap">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600">
-                                                <AcademicCapIcon className="w-5 h-5" />
+                            {filteredCourses.length > 0 ? (
+                                filteredCourses.map(course => (
+                                    <tr key={course.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors group">
+                                        <td className="px-8 py-5 whitespace-nowrap">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600">
+                                                    <AcademicCapIcon className="w-5 h-5" />
+                                                </div>
+                                                <span className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{course.name}</span>
                                             </div>
-                                            <span className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{course.name}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-8 py-5 whitespace-nowrap">
-                                        <span className="text-[10px] font-mono font-bold text-indigo-600 uppercase tracking-widest">{course.code}</span>
-                                    </td>
-                                    <td className="px-8 py-5 whitespace-nowrap">
-                                        <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${course.curriculumType === 'CBC' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
-                                            {course.curriculumType || '8-4-4'}
-                                        </span>
-                                    </td>
-                                    <td className="px-8 py-5 whitespace-nowrap text-[11px] font-bold text-slate-400 uppercase">
-                                        {(currentInstitution?.scheduleProfiles || []).find(p => p.id === course.scheduleProfileId)?.name || 'Default'}
-                                    </td>
-                                    <td className="px-8 py-5 whitespace-nowrap">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">{(course.levels || []).length} {streamOrLevelLabelPlural}</span>
-                                            <span className="text-[10px] text-slate-400">{[...new Set((course.levels || []).flatMap(l => l.subjectIds || []))].length} Units</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-8 py-5 whitespace-nowrap text-right">
-                                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => setEditingCourse(course)} className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Edit</button>
-                                            <button onClick={() => setManagingLessonsForCourse(course)} className="px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Lessons</button>
-                                            <button onClick={() => setViewingProgressOf(course)} className="px-3 py-1.5 bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Progress</button>
-                                            <button onClick={() => setAssigningSubjectsTo(course)} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Registry</button>
-                                            <button onClick={() => handleDeleteCourseSubmit(course.id, course.name)} className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Delete</button>
+                                        </td>
+                                        <td className="px-8 py-5 whitespace-nowrap">
+                                            <span className="text-[10px] font-mono font-bold text-indigo-600 uppercase tracking-widest">{course.code}</span>
+                                        </td>
+                                        <td className="px-8 py-5 whitespace-nowrap">
+                                            <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${course.curriculumType === 'CBC' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                {course.curriculumType || '8-4-4'}
+                                            </span>
+                                        </td>
+                                        <td className="px-8 py-5 whitespace-nowrap text-[11px] font-bold text-slate-400 uppercase">
+                                            {(currentInstitution?.scheduleProfiles || []).find(p => p.id === course.scheduleProfileId)?.name || 'Default'}
+                                        </td>
+                                        <td className="px-8 py-5 whitespace-nowrap">
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">{(course.levels || []).length} {streamOrLevelLabelPlural}</span>
+                                                <span className="text-[10px] text-slate-400">{[...new Set((course.levels || []).flatMap(l => l.subjectIds || []))].length} Units</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-5 whitespace-nowrap text-right">
+                                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={() => setEditingCourse(course)} className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Edit</button>
+                                                <button onClick={() => setManagingLessonsForCourse(course)} className="px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Lessons</button>
+                                                <button onClick={() => setViewingProgressOf(course)} className="px-3 py-1.5 bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Progress</button>
+                                                <button onClick={() => setAssigningSubjectsTo(course)} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Registry</button>
+                                                <button onClick={() => handleDeleteCourseSubmit(course.id, course.name)} className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Delete</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan={6} className="px-8 py-20 text-center">
+                                        <div className="flex flex-col items-center gap-4">
+                                            <div className="w-20 h-20 bg-slate-50 dark:bg-slate-900/50 rounded-full flex items-center justify-center text-slate-300">
+                                                <AcademicCapIcon className="w-10 h-10" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-lg font-black uppercase tracking-tight text-slate-400">Registry Empty</h4>
+                                                <p className="text-sm text-slate-400">No {courseLabel.toLowerCase()} records match your current view.</p>
+                                            </div>
+                                            <button onClick={() => setIsAdding(true)} className="btn-primary px-6 h-10">Create {courseLabel}</button>
                                         </div>
                                     </td>
                                 </tr>
-                            ))}
+                            )}
                         </tbody>
                     </table>
                 </div>

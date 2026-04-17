@@ -240,7 +240,7 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({ curr
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                                    {selectedSystem.definitions.sort((a,b) => b.minScore - a.minScore).map(grade => (
+                                    {[...selectedSystem.definitions].sort((a,b) => b.minScore - a.minScore).map(grade => (
                                         <tr key={grade.id}>
                                             <td className="px-4 py-2">
                                                 <input type="text" value={grade.grade} onChange={e => handleGradeChange(grade.id, 'grade', e.target.value)} className="form-input text-sm w-20" />
