@@ -229,8 +229,8 @@ export const generateTimetable = async (
             courseProfileId: c.scheduleProfileId 
         })));
         
-        // BATCHING STRATEGY: 2 levels per pass ensures maximum focus and avoids output truncation
-        const BATCH_SIZE = 2;
+        // BATCHING STRATEGY: 1 level per pass ensures each request fits within strict cloud execution time limits (10-30s)
+        const BATCH_SIZE = 1;
         const cohorts: any[][] = [];
         for (let i = 0; i < allLevels.length; i += BATCH_SIZE) {
             cohorts.push(allLevels.slice(i, i + BATCH_SIZE));
@@ -300,9 +300,10 @@ export const generateTimetable = async (
                 continue;
             }
 
-            // Full Context Contextualization: Provide ALL previously scheduled sessions for absolute collision avoidance
-            const committedContext = allGeneratedEntries.map(e => 
-                `${e.day.substring(0,3)}|${e.startTime}|L:${e.lecturerId.substring(0,6)}|R:${e.roomId.substring(0,6)}`
+            // Full Context Contextualization: Focus only on most relevant collisions to keep prompt size efficient
+            const recentContext = allGeneratedEntries.slice(-150); // Focus on last 150 entries to keep tokens lean
+            const committedContext = recentContext.map(e => 
+                `${e.day.substring(0,3)}|${e.startTime}|L:${e.lecturerId.substring(0,4)}|R:${e.roomId.substring(0,4)}`
             ).join('; ');
 
             const prompt = `
