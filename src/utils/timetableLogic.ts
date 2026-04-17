@@ -210,12 +210,15 @@ export const generateStandardTimetable = (
                             });
 
                             placed = true;
-                        if (placed) break;
+                            break;
+                        }
                     }
+                    if (placed) break; 
+                }
 
                     // ZERO-SKIP POLICY: If still not placed after checking all days/slots
                     if (!placed) {
-                        const safetyDay = shuffledDays[0] || 'Monday';
+                        const safetyDay = prioritizedDays[0] || 'Monday';
                         const safetySlot = displaySlots.find(s => !activeBreaks.some(b => b.status === 'active' && timeToMinutes(s.start) >= timeToMinutes(b.startTime) && timeToMinutes(s.start) < timeToMinutes(b.endTime))) || displaySlots[0];
                         
                         if (safetySlot) {
@@ -240,9 +243,8 @@ export const generateStandardTimetable = (
                         }
                     }
                 }
-            }
+            });
         });
-    });
 
     return { entries, notifications };
 }
