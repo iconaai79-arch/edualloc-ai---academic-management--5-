@@ -218,127 +218,95 @@ export const generateTimetable = async (
 ): Promise<TimetableEntry[]> => {
     try {
         checkAiAvailable();
-        const prompt = `
-            Task: Architect a precise, conflict-free academic timetable matrix.
-            
-            Contextual Inputs:
-            - Approved Instructional Allocations: ${JSON.stringify(allocations.flatMap(a => (a.courseLevelIds || []).map(lid => ({
-                subjectId: a.subjectId,
-                coordinatorId: a.lecturerId,
-                courseLevelId: lid
-            }))))}
-            - Subject Specification Registry: ${JSON.stringify(subjects.map(s => ({ 
-                id: s.id, 
-                code: s.code, 
-                name: s.name, 
-                intendedStructure: s.lessonStructure,
-                dedicatedRoomId: s.roomId // Include the primary specialized facility if defined
-            })))}
-            - Faculty Resource Registry: ${JSON.stringify(lecturers.map(u => ({ id: u.id, name: u.name })))}
-            - Spatial Assets (Rooms): ${JSON.stringify(rooms.map(r => ({ id: r.id, name: r.name, cap: r.capacity })))}
-            - Institutional Grade & Level Hierarchy: ${JSON.stringify(courses.map(c => ({
-                id: c.id,
-                name: c.name,
-                activeProfileId: c.scheduleProfileId,
-                grades: c.levels.map(l => ({
-                    id: l.id,
-                    name: l.name,
-                    assignedSubjectIds: l.subjectIds,
-                    baseRoomId: l.roomId,
-                    activeProfileId: l.scheduleProfileId || c.scheduleProfileId
-                }))
-            })))}
-            - Temporal Parameters: ${JSON.stringify({ 
-                dayStart: settings.startTime, 
-                dayEnd: settings.endTime, 
-                operatingDays: settings.operatingDays,
-                globalSlots: settings.periods || [],
-                slotDuration: settings.cellSpanMinutes || 60,
-                institutionDefaultProfileId: settings.defaultScheduleProfileId
-            })}
-            - Schedule Template Profiles: ${JSON.stringify(profiles.map(p => ({ 
-                id: p.id, 
-                name: p.name, 
-                availableSlots: p.periods || [],
-                breaks: p.breaks || []
-            })))}
-            
-            - Institutional Identity: ${JSON.stringify({
-                name: institution?.name,
-                type: institution?.institutionType,
-                category: institution?.category
-            })}
-            
-            STRICT ARCHITECTURAL DIRECTIVES:
-            1. GRADE COVERAGE (ZERO EXCLUSION):
-               - EVERY Grade/Level defined in the hierarchy MUST have its assigned subjects scheduled according to their intendedStructure.
-               - ABSOLUTE COMPLETION: For every 'Approved Instructional Allocation' provided, you MUST generate the exact number of entries required (periods * count).
-               - DO NOT TRUNCATE: If the school is large, ensure you continue generating until every single subject for every single class is placed.
-               - "Teacher AGR on 4N and 4S" means two SEPARATE lessons at DIFFERENT times.
-            
-            2. INSTITUTIONAL SPECIALIZATION:
-               ${institution?.category === 'Primary' ? `
-               - PRIMARY SCHOOL OPTIMIZATION: Prioritize "Home-Room Stability". Students should ideally remain in their base baseRoomId for the majority of core subjects.
-               - Move the Teacher, not the class, unless a specialized facility (Lab, Field, Music Room) is required.
-               ` : institution?.category === 'Secondary' ? `
-               - SECONDARY SCHOOL OPTIMIZATION: Support specialized movement. Subjects with high equipment needs MUST use their assigned laboratory or specialized facility.
-               ` : ''}
+        
+        // Flatten all levels for batching
+        const allLevels = courses.flatMap(c => (c.levels || []).map(l => ({ 
+            ...l, 
+            courseId: c.id, 
+            courseProfileId: c.scheduleProfileId 
+        })));
+        
+        // BATCHING STRATEGY: 3 levels per pass ensures high fidelity and avoids output truncation
+        const BATCH_SIZE = 3;
+        const cohorts: any[][] = [];
+        for (let i = 0; i < allLevels.length; i += BATCH_SIZE) {
+            cohorts.push(allLevels.slice(i, i + BATCH_SIZE));
+        }
 
-            3. LESSON STRUCTURE INTEGRITY:
-               - intendedStructure contains [{ periods: N, count: M }] (e.g., {periods: 2, count: 2} means 2 groups of double periods).
-               - DOUBLE/BLOCK LESSONS: If 'periods' > 1, those N lessons MUST be scheduled CONSECUTIVELY in neighboring slots on the same day.
-               - SINGLE LESSONS: If 'periods' = 1, they MUST NOT be blocked.
-               - TOTAL LESSONS: For each allocation, generate (periods * count) entries.
-            
-            3. ONE ENTRY = ONE SLOT (GRANULARITY):
-               - Your JSON output MUST be a flat array where EACH object represents EXACTLY ONE period (slot).
-               - Even for a double lesson (2 periods), you return TWO separate objects with matching subjectId but different slot times.
-            4. PROFILE SYNCRONIZATION:
-               - Use the 'activeProfileId' for the grade. If empty, use 'institutionDefaultProfileId'. If both empty, use 'globalSlots'.
-               - Lessons MUST align perfectly with the resolved profile's startTime and endTime.
-            
-            5. VERTICAL LOGIC (DISTRIBUTION & DENSITY):
-               - Avoid "Front-Loading": Spread lessons across the entire day (Morning to Evening).
-               - Avoid "Back-to-Back" for same subject: Do not schedule two sessions of the same subject on the same day unless it's a block.
-               - TEMPORAL BREATHING: Avoid packing all grades/sections into the same few periods. Spread different grades across the day to minimize simultaneous activity (e.g., if Grade 4 has SST at 8 AM, try to schedule Grade 5 for AGN at 9 AM or 10 AM, rather than 8 AM, unless resource limits force concurrency).
-
-            6. SPATIAL ASSIGNMENT (ZERO SPATIAL OVERLAP):
-               - NO ROOM DOUBLE-BOOKING: A room ID MUST NOT appear twice for the same day/time unless the lessons are for the same grade/level.
-               - DEDICATED FACILITIES: If a subject has 'dedicatedRoomId', you MUST assign that roomId to the lesson.
-               - BASE ROOM PRIORITY: For subjects without specialized requirements in Primary schools, prioritize the grade's 'baseRoomId'.
-
-            7. FACULTY RESOURCE SEPARATION:
-               - NO LECTURER DOUBLE-BOOKING: A lecturer ID MUST NOT be scheduled for two different gradeLevels at overlapping times.
-               - Treat every (subjectId, lecturerId, courseLevelId) triplet as a distinct requirement that occupies its own physical and temporal space.
-
-            8. GRADE LEVEL INTEGRITY (ZERO GRADE COLLISION):
-               - NO GRADE DOUBLE-BOOKING: A specific Grade/Level ID (courseLevelId) MUST NOT be scheduled for more than one lesson at the same day/time.
-               - SINGULAR FOCUS: Every class (e.g., 5S) is a singular entity; it cannot be in two places or subjects at once.
-               - Avoid "Day-Clustering": Spread a subject's lessons across different days in the week.
-
-            9. HARD CONSTRAINTS (NO CONFLICTS):
-               - No lecturer in two places at once.
-               - No room with two different classes at once.
-               - No grade/level group with two different lessons at once.
-
-            10. OUTPUT SPECIFICATION:
-               - Return a flat JSON Array of objects: { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }.
-               - CRITICAL: Do NOT truncate the output. Generate the full timetable for ALL levels/grades.
-        `;
-
+        let allGeneratedEntries: any[] = [];
         const modelTier = aiModelTier === 'premium' ? 'pro' : 'flash';
-        const response = await safeGenerateContent(prompt, { 
-            responseMimeType: 'application/json',
-            temperature: 0.15,
-            maxOutputTokens: 8192
-        }, modelTier);
-        const result = sanitizeAndParseJson(response.text || "[]");
-        return (Array.isArray(result) ? result : []).map((entry: any) => ({
-            ...entry,
-            id: `entry_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-        }));
+
+        console.log(`[Batch Engine] Initializing generation sequence for ${allLevels.length} levels in ${cohorts.length} passes...`);
+
+        for (let i = 0; i < cohorts.length; i++) {
+            const currentCohort = cohorts[i];
+            const cohortLevelIds = currentCohort.map(l => l.id);
+            
+            // Extract allocations for this batch only
+            const cohortAllocations = allocations.filter(a => 
+                (a.courseLevelIds || []).some(lid => cohortLevelIds.includes(lid))
+            ).map(a => ({
+                subjectId: a.subjectId,
+                lecturerId: a.lecturerId,
+                courseLevelIds: (a.courseLevelIds || []).filter(lid => cohortLevelIds.includes(lid))
+            }));
+
+            if (cohortAllocations.length === 0) continue;
+
+            const prompt = `
+                ROLE: Master Academic Scheduling Architect (Sequence ${i + 1} of ${cohorts.length})
+                MISSION: Generate a PERFECT, COMPLETED timetable for Grades: ${currentCohort.map(l => l.name).join(', ')}.
+                
+                RESOURCES:
+                - Target Levels: ${JSON.stringify(currentCohort.map(l => ({ id: l.id, name: l.name, roomId: l.roomId })))}
+                - Assignments: ${JSON.stringify(cohortAllocations)}
+                - Subject Registry: ${JSON.stringify(subjects.map(s => ({ id: s.id, name: s.name, structure: s.lessonStructure, room: s.roomId })))}
+                - Faculty Registry: ${JSON.stringify(lecturers.map(u => ({ id: u.id, name: u.name })))}
+                - Facilities Registry: ${JSON.stringify(rooms.map(r => ({ id: r.id, name: r.name, cap: r.capacity })))}
+                
+                TEMPORAL ARCHITECTURE:
+                - Profile Library: ${JSON.stringify(profiles.map(p => ({ id: p.id, slots: p.periods, breaks: p.breaks })))}
+                - Global Params: ${JSON.stringify({ start: settings.startTime, end: settings.endTime, days: settings.operatingDays })}
+
+                *** MANDATORY NON-CONFLICT CONSTRAINTS (ALREADY SCHEDULED): ***
+                The following resources are LOCKED by previous passes. You MUST NOT use these lecturers or rooms at these times:
+                - COMMITTED: ${JSON.stringify(allGeneratedEntries.map(e => ({ 
+                    d: e.day, s: e.startTime, e: e.endTime, l: e.lecturerId, r: e.roomId 
+                }))).substring(0, 15000)}
+
+                CORE ARCHITECTURAL DIRECTIVES:
+                1. 100% COMPLETION: Fulfill every period*count for every level in this cohort. No exceptions.
+                2. RESOURCE SEPARATION: Zero overlap with COMMITTED slots.
+                3. SEQUENTIAL LOGIC: Double periods (periods > 1) MUST be consecutive.
+                
+                OUTPUT:
+                - JSON Array: { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }.
+                - Only return NEW entries.
+            `;
+
+            const response = await safeGenerateContent(prompt, { 
+                responseMimeType: 'application/json',
+                temperature: 0.1,
+                maxOutputTokens: 8192
+            }, modelTier);
+
+            const shardResult = sanitizeAndParseJson(response.text || "[]");
+            const finalShard = (Array.isArray(shardResult) ? shardResult : []).map((entry: any) => {
+                const levelData = currentCohort.find(l => l.id === entry.courseLevelId);
+                return {
+                    ...entry,
+                    courseId: entry.courseId || levelData?.courseId,
+                    id: `entry_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+                };
+            });
+
+            allGeneratedEntries = [...allGeneratedEntries, ...finalShard];
+            console.log(`[Batch Engine] Sequence ${i+1}/${cohorts.length} finished. Added ${finalShard.length} sessions.`);
+        }
+
+        return allGeneratedEntries;
     } catch (error) {
-        console.error("AI timetable error:", error);
+        console.error("Critical Failure in Batch Timetable Engine:", error);
         throw error;
     }
 };
