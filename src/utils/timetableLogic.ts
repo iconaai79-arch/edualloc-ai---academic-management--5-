@@ -144,11 +144,41 @@ export const generateStandardTimetable = (
 
                         if (!isPathClear) continue;
 
+                        // HOME-ROOM BINDING: Prioritize the room assigned to the level
+                        const levelRooms = targetLevelIds.map(lid => {
+                            const course = (courses || []).find(c => (c.levels || []).some(l => l.id === lid));
+                            return (course?.levels || []).find(l => l.id === lid)?.roomId;
+                        }).filter(Boolean);
+
+                        const primaryHomeRoomId = levelRooms[0];
+
                         // RANDOMIZED ROOM SELECTION: Prevent facility bottlenecks
-                        const shuffledRooms = [...(rooms || [])].sort(() => Math.random() - 0.5);
+                        const shuffledRooms = [...(rooms || [])].sort((a, b) => {
+                            // If a room is the home-room for this level, prioritize it to the top
+                            if (primaryHomeRoomId) {
+                                if (a.id === primaryHomeRoomId) return -1;
+                                if (b.id === primaryHomeRoomId) return 1;
+                            }
+                            return Math.random() - 0.5;
+                        });
+
                         let availableRoom = shuffledRooms.find(room => {
                             if (!room || room.status !== 'active') return false;
+                            
+                            // 1. Strict Subject-Level Dedicated Room
                             if (structure.dedicatedRoomId && room.id !== structure.dedicatedRoomId) return false;
+
+                            // 2. Prevent "Squatting": If this room is someone ELSE'S homeroom, and they aren't this level, 
+                            // avoid using it unless no other rooms are found.
+                            const isHomeRoomForOther = (courses || []).some(c => 
+                                (c.levels || []).some(l => l.roomId === room.id && !targetLevelIds.includes(l.id))
+                            );
+                            
+                            // If we have a primary home room for THIS level, we ONLY use it.
+                            if (primaryHomeRoomId && room.id !== primaryHomeRoomId) return false;
+
+                            // If this isn't our home room, but it IS a home room for someone else, skip it to keep it clear.
+                            if (!primaryHomeRoomId && isHomeRoomForOther) return false;
 
                             let roomFree = true;
                             for (let p = 0; p < requiredPeriods; p++) {
