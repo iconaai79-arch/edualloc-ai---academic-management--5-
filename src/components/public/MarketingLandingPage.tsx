@@ -32,7 +32,7 @@ interface ModuleProps {
   onLaunchSimulator?: () => void;
 }
 
-const ModuleCard: React.FC<ModuleProps> = ({ icon, imageUrl, title, description, advantages, onLaunchSimulator }) => (
+const ModuleCard: React.FC<ModuleProps> = ({ icon, imageUrl, title, description, advantages, modId, onLaunchSimulator }) => (
   <div className="module-card animate-in">
     <div className="module-image-container">
       {imageUrl ? (
@@ -133,6 +133,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
       case 'ds': return <GraduationCap className="w-8 h-8 text-amber-500" />;
       case 'civil': return <Wrench className="w-8 h-8" />;
       case 'logistics': return <Logistics className="w-8 h-8" />;
+      case 'showroom': return <Car className="w-8 h-8 text-rose-500" />;
       default: return <Zap className="w-8 h-8" />;
     }
   };

@@ -421,5 +421,14 @@ export const MODULES = [
     role: 'admin',
     category: 'Logistics',
     imageUrl: '/marketing/marketing_logistics_1776367388474.png'
+  },
+  {
+    id: 'showroom',
+    title: "Car Showroom",
+    description: "Premium vehicle inventory management and showroom automation for luxury car dealerships.",
+    advantages: ["Inventory Sync", "Showroom Display", "Sales Pipeline"],
+    role: 'retail_agent',
+    category: 'Automotive',
+    imageUrl: '/marketing/marketing_showroom_render_1776486638624.png'
   }
 ];
