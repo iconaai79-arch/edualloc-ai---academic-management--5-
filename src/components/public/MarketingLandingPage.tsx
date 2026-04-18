@@ -17,6 +17,8 @@ import { TruckIcon as Truck } from '../icons/TruckIcon';
 import { MegaphoneIcon as Megaphone } from '../icons/MegaphoneIcon';
 import { ScaleIcon as Scale } from '../icons/ScaleIcon';
 import { WrenchIcon as Wrench } from '../icons/WrenchIcon';
+import { PalmTreeIcon as Tourism } from '../icons/PalmTreeIcon';
+import { ChatBubbleBottomCenterTextIcon as Community } from '../icons/ChatBubbleBottomCenterTextIcon';
 import { MagnifyingGlassIcon as Search } from '../icons/MagnifyingGlassIcon';
 import './MarketingLanding.css';
 import { apiService } from '../../services/apiService';
@@ -176,6 +178,8 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
       case 'civil': return <Wrench className="w-8 h-8" />;
       case 'logistics': return <Logistics className="w-8 h-8" />;
       case 'showroom': return <Car className="w-8 h-8 text-rose-500" />;
+      case 'tourism': return <Tourism className="w-8 h-8 text-cyan-400" />;
+      case 'community': return <Community className="w-8 h-8 text-purple-400" />;
       default: return <Zap className="w-8 h-8" />;
     }
   };
@@ -250,6 +254,19 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
             {companyDetails?.showcaseConfig?.showLoginLink ? 'Sign In' : 'Get Started'}
           </button>
         </nav>
+
+        {/* 3D Asset Marquee */}
+        <div className="asset-marquee-container">
+           <div className="asset-marquee-track">
+              {/* Double the array for infinite scroll */}
+              {[...platformModules, ...platformModules].map((m, i) => (
+                <div key={i} className="marquee-item">
+                   <img src={m.imageUrl} alt={m.title} className="marquee-asset floating-3d" />
+                   <div className="marquee-item-glow"></div>
+                </div>
+              ))}
+           </div>
+        </div>
 
         {/* Hero */}
         <section className="marketing-section hero-section animate-in">

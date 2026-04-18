@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Allow: /showcase
+
+Sitemap: https://eduai.co.ke/sitemap.xml

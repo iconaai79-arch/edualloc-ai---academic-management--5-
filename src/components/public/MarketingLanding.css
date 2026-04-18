@@ -399,3 +399,122 @@
   .search-glass-wrapper { padding-left: 50px; }
   .search-input { font-size: 0.875rem; }
 }
+
+/* 3D Asset Marquee Styles */
+.asset-marquee-container {
+  width: 100%;
+  overflow: hidden;
+  padding: 60px 0;
+  position: relative;
+  background: linear-gradient(to bottom, transparent, rgba(79, 70, 229, 0.03), transparent);
+}
+
+.asset-marquee-container::before,
+.asset-marquee-container::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 250px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.asset-marquee-container::before {
+  left: 0;
+  background: linear-gradient(to right, var(--marketing-dark) 0%, transparent 100%);
+}
+
+.asset-marquee-container::after {
+  right: 0;
+  background: linear-gradient(to left, var(--marketing-dark) 0%, transparent 100%);
+}
+
+.asset-marquee-track {
+  display: flex;
+  width: calc(250px * 26); /* Adjusted for doubled platformModules */
+  animation: scrollMarquee 40s linear infinite;
+}
+
+.asset-marquee-track:hover {
+  animation-play-state: paused;
+}
+
+.marquee-item {
+  width: 250px;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0;
+  perspective: 1000px;
+}
+
+.marquee-asset {
+  width: 160px;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 20px 30px rgba(0,0,0,0.5));
+  transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.marquee-item:hover .marquee-asset {
+  transform: scale(1.2) rotateY(15deg) translateZ(50px);
+}
+
+.marquee-item-glow {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  background: radial-gradient(circle, rgba(79, 70, 229, 0.2) 0%, transparent 70%);
+  border-radius: 50%;
+  z-index: -1;
+  opacity: 0.5;
+  animation: pulseGlow 4s ease-in-out infinite alternate;
+}
+
+/* 3D Modern Animation Tricks */
+@keyframes scrollMarquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(calc(-250px * 13)); }
+}
+
+@keyframes pulseGlow {
+  from { transform: scale(0.8); opacity: 0.3; }
+  to { transform: scale(1.2); opacity: 0.7; }
+}
+
+.floating-3d {
+  animation: float3d 6s ease-in-out infinite;
+}
+
+@keyframes float3d {
+  0% { transform: translateY(0) rotateX(0deg) rotateY(0deg); }
+  33% { transform: translateY(-15px) rotateX(5deg) rotateY(-5deg); }
+  66% { transform: translateY(5px) rotateX(-5deg) rotateY(5deg); }
+  100% { transform: translateY(0) rotateX(0deg) rotateY(0deg); }
+}
+
+/* Extra premium shadow trick for module cards */
+.module-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 0%, rgba(255,255,255,0.05) 50%, transparent 100%);
+  transform: translateX(-100%);
+  transition: transform 0.8s ease;
+}
+
+.module-card:hover::after {
+  transform: translateX(100%);
+}
+
+.hover-target {
+  transition: transform 0.5s ease;
+  cursor: pointer;
+}
+
+.module-card:hover .hover-target {
+  transform: scale(1.05) rotateX(5deg);
+}

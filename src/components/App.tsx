@@ -109,7 +109,10 @@ const SIMULATOR_NAMES: Record<string, string> = {
     'civil': 'Construction & Civil Works',
     'logistics': 'Logistics & Fleet Management',
     'autoservice': 'Car Wash & Auto Service',
-    'edu': 'Academic Management'
+    'edu': 'Academic Management',
+    'showroom': 'Car Showroom',
+    'tourism': 'Tourism & Hospitality Hub',
+    'community': 'Community & Social Hub'
 };
 
 const SystemPulseLoader: React.FC<{ message: string; onRetry?: () => void; status?: string }> = ({ message, onRetry, status }) => (
@@ -1536,6 +1539,9 @@ export const App: React.FC = () => {
            if (modId === 'logistics') return (i.institutionType as string) === 'Logistics';
            if (modId === 'autoservice') return (i.institutionType as string) === 'Car Wash' || (i.businessSubType as string) === 'Car Wash';
            if (modId === 'edu') return (i.institutionType as string) === 'Education' || (i.institutionType as string) === 'Primary' || (i.institutionType as string) === 'Secondary';
+           if (modId === 'showroom') return i.institutionType === 'Business' && (i.category === 'Automotive Marketplace' || i.businessSubType === 'Automotive Marketplace');
+           if (modId === 'tourism') return i.institutionType === 'Hospitality';
+           if (modId === 'community') return i.institutionType === 'Community';
            return false;
         });
 
@@ -1561,12 +1567,19 @@ export const App: React.FC = () => {
                                  modId === 'logistics' ? 'Logistics' : 
                                  modId === 'retail' ? 'Retail' :
                                  modId === 'autoservice' ? 'Car Wash' :
+                                  modId === 'showroom' ? 'Business' :
+                                   modId === 'tourism' ? 'Hospitality' :
+                                   modId === 'community' ? 'Community' :
                                  modId === 'edu' ? 'Education' : 'Business') as any,
                 category: (modId === 'fuel' ? 'Fuel Station' : 
-                           modId === 'retail' ? 'Retail' : 'General'),
+                           modId === 'retail' ? 'Retail' : 
+                           modId === 'showroom' ? 'Automotive Marketplace' : 
+                           modId === 'tourism' ? 'Hospitality' :
+                           modId === 'community' ? 'Community' : 'General'),
                 businessSubType: (modId === 'fuel' ? 'Fuel Station' : 
                                   modId === 'retail' ? 'Retail' : 
                                   modId === 'autoservice' ? 'Car Wash' : 
+                                   modId === 'showroom' ? 'Automotive Marketplace' : 
                                   modId === 'property' ? 'Property Management' : 'General'),
                 status: 'active',
                 trialEndsAt: new Date(Date.now() + 86400000 * 30).toISOString(),
@@ -4930,9 +4943,12 @@ export const App: React.FC = () => {
                                         console.log(`[Login] OTP Triggered for ${u.email}(Role: ${u.role}, Inst: ${u.institutionId})`);
 
                                         // Dispatch to both channels with improved error reporting and explicit authToken (User ID)
+                                        const emailCfg = inst?.emailConfig || companyDetails.emailConfig;
+                                        const smsCfg = inst?.smsConfig || companyDetails.smsConfig;
+
                                         Promise.all([
-                                            u.email ? apiService.sendEmail(u.email, 'Verification Code', otpMessage, undefined, u.id) : Promise.resolve({ success: true }),
-                                            u.phoneNumber ? apiService.sendSms(u.phoneNumber, otpMessage, undefined, 1, u.institutionId, u.id) : Promise.resolve({ success: true })
+                                            u.email ? apiService.sendEmail(u.email, 'Verification Code', otpMessage, emailCfg, u.id) : Promise.resolve({ success: true }),
+                                            u.phoneNumber ? apiService.sendSms(u.phoneNumber, otpMessage, smsCfg, 1, u.institutionId, u.id) : Promise.resolve({ success: true })
                                         ]).then((results: any) => {
                                             const smsResult = (results[1] || results[0]);
                                             if (smsResult && smsResult.success === false) {
@@ -4981,9 +4997,13 @@ export const App: React.FC = () => {
                                 console.log(`[Login] OTP Resend triggered for ${otpPendingUser.email}`);
 
                                 // Dispatch with reporting and explicit authToken (User ID)
+                                const instForOtp = institutions.find(i => i.id === otpPendingUser.institutionId);
+                                const emailCfg = instForOtp?.emailConfig || companyDetails.emailConfig;
+                                const smsCfg = instForOtp?.smsConfig || companyDetails.smsConfig;
+
                                 Promise.all([
-                                    otpPendingUser.email ? apiService.sendEmail(otpPendingUser.email, 'New Verification Code', otpMessage, undefined, otpPendingUser.id) : Promise.resolve({ success: true }),
-                                    otpPendingUser.phoneNumber ? apiService.sendSms(otpPendingUser.phoneNumber, otpMessage, undefined, 1, otpPendingUser.institutionId, otpPendingUser.id) : Promise.resolve({ success: true })
+                                    otpPendingUser.email ? apiService.sendEmail(otpPendingUser.email, 'New Verification Code', otpMessage, emailCfg, otpPendingUser.id) : Promise.resolve({ success: true }),
+                                    otpPendingUser.phoneNumber ? apiService.sendSms(otpPendingUser.phoneNumber, otpMessage, smsCfg, 1, otpPendingUser.institutionId, otpPendingUser.id) : Promise.resolve({ success: true })
                                 ]).then(results => {
                                     const smsResult = (results[1] || results[0]) as any;
                                     if (smsResult && smsResult.success === false) {

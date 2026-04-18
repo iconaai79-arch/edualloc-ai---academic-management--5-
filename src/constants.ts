@@ -430,5 +430,23 @@ export const MODULES = [
     role: 'retail_agent',
     category: 'Automotive',
     imageUrl: '/marketing/marketing_showroom_render_1776486638624.png'
+  },
+  {
+    id: 'tourism',
+    title: "Tourism Hub",
+    description: "End-to-end travel and hospitality management for tour operators and resorts.",
+    advantages: ["Booking Engine", "Itinerary Planner", "Guest Services"],
+    role: 'admin',
+    category: 'Hospitality',
+    imageUrl: '/marketing/marketing_tourism_hub_render_1776512345678_1776488887029.png'
+  },
+  {
+    id: 'community',
+    title: "Community Hub",
+    description: "Collaborative platform for social groups, gated communities, and non-profits.",
+    advantages: ["Member Registry", "Event Sync", "Social Groups"],
+    role: 'community_admin',
+    category: 'Community',
+    imageUrl: '/marketing/marketing_community_hub_render_1776512345679_1776488906671.png'
   }
 ];
