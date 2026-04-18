@@ -77,16 +77,37 @@ const ModuleCard: React.FC<ModuleProps> = ({ icon, imageUrl, title, description,
           Launch Showcase
         </button>
         <button 
-          title="Share simulator link"
-          className="p-3.5 bg-white/5 border border-white/10 text-slate-400 hover:text-indigo-400 hover:bg-white/10 rounded-2xl transition-all"
-          onClick={(e) => {
+          title="Share solution"
+          className="p-3.5 bg-white/5 border border-white/10 text-slate-400 hover:text-indigo-400 hover:bg-white/10 rounded-2xl transition-all group relative"
+          onClick={async (e) => {
             e.stopPropagation();
             const shareUrl = `${window.location.origin}${window.location.pathname}?showcaseModId=${modId || title.toLowerCase().replace(/\s+/g, '_')}`;
-            navigator.clipboard.writeText(shareUrl);
-            alert("Simulator link copied to clipboard!");
+            const shareData = {
+              title: `${title} | EduAI OS`,
+              text: description,
+              url: shareUrl
+            };
+
+            // Use Native Share API if available (Modern/Premium)
+            if (navigator.share) {
+              try {
+                await navigator.share(shareData);
+              } catch (err) {
+                console.log("Sharing failed or cancelled");
+              }
+            } else {
+              // Fallback: Copy to clipboard and offer social intents
+              navigator.clipboard.writeText(shareUrl);
+              alert(`${title} link copied to clipboard! Opening WhatsApp...`);
+              const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${title}: ${description} ${shareUrl}`)}`;
+              window.open(whatsappUrl, '_blank');
+            }
           }}
         >
           <ShareIcon className="w-4 h-4" />
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-indigo-600 text-white text-[8px] font-black rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap uppercase tracking-widest">
+            Share Solution
+          </div>
         </button>
       </div>
     </div>
