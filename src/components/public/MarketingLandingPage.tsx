@@ -17,6 +17,8 @@ import { TruckIcon as Truck } from '../icons/TruckIcon';
 import { MegaphoneIcon as Megaphone } from '../icons/MegaphoneIcon';
 import { ScaleIcon as Scale } from '../icons/ScaleIcon';
 import { WrenchIcon as Wrench } from '../icons/WrenchIcon';
+import { WrenchIcon as Wrench } from '../icons/WrenchIcon';
+import { MagnifyingGlassIcon as Search } from '../icons/MagnifyingGlassIcon';
 import './MarketingLanding.css';
 import { apiService } from '../../services/apiService';
 import { CompanyDetails } from '../../types';
@@ -141,6 +143,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
 }) => {
   const [companyDetails, setCompanyDetails] = useState<CompanyDetails | null>(null);
   const [currentWidth, setCurrentWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const handleResize = () => setCurrentWidth(window.innerWidth);
@@ -220,6 +223,12 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
      }
   });
 
+  const filteredModules = displayModules.filter(m => 
+    m.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    m.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (m as any).category?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="marketing-container">
       <div className="marketing-mesh"></div>
@@ -276,16 +285,43 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
 
         {/* Showcase Grid */}
         <section id="showcase" className="marketing-section pb-32">
-          <div className="text-center mb-20 animate-in">
+          <div className="text-center mb-16 animate-in">
             <h2 className="text-3xl font-black tracking-tighter uppercase mb-4">Powerful Industry Modules</h2>
             <p className="text-slate-400 max-width-600 mx-auto font-medium">Built for scale, designed for simplicity. Choose the modules you need and scale as you grow.</p>
           </div>
+
+          {/* Search Bar */}
+          <div className="showcase-search-container animate-in mb-20" style={{ animationDelay: '0.2s' }}>
+            <div className="search-glass-wrapper">
+              <Search className="search-icon" />
+              <input 
+                type="text" 
+                placeholder="Search modules (e.g. 'fuel', 'education', 'property')..." 
+                className="search-input"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              <div className="search-badge">
+                {filteredModules.length} Modules Found
+              </div>
+            </div>
+          </div>
           
           <div className="showcase-grid animate-in" style={{ animationDelay: '0.4s' }}>
-            {displayModules.map((mod: any, i: number) => (
+            {filteredModules.map((mod: any, i: number) => (
               <ModuleCard key={i} {...mod} />
             ))}
           </div>
+
+          {filteredModules.length === 0 && (
+            <div className="py-32 text-center animate-in">
+               <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
+                 <Search className="w-10 h-10 text-slate-600" />
+               </div>
+               <h3 className="text-xl font-bold text-slate-400">No modules found matching "{searchQuery}"</h3>
+               <button onClick={() => setSearchQuery('')} className="mt-4 text-indigo-400 font-bold hover:underline">Clear search</button>
+            </div>
+          )}
         </section>
 
         {/* Advantage Stats */}
