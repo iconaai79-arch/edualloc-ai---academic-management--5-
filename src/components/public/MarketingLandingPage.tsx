@@ -13,6 +13,10 @@ import { ShareIcon } from '../icons/ShareIcon';
 import { SmartphoneIcon as Smartphone } from '../icons/SmartphoneIcon';
 import { GlobeAltIcon as Globe } from '../icons/GlobeAltIcon';
 import { ShieldCheckIcon as Shield } from '../icons/ShieldCheckIcon';
+import { TruckIcon as Truck } from '../icons/TruckIcon';
+import { MegaphoneIcon as Megaphone } from '../icons/MegaphoneIcon';
+import { ScaleIcon as Scale } from '../icons/ScaleIcon';
+import { WrenchIcon as Wrench } from '../icons/WrenchIcon';
 import './MarketingLanding.css';
 import { apiService } from '../../services/apiService';
 import { CompanyDetails } from '../../types';
@@ -49,9 +53,9 @@ const ModuleCard: React.FC<ModuleProps> = ({ icon, imageUrl, title, description,
           Active Simulator
         </div>
         <div className="flex gap-1.5 p-1 bg-black/40 backdrop-blur-md rounded-lg border border-white/5">
-           <Smartphone className="w-2.5 h-2.5 text-slate-400" title="Mobile Optimized" />
-           <Shield className="w-2.5 h-2.5 text-slate-400" title="Tablet Ready" />
-           <Globe className="w-2.5 h-2.5 text-slate-400" title="Desktop Enterprise" />
+           <span title="Mobile Optimized"><Smartphone className="w-2.5 h-2.5 text-slate-400" /></span>
+           <span title="Tablet Ready"><Shield className="w-2.5 h-2.5 text-slate-400" /></span>
+           <span title="Desktop Enterprise"><Globe className="w-2.5 h-2.5 text-slate-400" /></span>
         </div>
       </div>
     </div>
