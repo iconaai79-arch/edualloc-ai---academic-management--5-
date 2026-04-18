@@ -17,7 +17,6 @@ import { TruckIcon as Truck } from '../icons/TruckIcon';
 import { MegaphoneIcon as Megaphone } from '../icons/MegaphoneIcon';
 import { ScaleIcon as Scale } from '../icons/ScaleIcon';
 import { WrenchIcon as Wrench } from '../icons/WrenchIcon';
-import { WrenchIcon as Wrench } from '../icons/WrenchIcon';
 import { MagnifyingGlassIcon as Search } from '../icons/MagnifyingGlassIcon';
 import './MarketingLanding.css';
 import { apiService } from '../../services/apiService';
