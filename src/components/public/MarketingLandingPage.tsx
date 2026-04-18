@@ -8,14 +8,11 @@ import { AcademicCapIcon as GraduationCap } from '../icons/AcademicCapIcon';
 import { ArrowRightIcon as ArrowRight } from '../icons/ArrowRightIcon';
 import { ShieldCheckIcon as ShieldCheck } from '../icons/ShieldCheckIcon';
 import { ZapIcon as Zap } from '../icons/ZapIcon';
-import { GlobeAltIcon as Globe } from '../icons/GlobeAltIcon';
-import { PhoneIcon as Smartphone } from '../icons/PhoneIcon';
-import { TruckIcon as Truck } from '../icons/TruckIcon';
-import { MegaphoneIcon as Megaphone } from '../icons/MegaphoneIcon';
-import { ScaleIcon as Scale } from '../icons/ScaleIcon';
-import { WrenchIcon as Wrench } from '../icons/WrenchIcon';
 import { ArrowsRightLeftIcon as Logistics } from '../icons/ArrowsRightLeftIcon';
 import { ShareIcon } from '../icons/ShareIcon';
+import { SmartphoneIcon as Smartphone } from '../icons/SmartphoneIcon';
+import { GlobeAltIcon as Globe } from '../icons/GlobeAltIcon';
+import { ShieldCheckIcon as Shield } from '../icons/ShieldCheckIcon';
 import './MarketingLanding.css';
 import { apiService } from '../../services/apiService';
 import { CompanyDetails } from '../../types';
@@ -29,6 +26,11 @@ interface ModuleProps {
   advantages?: string[];
   link?: string;
   modId?: string;
+  isCompatible?: {
+    mobile: boolean;
+    tablet: boolean;
+    desktop: boolean;
+  };
   onLaunchSimulator?: () => void;
 }
 
@@ -42,8 +44,15 @@ const ModuleCard: React.FC<ModuleProps> = ({ icon, imageUrl, title, description,
           <Zap className="w-12 h-12" />
         </div>
       )}
-      <div className="absolute top-4 right-4 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[8px] font-black px-2 py-1 rounded-full uppercase tracking-widest">
-        Active Simulator
+      <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
+        <div className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[8px] font-black px-2 py-1 rounded-full uppercase tracking-widest shadow-lg shadow-emerald-500/10">
+          Active Simulator
+        </div>
+        <div className="flex gap-1.5 p-1 bg-black/40 backdrop-blur-md rounded-lg border border-white/5">
+           <Smartphone className="w-2.5 h-2.5 text-slate-400" title="Mobile Optimized" />
+           <Shield className="w-2.5 h-2.5 text-slate-400" title="Tablet Ready" />
+           <Globe className="w-2.5 h-2.5 text-slate-400" title="Desktop Enterprise" />
+        </div>
       </div>
     </div>
     
@@ -127,8 +136,12 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
   onLaunchSimulator
 }) => {
   const [companyDetails, setCompanyDetails] = useState<CompanyDetails | null>(null);
+  const [currentWidth, setCurrentWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
 
   useEffect(() => {
+    const handleResize = () => setCurrentWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    
     const loadData = async () => {
       try {
         const details = await apiService.fetchCompanySettings();
@@ -138,6 +151,8 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
       }
     };
     loadData();
+    
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const getIcon = (id: string) => {
@@ -158,6 +173,14 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
       default: return <Zap className="w-8 h-8" />;
     }
   };
+
+  const getDeviceType = () => {
+    if (currentWidth < 768) return 'mobile';
+    if (currentWidth < 1024) return 'tablet';
+    return 'desktop';
+  };
+
+  const currentDevice = getDeviceType();
 
   const showcaseItems = companyDetails?.showcaseConfig?.items || [];
   
