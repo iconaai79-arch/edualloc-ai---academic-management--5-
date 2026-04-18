@@ -262,6 +262,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
               {[...platformModules, ...platformModules].map((m, i) => (
                 <div key={i} className="marquee-item">
                    <img src={m.imageUrl} alt={m.title} className="marquee-asset floating-3d" />
+                   <div className="marquee-label">{m.title}</div>
                    <div className="marquee-item-glow"></div>
                 </div>
               ))}
