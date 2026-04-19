@@ -150,6 +150,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const authHeader = req.headers.authorization || (req.query.token as string ? `Bearer ${req.query.token}` : undefined);
         const supabase = getSupabase();
+        if (!supabase) {
+            return res.status(503).json({
+                success: false,
+                message: 'Server configuration error: Database keys missing.',
+                hint: 'Ensure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set in Vercel settings.'
+            });
+        }
 
         // Helper for fetch with timeout
         const fetchWithTimeout = async (url: string, options: any, timeout = 10000) => {
@@ -164,16 +171,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 throw e;
             }
         };
-
-        const supabase = getSupabase();
-
-        if (!supabase) {
-            return res.status(503).json({
-                success: false,
-                message: 'Server configuration error: Database keys missing.',
-                hint: 'Ensure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set in Vercel settings.'
-            });
-        }
 
         // Auth check logic
         let user: any = null;
