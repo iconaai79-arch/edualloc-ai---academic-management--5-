@@ -493,5 +493,14 @@ export const MODULES = [
     role: 'community_admin',
     category: 'Community',
     imageUrl: '/marketing/marketing_community_hub_render_1776512345679_1776488906671.png'
+  },
+  {
+    id: 'alumni',
+    title: "Alumni Network",
+    description: "Strengthen institutional bonds with a global graduate network and career success tracking.",
+    advantages: ["Member Directory", "Career Tracking", "Legacy Giving"],
+    role: 'admin',
+    category: 'Education',
+    imageUrl: '/marketing/marketing_alumni_render_1776577306227.png'
   }
 ];
