@@ -180,12 +180,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let authError: any = null;
 
         if (isTestAction) {
-            console.log(`[Auth Bridge] Global bypass granted for action: ${action}`);
+            console.log(`[Auth Bridge] High-priority bypass granted for action: ${action}`);
             user = { id: 'system', role: 'super_admin' };
             authError = null;
         }
 
-        // Determine if token is a JWT (contains three parts separated by dots)
+        // Determine if token is a JWT
         const token = authHeader?.replace('Bearer ', '');
         let isJwt = token?.includes('.') && token?.split('.').length === 3;
 
