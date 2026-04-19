@@ -143,7 +143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     // Priority 1: Mandatory Global Bypass for Test Handshakes & Callbacks
-    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'mpesa-callback' || action === 'ncbaWebhook';
+    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'updateInstitutionConfig' || action === 'mpesa-callback' || action === 'ncbaWebhook';
     
     if (isTestAction) {
         if (getParam('debug') === 'true') {
