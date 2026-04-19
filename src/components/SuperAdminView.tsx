@@ -666,6 +666,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [localMpesaConfig, setLocalMpesaConfig] = useState<MpesaConfig>(companyDetails?.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '' });
     const [localSubConfig, setLocalSubConfig] = useState<SubscriptionConfig>(companyDetails?.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
     const [localFtpConfig, setLocalFtpConfig] = useState<FtpConfig>(companyDetails?.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
+    const [localGoogleDriveConfig, setLocalGoogleDriveConfig] = useState<GoogleDriveConfig>(companyDetails?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', folderId: '', isActive: false });
 
     const [isSavingConfigs, setIsSavingConfigs] = useState(false);
 
@@ -751,7 +752,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                         enabled: localCompanyInfo.chatEnabled
                     },
                     enforceGlobalOtp: localCompanyInfo.enforceGlobalOtp,
-                    ftpConfig: localFtpConfig
+                    ftpConfig: localFtpConfig,
+                    googleDriveConfig: localGoogleDriveConfig
                 });
             }
             alert("Platform configurations updated successfully.");
@@ -3655,6 +3657,58 @@ Please change it after login.`;
                                                 placeholder="https://yourserver.com/assets" 
                                                 className="form-input" 
                                             />
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-10 border-t border-slate-100 dark:border-slate-800">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <div>
+                                                <h4 className="text-lg font-black uppercase tracking-tighter italic">Google Drive Integration</h4>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Connect to Google Workspace for secure asset storage</p>
+                                            </div>
+                                            <button 
+                                                onClick={() => setLocalGoogleDriveConfig({...localGoogleDriveConfig, isActive: !localGoogleDriveConfig.isActive})}
+                                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${localGoogleDriveConfig.isActive ? 'bg-green-500 text-white shadow-lg shadow-green-100' : 'bg-slate-100 text-slate-400'}`}
+                                            >
+                                                {localGoogleDriveConfig.isActive ? 'ACTIVE' : 'INACTIVE'}
+                                            </button>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Client ID</label>
+                                                <input 
+                                                    value={localGoogleDriveConfig.clientId} 
+                                                    onChange={e => setLocalGoogleDriveConfig({...localGoogleDriveConfig, clientId: e.target.value})}
+                                                    className="form-input" 
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Client Secret</label>
+                                                <input 
+                                                    type="password"
+                                                    value={localGoogleDriveConfig.clientSecret} 
+                                                    onChange={e => setLocalGoogleDriveConfig({...localGoogleDriveConfig, clientSecret: e.target.value})}
+                                                    className="form-input" 
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Refresh Token</label>
+                                                <input 
+                                                    type="password"
+                                                    value={localGoogleDriveConfig.refreshToken} 
+                                                    onChange={e => setLocalGoogleDriveConfig({...localGoogleDriveConfig, refreshToken: e.target.value})}
+                                                    className="form-input" 
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Target Folder ID</label>
+                                                <input 
+                                                    value={localGoogleDriveConfig.folderId} 
+                                                    onChange={e => setLocalGoogleDriveConfig({...localGoogleDriveConfig, folderId: e.target.value})}
+                                                    placeholder="Google Drive Folder ID"
+                                                    className="form-input" 
+                                                />
+                                            </div>
                                         </div>
                                     </div>
 
