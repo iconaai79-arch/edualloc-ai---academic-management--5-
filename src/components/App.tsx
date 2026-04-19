@@ -1525,28 +1525,9 @@ export const App: React.FC = () => {
         setDemoDataGenerationProgress(10);
         setDemoDataGenerationMessage(`Initializing ${modId} environment...`);
 
-        // Find an institution that matches the module type or use a fallback
-        let targetInst = institutions.find(i => {
-           if (modId === 'property') return (i.institutionType as string) === 'Property Management' || (i.businessSubType as string) === 'Property Management';
-           if (modId === 'coop') return (i.institutionType as string) === 'Cooperative';
-           if (modId === 'his' || modId === 'pharmacy') return (i.institutionType as string) === 'HIS' || (i.institutionType as string) === 'Healthcare' || (i.institutionType as string) === 'Pharmacy';
-           if (modId === 'retail') return i.institutionType === 'Business' && (i.businessSubType === 'Retail' || i.category === 'Retail' || (i.institutionType as string) === 'Retail');
-           if (modId === 'fuel') return i.category === 'Fuel Station' || i.businessSubType === 'Fuel Station';
-           if (modId === 'campaign') return (i.institutionType as string) === 'Political Campaign' || (i.institutionType as string) === 'Political' || (i.category as string) === 'Campaign';
-           if (modId === 'legal') return (i.institutionType as string) === 'Legal' || (i.institutionType as string) === 'Law Firm';
-           if (modId === 'ds') return (i.institutionType as string) === 'Driving School';
-           if (modId === 'civil') return (i.institutionType as string) === 'Construction';
-           if (modId === 'logistics') return (i.institutionType as string) === 'Logistics';
-           if (modId === 'autoservice') return (i.institutionType as string) === 'Car Wash' || (i.businessSubType as string) === 'Car Wash';
-           if (modId === 'edu') return (i.institutionType as string) === 'Education' || (i.institutionType as string) === 'Primary' || (i.institutionType as string) === 'Secondary';
-           if (modId === 'showroom') return i.institutionType === 'Business' && (i.category === 'Automotive Marketplace' || i.businessSubType === 'Automotive Marketplace');
-           if (modId === 'tourism') return i.institutionType === 'Hospitality';
-           if (modId === 'community') return i.institutionType === 'Community';
-           return false;
-        });
-
-        // Use standard demo ID if no matching institution found
-        const instId = targetInst?.id || `demo_${modId}_${Date.now()}`;
+        // Always generate a fresh demo ID to ensure we don't pick an active account
+        let targetInst: any = null;
+        const instId = `demo_${modId}_${Math.random().toString(36).substr(2, 9)}`;
         
         if (!targetInst) {
             // Construct a fresh active configuration for the simulator
