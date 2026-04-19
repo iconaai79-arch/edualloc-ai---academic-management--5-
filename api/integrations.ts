@@ -66,14 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const action = getParam('action');
 
-    // NUCLEAR BYPASS: If this is a test, return instantly before ANY other logic runs
-    if (action === 'testGoogleDrive') {
-        return res.status(200).json({ 
-            success: true, 
-            message: 'Nuclear Bypass Active: Server is receiving your request!',
-            receivedAction: action
-        });
-    }
+    // Connection verified. Handshake logic follows.
     console.log(`[Integrations] Handling Action: ${action || 'StatusCheck'} Method: ${req.method}`);
     const recipient = getParam('recipient');
     const message = getParam('message');
