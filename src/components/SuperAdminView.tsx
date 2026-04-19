@@ -2513,7 +2513,10 @@ Please change it after login.`;
                                 </p>
                             </div>
                             <div className="flex gap-4">
-                                <button className="px-8 py-4 bg-slate-900 text-white rounded-[2rem] font-black uppercase tracking-widest text-[9px] shadow-2xl transition-all flex items-center gap-3">
+                                <button 
+                                    onClick={() => { setEditingShowcaseItem(null); setIsShowcaseItemModalOpen(true); }}
+                                    className="px-8 py-4 bg-slate-900 text-white rounded-[2rem] font-black uppercase tracking-widest text-[9px] shadow-2xl transition-all flex items-center gap-3"
+                                >
                                     <PlusIcon className="w-4 h-4" /> Add Featured Listing
                                 </button>
                                 <button className="px-8 py-4 bg-indigo-600 text-white rounded-[2rem] font-black uppercase tracking-widest text-[9px] shadow-2xl transition-all flex items-center gap-3">
