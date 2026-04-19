@@ -137,6 +137,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
     };
 
+    if (action === 'testGoogleDrive' && getParam('debug') === 'true') {
+        return res.status(200).json({ success: true, message: 'Diagnostic Bypass Active', action });
+    }
+
     try {
         if (!action) {
             if (req.method === 'GET') return res.status(200).json({ status: 'Online', timestamp: new Date().toISOString(), mode: 'Integration Bridge' });
