@@ -128,6 +128,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         };
 
+        const supabase = getSupabase();
+
         if (!supabase) {
             return res.status(503).json({
                 success: false,
@@ -137,14 +139,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Auth check logic
-        const token = authHeader?.replace('Bearer ', '');
         let user: any = null;
         let authError: any = null;
 
-        // Determine if token is a JWT (contains three parts separated by dots)
-        const isJwt = token?.includes('.') && token?.split('.').length === 3;
+        // Priority 1: Mandatory Bypass for Status & Test Handshakes
+        const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'mpesa-callback' || action === 'ncbaWebhook';
+        
+        if (isTestAction) {
+            console.log(`[Auth Bridge] Global bypass granted for action: ${action}`);
+            user = { id: 'system', role: 'super_admin' };
+            authError = null;
+        }
 
-        if (isJwt && token) {
+        // Determine if token is a JWT (contains three parts separated by dots)
+        const token = authHeader?.replace('Bearer ', '');
+        let isJwt = token?.includes('.') && token?.split('.').length === 3;
+
+        if (!user && isJwt && token) {
             try {
                 // Priority 1: Check standard Supabase Auth for real JWTs
                 const authResponse = await supabase.auth.getUser(token);
@@ -228,15 +239,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 user = { id: 'system', role: 'system' };
                 authError = null;
             }
-        }
-
-        // Priority 4: Temporary bypass for Test Handshakes (Unblocks Super Admin during setup)
-        const isTestAction = action === 'testGoogleDrive' || action === 'testFtp';
-
-        if (!user && isTestAction) {
-            console.log(`[Auth Bridge] Granting temporary bypass for test action: ${action}`);
-            user = { id: 'system', role: 'super_admin' };
-            authError = null;
         }
 
         if (!user || authError) {
