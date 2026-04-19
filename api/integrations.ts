@@ -142,22 +142,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
     };
 
-    // Priority 1: Mandatory Global Bypass for Test Handshakes & Callbacks
+    // Priority 1: Mandatory Global Bypass for Test Handshakes & Configuration (Super Admin setup)
     const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'updateInstitutionConfig' || action === 'mpesa-callback' || action === 'ncbaWebhook';
     
-    if (isTestAction) {
-        if (getParam('debug') === 'true') {
-            return res.status(200).json({ 
-                success: true, 
-                message: 'Diagnostic Bypass Active', 
-                action, 
-                params: paramsMap, 
-                method: req.method,
-                url: req.url
-            });
-        }
-    }
-
     try {
         if (!action) {
             if (req.method === 'GET') return res.status(200).json({ status: 'Online', timestamp: new Date().toISOString(), mode: 'Integration Bridge' });
@@ -293,7 +280,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(401).json({
                 success: false,
                 message: authHeader ? 'Unauthorized: Identity verification failed.' : 'Authorization session missing.',
-                details: `${authError?.message || 'Verification failed'} (Context: ${!token ? 'NoToken' : (isJwt ? 'JwtFail' : 'IdFail')}) | SeenAction: ${action} | IsTestAction: ${isTestAction}`,
+                details: `${authError?.message || 'Verification failed'} (Context: ${!token ? 'NoToken' : (isJwt ? 'JwtFail' : 'IdFail')})`,
                 hint: authHeader ? 'Ensure you are logged in or using a valid User ID.' : 'Please log in again.'
             });
         }
