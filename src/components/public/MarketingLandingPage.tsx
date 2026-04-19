@@ -42,9 +42,13 @@ interface ModuleProps {
     desktop: boolean;
   };
   onLaunchSimulator?: () => void;
+  tutorial?: any;
+  onViewTutorial?: (mod: any) => void;
 }
 
-const ModuleCard: React.FC<ModuleProps> = ({ icon, imageUrl, title, description, advantages, modId, onLaunchSimulator }) => (
+const ModuleCard: React.FC<ModuleProps> = (props) => {
+  const { icon, imageUrl, title, description, advantages, modId, onLaunchSimulator, tutorial, onViewTutorial } = props;
+  return (
   <div className="module-card animate-in">
     <div className="module-image-container">
       {imageUrl ? (
@@ -84,11 +88,11 @@ const ModuleCard: React.FC<ModuleProps> = ({ icon, imageUrl, title, description,
         </div>
       )}
 
-      {(mod as any).tutorial && (
+      {tutorial && (
         <button 
           onClick={(e) => {
              e.stopPropagation();
-             if ((mod as any).onViewTutorial) (mod as any).onViewTutorial(mod);
+             if (onViewTutorial) onViewTutorial(props);
           }}
           className="text-[9px] font-black text-indigo-400/80 hover:text-indigo-300 flex items-center gap-1 uppercase tracking-tighter mb-4 transition-colors"
         >
@@ -143,7 +147,8 @@ const ModuleCard: React.FC<ModuleProps> = ({ icon, imageUrl, title, description,
       </div>
     </div>
   </div>
-);
+  );
+};
 
 interface MarketingLandingPageProps {
   onOpenStore?: () => void;
