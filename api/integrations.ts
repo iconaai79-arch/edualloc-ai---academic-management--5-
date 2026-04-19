@@ -64,7 +64,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return (val as string) || '';
     };
 
-    const action = getParam('action');
+    let action = getParam('action');
+    if (!action && req.url?.includes('action=')) {
+        const urlParams = new URL(req.url, `https://${req.headers.host}`).searchParams;
+        action = urlParams.get('action') || '';
+    }
 
     // Connection verified. Handshake logic follows.
     console.log(`[Integrations] Handling Action: ${action || 'StatusCheck'} Method: ${req.method}`);
