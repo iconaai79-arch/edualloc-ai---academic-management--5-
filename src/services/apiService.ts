@@ -1533,7 +1533,7 @@ export const apiService = {
     async testGoogleDriveConnection(config?: any) {
         try {
             const token = await apiService.getAuthToken();
-            const response = await fetch('/api/integrations', {
+            const response = await fetch(`/api/integrations?action=testGoogleDrive`, {
                 method: 'POST',
                 headers: { 
                     'Authorization': token ? `Bearer ${token}` : '',
