@@ -2333,6 +2333,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({ success: true, message: 'Internal reconciliation triggered' });
         }
 
+        if (action === 'testGoogleDrive') {
+            const driveConfig = bodyConfig || settings.googleDriveConfig || settings.google_drive_config || {};
+            
+            if (!driveConfig.clientId || !driveConfig.clientSecret || !driveConfig.refreshToken) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Google Drive configuration is incomplete. Client ID, Secret, and Refresh Token are required.' 
+                });
+            }
+
+            try {
+                const { access_token } = await refreshGoogleDriveTokens(driveConfig);
+                
+                // Verify drive access by fetching about info or listing root files (limited to drive.file scope if that's what we requested)
+                const verifyRes = await fetch('https://www.googleapis.com/drive/v3/about?fields=user,storageQuota', {
+                    headers: { 'Authorization': `Bearer ${access_token}` }
+                });
+
+                if (!verifyRes.ok) {
+                    const errJson = await verifyRes.json() as any;
+                    throw new Error(`Drive Verification Failed: ${errJson.error?.message || verifyRes.statusText}`);
+                }
+
+                const aboutData = await verifyRes.json() as any;
+                
+                return res.status(200).json({
+                    success: true,
+                    message: 'Google Drive Handshake Successful!',
+                    details: {
+                        account: aboutData.user?.emailAddress || 'Connected',
+                        storagePlan: aboutData.storageQuota?.limit ? `${(aboutData.storageQuota.usage / (1024*1024*1024)).toFixed(2)}GB used of ${(aboutData.storageQuota.limit / (1024*1024*1024)).toFixed(0)}GB` : 'Standard'
+                    }
+                });
+            } catch (err: any) {
+                console.error("Google Drive Test error:", err);
+                return res.status(200).json({
+                    success: false,
+                    message: 'Google Drive Handshake Failed.',
+                    details: err.message
+                });
+            }
+        }
+
         if (action === 'testFtp') {
             const ftpConfig = bodyConfig || settings.ftpConfig || settings.ftp_config || {};
             const host = ftpConfig.host;
