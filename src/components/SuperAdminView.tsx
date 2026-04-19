@@ -78,6 +78,7 @@ import { ArrowTrendingUpIcon } from './icons/ArrowTrendingUpIcon';
 import { CalendarDaysIcon as CalendarIcon } from './icons/CalendarDaysIcon';
 import { GlobeAltIcon } from './icons/GlobeAltIcon';
 import { CrossIcon } from './icons/CrossIcon';
+import { MegaphoneIcon } from './icons/MegaphoneIcon';
 import { PalmTreeIcon as Palmtree } from './icons/PalmTreeIcon';
 import { CommunicationsManager } from './CommunicationsManager';
 import { EditInstitutionModal } from './EditInstitutionModal';
@@ -1163,13 +1164,21 @@ Please change it after login.`;
         { role: 'rider', label: 'Rider Portal', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600' },
         { role: 'family_admin', label: 'Family & Heritage', icon: <History className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' },
         { role: 'church_admin', label: 'Church System', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-700' },
+        { role: 'alumni_admin', label: 'Alumnae Network', icon: <UserGroupIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
+        { role: 'campaign_admin', label: 'Political Campaign', icon: <MegaphoneIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' },
         { role: 'marketplace', label: 'Public Marketplace', icon: <ShoppingCartIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600', isService: true }
     ].filter(opt => {
         const instType = selectedTenantForPerspective?.institutionType;
         const subType = selectedTenantForPerspective?.businessSubType;
+        const category = (selectedTenantForPerspective as any)?.category;
+        
         const isEdu = instType === 'Education' || ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(instType || '');
         const isChurch = instType === 'Church' || subType === 'Church';
+        const isPolitics = instType === 'Political Campaign' || category === 'Political Campaign';
         
+        if (opt.role === 'alumni_admin') return isEdu;
+        if (opt.role === 'campaign_admin') return isPolitics;
+
         // Only show Health System perspective for HIS institutions
         if (opt.role === 'his_admin') {
             return instType === 'HIS';
@@ -1363,7 +1372,11 @@ Please change it after login.`;
                                     </p>
                                 </div>
                                 <button
-                                    onClick={() => setIsPerspectiveModalOpen(true)}
+                                    onClick={() => {
+                                        const demoInst = institutions.find(i => i.institutionCode === 'INST001') || institutions[0];
+                                        setSelectedTenantForPerspective(demoInst);
+                                        setIsPerspectiveModalOpen(true);
+                                    }}
                                     className="bg-white text-indigo-600 hover:bg-slate-50 font-black text-xs uppercase tracking-[0.2em] px-8 py-4 rounded-2xl transition-all shadow-lg active:scale-95 whitespace-nowrap"
                                 >
                                     Enter Simulation Mode
@@ -3674,6 +3687,7 @@ Please change it after login.`;
                                                 {localGoogleDriveConfig.isActive ? 'ACTIVE' : 'INACTIVE'}
                                             </button>
                                         </div>
+                                        
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                             <div className="space-y-1.5">
                                                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Client ID</label>
@@ -3711,31 +3725,31 @@ Please change it after login.`;
                                                 />
                                             </div>
                                         </div>
-                                    </div>
-                                    <div className="mt-6 flex justify-end">
-                                        <button 
-                                            onClick={async () => {
-                                                setIsTestingGoogleDrive(true);
-                                                try {
-                                                    const res = await apiService.testGoogleDriveConnection(localGoogleDriveConfig);
-                                                    if (res.success) {
-                                                        alert(`Google Drive Handshake Successful!\n\nAccess: Verified\nAccount: ${res.details?.account || 'Authorized'}\nStorage: ${res.details?.storagePlan || 'Unlimited'}`);
-                                                    } else {
-                                                        alert(`Google Drive Handshake Failed:\n${res.message}`);
+
+                                        <div className="mt-6 flex justify-end">
+                                            <button 
+                                                onClick={async () => {
+                                                    setIsTestingGoogleDrive(true);
+                                                    try {
+                                                        const res = await apiService.testGoogleDriveConnection(localGoogleDriveConfig);
+                                                        if (res.success) {
+                                                            alert(`Google Drive Handshake Successful!\n\nAccess: Verified\nAccount: ${res.details?.account}\nStorage: ${res.details?.storagePlan}`);
+                                                        } else {
+                                                            alert(`Google Drive Handshake Failed:\n${res.message}`);
+                                                        }
+                                                    } catch (e) {
+                                                        alert(`Drive network error: ${e instanceof Error ? e.message : 'Unknown error'}`);
+                                                    } finally {
+                                                        setIsTestingGoogleDrive(false);
                                                     }
-                                                } catch (e: any) {
-                                                    alert(`Drive network error: ${e.message}`);
-                                                } finally {
-                                                    setIsTestingGoogleDrive(false);
-                                                }
-                                            }}
-                                            disabled={isTestingGoogleDrive}
-                                            className="px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-slate-700 disabled:opacity-50"
-                                        >
-                                            {isTestingGoogleDrive ? 'Verifying...' : 'Test Google Drive Link'}
-                                        </button>
+                                                }}
+                                                disabled={isTestingGoogleDrive}
+                                                className="px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-slate-700 disabled:opacity-50"
+                                            >
+                                                {isTestingGoogleDrive ? 'Verifying...' : 'Test Google Drive Link'}
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
 
                                     <div className="pt-8 border-t border-slate-50 dark:border-slate-800 flex justify-end gap-4">
                                         <button 
@@ -3748,8 +3762,8 @@ Please change it after login.`;
                                                     } else {
                                                         alert(`FTP Verification Failed:\n${res.message}\n${res.details || ''}`);
                                                     }
-                                                } catch (e: any) {
-                                                    alert(`FTP handshake error: ${e.message}`);
+                                                } catch (e) {
+                                                    alert(`FTP handshake error: ${e instanceof Error ? e.message : 'Unknown error'}`);
                                                 } finally {
                                                     setIsTestingFtp(false);
                                                 }
@@ -4030,11 +4044,18 @@ Please change it after login.`;
                                                     {window.location.origin + '?view=showcase'}
                                                 </div>
                                             </div>
-                                            <div className="pt-8 h-full overflow-y-auto no-scrollbar">
-                                                <div className="origin-top scale-[0.65] w-[153%]">
-                                                    <MarketingLandingPage onLogin={() => {}} />
+                                                <div className="pt-8 h-full overflow-y-auto no-scrollbar">
+                                                    <div className="origin-top scale-[0.65] w-[153%]">
+                                                        <MarketingLandingPage 
+                                                            onLogin={() => {}} 
+                                                            onLaunchSimulator={(role, modId) => {
+                                                                const demoInst = institutions.find(i => i.institutionCode === 'INST001') || institutions[0];
+                                                                setSelectedTenantForPerspective(demoInst);
+                                                                setIsPerspectiveModalOpen(true);
+                                                            }}
+                                                        />
+                                                    </div>
                                                 </div>
-                                            </div>
                                         </div>
                                     </div>
                                 </div>

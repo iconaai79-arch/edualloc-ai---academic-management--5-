@@ -496,7 +496,7 @@ export const MODULES = [
   },
   {
     id: 'alumni',
-    title: "Alumni Network",
+    title: "Alumnae Network",
     description: "Strengthen institutional bonds with a global graduate network and career success tracking.",
     advantages: ["Member Directory", "Career Tracking", "Legacy Giving"],
     role: 'admin',

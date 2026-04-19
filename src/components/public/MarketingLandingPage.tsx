@@ -202,6 +202,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
       case 'showroom': return <Car className="w-8 h-8 text-rose-500" />;
       case 'tourism': return <Tourism className="w-8 h-8 text-cyan-400" />;
       case 'community': return <Community className="w-8 h-8 text-purple-400" />;
+      case 'alumni': return <Users className="w-8 h-8 text-indigo-400" />;
       default: return <Zap className="w-8 h-8" />;
     }
   };
