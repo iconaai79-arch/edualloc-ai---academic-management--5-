@@ -145,13 +145,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Priority 1: Mandatory Global Bypass for Test Handshakes & Configuration (Super Admin setup)
     const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'updateInstitutionConfig' || action === 'googleDriveUpload' || action === 'mpesa-callback' || action === 'ncbaWebhook';
     
-    // EMERGENCY DIAGNOSTIC: Open all requests temporarily
-    return res.status(200).json({ 
-        success: true, 
-        message: 'EMERGENCY BYPASS ACTIVE', 
-        action,
-        receivedMethod: req.method
-    });
+    // Logic restored.
+
     
     try {
         if (!action) {
