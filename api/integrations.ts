@@ -1780,15 +1780,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 provider: 'airtel',
                 metadata: paramsMap.metadata || {}
             });
-    // EMERGENCY DIAGNOSTIC: Open all requests temporarily
-    return res.status(200).json({ 
-        success: true, 
-        message: 'EMERGENCY BYPASS ACTIVE', 
-        action,
-        receivedMethod: req.method
-    });
-
-    try {
             return res.status(200).json({ 
                 success: true, 
                 message: 'Airtel Money STK prompt initiated.', 
@@ -2525,3 +2516,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(500).json({ success: false, message: 'Internal Server Error', details: e.message });
     }
 }
+}  
+ 
