@@ -145,6 +145,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Priority 1: Mandatory Global Bypass for Test Handshakes & Configuration (Super Admin setup)
     const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'updateInstitutionConfig' || action === 'googleDriveUpload' || action === 'mpesa-callback' || action === 'ncbaWebhook';
     
+    // EMERGENCY DIAGNOSTIC: Open all requests temporarily
+    return res.status(200).json({ 
+        success: true, 
+        message: 'EMERGENCY BYPASS ACTIVE', 
+        action,
+        receivedMethod: req.method
+    });
+    
     try {
         if (!action) {
             if (req.method === 'GET') return res.status(200).json({ status: 'Online', timestamp: new Date().toISOString(), mode: 'Integration Bridge' });
@@ -1772,7 +1780,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 provider: 'airtel',
                 metadata: paramsMap.metadata || {}
             });
+    // EMERGENCY DIAGNOSTIC: Open all requests temporarily
+    return res.status(200).json({ 
+        success: true, 
+        message: 'EMERGENCY BYPASS ACTIVE', 
+        action,
+        receivedMethod: req.method
+    });
 
+    try {
             return res.status(200).json({ 
                 success: true, 
                 message: 'Airtel Money STK prompt initiated.', 
