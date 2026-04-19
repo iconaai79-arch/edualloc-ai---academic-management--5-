@@ -4,6 +4,7 @@ import nodemailer from 'nodemailer';
 import { randomBytes } from 'crypto';
 import { Readable } from 'stream';
 import * as ftp from "basic-ftp";
+import fetch from "node-fetch";
 
 // Self-contained Supabase service client factory to avoid external lib crashes
 const getSupabase = () => {
