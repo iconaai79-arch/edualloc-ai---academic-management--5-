@@ -20,10 +20,13 @@ import { WrenchIcon as Wrench } from '../icons/WrenchIcon';
 import { PalmTreeIcon as Tourism } from '../icons/PalmTreeIcon';
 import { ChatBubbleBottomCenterTextIcon as Community } from '../icons/ChatBubbleBottomCenterTextIcon';
 import { MagnifyingGlassIcon as Search } from '../icons/MagnifyingGlassIcon';
+import { XCircleIcon as XIcon } from '../icons/XCircleIcon';
+import { ChevronRightIcon as ChevronRight } from '../icons/ChevronRightIcon';
+import { ChevronDownIcon as ChevronDown } from '../icons/ChevronDownIcon';
 import './MarketingLanding.css';
 import { apiService } from '../../services/apiService';
 import { CompanyDetails } from '../../types';
-import { MODULES } from '../../constants';
+import { MODULES, ModuleTutorial } from '../../constants';
 
 interface ModuleProps {
   icon?: React.ReactNode;
@@ -79,6 +82,18 @@ const ModuleCard: React.FC<ModuleProps> = ({ icon, imageUrl, title, description,
             <span key={i} className="advantage-tag">{adv}</span>
           ))}
         </div>
+      )}
+
+      {(mod as any).tutorial && (
+        <button 
+          onClick={(e) => {
+             e.stopPropagation();
+             if ((mod as any).onViewTutorial) (mod as any).onViewTutorial(mod);
+          }}
+          className="text-[9px] font-black text-indigo-400/80 hover:text-indigo-300 flex items-center gap-1 uppercase tracking-tighter mb-4 transition-colors"
+        >
+          <ChevronDown className="w-3 h-3" /> Quick Guide Available
+        </button>
       )}
       
       <div className="flex items-center gap-2">
@@ -145,6 +160,8 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
   const [companyDetails, setCompanyDetails] = useState<CompanyDetails | null>(null);
   const [currentWidth, setCurrentWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTutorial, setActiveTutorial] = useState<any | null>(null);
+  const [tutorialStep, setTutorialStep] = useState(0);
 
   useEffect(() => {
     const handleResize = () => setCurrentWidth(window.innerWidth);
@@ -202,8 +219,13 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
     title: m.title,
     description: m.description,
     advantages: m.advantages,
+    tutorial: (m as any).tutorial,
     modId: m.id,
-    onLaunchSimulator: () => onLaunchSimulator?.(m.role, m.id)
+    onLaunchSimulator: () => onLaunchSimulator?.(m.role, m.id),
+    onViewTutorial: (mod: any) => {
+        setActiveTutorial(mod);
+        setTutorialStep(0);
+    }
   }));
 
   // Create modules from custom institutional config
@@ -398,6 +420,87 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
           </div>
         </footer>
       </div>
+
+      {/* Tutorial Overlay Modal */}
+      {activeTutorial && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 animate-in">
+           <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" onClick={() => setActiveTutorial(null)}></div>
+           
+           <div className="relative w-full max-w-5xl bg-[#0f172a] rounded-[2.5rem] border border-white/10 shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]">
+              {/* Left Side: Image/Screenshot */}
+              <div className="w-full md:w-2/3 bg-slate-900/50 p-6 flex items-center justify-center relative overflow-hidden min-h-[300px]">
+                 <div className="absolute inset-0 bg-indigo-500/5 blur-3xl"></div>
+                 <img 
+                   src={activeTutorial.tutorial.steps[tutorialStep].image} 
+                   alt={activeTutorial.tutorial.steps[tutorialStep].title}
+                   className="relative z-10 max-w-full max-h-full rounded-2xl shadow-2xl object-contain animate-in"
+                   key={tutorialStep}
+                 />
+                 
+                 {/* Step Indicator */}
+                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+                    {activeTutorial.tutorial.steps.map((_: any, i: number) => (
+                      <div 
+                        key={i} 
+                        className={`w-1.5 h-1.5 rounded-full transition-all ${i === tutorialStep ? 'bg-indigo-500 w-8' : 'bg-white/20'}`}
+                      />
+                    ))}
+                 </div>
+              </div>
+
+              {/* Right Side: Content */}
+              <div className="w-full md:w-1/3 p-8 md:p-12 flex flex-col border-t md:border-t-0 md:border-l border-white/10 bg-slate-900/20 backdrop-blur-md">
+                 <button 
+                   onClick={() => setActiveTutorial(null)}
+                   className="absolute top-6 right-6 p-2 text-slate-500 hover:text-white transition-colors"
+                 >
+                   <XIcon className="w-6 h-6" />
+                 </button>
+
+                 <div className="mb-8">
+                    <div className="text-indigo-400 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2">
+                       {activeTutorial.title} Tutorial
+                    </div>
+                    <h3 className="text-2xl font-black tracking-tight mb-4">
+                       {activeTutorial.tutorial.steps[tutorialStep].title}
+                    </h3>
+                    <p className="text-slate-400 leading-relaxed text-sm">
+                       {activeTutorial.tutorial.steps[tutorialStep].description}
+                    </p>
+                 </div>
+
+                 <div className="mt-auto flex gap-4">
+                    <button 
+                      onClick={() => setTutorialStep(prev => Math.max(0, prev - 1))}
+                      disabled={tutorialStep === 0}
+                      className="p-4 rounded-2xl bg-white/5 border border-white/10 text-white disabled:opacity-20 hover:bg-white/10 transition-all"
+                    >
+                      <ChevronRight className="w-5 h-5 rotate-180" />
+                    </button>
+                    
+                    {tutorialStep < activeTutorial.tutorial.steps.length - 1 ? (
+                      <button 
+                        onClick={() => setTutorialStep(prev => prev + 1)}
+                        className="flex-1 p-4 rounded-2xl bg-indigo-600 text-white font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-3 hover:bg-indigo-500 transition-all"
+                      >
+                        Next Step <ChevronRight className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => {
+                          setActiveTutorial(null);
+                          onLaunchSimulator?.(activeTutorial.role, activeTutorial.modId);
+                        }}
+                        className="flex-1 p-4 rounded-2xl bg-emerald-600 text-white font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-3 hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-600/20"
+                      >
+                        Launch App Now <Zap className="w-4 h-4" />
+                      </button>
+                    )}
+                 </div>
+              </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,5 +1,15 @@
-
 import type { Institution, User, Role, Department, Subject, Course, Building, Room, TimetableSettings, AcademicYear, Semester, CompanyDetails, MpesaTransaction, InventoryItem, Invoice, InvoiceItem, Receipt, Requisition, EmployeeDetails, PayrollRun, Supplier, ExamTimetableSettings, AcademicLevel, Visitor, GradingSystem, ScheduleProfile, TimetablePeriod, Break } from './types';
+
+export interface TutorialStep {
+    title: string;
+    description: string;
+    image: string;
+}
+
+export interface ModuleTutorial {
+    overview: string;
+    steps: TutorialStep[];
+}
 
 export const INITIAL_COMPANY_DETAILS: CompanyDetails = {
     name: "Eduai Automation",
@@ -321,7 +331,14 @@ export const MODULES = [
     advantages: ["Auto-Invoicing", "Maintenance Tracking", "Tenant Portal"],
     role: 'property_admin',
     category: 'Real Estate',
-    imageUrl: '/marketing/marketing_property_1776367197098.png'
+    imageUrl: '/marketing/marketing_property_1776367197098.png',
+    tutorial: {
+      overview: "Automate your property portfolio management from leasing to rent reconciliation.",
+      steps: [
+        { title: "Tenant Management", description: "Digitize tenant records and lease tracking.", image: "/marketing/property_management_tutorial_ui_1776575367503.png" },
+        { title: "Finance Tracking", description: "Monitor rent collection and utility billings.", image: "/marketing/marketing_property_1776367197098.png" }
+      ]
+    }
   },
   {
     id: 'coop',
@@ -339,7 +356,14 @@ export const MODULES = [
     advantages: ["Patient Records", "Prescription Flow", "Pharmacy Inventory"],
     role: 'his_admin',
     category: 'Healthcare',
-    imageUrl: '/marketing/marketing_his_1776367229035.png'
+    imageUrl: '/marketing/marketing_his_1776367229035.png',
+    tutorial: {
+      overview: "Efficient hospital workflows from triage to pharmacy dispensing.",
+      steps: [
+        { title: "Patient Records", description: "Secure, digital EHR for every patient.", image: "/marketing/healthcare_his_tutorial_ui_1776575426876.png" },
+        { title: "Facility Layout", description: "3D visualization of wards and clinics.", image: "/marketing/marketing_his_1776367229035.png" }
+      ]
+    }
   },
   {
     id: 'retail',
@@ -366,7 +390,14 @@ export const MODULES = [
     advantages: ["Conflict Detection", "Library Master", "Exam Timetabling"],
     role: 'admin',
     category: 'Education',
-    imageUrl: '/marketing/marketing_edu_1776367280172.png'
+    imageUrl: '/marketing/marketing_edu_1776367280172.png',
+    tutorial: {
+      overview: "The digital foundation for modern academic institutions.",
+      steps: [
+        { title: "Academic Portal", description: "Complete overview of student performance.", image: "/marketing/academic_management_tutorial_ui_1776575351456.png" },
+        { title: "Timetabling", description: "Smart conflict detection for classes and exams.", image: "/marketing/marketing_edu_1776367280172.png" }
+      ]
+    }
   },
   {
     id: 'fuel',
@@ -375,7 +406,14 @@ export const MODULES = [
     advantages: ["Live Tank Levels", "Pump Status", "Shift Closing"],
     role: 'fuel_admin',
     category: 'Energy',
-    imageUrl: '/marketing/marketing_fuel_1776367300641.png'
+    imageUrl: '/marketing/marketing_fuel_1776367300641.png',
+    tutorial: {
+      overview: "Real-time monitoring and shift reconciliation for fuel stations.",
+      steps: [
+        { title: "Tank Monitoring", description: "Live tracking of fuel levels and pump health.", image: "/marketing/fuel_station_tutorial_ui_1776575387064.png" },
+        { title: "Shift Closing", description: "Automated reconciliation for sales and inventory.", image: "/marketing/marketing_fuel_1776367300641.png" }
+      ]
+    }
   },
   {
     id: 'campaign',
@@ -438,7 +476,14 @@ export const MODULES = [
     advantages: ["Booking Engine", "Itinerary Planner", "Guest Services"],
     role: 'admin',
     category: 'Hospitality',
-    imageUrl: '/marketing/marketing_tourism_hub_render_1776512345678_1776488887029.png'
+    imageUrl: '/marketing/marketing_tourism_hub_render_1776512345678_1776488887029.png',
+    tutorial: {
+      overview: "Premium hospitality and tour operator management systems.",
+      steps: [
+        { title: "Booking Engine", description: "Seamless itinerary planning and guest info.", image: "/marketing/tourism_hub_tutorial_ui_1776575408507.png" },
+        { title: "Service Tracking", description: "3D view of resort facilities and status.", image: "/marketing/marketing_tourism_hub_render_1776512345678_1776488887029.png" }
+      ]
+    }
   },
   {
     id: 'community',
