@@ -2344,8 +2344,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             try {
-                const { access_token } = await refreshGoogleDriveTokens(driveConfig);
+                const { access_token, error: refreshError, error_description } = await refreshGoogleDriveTokens(driveConfig);
                 
+                if (refreshError || !access_token) {
+                    throw new Error(`Auth Refresh Failed: ${error_description || refreshError || 'No access token returned'}`);
+                }
+
                 // Verify drive access by fetching about info or listing root files (limited to drive.file scope if that's what we requested)
                 const verifyRes = await fetch('https://www.googleapis.com/drive/v3/about?fields=user,storageQuota', {
                     headers: { 'Authorization': `Bearer ${access_token}` }
@@ -2353,7 +2357,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (!verifyRes.ok) {
                     const errJson = await verifyRes.json() as any;
-                    throw new Error(`Drive Verification Failed: ${errJson.error?.message || verifyRes.statusText}`);
+                    throw new Error(`API Verification Failed: ${errJson.error?.message || verifyRes.statusText} (Code: ${verifyRes.status})`);
                 }
 
                 const aboutData = await verifyRes.json() as any;
@@ -2370,7 +2374,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 console.error("Google Drive Test error:", err);
                 return res.status(200).json({
                     success: false,
-                    message: 'Google Drive Handshake Failed.',
+                    message: `Handshake Failed: ${err.message}`,
                     details: err.message
                 });
             }
