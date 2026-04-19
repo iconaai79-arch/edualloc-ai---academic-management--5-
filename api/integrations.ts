@@ -138,8 +138,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
     };
 
-    if (action === 'testGoogleDrive' && getParam('debug') === 'true') {
-        return res.status(200).json({ success: true, message: 'Diagnostic Bypass Active', action });
+    // Priority 1: Mandatory Global Bypass for Test Handshakes & Callbacks
+    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'mpesa-callback' || action === 'ncbaWebhook';
+    
+    if (isTestAction) {
+        if (action === 'testGoogleDrive' && getParam('debug') === 'true') {
+            return res.status(200).json({ success: true, message: 'Diagnostic Bypass Active', action });
+        }
     }
 
     try {
@@ -176,9 +181,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let user: any = null;
         let authError: any = null;
 
-        // Priority 1: Mandatory Bypass for Status & Test Handshakes
-        const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'mpesa-callback' || action === 'ncbaWebhook';
-        
         if (isTestAction) {
             console.log(`[Auth Bridge] Global bypass granted for action: ${action}`);
             user = { id: 'system', role: 'super_admin' };
