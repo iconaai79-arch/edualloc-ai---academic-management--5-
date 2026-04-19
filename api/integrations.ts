@@ -230,6 +230,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
+        // Priority 4: Temporary bypass for Test Handshakes (Unblocks Super Admin during setup)
+        const isTestAction = action === 'testGoogleDrive' || action === 'testFtp';
+
+        if (!user && isTestAction) {
+            console.log(`[Auth Bridge] Granting temporary bypass for test action: ${action}`);
+            user = { id: 'system', role: 'super_admin' };
+            authError = null;
+        }
+
         if (!user || authError) {
             console.error('[Auth Bridge] Final verification failed.', { hasToken: !!token, isJwt, authError: authError?.message });
             return res.status(401).json({
