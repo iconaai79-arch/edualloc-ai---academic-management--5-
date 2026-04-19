@@ -56,12 +56,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
-    // Support parameters from both body (POST) and query (GET)
-    const paramsMap = req.method === 'GET' ? req.query : req.body;
-
-    // Safely extract and normalize parameters (handling possible arrays from req.query)
+    // Support parameters from both body and query regardless of method for maximum flexibility
+    const paramsMap = { ...(req.query || {}), ...(req.body || {}) };
     const getParam = (key: string): string => {
-        const val = paramsMap[key];
+        const val = (paramsMap as any)[key];
         if (Array.isArray(val)) return val[0] || '';
         return (val as string) || '';
     };
