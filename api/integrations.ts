@@ -15,6 +15,38 @@ const getSupabase = () => {
     });
 };
 
+// --- Google Drive Shared Logic ---
+interface GoogleDriveConfig {
+    clientId: string;
+    clientSecret: string;
+    refreshToken: string;
+    folderId?: string;
+    isActive: boolean;
+}
+
+async function refreshGoogleDriveTokens(config: any) {
+    const tokenUrl = 'https://oauth2.googleapis.com/token';
+    const params = new URLSearchParams({
+        client_id: config.clientId || config.client_id,
+        client_secret: config.clientSecret || config.client_secret,
+        refresh_token: config.refreshToken || config.refresh_token,
+        grant_type: 'refresh_token'
+    });
+
+    const greq = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString()
+    });
+
+    if (!greq.ok) {
+        const err = await greq.json() as any;
+        throw new Error(`Google Auth Refresh Failed: ${err.error_description || err.error || 'Unknown error'}`);
+    }
+
+    return await greq.json() as any;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -536,36 +568,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // --- Google Drive Integration ---
-        interface GoogleDriveConfig {
-            clientId: string;
-            clientSecret: string;
-            refreshToken: string;
-            folderId?: string;
-            isActive: boolean;
-        }
-
-        async function refreshGoogleDriveTokens(config: GoogleDriveConfig) {
-            const tokenUrl = 'https://oauth2.googleapis.com/token';
-            const params = new URLSearchParams({
-                client_id: config.clientId,
-                client_secret: config.clientSecret,
-                refresh_token: config.refreshToken,
-                grant_type: 'refresh_token'
-            });
-
-            const greq = await fetch(tokenUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: params.toString()
-            });
-
-            if (!greq.ok) {
-                const err = await greq.json() as any;
-                throw new Error(`Google Auth Refresh Failed: ${err.error_description || err.error || 'Unknown error'}`);
-            }
-
-            return await greq.json() as any;
-        }
 
         if (action === 'googleDriveUpload') {
             const { fileName, mimeType, content, folderId, institutionId: instId } = paramsMap;
