@@ -289,7 +289,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(401).json({
                 success: false,
                 message: authHeader ? 'Unauthorized: Identity verification failed.' : 'Authorization session missing.',
-                details: `${authError?.message || 'Verification failed'} (Context: ${!token ? 'NoToken' : (isJwt ? 'JwtFail' : 'IdFail')})`,
+                details: `${authError?.message || 'Verification failed'} (Context: ${!token ? 'NoToken' : (isJwt ? 'JwtFail' : 'IdFail')}) | SeenAction: ${action} | IsTestAction: ${isTestAction}`,
                 hint: authHeader ? 'Ensure you are logged in or using a valid User ID.' : 'Please log in again.'
             });
         }
