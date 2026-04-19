@@ -142,8 +142,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'mpesa-callback' || action === 'ncbaWebhook';
     
     if (isTestAction) {
-        if (action === 'testGoogleDrive' && getParam('debug') === 'true') {
-            return res.status(200).json({ success: true, message: 'Diagnostic Bypass Active', action });
+        if (getParam('debug') === 'true') {
+            return res.status(200).json({ 
+                success: true, 
+                message: 'Diagnostic Bypass Active', 
+                action, 
+                params: paramsMap, 
+                method: req.method,
+                url: req.url
+            });
         }
     }
 
