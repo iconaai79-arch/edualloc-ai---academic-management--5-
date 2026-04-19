@@ -1530,6 +1530,23 @@ export const apiService = {
             return { success: false, message: "Handshake sequence failed at network level." };
         }
     },
+    async testGoogleDriveConnection(config?: any) {
+        try {
+            const token = await apiService.getAuthToken();
+            const response = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: { 
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({ action: 'testGoogleDrive', config })
+            });
+            return response.json();
+        } catch (e) {
+            console.error("Google Drive Connection Test Failed:", e);
+            return { success: false, message: "Google Drive handshake failed at network level." };
+        }
+    },
     async initiateKcbStkPush(tenantId: string, amount: number, paymentType: string): Promise<{ success: boolean; message: string; requestId?: string }> {
         // Mock KCB Buni STK Push Integration
         // Initiating KCB STK Push
