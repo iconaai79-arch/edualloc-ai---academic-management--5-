@@ -25,6 +25,7 @@ import { AlumnaeActivationView } from './AlumnaeActivationView';
 import { ConstructionManager } from './ConstructionManager';
 import { ConstructionProjectView } from './ConstructionProjectView';
 const PrivacyPolicy = lazy(() => import('../pages/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('../pages/TermsOfService'));
 
 // Lazy-loaded major portals
 const AdminView = lazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
@@ -595,6 +596,13 @@ export const App: React.FC = () => {
         try {
             const params = new URLSearchParams(window.location.search);
             return params.get('view') === 'privacy-policy' || window.location.pathname === '/privacy-policy' || window.location.pathname === '/privacy';
+        } catch (e) { return false; }
+    });
+
+    const [showTermsOfService, setShowTermsOfService] = useState(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('view') === 'terms' || window.location.pathname === '/terms' || window.location.pathname === '/terms-of-service';
         } catch (e) { return false; }
     });
 
@@ -4805,6 +4813,10 @@ export const App: React.FC = () => {
                                     window.location.href = '/?view=community';
                                 }}
                             />
+                        ) : showTermsOfService ? (
+                            <Suspense fallback={<SystemPulseLoader message="Loading Terms of Service..." />}>
+                                <TermsOfService />
+                            </Suspense>
                         ) : showPrivacyPolicy ? (
                             <Suspense fallback={<SystemPulseLoader message="Loading Security Policy..." />}>
                                 <PrivacyPolicy />

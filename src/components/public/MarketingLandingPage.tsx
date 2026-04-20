@@ -412,6 +412,9 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
                 <li className="hover:text-white transition-colors cursor-pointer">
                   <a href="/privacy-policy">Privacy Policy</a>
                 </li>
+                <li className="hover:text-white transition-colors cursor-pointer">
+                  <a href="/terms">Terms of Service</a>
+                </li>
                 <li className="hover:text-white transition-colors cursor-pointer">API Docs</li>
               </ul>
             </div>
