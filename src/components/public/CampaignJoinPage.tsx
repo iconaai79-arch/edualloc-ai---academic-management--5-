@@ -100,8 +100,12 @@ export const CampaignJoinPage: React.FC<CampaignJoinPageProps> = ({ campaignId, 
                         <div className="bg-indigo-600 p-12 text-center text-white relative">
                             <div className="absolute top-0 inset-x-0 h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
                             <div className="relative z-10">
-                                <div className="w-24 h-24 bg-white rounded-3xl mx-auto mb-6 flex items-center justify-center text-indigo-600 font-black text-4xl shadow-2xl">
-                                    {profile.candidateName[0]}
+                                <div className="w-24 h-24 bg-white rounded-3xl mx-auto mb-6 flex items-center justify-center text-indigo-600 font-black text-4xl shadow-2xl overflow-hidden">
+                                    {profile.profilePicture ? (
+                                        <img src={profile.profilePicture} alt={profile.candidateName} className="w-full h-full object-cover" />
+                                    ) : (
+                                        profile.candidateName[0]
+                                    )}
                                 </div>
                                 <span className="text-[10px] font-black uppercase tracking-[0.3em] opacity-70 mb-2 block">Official Campaign Gateway</span>
                                 <h1 className="text-4xl font-black tracking-tighter uppercase mb-2">Team {profile.candidateName.split(' ')[0]}</h1>
