@@ -3726,6 +3726,15 @@ Please change it after login.`;
                                                     className="form-input" 
                                                 />
                                             </div>
+                                            <div className="space-y-1.5 flex flex-col pt-6">
+                                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Status</label>
+                                                <button 
+                                                    onClick={() => setLocalGoogleDriveConfig({...localGoogleDriveConfig, isActive: !localGoogleDriveConfig.isActive})}
+                                                    className={`px-4 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${localGoogleDriveConfig.isActive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}
+                                                >
+                                                    {localGoogleDriveConfig.isActive ? 'Integration Active' : 'Integration Inactive'}
+                                                </button>
+                                            </div>
                                         </div>
 
                                         <div className="mt-6 flex justify-end">
