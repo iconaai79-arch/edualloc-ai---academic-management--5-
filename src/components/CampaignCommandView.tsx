@@ -120,7 +120,10 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
         
         try {
             const folderName = type === 'poster' ? 'Campaign_Posters' : 'Campaign_Profiles';
-            const response = await apiService.uploadToGoogleDrive(file, folderName, { useGlobalConfig: true });
+            const response = await apiService.uploadToGoogleDrive(file, folderName, { 
+                institutionId: user.institutionId || (user as any).institution_id,
+                useGlobalConfig: false 
+            });
             
             if (response.success && response.fileUrl) {
                 console.log("Upload successful:", response.fileUrl);

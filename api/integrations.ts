@@ -584,18 +584,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!driveConfig) {
                 if (useGlobalConfig === true || useGlobalConfig === 'true') {
                     const { data: globalSettings } = await supabase.from('company_details').select('google_drive_config').maybeSingle();
-                    driveConfig = globalSettings?.google_drive_config as GoogleDriveConfig || null;
+                    driveConfig = (globalSettings?.google_drive_config || settings.googleDriveConfig || settings.google_drive_config) as GoogleDriveConfig || null;
                 } else {
                     const targetInstId = instId || user.user_metadata?.institutionId || user.institution_id || user.institutionId;
                     if (targetInstId) {
-                        const { data: inst } = await supabase.from('institutions').select('google_drive_config').eq('id', targetInstId).maybeSingle();
-                        driveConfig = inst?.google_drive_config as GoogleDriveConfig || null;
+                        const { data: inst } = await supabase.from('institutions').select('google_drive_config, googleDriveConfig').eq('id', targetInstId).maybeSingle();
+                        driveConfig = (inst?.google_drive_config || (inst as any)?.googleDriveConfig) as GoogleDriveConfig || null;
                     }
 
                     // Generic Fallback: if institution config is missing or inactive, use global
                     if (!driveConfig || !driveConfig.isActive) {
                         const { data: globalSettings } = await supabase.from('company_details').select('google_drive_config').maybeSingle();
-                        driveConfig = globalSettings?.google_drive_config as GoogleDriveConfig || null;
+                        driveConfig = (globalSettings?.google_drive_config || settings.googleDriveConfig || settings.google_drive_config) as GoogleDriveConfig || null;
                     }
                 }
             }

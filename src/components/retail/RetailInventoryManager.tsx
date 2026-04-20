@@ -154,7 +154,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
             if (publicUrl) {
                 // Background Mirroring to Google Drive
                 try {
-                    await apiService.uploadToGoogleDrive(file, 'Retail_Inventory');
+                    await apiService.uploadToGoogleDrive(file, 'Retail_Inventory', { institutionId });
                 } catch (err) {
                     console.log("Cloud mirror failed:", err);
                 }
