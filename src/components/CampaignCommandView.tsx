@@ -1255,6 +1255,21 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     }}
                 />
             )}
+            {isSetupModalOpen && (
+                <CampaignProfileModal 
+                    profile={profile}
+                    user={user} 
+                    parties={politicalParties}
+                    counties={politicalCounties}
+                    constituencies={politicalConstituencies}
+                    wards={politicalWards}
+                    onClose={() => setIsSetupModalOpen(false)} 
+                    onSave={(p) => {
+                        setProfile(p);
+                        setIsSetupModalOpen(false);
+                    }} 
+                />
+            )}
         </div>
     );
 };
