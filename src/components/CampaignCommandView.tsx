@@ -110,7 +110,12 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
     };
 
     const handleAssetUpload = async (file: File, type: 'profile' | 'poster') => {
-        if (!profile) return;
+        if (!profile) {
+            console.error("No profile loaded for upload");
+            alert("No active campaign profile found. Please complete setup first.");
+            return;
+        }
+        console.log(`Starting ${type} upload:`, file.name);
         setUploading(true);
         
         try {
@@ -118,6 +123,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
             const response = await apiService.uploadToGoogleDrive(file, folderName, { useGlobalConfig: true });
             
             if (response.success && response.fileUrl) {
+                console.log("Upload successful:", response.fileUrl);
                 const updatedProfile = { ...profile };
                 if (type === 'profile') {
                     updatedProfile.profilePicture = response.fileUrl;
@@ -128,10 +134,11 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                 await apiService.saveModuleRecord('campaign_profiles', updatedProfile);
                 setProfile(updatedProfile);
             } else {
+                console.error("Upload response failure:", response);
                 throw new Error(response.error || 'Upload failed');
             }
         } catch (err: any) {
-            console.error(err);
+            console.error("handleAssetUpload failed:", err);
             alert(`Upload failed: ${err.message || 'Verify Google Drive status in Super Admin settings.'}`);
         } finally {
             setUploading(false);
@@ -406,7 +413,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                             {uploading && (
                                 <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl">
                                     <ArrowPathIcon className="w-4 h-4 animate-spin text-indigo-600" />
-                                    <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest">Uploading to cPanel...</span>
+                                    <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest">Uploading to Google Drive...</span>
                                 </div>
                             )}
                         </div>
@@ -467,7 +474,11 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                             type="file" 
                                             className="absolute inset-0 opacity-0 cursor-pointer" 
                                             accept="image/*"
-                                            onChange={(e) => e.target.files && handleAssetUpload(e.target.files[0], 'poster')}
+                                            onChange={(e) => {
+                                                if (e.target.files && e.target.files.length > 0) {
+                                                    handleAssetUpload(e.target.files[0], 'poster');
+                                                }
+                                            }}
                                         />
                                         <PlusIcon className="w-8 h-8 text-slate-300 group-hover:text-indigo-400 group-hover:scale-110 transition-all" />
                                         <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">Add Poster</span>
