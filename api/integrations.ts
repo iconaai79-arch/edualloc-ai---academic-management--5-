@@ -704,18 +704,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 const uploadData = await uploadRes.json() as any;
-                
-                // Get webViewLink for the file
-                const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${uploadData.id}?fields=webViewLink,webContentLink`, {
-                    headers: { 'Authorization': `Bearer ${access_token}` }
-                });
-                const fileData = await fileRes.json() as any;
+                const fileId = uploadData.id;
+
+                // Make the file public so it can be previewed as an image src
+                try {
+                    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${access_token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            role: 'reader',
+                            type: 'anyone'
+                        })
+                    });
+                } catch (permErr) {
+                    console.warn("[Google Drive] Failed to set public permission:", permErr);
+                }
 
                 return res.status(200).json({ 
                     success: true, 
                     message: 'Success', 
-                    fileId: uploadData.id,
-                    url: fileData.webViewLink || fileData.webContentLink
+                    fileId: fileId,
+                    url: `https://drive.google.com/uc?id=${fileId}&export=view`
                 });
             } catch (err: any) {
                 return res.status(500).json({ success: false, message: err.message });
