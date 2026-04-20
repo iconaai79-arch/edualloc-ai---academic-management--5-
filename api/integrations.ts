@@ -1,4 +1,4 @@
-﻿import { VercelRequest, VercelResponse } from '@vercel/node';
+import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
 import { randomBytes } from 'crypto';
@@ -575,13 +575,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // --- Google Drive Integration ---
 
         if (action === 'googleDriveUpload') {
-            const { fileName, mimeType, content, folderId, institutionId: instId } = paramsMap;
+            const { fileName, mimeType, content, folderId, institutionId: instId, config: bodyConfig } = paramsMap;
             if (!content) return res.status(400).json({ success: false, message: 'Missing file content for upload.' });
 
-            const targetInstId = instId || user.user_metadata?.institutionId || user.institution_id || user.institutionId;
-            const { data: inst } = await supabase.from('institutions').select('google_drive_config').eq('id', targetInstId).maybeSingle();
+            let driveConfig: GoogleDriveConfig | null = bodyConfig || null;
+
+            if (!driveConfig) {
+                const targetInstId = instId || user.user_metadata?.institutionId || user.institution_id || user.institutionId;
+                if (targetInstId) {
+                    const { data: inst } = await supabase.from('institutions').select('google_drive_config').eq('id', targetInstId).maybeSingle();
+                    driveConfig = inst?.google_drive_config as GoogleDriveConfig || null;
+                }
+            }
+
+            // Fallback for Super Admin: check global settings
+            if (!driveConfig && user?.role === 'super_admin') {
+                const { data: globalSettings } = await supabase.from('company_details').select('google_drive_config').maybeSingle();
+                driveConfig = globalSettings?.google_drive_config as GoogleDriveConfig || null;
+            }
             
-            const driveConfig = inst?.google_drive_config as GoogleDriveConfig;
             if (!driveConfig || !driveConfig.isActive) {
                 return res.status(400).json({ success: false, message: 'Google Drive integration is not active for this institution.' });
             }

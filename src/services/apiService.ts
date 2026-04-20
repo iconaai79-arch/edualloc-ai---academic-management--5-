@@ -1547,7 +1547,7 @@ export const apiService = {
             return { success: false, message: "Google Drive handshake failed at network level." };
         }
     },
-    async uploadToGoogleDrive(file: File, folderName: string = 'System_Uploads') {
+    async uploadToGoogleDrive(file: File, folderName: string = 'System_Uploads', config?: any) {
         try {
             const token = await apiService.getAuthToken();
             
@@ -1570,7 +1570,8 @@ export const apiService = {
                     fileName: `${Date.now()}_${file.name}`,
                     mimeType: file.type,
                     content: base64Data,
-                    folderName: folderName
+                    folderName: folderName,
+                    config: config
                 })
             });
 

@@ -3761,7 +3761,7 @@ Please change it after login.`;
                                                     if (!file) return;
                                                     setIsUploadingPhotoTest(true);
                                                     try {
-                                                        const res = await apiService.uploadToGoogleDrive(file, 'Test_Uploads');
+                                                        const res = await apiService.uploadToGoogleDrive(file, 'Test_Uploads', localGoogleDriveConfig);
                                                         if (res.success) {
                                                             alert(`Photo Upload Successful!\n\nUrl: ${res.fileUrl}`);
                                                             window.open(res.fileUrl, '_blank');
