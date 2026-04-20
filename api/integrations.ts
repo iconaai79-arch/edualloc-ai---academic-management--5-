@@ -580,22 +580,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             let driveConfig: GoogleDriveConfig | null = bodyConfig || null;
 
-            // Priority: Explicit config -> Global (if requested) -> Institution -> Global Fallback
+            // Priority: Explicit config -> Institution -> Global Fallback
             if (!driveConfig) {
+                const targetInstId = instId || user.user_metadata?.institutionId || user.institution_id || user.institutionId;
+                
                 if (useGlobalConfig === true || useGlobalConfig === 'true') {
-                    const { data: globalSettings } = await supabase.from('company_details').select('google_drive_config').maybeSingle();
-                    driveConfig = (globalSettings?.google_drive_config || settings.googleDriveConfig || settings.google_drive_config) as GoogleDriveConfig || null;
+                    // Force global
+                    driveConfig = (settings.googleDriveConfig || settings.google_drive_config) as GoogleDriveConfig || null;
                 } else {
-                    const targetInstId = instId || user.user_metadata?.institutionId || user.institution_id || user.institutionId;
+                    // Try Institution first
                     if (targetInstId) {
                         const { data: inst } = await supabase.from('institutions').select('google_drive_config, googleDriveConfig').eq('id', targetInstId).maybeSingle();
-                        driveConfig = (inst?.google_drive_config || (inst as any)?.googleDriveConfig) as GoogleDriveConfig || null;
+                        const instConfig = (inst?.google_drive_config || (inst as any)?.googleDriveConfig) as GoogleDriveConfig;
+                        if (instConfig && instConfig.isActive) {
+                            driveConfig = instConfig;
+                        }
                     }
 
-                    // Generic Fallback: if institution config is missing or inactive, use global
+                    // Fallback to Global if institution config is missing or inactive
                     if (!driveConfig || !driveConfig.isActive) {
-                        const { data: globalSettings } = await supabase.from('company_details').select('google_drive_config').maybeSingle();
-                        driveConfig = (globalSettings?.google_drive_config || settings.googleDriveConfig || settings.google_drive_config) as GoogleDriveConfig || null;
+                        driveConfig = (settings.googleDriveConfig || settings.google_drive_config) as GoogleDriveConfig || null;
                     }
                 }
             }

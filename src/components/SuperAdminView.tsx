@@ -669,6 +669,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [localFtpConfig, setLocalFtpConfig] = useState<FtpConfig>(companyDetails?.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
     const [localGoogleDriveConfig, setLocalGoogleDriveConfig] = useState<GoogleDriveConfig>(companyDetails?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', folderId: '', isActive: false });
     const [isTestingGoogleDrive, setIsTestingGoogleDrive] = useState(false);
+    const [isTestingDriveUpload, setIsTestingDriveUpload] = useState(false);
 
     const [isSavingConfigs, setIsSavingConfigs] = useState(false);
 
@@ -729,6 +730,25 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         } catch (err) {
             console.error(`Global platform ${type} upload error:`, err);
             alert(`Failed to upload ${type}.`);
+        }
+    };
+
+    const handleGoogleDriveTestUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setIsTestingDriveUpload(true);
+        try {
+            const res = await apiService.uploadToGoogleDrive(file, 'Test_Uploads', { config: localGoogleDriveConfig });
+            if (res.success) {
+                alert(`Google Drive Upload Successful!\n\nReference: ${res.fileId}\nURL: ${res.fileUrl}`);
+            } else {
+                alert(`Upload Failed: ${res.error || 'Review permissions and Folder ID'}`);
+            }
+        } catch (err: any) {
+            alert(`Upload test network error: ${err.message}`);
+        } finally {
+            setIsTestingDriveUpload(false);
+            e.target.value = '';
         }
     };
 
@@ -3759,6 +3779,21 @@ Please change it after login.`;
                                             </button>
 
 
+                                            <button 
+                                                onClick={() => document.getElementById('super-admin-drive-test-upload')?.click()}
+                                                disabled={isTestingDriveUpload || !localGoogleDriveConfig.isActive}
+                                                className="px-6 py-2 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-indigo-100 disabled:opacity-50 flex items-center gap-2"
+                                            >
+                                                <ArrowUpTrayIcon className={`w-4 h-4 ${isTestingDriveUpload ? 'animate-bounce' : ''}`} />
+                                                {isTestingDriveUpload ? 'Uploading...' : 'Test Photo Upload'}
+                                            </button>
+                                            <input 
+                                                type="file" 
+                                                id="super-admin-drive-test-upload" 
+                                                className="hidden" 
+                                                accept="image/*"
+                                                onChange={handleGoogleDriveTestUpload}
+                                            />
                                         </div>
                                     </div>
 
