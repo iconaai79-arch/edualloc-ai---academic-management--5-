@@ -592,28 +592,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (targetInstId) {
                         const { data: inst } = await supabase.from('institutions').select('google_drive_config, googleDriveConfig').eq('id', targetInstId).maybeSingle();
                         const instConfig = (inst?.google_drive_config || (inst as any)?.googleDriveConfig) as GoogleDriveConfig;
-                        if (instConfig && instConfig.isActive) {
-                            driveConfig = instConfig;
+                        if (instConfig) {
+                            // Normailze/check if active
+                            const activeFlag = instConfig.isActive ?? (instConfig as any).is_active;
+                            if (activeFlag === true || activeFlag === 'true') {
+                                driveConfig = instConfig;
+                            }
                         }
                     }
 
                     // Fallback to Global if institution config is missing or inactive
-                    if (!driveConfig || !driveConfig.isActive) {
+                    if (!driveConfig) {
                         driveConfig = (settings.googleDriveConfig || settings.google_drive_config) as GoogleDriveConfig || null;
                     }
                 }
             }
+
+            // Normalization: Ensure we have camelCase keys for the rest of parameters
+            if (driveConfig) {
+                driveConfig = {
+                    clientId: driveConfig.clientId || (driveConfig as any).client_id,
+                    clientSecret: driveConfig.clientSecret || (driveConfig as any).client_secret,
+                    refreshToken: driveConfig.refreshToken || (driveConfig as any).refresh_token,
+                    folderId: driveConfig.folderId || (driveConfig as any).folder_id,
+                    isActive: driveConfig.isActive ?? (driveConfig as any).is_active
+                } as GoogleDriveConfig;
+                
+                // Final validation: isActive can be a string "true" in some cases
+                if (typeof driveConfig.isActive === 'string') {
+                    driveConfig.isActive = driveConfig.isActive === 'true';
+                }
+            }
             
             if (!driveConfig || !driveConfig.isActive) {
-                const debugStr = JSON.stringify({
-                    configFound: !!driveConfig,
-                    isActiveFlag: driveConfig?.isActive,
-                    keys: driveConfig ? Object.keys(driveConfig).filter(k => !k.toLowerCase().includes('secret') && !k.toLowerCase().includes('token')) : [],
-                    useGlobal: useGlobalConfig
-                });
                 return res.status(400).json({ 
                     success: false, 
-                    message: `Google Drive integration is not active. (Diagnostic: ${debugStr})`
+                    message: 'Google Drive integration is not active.' 
                 });
             }
 
