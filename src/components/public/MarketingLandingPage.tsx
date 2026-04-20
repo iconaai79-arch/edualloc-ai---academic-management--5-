@@ -409,6 +409,9 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
               <ul className="space-y-4 text-slate-400 text-sm font-bold">
                 <li className="hover:text-white transition-colors cursor-pointer">Marketplace</li>
                 <li className="hover:text-white transition-colors cursor-pointer">Security</li>
+                <li className="hover:text-white transition-colors cursor-pointer">
+                  <a href="/privacy-policy">Privacy Policy</a>
+                </li>
                 <li className="hover:text-white transition-colors cursor-pointer">API Docs</li>
               </ul>
             </div>

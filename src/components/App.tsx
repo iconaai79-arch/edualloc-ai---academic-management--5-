@@ -24,6 +24,7 @@ import { AlumnaeRegistrationView } from './AlumnaeRegistrationView';
 import { AlumnaeActivationView } from './AlumnaeActivationView';
 import { ConstructionManager } from './ConstructionManager';
 import { ConstructionProjectView } from './ConstructionProjectView';
+const PrivacyPolicy = lazy(() => import('../pages/PrivacyPolicy'));
 
 // Lazy-loaded major portals
 const AdminView = lazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
@@ -587,6 +588,13 @@ export const App: React.FC = () => {
         try {
             const params = new URLSearchParams(window.location.search);
             return params.get('view') === 'alumnae_register';
+        } catch (e) { return false; }
+    });
+
+    const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('view') === 'privacy-policy' || window.location.pathname === '/privacy-policy' || window.location.pathname === '/privacy';
         } catch (e) { return false; }
     });
 
@@ -4797,6 +4805,10 @@ export const App: React.FC = () => {
                                     window.location.href = '/?view=community';
                                 }}
                             />
+                        ) : showPrivacyPolicy ? (
+                            <Suspense fallback={<SystemPulseLoader message="Loading Security Policy..." />}>
+                                <PrivacyPolicy />
+                            </Suspense>
                         ) : showAlumnaeRegister ? (
                             <AlumnaeRegistrationView 
                                 registry={schoolRegistry}
