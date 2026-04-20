@@ -729,7 +729,8 @@ export const App: React.FC = () => {
             if (!apiService.isConfigured()) initSupabaseClient();
             setIsBootstrapped(true);
 
-            setLoadStatus("Testing Database Connection...");
+            // ── PHASE 1: Health check + identity (blocks UI) ──────────────────
+            setLoadStatus("Connecting...");
             const health = await apiService.testDatabaseConnection();
             if (health.status === 'setup_required') {
                 setIsSchemaInitializationRequired(true);
@@ -741,10 +742,11 @@ export const App: React.FC = () => {
             setIsApiOnline(health.status !== 'offline');
             setIsSchemaInitializationRequired(false);
 
-            setLoadStatus("Fetching Core Registry Data...");
+            setLoadStatus("Loading your workspace...");
             const instId = currentUser && (currentUser.role === 'super_admin' || currentUser.role.startsWith('county_')) ? undefined : currentUser?.institutionId;
             const cntId = currentUser && currentUser.role.startsWith('county_') ? currentUser.countyId : undefined;
 
+            // Fire identity-critical fetches in parallel
             const [insts, cnts, sett, u, reg] = await Promise.all([
                 apiService.fetchInstitutions(instId).catch(() => []),
                 apiService.fetchModuleRecords<County>('counties').catch(() => []),
@@ -753,11 +755,12 @@ export const App: React.FC = () => {
                 apiService.fetchFullRegistry().catch(() => []),
             ]);
 
+            // Also fire core module data in parallel with identity (don't await these yet)
             let d: any[] = [], s: any[] = [], c: any[] = [], a: any[] = [], ay: any[] = [], sem: any[] = [], r: any[] = [], b: any[] = [], al: any[] = [], tasks: any[] = [], txns: any[] = [], recs: any[] = [], logs: any[] = [], notifs: any[] = [];
 
+            let coreModulePromise: Promise<any[]> = Promise.resolve([]);
             if (currentUser) {
-                setLoadStatus("Downloading Module Records...");
-                [d, s, c, a, ay, sem, r, b, al, tasks, txns, recs, logs, notifs] = await Promise.all([
+                coreModulePromise = Promise.all([
                     apiService.fetchDepartments(instId).catch(() => []),
                     apiService.fetchSubjects(instId).catch(() => []),
                     apiService.fetchCourses(instId).catch(() => []),
@@ -775,14 +778,13 @@ export const App: React.FC = () => {
                 ]);
             }
 
+            // ── Commit Phase 1 data → unlock UI immediately ──────────────────
             if (insts && insts.length > 0) {
                 setInstitutions(prev => {
                     const demoInsts = (prev || []).filter(i => i && i.id?.startsWith('demo_'));
                     const combined = [...insts];
                     demoInsts.forEach(di => {
-                        if (!combined.some(i => i.id === di.id)) {
-                            combined.push(di);
-                        }
+                        if (!combined.some(i => i.id === di.id)) combined.push(di);
                     });
                     return combined;
                 });
@@ -797,9 +799,7 @@ export const App: React.FC = () => {
                         if (window.location.hostname === marketUrl.hostname || new URLSearchParams(window.location.search).get('view') === 'marketplace') {
                             setShowMarketplace(true);
                         }
-                    } catch (e) {
-                        console.warn("Invalid marketplace URL:", e);
-                    }
+                    } catch (e) { console.warn("Invalid marketplace URL:", e); }
                 }
             }
 
@@ -810,21 +810,27 @@ export const App: React.FC = () => {
             }
             setUsers(finalUsers);
 
-            // Sync current user if present in the fetched list
             if (currentUser) {
                 const refreshedSelf = finalUsers.find(u => u.id === currentUser.id);
                 if (refreshedSelf) {
-                    // Only update if there are actual changes to avoid effect loops
                     const hasChanges = JSON.stringify(refreshedSelf) !== JSON.stringify(currentUser);
                     if (hasChanges) {
-                        console.log("[Data Refresh] Syncing currentUser with server state");
                         setCurrentUser(prev => ({ ...prev, ...refreshedSelf }));
                         apiService.storeSession({ ...currentUser, ...refreshedSelf });
                     }
                 } else if (!finalUsers.some(u => u.id === currentUser.id)) {
-                    console.log("Persisting current user to database to maintain referential integrity...");
                     apiService.saveUser(currentUser).catch(err => console.error("Failed to auto-persist current user:", err));
                 }
+            }
+
+            // ── UNLOCK UI: dismiss splash now, core data is ready ─────────────
+            setLoadStatus("");
+            setAppInitializing(false);
+
+            // ── PHASE 2: Resolve core module data (already in-flight) ─────────
+            if (currentUser) {
+                const coreResults = await coreModulePromise;
+                [d, s, c, a, ay, sem, r, b, al, tasks, txns, recs, logs, notifs] = coreResults;
             }
 
             setDepartments(d || []);
