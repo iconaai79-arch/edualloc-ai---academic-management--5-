@@ -1547,6 +1547,46 @@ export const apiService = {
             return { success: false, message: "Google Drive handshake failed at network level." };
         }
     },
+    async uploadToGoogleDrive(file: File, folderName: string = 'System_Uploads') {
+        try {
+            const token = await apiService.getAuthToken();
+            
+            const reader = new FileReader();
+            const base64Promise = new Promise((resolve) => {
+                reader.onload = (e) => resolve(e.target?.result?.toString().split(',')[1]);
+                reader.readAsDataURL(file);
+            });
+            
+            const base64Data = await base64Promise;
+
+            const response = await fetch('/api/integrations?action=googleDriveUpload', {
+                method: 'POST',
+                headers: { 
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    action: 'googleDriveUpload',
+                    fileName: `${Date.now()}_${file.name}`,
+                    mimeType: file.type,
+                    content: base64Data,
+                    folderName: folderName
+                })
+            });
+
+            const data = await response.json();
+            if (!data.success) throw new Error(data.message || 'Upload failed');
+            
+            return {
+                success: true,
+                fileUrl: data.url, 
+                fileId: data.fileId
+            };
+        } catch (error: any) {
+            console.error('Google Drive Upload Error:', error);
+            return { success: false, error: error.message };
+        }
+    },
     async initiateKcbStkPush(tenantId: string, amount: number, paymentType: string): Promise<{ success: boolean; message: string; requestId?: string }> {
         // Mock KCB Buni STK Push Integration
         // Initiating KCB STK Push
