@@ -5038,6 +5038,10 @@ export const App: React.FC = () => {
                         setShowMarketplace(false);
                         setShowCommunityHub(false);
                         setShowMarketing(true);
+                        // Force clear search params if in a public view to ensure we return to home/login
+                        if (window.location.search) {
+                            window.history.pushState({}, '', '/');
+                        }
                     }}
                     onRestoreSession={onRestoreSuperAdminSession}
                 />

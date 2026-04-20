@@ -80,14 +80,43 @@ export interface CampaignProfile {
 export interface VoterOutreach {
     id: string;
     campaignId: string;
+    institutionId?: string;
     voterName?: string;
     phoneNumber: string;
     idNumber?: string;
     votingCenter?: string;
     ward?: string;
+    village?: string;
     status: 'uncontacted' | 'supporter' | 'undecided' | 'opposed';
     lastContactedAt?: string;
     notes?: string;
+    createdAt: string;
+}
+
+export interface CampaignVillage {
+    id: string;
+    campaignId: string;
+    institutionId?: string;
+    wardName: string;
+    villageName: string;
+    createdAt: string;
+}
+
+export interface CampaignGroup {
+    id: string;
+    campaignId: string;
+    institutionId?: string;
+    name: string;
+    description?: string;
+    createdAt: string;
+}
+
+export interface CampaignGroupMember {
+    id: string;
+    groupId: string;
+    voterId: string;
+    campaignId: string;
+    institutionId?: string;
     createdAt: string;
 }
 
@@ -104,6 +133,7 @@ export interface CampaignVote {
 export interface CampaignEvent {
     id: string;
     campaignId: string;
+    institutionId?: string;
     title: string;
     description?: string;
     location: string;

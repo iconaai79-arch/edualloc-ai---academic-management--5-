@@ -5,10 +5,10 @@ import {
     SpeakerWaveIcon, DocumentTextIcon, ArrowPathIcon,
     HeartIcon, ShieldCheckIcon, MegaphoneIcon,
     PhotoIcon, PlusIcon, XIcon, VideoCameraIcon, CameraIcon, DevicePhoneMobileIcon,
-    ArrowUpTrayIcon
+    ArrowUpTrayIcon, PaperAirplaneIcon
 } from './icons';
 import { SmartPoliticalImporterModal } from './SmartPoliticalImporterModal';
-import { CampaignProfile, VoterOutreach, CampaignEvent, User, PoliticalParty, County, Constituency, Ward } from '../types';
+import { CampaignProfile, VoterOutreach, CampaignEvent, User, PoliticalParty, County, Constituency, Ward, CampaignVillage, CampaignGroup, CampaignGroupMember, Role } from '../types';
 import { apiService } from '../services/apiService';
 import { generateAIContent } from '../services/geminiService';
 import { LeadScoutManager } from './LeadScoutManager';
@@ -24,15 +24,27 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
     const [uploading, setUploading] = useState(false);
     const [loading, setLoading] = useState(true);
     const [generatingManifesto, setGeneratingManifesto] = useState(false);
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'voters' | 'events' | 'manifesto' | 'ai_pulse' | 'branding' | 'settings' | 'team' | 'sms_broadcast'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'voters' | 'events' | 'manifesto' | 'ai_pulse' | 'branding' | 'settings' | 'team' | 'sms_broadcast' | 'groups'>('dashboard');
     const [showProfileModal, setShowProfileModal] = useState(false);
     const [showVoterImportModal, setShowVoterImportModal] = useState(false);
     const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
     const [isEventModalOpen, setIsEventModalOpen] = useState(false);
     const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
+    const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+    const [isVillageModalOpen, setIsVillageModalOpen] = useState(false);
+    
+    // Core Data
     const [staff, setStaff] = useState<User[]>([]);
+    const [villages, setVillages] = useState<CampaignVillage[]>([]);
+    const [groups, setGroups] = useState<CampaignGroup[]>([]);
+    const [groupMembers, setGroupMembers] = useState<CampaignGroupMember[]>([]);
+    
+    // SMS & Filtering
     const [smsMessage, setSmsMessage] = useState('');
     const [isSendingSms, setIsSendingSms] = useState(false);
+    const [activeVillageFilter, setActiveVillageFilter] = useState('');
+    const [activeGroupFilter, setActiveGroupFilter] = useState('');
+    
     const [editProfile, setEditProfile] = useState<Partial<CampaignProfile>>({});
     
     const [politicalParties, setPoliticalParties] = useState<PoliticalParty[]>([]);
@@ -79,6 +91,16 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     // Load campaign staff
                     const staffData = await apiService.fetchModuleRecords<User>('users', user.institutionId);
                     setStaff(staffData);
+
+                    // Load Village & Groups
+                    const villageData = await apiService.fetchModuleRecords<CampaignVillage>('campaign_villages', 'ALL', undefined, { filter: { campaign_id: profiles[0].id } });
+                    setVillages(villageData);
+
+                    const groupData = await apiService.fetchModuleRecords<CampaignGroup>('campaign_groups', 'ALL', undefined, { filter: { campaign_id: profiles[0].id } });
+                    setGroups(groupData);
+
+                    const memberData = await apiService.fetchModuleRecords<CampaignGroupMember>('campaign_group_members', 'ALL', undefined, { filter: { campaign_id: profiles[0].id } });
+                    setGroupMembers(memberData);
                 }
             } catch (e) {
                 console.error(e);
@@ -262,7 +284,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                 </div>
 
                 <div className="flex bg-slate-100 dark:bg-slate-800 p-2 rounded-2xl relative z-10 overflow-x-auto max-w-full no-scrollbar">
-                    {['dashboard', 'voters', 'events', 'sms_broadcast', 'manifesto', 'ai_pulse', 'team', 'branding', 'settings'].map(t => (
+                    {['dashboard', 'voters', 'groups', 'events', 'sms_broadcast', 'manifesto', 'ai_pulse', 'team', 'branding', 'settings'].map(t => (
                         <button 
                             key={t}
                             onClick={() => setActiveTab(t as any)}
@@ -630,6 +652,48 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                 )}
                              </div>
                         </div>
+
+                        {/* Village Configuration */}
+                        <div className="mt-12 pt-12 border-t border-slate-100 dark:border-slate-800">
+                            <div className="flex justify-between items-center mb-8">
+                                <div>
+                                    <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Ward Village Mapping</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Assign villages to {profile!.ward || 'your ward'} for targeted SMS</p>
+                                </div>
+                                <button 
+                                    onClick={() => setIsVillageModalOpen(true)}
+                                    className="text-indigo-600 font-black text-[10px] uppercase tracking-widest flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-2 rounded-xl"
+                                >
+                                    <PlusIcon className="w-4 h-4" /> Add Village
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {villages.map((v, i) => (
+                                    <div key={i} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800 flex justify-between items-center group">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                                            <span className="text-[10px] font-black uppercase text-slate-700 dark:text-slate-300">{v.villageName}</span>
+                                        </div>
+                                        <button 
+                                            onClick={async () => {
+                                                if (!confirm("Remove this village?")) return;
+                                                await apiService.deleteModuleRecord('campaign_villages', v.id);
+                                                setVillages(villages.filter(vi => vi.id !== v.id));
+                                            }}
+                                            className="text-slate-300 hover:text-red-500 transition-colors"
+                                        >
+                                            <XIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                                {villages.length === 0 && (
+                                    <div className="col-span-3 py-12 text-center text-slate-400 text-[10px] font-black uppercase border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-3xl">
+                                        No structural villages mapped yet.<br/>Add villages to enable granular SMS broadcasting.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
@@ -767,8 +831,18 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Send mass SMS to your entire voter database</p>
                             </div>
                             <div className="text-right">
-                                <p className="text-2xl font-black text-indigo-600 leading-none">{voters.length.toLocaleString()}</p>
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Recipients</p>
+                                <p className="text-2xl font-black text-indigo-600 leading-none">
+                                    {(() => {
+                                        let filtered = voters;
+                                        if (activeVillageFilter) filtered = filtered.filter(v => v.village === activeVillageFilter);
+                                        if (activeGroupFilter) {
+                                            const memberVoterIds = groupMembers.filter(m => m.groupId === activeGroupFilter).map(m => m.voterId);
+                                            filtered = filtered.filter(v => memberVoterIds.includes(v.id));
+                                        }
+                                        return filtered.length.toLocaleString();
+                                    })()}
+                                </p>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Target Recipients</p>
                             </div>
                         </div>
 
@@ -782,6 +856,39 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                             </div>
                         ) : (
                             <div className="space-y-8">
+                                {/* Broadcast Targeting */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
+                                        <label className="text-[10px] font-black uppercase text-indigo-600 tracking-widest block mb-4">Target Specific Village</label>
+                                        <select 
+                                            value={activeVillageFilter}
+                                            onChange={e => setActiveVillageFilter(e.target.value)}
+                                            className="w-full bg-white dark:bg-slate-900 border-none rounded-xl py-3 px-4 text-xs font-black uppercase tracking-widest focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
+                                        >
+                                            <option value="">All Villages (Full Ward)</option>
+                                            {Array.from(new Set(villages.map(v => v.villageName))).map(vn => (
+                                                <option key={vn} value={vn}>{vn}</option>
+                                            ))}
+                                            {Array.from(new Set(voters.map(v => v.village).filter(v => v && !villages.some(vi => vi.villageName === v)))).map(vn => (
+                                                <option key={vn} value={vn}>{vn} (Untracked)</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
+                                        <label className="text-[10px] font-black uppercase text-indigo-600 tracking-widest block mb-4">Target Contact Group</label>
+                                        <select 
+                                            value={activeGroupFilter}
+                                            onChange={e => setActiveGroupFilter(e.target.value)}
+                                            className="w-full bg-white dark:bg-slate-900 border-none rounded-xl py-3 px-4 text-xs font-black uppercase tracking-widest focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
+                                        >
+                                            <option value="">Broadcast to All Supporters</option>
+                                            {groups.map(g => (
+                                                <option key={g.id} value={g.id}>{g.name} ({groupMembers.filter(m => m.groupId === g.id).length})</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Message Content (Max 160 chars per unit)</label>
                                     <textarea 
@@ -801,19 +908,39 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                     <div className="flex items-center gap-4">
                                         <SparklesIcon className="w-10 h-10 text-indigo-400 shrink-0" />
                                         <p className="text-xs font-bold text-indigo-900 dark:text-indigo-200 leading-relaxed uppercase">
-                                            Estimated Cost: <span className="font-black text-indigo-600">{ (voters.length * Math.ceil(smsMessage.length / 160)).toLocaleString() } SMS Units</span>. 
-                                            Ensure your balance is topped up in the settings tab.
+                                            {(() => {
+                                                let filtered = voters;
+                                                if (activeVillageFilter) filtered = filtered.filter(v => v.village === activeVillageFilter);
+                                                if (activeGroupFilter) {
+                                                    const memberVoterIds = groupMembers.filter(m => m.groupId === activeGroupFilter).map(m => m.voterId);
+                                                    filtered = filtered.filter(v => memberVoterIds.includes(v.id));
+                                                }
+                                                const totalUnits = filtered.length * Math.ceil(smsMessage.length / 160);
+                                                return (
+                                                    <span>
+                                                        Estimated Cost: <span className="font-black text-indigo-600">{ totalUnits.toLocaleString() } SMS Units</span> for {filtered.length} recipients. 
+                                                        Ensure your balance is topped up in the settings tab.
+                                                    </span>
+                                                );
+                                            })()}
                                         </p>
                                     </div>
                                 </div>
 
                                 <button 
-                                    disabled={isSendingSms || !smsMessage || voters.length === 0}
                                     onClick={async () => {
-                                        if (!confirm(`Broadcast this message to ${voters.length} supporters?`)) return;
+                                        let filtered = voters;
+                                        if (activeVillageFilter) filtered = filtered.filter(v => v.village === activeVillageFilter);
+                                        if (activeGroupFilter) {
+                                            const memberVoterIds = groupMembers.filter(m => m.groupId === activeGroupFilter).map(m => m.voterId);
+                                            filtered = filtered.filter(v => memberVoterIds.includes(v.id));
+                                        }
+                                        if (filtered.length === 0) return alert("No recipients found for chosen filters.");
+                                        
+                                        if (!confirm(`Broadcast this message to ${filtered.length} supporters?`)) return;
                                         setIsSendingSms(true);
                                         try {
-                                            const phones = voters.map(v => v.phoneNumber).filter(Boolean);
+                                            const phones = filtered.map(v => v.phoneNumber).filter(Boolean);
                                             await apiService.sendSms(phones as any, smsMessage, undefined, 1, user.institutionId);
                                             alert("Broadcast initiated successfully!");
                                             setSmsMessage('');
@@ -823,6 +950,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                             setIsSendingSms(false);
                                         }
                                     }}
+                                    disabled={isSendingSms || !smsMessage || voters.length === 0}
                                     className="w-full py-5 bg-indigo-600 hover:bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-[0.3em] shadow-2xl shadow-indigo-200 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
                                 >
                                     {isSendingSms ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : <PaperAirplaneIcon className="w-5 h-5" />}
@@ -830,6 +958,80 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                 </button>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Groups & Mobilization Hub */}
+            {activeTab === 'groups' && (
+                <div className="space-y-8 animate-fade-in-up">
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-10 shadow-xl border border-slate-100 dark:border-slate-800">
+                        <div className="flex justify-between items-center mb-12">
+                            <div>
+                                <h3 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
+                                    <UserGroupIcon className="w-8 h-8 text-indigo-600" />
+                                    Contact Groups
+                                </h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 ml-11">Organize voters into mobilization units</p>
+                            </div>
+                            <button 
+                                onClick={() => setIsGroupModalOpen(true)}
+                                className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-indigo-100 hover:scale-105 active:scale-95 transition-all flex items-center gap-3"
+                            >
+                                <PlusIcon className="w-5 h-5" />
+                                Create Group
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {groups.map((group, i) => (
+                                <div key={i} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 group hover:border-indigo-500 transition-all">
+                                    <div className="flex items-center gap-4 mb-6">
+                                        <div className="w-14 h-14 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 flex items-center justify-center text-indigo-600 font-black text-xl shadow-sm">
+                                            {group.name[0]}
+                                        </div>
+                                        <div>
+                                            <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tighter line-clamp-1">{group.name}</h4>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{groupMembers.filter(m => m.groupId === group.id).length} Members</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 line-clamp-2 h-8 font-medium">
+                                        {group.description || "No description provided for this group."}
+                                    </p>
+
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={() => {
+                                                const voterId = prompt("Enter Voter ID or Phone to add to group:");
+                                                if (voterId) {
+                                                    const voter = voters.find(v => v.id === voterId || v.phoneNumber === voterId);
+                                                    if (voter) {
+                                                        const member: CampaignGroupMember = {
+                                                            id: `m_${Date.now()}`,
+                                                            groupId: group.id,
+                                                            voterId: voter.id,
+                                                            campaignId: profile!.id,
+                                                            createdAt: new Date().toISOString()
+                                                        };
+                                                        apiService.saveModuleRecord('campaign_group_members', member);
+                                                        setGroupMembers([...groupMembers, member]);
+                                                    } else {
+                                                        alert("Voter not found.");
+                                                    }
+                                                }
+                                            }}
+                                            className="flex-1 py-3 rounded-xl bg-white dark:bg-slate-700 text-indigo-600 text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                                        >
+                                            Add Member
+                                        </button>
+                                        <button className="px-4 py-3 rounded-xl bg-white dark:bg-slate-700 text-slate-400 hover:text-slate-700 transition-all">
+                                            <ArrowPathIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             )}
@@ -892,6 +1094,9 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                 </div>
             )}
 
+            {/* Dashboard Bottom Section */}
+            {activeTab === 'dashboard' && (
+                <div className="space-y-8 animate-fade-in-up">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-[3rem] p-12 shadow-2xl border border-slate-100 dark:border-slate-800">
                             <h3 className="text-3xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3">
@@ -974,6 +1179,27 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     onSave={(newStaff) => {
                         setStaff([...staff, newStaff]);
                         setIsStaffModalOpen(false);
+                    }}
+                />
+            )}
+            {isGroupModalOpen && profile && (
+                <CampaignGroupModal 
+                    campaignId={profile.id}
+                    onClose={() => setIsGroupModalOpen(false)}
+                    onSave={(newGroup) => {
+                        setGroups([...groups, newGroup]);
+                        setIsGroupModalOpen(false);
+                    }}
+                />
+            )}
+            {isVillageModalOpen && profile && (
+                <CampaignVillageModal 
+                    campaignId={profile.id}
+                    wardName={profile.ward || ''}
+                    onClose={() => setIsVillageModalOpen(false)}
+                    onSave={(newVillage) => {
+                        setVillages([...villages, newVillage]);
+                        setIsVillageModalOpen(false);
                     }}
                 />
             )}
@@ -1404,6 +1630,139 @@ const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({
                         className="flex-[2] py-4 bg-indigo-600 text-white font-black uppercase text-[10px] tracking-widest rounded-2xl shadow-xl shadow-indigo-100 active:scale-95 transition-all disabled:opacity-50"
                     >
                         {saving ? 'Synchronizing...' : (profile ? 'Update Strategy' : 'Initialize Campaign')}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+interface CampaignGroupModalProps {
+    campaignId: string;
+    onClose: () => void;
+    onSave: (group: CampaignGroup) => void;
+}
+
+const CampaignGroupModal: React.FC<CampaignGroupModalProps> = ({ campaignId, onClose, onSave }) => {
+    const [name, setName] = useState('');
+    const [description, setDescription] = useState('');
+    const [saving, setSaving] = useState(false);
+
+    const handleSave = async () => {
+        if (!name) return;
+        setSaving(true);
+        try {
+            const newGroup: CampaignGroup = {
+                id: `grp_${Date.now()}`,
+                campaignId,
+                name,
+                description,
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('campaign_groups', newGroup);
+            onSave(newGroup);
+        } catch (e) {
+            console.error(e);
+            alert("Error creating group.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3rem] shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50">
+                    <div>
+                        <h3 className="text-2xl font-black uppercase tracking-tighter">Create Mobilization Group</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Strategic Contact Grouping</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all">
+                        <XIcon className="w-5 h-5 text-slate-400" />
+                    </button>
+                </div>
+
+                <div className="p-8 space-y-6">
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Group Name</label>
+                        <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Boda Boda Mobilizers" className="form-input" />
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Description</label>
+                        <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="Key objectives for this group..." className="form-input resize-none" />
+                    </div>
+
+                    <button 
+                        onClick={handleSave}
+                        disabled={saving || !name}
+                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-100 hover:bg-slate-900 transition-all disabled:opacity-50"
+                    >
+                        {saving ? 'Creating Group...' : 'Initialize Group'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+interface CampaignVillageModalProps {
+    campaignId: string;
+    wardName: string;
+    onClose: () => void;
+    onSave: (village: CampaignVillage) => void;
+}
+
+const CampaignVillageModal: React.FC<CampaignVillageModalProps> = ({ campaignId, wardName, onClose, onSave }) => {
+    const [name, setName] = useState('');
+    const [saving, setSaving] = useState(false);
+
+    const handleSave = async () => {
+        if (!name) return;
+        setSaving(true);
+        try {
+            const newVillage: CampaignVillage = {
+                id: `vil_${Date.now()}`,
+                campaignId,
+                wardName,
+                villageName: name,
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('campaign_villages', newVillage);
+            onSave(newVillage);
+        } catch (e) {
+            console.error(e);
+            alert("Error registering village.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[3rem] shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50">
+                    <div>
+                        <h3 className="text-2xl font-black uppercase tracking-tighter">Add Strategic Village</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Ward: {wardName}</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all">
+                        <XIcon className="w-5 h-5 text-slate-400" />
+                    </button>
+                </div>
+
+                <div className="p-8 space-y-6">
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Village Name</label>
+                        <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Kapkures Village" className="form-input" />
+                    </div>
+
+                    <button 
+                        onClick={handleSave}
+                        disabled={saving || !name}
+                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-100 hover:bg-slate-900 transition-all disabled:opacity-50"
+                    >
+                        {saving ? 'Registering...' : 'Add to Ward Strategy'}
                     </button>
                 </div>
             </div>

@@ -32,9 +32,9 @@ export const CampaignJoinPage: React.FC<CampaignJoinPageProps> = ({ campaignId, 
             setLoading(true);
             try {
                 // Try searching by inviteSlug first, then id
-                let data = await apiService.fetchModuleRecords<CampaignProfile>('campaign_profiles', 'ALL', undefined, { invite_slug: campaignId });
+                let data = await apiService.fetchModuleRecords<CampaignProfile>('campaign_profiles', 'ALL', undefined, { filter: { invite_slug: campaignId } });
                 if (data.length === 0) {
-                    data = await apiService.fetchModuleRecords<CampaignProfile>('campaign_profiles', 'ALL', undefined, { id: campaignId });
+                    data = await apiService.fetchModuleRecords<CampaignProfile>('campaign_profiles', 'ALL', undefined, { filter: { id: campaignId } });
                 }
                 
                 if (data.length > 0) {
@@ -58,6 +58,7 @@ export const CampaignJoinPage: React.FC<CampaignJoinPageProps> = ({ campaignId, 
             await apiService.saveModuleRecord('voter_outreach', {
                 id: `vo_${Date.now()}`,
                 campaignId: profile.id,
+                institutionId: profile.institutionId,
                 voterName: name,
                 phoneNumber: phone,
                 status: 'supporter',
@@ -131,7 +132,7 @@ export const CampaignJoinPage: React.FC<CampaignJoinPageProps> = ({ campaignId, 
                                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-60"></div>
                                 
                                 {/* Floating Badge */}
-                                <div className="absolute top-8 left-8 p-3 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 flex items-center gap-2 transform translate-z-20 group-hover:translate-x-2 transition-transform">
+                                <div className="absolute bottom-8 left-8 p-3 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 flex items-center gap-2 transform translate-z-20 group-hover:translate-x-2 transition-transform">
                                     <ShieldCheck className="w-5 h-5 text-emerald-400" />
                                     <span className="text-[10px] font-black uppercase text-white tracking-widest">Verified Identity</span>
                                 </div>
