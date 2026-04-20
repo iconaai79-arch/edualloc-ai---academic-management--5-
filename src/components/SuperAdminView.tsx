@@ -546,9 +546,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [tenantSmsAdjustment, setTenantSmsAdjustment] = useState<{ amount: number; reason: string }>({ amount: 0, reason: '' });
     const [isSavingTenantConfig, setIsSavingTenantConfig] = useState(false);
     const [isTestingFtp, setIsTestingFtp] = useState(false);
-    const [isUploadingPhotoTest, setIsUploadingPhotoTest] = useState(false);
     const scrollRef = React.useRef<HTMLDivElement>(null);
-    const photoTestRef = React.useRef<HTMLInputElement>(null);
 
     const handleScroll = (direction: 'left' | 'right') => {
         if (scrollRef.current) {
@@ -3760,37 +3758,7 @@ Please change it after login.`;
                                                 {isTestingGoogleDrive ? 'Verifying...' : 'Test Handshake'}
                                             </button>
 
-                                            <input 
-                                                type="file" 
-                                                ref={photoTestRef} 
-                                                className="hidden" 
-                                                accept="image/*"
-                                                onChange={async (e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (!file) return;
-                                                    setIsUploadingPhotoTest(true);
-                                                    try {
-                                                        const res = await apiService.uploadToGoogleDrive(file, 'Test_Uploads', localGoogleDriveConfig);
-                                                        if (res.success) {
-                                                            alert(`Photo Upload Successful!\n\nUrl: ${res.fileUrl}`);
-                                                            window.open(res.fileUrl, '_blank');
-                                                        } else {
-                                                            alert(`Upload Failed: ${res.error}`);
-                                                        }
-                                                    } catch (err: any) {
-                                                        alert(`Upload error: ${err.message}`);
-                                                    } finally {
-                                                        setIsUploadingPhotoTest(false);
-                                                    }
-                                                }}
-                                            />
-                                            <button 
-                                                onClick={() => photoTestRef.current?.click()}
-                                                disabled={isUploadingPhotoTest}
-                                                className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:bg-indigo-700 disabled:opacity-50"
-                                            >
-                                                {isUploadingPhotoTest ? 'Uploading...' : 'Test Photo Upload'}
-                                            </button>
+
                                         </div>
                                     </div>
 

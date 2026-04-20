@@ -113,37 +113,29 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
         if (!profile) return;
         setUploading(true);
         
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            const base64 = (e.target?.result as string).split(',')[1];
-            try {
-                const response = await apiService.invokeIntegration({
-                    action: 'campaign-upload',
-                    file: base64,
-                    fileName: file.name,
-                    type,
-                    campaignId: profile.id
-                });
-                
-                if (response.success && response.url) {
-                    const updatedProfile = { ...profile };
-                    if (type === 'profile') {
-                        updatedProfile.profilePicture = response.url;
-                    } else {
-                        updatedProfile.campaignPosters = [...(updatedProfile.campaignPosters || []), response.url];
-                    }
-                    
-                    await apiService.saveModuleRecord('campaign_profiles', updatedProfile);
-                    setProfile(updatedProfile);
+        try {
+            const folderName = type === 'poster' ? 'Campaign_Posters' : 'Campaign_Profiles';
+            const response = await apiService.uploadToGoogleDrive(file, folderName, { useGlobalConfig: true });
+            
+            if (response.success && response.fileUrl) {
+                const updatedProfile = { ...profile };
+                if (type === 'profile') {
+                    updatedProfile.profilePicture = response.fileUrl;
+                } else {
+                    updatedProfile.campaignPosters = [...(updatedProfile.campaignPosters || []), response.fileUrl];
                 }
-            } catch (err) {
-                console.error(err);
-                alert("Upload failed. Verify FTP credentials in System Settings.");
-            } finally {
-                setUploading(false);
+                
+                await apiService.saveModuleRecord('campaign_profiles', updatedProfile);
+                setProfile(updatedProfile);
+            } else {
+                throw new Error(response.error || 'Upload failed');
             }
-        };
-        reader.readAsDataURL(file);
+        } catch (err: any) {
+            console.error(err);
+            alert(`Upload failed: ${err.message || 'Verify Google Drive status in Super Admin settings.'}`);
+        } finally {
+            setUploading(false);
+        }
     };
 
     const stats = useMemo(() => {

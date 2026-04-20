@@ -507,14 +507,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             if (publicUrl) {
                 // Secondary Mirror to Cloud Storage (Google Drive)
                 try {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(file);
-                    reader.onload = async () => {
-                        const base64Content = (reader.result as string).split(',')[1];
-                        await apiService.uploadToGoogleDrive(file.name, file.type, base64Content);
-                    };
+                    await apiService.uploadToGoogleDrive(file, 'Branding_Assets');
                 } catch (gdMirrorErr) {
-                    console.warn("Cloud Mirror Bypass:", gdMirrorErr);
+                    console.warn("Cloud Mirror failed:", gdMirrorErr);
                 }
 
                 if (type === 'logo') props.onUpdateLogo?.(publicUrl);

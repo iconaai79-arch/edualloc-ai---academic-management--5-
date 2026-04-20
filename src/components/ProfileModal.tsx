@@ -61,14 +61,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ currentUser, onClose
         
         // --- Google Drive Mirroring Strategy ---
         try {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = async () => {
-                const base64 = (reader.result as string).split(',')[1];
-                await apiService.uploadToGoogleDrive(file.name, file.type, base64);
-            };
+            await apiService.uploadToGoogleDrive(file, 'Profile_Pictures');
         } catch (gdErr) {
-            console.warn("GD Mirroring ignored (Integration likely inactive):", gdErr);
+            console.warn("GD Mirroring failed:", gdErr);
         }
       }
     } catch (err) {

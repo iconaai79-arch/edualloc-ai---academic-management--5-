@@ -575,35 +575,81 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // --- Google Drive Integration ---
 
         if (action === 'googleDriveUpload') {
-            const { fileName, mimeType, content, folderId, institutionId: instId, config: bodyConfig } = paramsMap;
+            const { fileName, mimeType, content, folderName, folderId: explicitFolderId, institutionId: instId, config: bodyConfig, useGlobalConfig } = paramsMap;
             if (!content) return res.status(400).json({ success: false, message: 'Missing file content for upload.' });
 
             let driveConfig: GoogleDriveConfig | null = bodyConfig || null;
 
+            // Priority: Explicit config -> Global (if requested) -> Institution -> Global Fallback
             if (!driveConfig) {
-                const targetInstId = instId || user.user_metadata?.institutionId || user.institution_id || user.institutionId;
-                if (targetInstId) {
-                    const { data: inst } = await supabase.from('institutions').select('google_drive_config').eq('id', targetInstId).maybeSingle();
-                    driveConfig = inst?.google_drive_config as GoogleDriveConfig || null;
-                }
-            }
+                if (useGlobalConfig === true || useGlobalConfig === 'true') {
+                    const { data: globalSettings } = await supabase.from('company_details').select('google_drive_config').maybeSingle();
+                    driveConfig = globalSettings?.google_drive_config as GoogleDriveConfig || null;
+                } else {
+                    const targetInstId = instId || user.user_metadata?.institutionId || user.institution_id || user.institutionId;
+                    if (targetInstId) {
+                        const { data: inst } = await supabase.from('institutions').select('google_drive_config').eq('id', targetInstId).maybeSingle();
+                        driveConfig = inst?.google_drive_config as GoogleDriveConfig || null;
+                    }
 
-            // Fallback for Super Admin: check global settings
-            if (!driveConfig && user?.role === 'super_admin') {
-                const { data: globalSettings } = await supabase.from('company_details').select('google_drive_config').maybeSingle();
-                driveConfig = globalSettings?.google_drive_config as GoogleDriveConfig || null;
+                    // Generic Fallback: if institution config is missing or inactive, use global
+                    if (!driveConfig || !driveConfig.isActive) {
+                        const { data: globalSettings } = await supabase.from('company_details').select('google_drive_config').maybeSingle();
+                        driveConfig = globalSettings?.google_drive_config as GoogleDriveConfig || null;
+                    }
+                }
             }
             
             if (!driveConfig || !driveConfig.isActive) {
-                return res.status(400).json({ success: false, message: 'Google Drive integration is not active for this institution.' });
+                return res.status(400).json({ success: false, message: 'Google Drive integration is not active.' });
             }
 
             try {
                 const { access_token } = await refreshGoogleDriveTokens(driveConfig);
+                
+                let targetFolderId = explicitFolderId || driveConfig.folderId;
+
+                // Folder Resolution by Name
+                if (folderName && !explicitFolderId) {
+                    try {
+                        const searchUrl = `https://www.googleapis.com/drive/v3/files?q=name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false${targetFolderId ? ` and '${targetFolderId}' in parents` : ''}`;
+                        const searchRes = await fetch(searchUrl, {
+                            headers: { 'Authorization': `Bearer ${access_token}` }
+                        });
+                        
+                        if (searchRes.ok) {
+                            const searchData = await searchRes.json() as any;
+                            if (searchData.files && searchData.files.length > 0) {
+                                targetFolderId = searchData.files[0].id;
+                            } else {
+                                // Folder not found, attempt creation inside parent
+                                const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Authorization': `Bearer ${access_token}`,
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify({
+                                        name: folderName,
+                                        mimeType: 'application/vnd.google-apps.folder',
+                                        parents: targetFolderId ? [targetFolderId] : []
+                                    })
+                                });
+                                if (createRes.ok) {
+                                    const createData = await createRes.json() as any;
+                                    targetFolderId = createData.id;
+                                }
+                            }
+                        }
+                    } catch (folderErr) {
+                        console.error("[Google Drive] Folder resolution failed, using default parent:", folderErr);
+                    }
+                }
+
                 const metadata = {
                     name: fileName || `Upload_${Date.now()}`,
                     mimeType: mimeType || 'image/jpeg',
-                    parents: (folderId || driveConfig.folderId) ? [folderId || driveConfig.folderId] : []
+                    parents: targetFolderId ? [targetFolderId] : []
                 };
 
                 const boundary = '-------eduai-upload-boundary';
@@ -631,7 +677,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 const uploadData = await uploadRes.json() as any;
-                return res.status(200).json({ success: true, message: 'Success', fileId: uploadData.id });
+                
+                // Get webViewLink for the file
+                const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${uploadData.id}?fields=webViewLink,webContentLink`, {
+                    headers: { 'Authorization': `Bearer ${access_token}` }
+                });
+                const fileData = await fileRes.json() as any;
+
+                return res.status(200).json({ 
+                    success: true, 
+                    message: 'Success', 
+                    fileId: uploadData.id,
+                    url: fileData.webViewLink || fileData.webContentLink
+                });
             } catch (err: any) {
                 return res.status(500).json({ success: false, message: err.message });
             }
