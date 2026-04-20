@@ -27,6 +27,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
     const [activeTab, setActiveTab] = useState<'dashboard' | 'voters' | 'events' | 'manifesto' | 'ai_pulse' | 'branding' | 'settings' | 'team' | 'sms_broadcast' | 'groups'>('dashboard');
     const [showProfileModal, setShowProfileModal] = useState(false);
     const [showVoterImportModal, setShowVoterImportModal] = useState(false);
+    const [selectedGroupIdForImport, setSelectedGroupIdForImport] = useState<string | null>(null);
     const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
     const [isEventModalOpen, setIsEventModalOpen] = useState(false);
     const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
@@ -1234,6 +1235,23 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     onSave={(newVillage) => {
                         setVillages([...villages, newVillage]);
                         setIsVillageModalOpen(false);
+                    }}
+                />
+            )}
+            {showVoterImportModal && profile && (
+                <SmartPoliticalImporterModal
+                    type="voters"
+                    campaignId={profile.id}
+                    groupId={selectedGroupIdForImport || undefined}
+                    onClose={() => {
+                        setShowVoterImportModal(false);
+                        setSelectedGroupIdForImport(null);
+                    }}
+                    onRefresh={async () => {
+                        const voterData = await apiService.fetchModuleRecords<VoterOutreach>('voter_outreach', 'ALL', undefined, { filter: { campaign_id: profile.id } });
+                        setVoters(voterData);
+                        setShowVoterImportModal(false);
+                        setSelectedGroupIdForImport(null);
                     }}
                 />
             )}
