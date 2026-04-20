@@ -1,4 +1,4 @@
-import { VercelRequest, VercelResponse } from '@vercel/node';
+﻿import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
 import { randomBytes } from 'crypto';
@@ -2511,5 +2511,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(500).json({ success: false, message: 'Internal Server Error', details: e.message });
     }
 }
-}  
- 
+}
