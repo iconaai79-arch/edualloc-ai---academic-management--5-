@@ -2910,6 +2910,16 @@ export const App: React.FC = () => {
         };
     }, [activeRole, activeCounty, activeInstitution, companyDetails]);
 
+    // ── EARLY ESCAPE: Public join-campaign URL — skip auth & boot entirely ──
+    if (window.location.search.includes('view=join-campaign')) {
+        const joinCampaignId = new URLSearchParams(window.location.search).get('id') || '';
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <CampaignJoinPage campaignId={joinCampaignId} onBack={() => { window.location.href = '/'; }} />
+            </Suspense>
+        );
+    }
+
     if (appInitializing || isTransitioning) return (
         <SystemPulseLoader 
             message={isTransitioning ? "Establishing secure perspective link..." : (loadError ? "System Handshake Compromised" : "Establishing secure cloud registry link...")} 

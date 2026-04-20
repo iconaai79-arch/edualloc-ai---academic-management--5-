@@ -31,18 +31,14 @@ export const CampaignJoinPage: React.FC<CampaignJoinPageProps> = ({ campaignId, 
         const loadProfile = async () => {
             setLoading(true);
             try {
-                // Try searching by inviteSlug first, then id
-                let data = await apiService.fetchModuleRecords<CampaignProfile>('campaign_profiles', 'ALL', undefined, { filter: { invite_slug: campaignId } });
-                if (data.length === 0) {
-                    data = await apiService.fetchModuleRecords<CampaignProfile>('campaign_profiles', 'ALL', undefined, { filter: { id: campaignId } });
-                }
-                if (data.length === 0) {
-                    data = await apiService.fetchModuleRecords<CampaignProfile>('campaign_profiles', 'ALL', undefined, { filter: { institution_id: campaignId } });
-                }
-                
-                if (data.length > 0) {
-                    setProfile(data[0]);
-                }
+                // Fire all 3 lookup strategies in parallel — take the first non-empty result
+                const [bySlug, byId, byInstitution] = await Promise.all([
+                    apiService.fetchModuleRecords<CampaignProfile>('campaign_profiles', 'ALL', undefined, { filter: { invite_slug: campaignId } }),
+                    apiService.fetchModuleRecords<CampaignProfile>('campaign_profiles', 'ALL', undefined, { filter: { id: campaignId } }),
+                    apiService.fetchModuleRecords<CampaignProfile>('campaign_profiles', 'ALL', undefined, { filter: { institution_id: campaignId } }),
+                ]);
+                const found = bySlug[0] ?? byId[0] ?? byInstitution[0] ?? null;
+                setProfile(found);
             } catch (e) {
                 console.error(e);
             } finally {
