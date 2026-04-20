@@ -30,6 +30,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
     const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
     const [isEventModalOpen, setIsEventModalOpen] = useState(false);
     const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
+    const [isVoterModalOpen, setIsVoterModalOpen] = useState(false);
     const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
     const [isVillageModalOpen, setIsVillageModalOpen] = useState(false);
     
@@ -123,8 +124,9 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
             const updatedProfile = { ...profile, manifestoAiDraft: response };
             await apiService.saveModuleRecord('campaign_profiles', updatedProfile);
             setProfile(updatedProfile);
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
+            alert(e.message || "Error generating manifesto.");
         } finally {
             setGeneratingManifesto(false);
         }
@@ -283,16 +285,29 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     </div>
                 </div>
 
-                <div className="flex bg-slate-100 dark:bg-slate-800 p-2 rounded-2xl relative z-10 overflow-x-auto max-w-full no-scrollbar">
-                    {['dashboard', 'voters', 'groups', 'events', 'sms_broadcast', 'manifesto', 'ai_pulse', 'team', 'branding', 'settings'].map(t => (
-                        <button 
-                            key={t}
-                            onClick={() => setActiveTab(t as any)}
-                            className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === t ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                            {t.replace('_', ' ')}
-                        </button>
-                    ))}
+                <div className="flex flex-col gap-2 bg-slate-100 dark:bg-slate-800 p-2 rounded-2xl relative z-10">
+                    <div className="flex">
+                        {['dashboard', 'voters', 'groups', 'events', 'sms_broadcast'].map(t => (
+                            <button 
+                                key={t}
+                                onClick={() => setActiveTab(t as any)}
+                                className={`flex-1 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap text-center ${activeTab === t ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                {t.replace('_', ' ')}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex">
+                        {['manifesto', 'ai_pulse', 'team', 'branding', 'settings'].map(t => (
+                            <button 
+                                key={t}
+                                onClick={() => setActiveTab(t as any)}
+                                className={`flex-1 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap text-center ${activeTab === t ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                {t.replace('_', ' ')}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
@@ -745,13 +760,22 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                 </h3>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 ml-11">Manage and track your official campaign supporters</p>
                             </div>
-                            <button 
-                                onClick={() => setShowVoterImportModal(true)}
-                                className="bg-slate-100 dark:bg-slate-800 text-indigo-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2 border border-slate-200 dark:border-slate-700 shadow-sm"
-                            >
-                                <ArrowUpTrayIcon className="w-4 h-4" />
-                                Import Excel
-                            </button>
+                            <div className="flex gap-3">
+                                <button 
+                                    onClick={() => setIsVoterModalOpen(true)}
+                                    className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 transition-all flex items-center gap-2 shadow-lg shadow-indigo-100"
+                                >
+                                    <PlusIcon className="w-4 h-4" />
+                                    Add New Contact
+                                </button>
+                                <button 
+                                    onClick={() => setShowVoterImportModal(true)}
+                                    className="bg-slate-100 dark:bg-slate-800 text-indigo-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2 border border-slate-200 dark:border-slate-700 shadow-sm"
+                                >
+                                    <ArrowUpTrayIcon className="w-4 h-4" />
+                                    Import Excel
+                                </button>
+                            </div>
                         </div>
                         
                         <div className="mb-12">
@@ -763,7 +787,11 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                         <SmartPoliticalImporterModal 
                             type="voters"
                             campaignId={profile.id}
-                            onClose={() => setShowVoterImportModal(false)}
+                            groupId={selectedGroupIdForImport}
+                            onClose={() => {
+                                setShowVoterImportModal(false);
+                                setSelectedGroupIdForImport(undefined);
+                            }}
                             onRefresh={() => fetchVoters(profile.id)}
                         />
                     )}
@@ -974,13 +1002,22 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                 </h3>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 ml-11">Organize voters into mobilization units</p>
                             </div>
-                            <button 
-                                onClick={() => setIsGroupModalOpen(true)}
-                                className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-indigo-100 hover:scale-105 active:scale-95 transition-all flex items-center gap-3"
-                            >
-                                <PlusIcon className="w-5 h-5" />
-                                Create Group
-                            </button>
+                            <div className="flex gap-3">
+                                <button 
+                                    onClick={() => setShowVoterImportModal(true)}
+                                    className="bg-slate-100 dark:bg-slate-800 text-indigo-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2 border border-slate-200 dark:border-slate-700 shadow-sm"
+                                >
+                                    <ArrowUpTrayIcon className="w-4 h-4" />
+                                    Bulk Import
+                                </button>
+                                <button 
+                                    onClick={() => setIsGroupModalOpen(true)}
+                                    className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-indigo-100 hover:scale-105 active:scale-95 transition-all flex items-center gap-3"
+                                >
+                                    <PlusIcon className="w-5 h-5" />
+                                    Create Group
+                                </button>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1003,30 +1040,16 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                     <div className="flex gap-2">
                                         <button 
                                             onClick={() => {
-                                                const voterId = prompt("Enter Voter ID or Phone to add to group:");
-                                                if (voterId) {
-                                                    const voter = voters.find(v => v.id === voterId || v.phoneNumber === voterId);
-                                                    if (voter) {
-                                                        const member: CampaignGroupMember = {
-                                                            id: `m_${Date.now()}`,
-                                                            groupId: group.id,
-                                                            voterId: voter.id,
-                                                            campaignId: profile!.id,
-                                                            createdAt: new Date().toISOString()
-                                                        };
-                                                        apiService.saveModuleRecord('campaign_group_members', member);
-                                                        setGroupMembers([...groupMembers, member]);
-                                                    } else {
-                                                        alert("Voter not found.");
-                                                    }
-                                                }
+                                                setSelectedGroupIdForImport(group.id);
+                                                setShowVoterImportModal(true);
                                             }}
-                                            className="flex-1 py-3 rounded-xl bg-white dark:bg-slate-700 text-indigo-600 text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                                            className="flex-1 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
                                         >
-                                            Add Member
+                                            <ArrowUpTrayIcon className="w-3.5 h-3.5" />
+                                            Import
                                         </button>
-                                        <button className="px-4 py-3 rounded-xl bg-white dark:bg-slate-700 text-slate-400 hover:text-slate-700 transition-all">
-                                            <ArrowPathIcon className="w-4 h-4" />
+                                        <button className="flex-1 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:bg-indigo-50 transition-all">
+                                            View Unit
                                         </button>
                                     </div>
                                 </div>
@@ -1172,6 +1195,17 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     </div>
                 </div>
             )}
+            {isVoterModalOpen && profile && (
+                <CampaignVoterModal 
+                    campaignId={profile.id}
+                    institutionId={user.institutionId}
+                    onClose={() => setIsVoterModalOpen(false)}
+                    onSave={(newVoter) => {
+                        setVoters([...voters, newVoter]);
+                        setIsVoterModalOpen(false);
+                    }}
+                />
+            )}
             {isStaffModalOpen && (
                 <CampaignStaffModal 
                     institutionId={user.institutionId}
@@ -1237,9 +1271,9 @@ const CampaignStaffModal: React.FC<CampaignStaffModalProps> = ({ institutionId, 
             };
             await apiService.saveModuleRecord('users', newUser);
             onSave(newUser);
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("Error registering team member.");
+            alert(e.message || "Error registering team member.");
         } finally {
             setSaving(false);
         }
@@ -1335,9 +1369,9 @@ const CampaignEventModal: React.FC<CampaignEventModalProps> = ({ profile, onClos
             };
             await apiService.saveModuleRecord('campaign_events', newEvent);
             onSave(newEvent);
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("Error scheduling event.");
+            alert(e.message || "Error scheduling event.");
         } finally {
             setSaving(false);
         }
@@ -1473,9 +1507,9 @@ const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({
             };
             await apiService.saveModuleRecord('campaign_profiles', newProfile);
             onSave(newProfile);
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("Failed to save profile.");
+            alert(e.message || "Failed to save profile.");
         } finally {
             setSaving(false);
         }
@@ -1661,9 +1695,9 @@ const CampaignGroupModal: React.FC<CampaignGroupModalProps> = ({ campaignId, onC
             };
             await apiService.saveModuleRecord('campaign_groups', newGroup);
             onSave(newGroup);
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("Error creating group.");
+            alert(e.message || "Error creating group.");
         } finally {
             setSaving(false);
         }
@@ -1730,9 +1764,9 @@ const CampaignVillageModal: React.FC<CampaignVillageModalProps> = ({ campaignId,
             };
             await apiService.saveModuleRecord('campaign_villages', newVillage);
             onSave(newVillage);
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("Error registering village.");
+            alert(e.message || "Error registering village.");
         } finally {
             setSaving(false);
         }
@@ -1763,6 +1797,108 @@ const CampaignVillageModal: React.FC<CampaignVillageModalProps> = ({ campaignId,
                         className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-100 hover:bg-slate-900 transition-all disabled:opacity-50"
                     >
                         {saving ? 'Registering...' : 'Add to Ward Strategy'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+interface CampaignVoterModalProps {
+    campaignId: string;
+    institutionId: string;
+    onClose: () => void;
+    onSave: (voter: VoterOutreach) => void;
+}
+
+const CampaignVoterModal: React.FC<CampaignVoterModalProps> = ({ campaignId, institutionId, onClose, onSave }) => {
+    const [name, setName] = useState('');
+    const [phone, setPhone] = useState('');
+    const [idNumber, setIdNumber] = useState(''); // Optional
+    const [center, setCenter] = useState('');
+    const [status, setStatus] = useState<VoterOutreach['status']>('uncontacted');
+    const [saving, setSaving] = useState(false);
+
+    const handleSave = async () => {
+        if (!name || !phone) {
+            alert("Name and Phone Number are required.");
+            return;
+        }
+        setSaving(true);
+        try {
+            const newVoter: VoterOutreach = {
+                id: `vo_${Date.now()}`,
+                campaignId,
+                institutionId,
+                voterName: name,
+                phoneNumber: phone,
+                idNumber: idNumber || undefined,
+                votingCenter: center,
+                status,
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('voter_outreach', newVoter);
+            onSave(newVoter);
+        } catch (e: any) {
+            console.error(e);
+            alert(e.message || "Error adding contact.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3rem] shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50">
+                    <div>
+                        <h3 className="text-2xl font-black uppercase tracking-tighter">Add Campaign Contact</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Manual Voter Intelligence Entry</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all">
+                        <XIcon className="w-5 h-5 text-slate-400" />
+                    </button>
+                </div>
+
+                <div className="p-8 space-y-6">
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Full Name (Compulsory)</label>
+                        <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. John Doe" className="form-input" />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Phone Number (Compulsory)</label>
+                            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="0700 000 000" className="form-input" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">ID Number (Optional)</label>
+                            <input value={idNumber} onChange={e => setIdNumber(e.target.value)} placeholder="National ID" className="form-input" />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Voting Center</label>
+                            <input value={center} onChange={e => setCenter(e.target.value)} placeholder="e.g. Primary School Hall" className="form-input" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Supporter Status</label>
+                            <select value={status} onChange={e => setStatus(e.target.value as any)} className="form-select uppercase text-xs font-black tracking-widest">
+                                <option value="uncontacted">Uncontacted</option>
+                                <option value="supporter">Supporter</option>
+                                <option value="undecided">Undecided</option>
+                                <option value="opposed">Opposed</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={handleSave}
+                        disabled={saving || !name || !phone}
+                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-100 hover:bg-slate-900 transition-all disabled:opacity-50"
+                    >
+                        {saving ? 'Adding...' : 'Save to Intelligence'}
                     </button>
                 </div>
             </div>

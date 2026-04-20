@@ -202,6 +202,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         return type === 'Cooperative' || name.includes('cooperative') || name.includes('sacco') || name.includes('agrovet') || subType.includes('cooperative') || subType.includes('sacco') || subType.includes('agrovet') || isCoopRole;
     }, [props.currentInstitution, props.currentUser.role, props.isCoop]);
 
+    const isCampaign = useMemo(() => props.currentInstitution?.institutionType === 'Political Campaign', [props.currentInstitution]);
+
     const [activeTab, setActiveTab] = useState<SettingsTab>((isSuperAdmin && !isCoop) ? 'global_config' : 'general');
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
     const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_settings' | 'security_policy' | 'location' | 'branding' | 'grading' | 'billing' | 'integrations' | 'sms' | 'email' | 'farmer_billing'>('profile');
@@ -1774,7 +1776,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 </div>
 
                                 <div className="mt-10 pt-10 border-t border-slate-100 dark:border-slate-800">
-                                    <h4 className="font-bold text-lg mb-6 flex items-center gap-2"><StoreIcon className="w-5 h-5 text-indigo-500" /> Storefront & Digital Identity</h4>
+                                    <h4 className="font-bold text-lg mb-6 flex items-center gap-2"><StoreIcon className="w-5 h-5 text-indigo-500" /> {isCampaign ? 'Campaign Public Presence' : 'Storefront & Digital Identity'}</h4>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                                         <div className="space-y-4">
                                             <div>
@@ -1799,7 +1801,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-slate-700 flex flex-col justify-between">
                                             <div>
                                                 <p className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-2">
-                                                    {props.currentInstitution?.institutionType === 'Hospitality' ? 'Public Booking Portal' : 'Public Storefront Link'}
+                                                    {props.currentInstitution?.institutionType === 'Hospitality' ? 'Public Booking Portal' : isCampaign ? 'Join Campaign Link' : 'Public Storefront Link'}
                                                 </p>
                                                 <p className="text-xs font-mono font-bold text-slate-600 dark:text-slate-400 truncate">
                                                     {window.location.origin}/?shop={instProfile.slug || props.currentInstitution?.id}
@@ -1811,7 +1813,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     onClick={() => {
                                                         const url = `${window.location.origin}/?shop=${instProfile.slug || props.currentInstitution?.id}`;
                                                         navigator.clipboard.writeText(url);
-                                                        alert('Storefront link copied to clipboard!');
+                                                        alert(isCampaign ? 'Campaign link copied to clipboard!' : 'Storefront link copied to clipboard!');
                                                     }}
                                                     className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shadow-sm"
                                                 >

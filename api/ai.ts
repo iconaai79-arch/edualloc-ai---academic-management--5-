@@ -23,35 +23,35 @@ export const config = {
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // CORS headers
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-    if (req.method === 'OPTIONS') return res.status(200).end();
-
-    // Verify Auth
-    const supabase = createServiceClient();
-    if (!supabase) return res.status(500).json({ error: 'Database service unavailable' });
-    const userResult = await getAuthenticatedUser(supabase, req.headers.authorization);
-    if (!userResult) return res.status(401).json({ error: 'Unauthorized: Session invalid' });
-
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
-    if (!genAI) {
-        console.error("AI Service Error: API Key missing on server.");
-        return res.status(503).json({
-            error: "AI Service Unavailable",
-            message: "Server configuration error. API Key not found."
-        });
-    }
-
     try {
+        // CORS headers
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+        if (req.method === 'OPTIONS') return res.status(200).end();
+
+        // Verify Auth
+        const supabase = createServiceClient();
+        if (!supabase) return res.status(500).json({ error: 'Database service unavailable' });
+        const userResult = await getAuthenticatedUser(supabase, req.headers.authorization);
+        if (!userResult) return res.status(401).json({ error: 'Unauthorized: Session invalid' });
+
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+        if (!genAI) {
+            console.error("AI Service Error: API Key missing on server.");
+            return res.status(503).json({
+                error: "AI Service Unavailable",
+                message: "Server configuration error. API Key not found."
+            });
+        }
+
         const { model: modelName, contents, config, history, message } = req.body;
 
         // Use the requested model or default to flash
-        const model = genAI.getGenerativeModel({ model: modelName || 'gemini-flash-latest' });
+        const model = genAI.getGenerativeModel({ model: modelName || 'gemini-1.5-flash' });
 
         // Mode 1: Chat (Multi-turn)
         if (history && message) {
@@ -88,7 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const msg = error.message || "Unknown error";
         return res.status(500).json({
             error: "AI Processing Failed",
-            details: msg, // Sending msg for debugging (remove in prod if needed, but useful now)
+            details: msg,
             message: "The AI engine encountered a problem."
         });
     }

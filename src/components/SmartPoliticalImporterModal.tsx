@@ -13,6 +13,7 @@ import {
 export interface SmartPoliticalImporterModalProps {
     type: 'registry' | 'voters';
     campaignId?: string;
+    groupId?: string;
     onClose: () => void;
     onRefresh: () => void;
 }
@@ -20,6 +21,7 @@ export interface SmartPoliticalImporterModalProps {
 export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalProps> = ({ 
     type, 
     campaignId, 
+    groupId,
     onClose, 
     onRefresh 
 }) => {
@@ -229,14 +231,16 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
 
         const batchSize = 100;
         const votersToSave: any[] = [];
+        const groupMembersToSave: any[] = [];
 
         for (let i = 0; i < rawData.length; i++) {
             const row = rawData[i];
             const phoneNumber = String(row[mapping.phoneNumber] || '');
             if (!phoneNumber || phoneNumber.length < 5) continue;
 
+            const voterId = `voter_${Date.now()}_${i}`;
             votersToSave.push({
-                id: `voter_${Date.now()}_${i}`,
+                id: voterId,
                 campaignId: campaignId,
                 voterName: row[mapping.voterName!] || 'Anonymous Voter',
                 phoneNumber: phoneNumber,
@@ -247,8 +251,22 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
                 createdAt: new Date().toISOString()
             });
 
+            if (groupId) {
+                groupMembersToSave.push({
+                    id: `gm_${Date.now()}_${i}`,
+                    groupId: groupId,
+                    voterId: voterId,
+                    campaignId: campaignId,
+                    createdAt: new Date().toISOString()
+                });
+            }
+
             if (votersToSave.length >= batchSize) {
                 await apiService.saveModuleRecords('voter_outreach', votersToSave);
+                if (groupMembersToSave.length > 0) {
+                    await apiService.saveModuleRecords('campaign_group_members', groupMembersToSave);
+                    groupMembersToSave.length = 0;
+                }
                 votersToSave.length = 0;
                 setProgress(Math.round(((i + 1) / rawData.length) * 100));
             }
@@ -256,6 +274,9 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
 
         if (votersToSave.length > 0) {
             await apiService.saveModuleRecords('voter_outreach', votersToSave);
+            if (groupMembersToSave.length > 0) {
+                await apiService.saveModuleRecords('campaign_group_members', groupMembersToSave);
+            }
             setProgress(100);
         }
     };

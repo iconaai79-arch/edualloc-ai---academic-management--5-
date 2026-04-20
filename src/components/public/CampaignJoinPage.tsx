@@ -36,6 +36,9 @@ export const CampaignJoinPage: React.FC<CampaignJoinPageProps> = ({ campaignId, 
                 if (data.length === 0) {
                     data = await apiService.fetchModuleRecords<CampaignProfile>('campaign_profiles', 'ALL', undefined, { filter: { id: campaignId } });
                 }
+                if (data.length === 0) {
+                    data = await apiService.fetchModuleRecords<CampaignProfile>('campaign_profiles', 'ALL', undefined, { filter: { institution_id: campaignId } });
+                }
                 
                 if (data.length > 0) {
                     setProfile(data[0]);
@@ -65,9 +68,9 @@ export const CampaignJoinPage: React.FC<CampaignJoinPageProps> = ({ campaignId, 
                 createdAt: new Date().toISOString()
             });
             setJoined(true);
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("Error joining campaign. Please try again.");
+            alert(e.message || "Error joining campaign. Please try again.");
         } finally {
             setJoining(false);
         }

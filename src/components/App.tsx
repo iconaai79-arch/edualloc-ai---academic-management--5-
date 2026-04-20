@@ -4778,6 +4778,8 @@ export const App: React.FC = () => {
                                     return <ConstructionProjectView institutionId={activeStoreTenantId} />;
                                 } else if (targetInst?.institutionType === 'Education' || targetInst?.institutionType === 'Primary' || targetInst?.institutionType === 'Secondary') {
                                     return <SchoolStorefrontView institutionId={activeStoreTenantId} onEnrollmentClick={() => setShowAlumnaeRegister(true)} />;
+                                } else if (targetInst?.institutionType === 'Political Campaign') {
+                                    return <CampaignJoinPage campaignId={activeStoreTenantId} onBack={() => setShowTenantStore(false)} />;
                                 }
                                 return <TenantStorefrontView institutionId={activeStoreTenantId} />;
                             })()

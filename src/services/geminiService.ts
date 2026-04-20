@@ -37,9 +37,9 @@ const sanitizeAiError = (error: any): Error => {
 };
 
 const safeGenerateContent = async (prompt: string, config: any = {}, preferredModel?: 'pro' | 'flash') => {
-    // Normalization for the Backend API
     const contents = [{ role: 'user', parts: [{ text: prompt }] }];
-    const model = preferredModel === 'flash' ? STANDARD_LOGICAL_CORE : PRO_LOGICAL_CORE;
+    // Normalize model selection: use flash for most tasks as it is 10x faster and reduces Vercel timeouts
+    const model = preferredModel === 'pro' ? PRO_LOGICAL_CORE : STANDARD_LOGICAL_CORE;
 
     try {
         const token = await apiService.getAuthToken();
@@ -268,7 +268,7 @@ export const generateTimetable = async (
             // Pre-calculate exact fulfillment targets for this cohort to assure the user
             const fulfillmentTargets = currentCohort.map(l => {
                 const profile = profiles.find(p => p.id === l.courseProfileId);
-                const days = profile?.hours?.operatingDays?.length || settings.operatingDays?.length || 0;
+                const days = profile?.operatingDays?.length || settings.operatingDays?.length || 0;
                 const periodCount = profile?.periods?.length || settings.periods?.length || 0;
                 const levelAllocations = cohortAllocations.filter(a => a.levelIds.includes(l.id));
                 const totalSlots = (days * periodCount) * 1.5; // Added 50% buffer to support high-density/parallel schedules
@@ -277,7 +277,7 @@ export const generateTimetable = async (
                     const sub = subjects.find(s => s.id === a.subjectId);
                     
                     // Check for stream-level override in metadata
-                    const meta = (l.subjectMetadata || []).find(m => m.subjectId === a.subjectId);
+                    const meta = (l.subjectMetadata || []).find((m: any) => m.subjectId === a.subjectId);
                     const structure = meta?.lessonStructure || sub?.lessonStructure || [];
                     const totalRequired = structure.reduce((acc: number, s: any) => acc + ((s.periods || 0) * (s.count || 0)), 0);
                     
@@ -316,7 +316,8 @@ export const generateTimetable = async (
                 ACT AS: Master Academic Scheduling Logic Engine (Pass ${i + 1} of ${cohorts.length})
                 
                 OPERATING BOUNDS:
-                - General: ${JSON.stringify(settings.hours)}
+                - General Days: ${JSON.stringify(settings.operatingDays)}
+                - General Range: ${settings.startTime} to ${settings.endTime}
                 - Profiles: ${JSON.stringify(compactProfiles)}
                 - Rooms: ${JSON.stringify(compactRooms)}
                 
@@ -583,7 +584,8 @@ export const analyzePharmacyInventorySpreadsheet = async (headers: string[]): Pr
 
 export const generateAIContent = async (prompt: string): Promise<string> => {
     try {
-        const response = await safeGenerateContent(prompt);
+        // Use 'flash' for contents like manifesto to prevent Vercel 10s timeout on Hobby plans
+        const response = await safeGenerateContent(prompt, {}, 'flash');
         return response.text || "";
     } catch (error) {
         console.error("Gemini AI error:", error);
