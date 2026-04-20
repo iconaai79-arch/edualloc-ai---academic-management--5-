@@ -727,7 +727,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     success: true, 
                     message: 'Success', 
                     fileId: fileId,
-                    url: `https://drive.google.com/uc?id=${fileId}&export=view`
+                    url: `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`
                 });
             } catch (err: any) {
                 return res.status(500).json({ success: false, message: err.message });
