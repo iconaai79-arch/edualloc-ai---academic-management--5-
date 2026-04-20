@@ -901,6 +901,15 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         return type === 'Property Management' || subType.includes('property management');
     }, [currentInstitution, isPmProp]);
 
+    const isCommunity = useMemo(() => {
+        const type = currentInstitution?.institutionType;
+        const cat = (currentInstitution as any)?.category || '';
+        return type === 'Community' || type === 'Political Campaign' ||
+               cat === 'Community' || cat.includes('NGO') || cat.includes('Chama') ||
+               cat.includes('Estate') || cat.includes('Heritage') || cat.includes('Family') ||
+               cat.includes('Campaign') || cat.includes('Political');
+    }, [currentInstitution]);
+
 
     // Form State
     const [name, setName] = useState('');
@@ -1540,7 +1549,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                                         <PencilIcon className="w-3.5 h-3.5" />
                                                         Edit
                                                     </button>
-                                                    {u.role !== 'student' && onAddTimeOffRequest && (
+                                                    {u.role !== 'student' && onAddTimeOffRequest && !isCommunity && (
                                                         <button
                                                             onClick={() => setRequestingTimeOffFor(u)}
                                                             className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300 rounded-md text-xs font-bold transition-all"
