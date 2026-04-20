@@ -79,7 +79,31 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
     onDeleteParent
 }) => {
 
+    const isAuthorized = ['boarding_master', 'admin', 'super_admin', 'house_master', 'head_teacher', 'boarding_mistress'].includes(currentUser.role || '');
+
+    if (!isAuthorized) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh] bg-transparent">
+                <div className="text-center p-12 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-[3rem] shadow-2xl border border-slate-100 dark:border-slate-700 max-w-lg animate-fade-in-up">
+                    <div className="w-20 h-20 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <XCircleIcon className="w-10 h-10 text-rose-500" />
+                    </div>
+                    <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-800 dark:text-white mb-4">Access Protocol Denied</h2>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-8">
+                        Your current authentication profile does not possess the requisite security clearance to access institutional boarding infrastructure. Please contact the Boarding Master or System Administrator for elevation.
+                    </p>
+                    <div className="flex flex-col gap-3">
+                        <div className="px-6 py-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Required Role: Boarding Master | Admin
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     const [activeTab, setActiveTab] = useState<BoardingTab>('dashboard');
+
     const [houses, setHouses] = useState<BoardingHouseWithStats[]>([]);
     const [stats, setStats] = useState({
         totalHouses: 0,

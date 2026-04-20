@@ -117,7 +117,7 @@ export const CampaignJoinPage: React.FC<CampaignJoinPageProps> = ({ campaignId, 
 
                         {/* Content */}
                         <div className="p-12">
-                            {joined ? (
+                             {joined ? (
                                 <div className="text-center py-8 animate-fade-in">
                                     <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
                                         <CheckCircle2 className="w-12 h-12" />
@@ -131,10 +131,33 @@ export const CampaignJoinPage: React.FC<CampaignJoinPageProps> = ({ campaignId, 
                                     </div>
                                 </div>
                             ) : (
-                                <div className="space-y-8">
+                                <div className="space-y-10">
+                                    {/* Vision Snippet */}
+                                    <div className="space-y-6">
+                                        {profile.tagline && (
+                                            <p className="text-lg font-black text-slate-900 uppercase tracking-tighter text-center leading-none italic border-b-2 border-indigo-100 pb-4">
+                                                "{profile.tagline}"
+                                            </p>
+                                        )}
+                                        
+                                        {profile.agendas && profile.agendas.length > 0 && (
+                                            <div className="space-y-3">
+                                                <p className="text-[10px] font-black uppercase text-indigo-600 tracking-widest text-center">Core Strategic Pillars</p>
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    {profile.agendas.slice(0, 3).map((a, i) => (
+                                                        <div key={i} className="flex gap-3 items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                                            <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                                                            <p className="text-[11px] font-black uppercase text-slate-700 tracking-tight">{a}</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     <div className="text-center">
-                                        <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-2">Join the Movement</h2>
-                                        <p className="text-slate-400 text-sm font-medium">Leave your details to receive campaign updates and event invites.</p>
+                                        <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-2">Pledge Your Support</h2>
+                                        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Join {profile.candidateName}'s verified list of supporters.</p>
                                     </div>
 
                                     <form onSubmit={handleJoin} className="space-y-4">

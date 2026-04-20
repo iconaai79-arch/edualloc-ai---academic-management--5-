@@ -14,7 +14,7 @@ async function runMigration() {
         await client.connect();
         console.log("Connected to DB");
 
-        const migrationPath = path.resolve('database/migrations/107_his_clinical_records.sql');
+        const migrationPath = path.resolve('database/migrations/179_add_asset_columns_to_campaign_profiles.sql');
         const sql = fs.readFileSync(migrationPath, 'utf8');
         
         console.log("Running migration 107...");

@@ -154,6 +154,12 @@ const HouseManager: React.FC<HouseManagerProps> = ({
     };
 
     const handleDelete = async (house: BoardingHouse) => {
+        const canDelete = ['admin', 'super_admin', 'boarding_master'].includes(currentUser.role || '');
+        if (!canDelete) {
+            alert('Access Denied: Requisite security clearance for infrastructure decommission not detected.');
+            return;
+        }
+
         if (!confirm(`Are you sure you want to delete "${house.name}"? This will also delete all rooms and beds in this house.`)) {
             return;
         }

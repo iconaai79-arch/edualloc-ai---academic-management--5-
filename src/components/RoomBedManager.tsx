@@ -182,6 +182,12 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
     };
 
     const handleDeleteRoom = async (room: BoardingRoom) => {
+        const canManage = ['admin', 'super_admin', 'boarding_master'].includes(currentUser.role || '');
+        if (!canManage) {
+            alert('Access Denied: Requisite security clearance for unit decommission not detected.');
+            return;
+        }
+
         if (!confirm(`Are you sure you want to delete room ${room.roomNumber}? This will permanently remove all beds within this room.`)) return;
         try {
             await apiService.deleteModuleRecord('boarding_rooms', room.id);
@@ -247,8 +253,13 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
 
     const handleBulkBedSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedRoomId || !selectedRoom) return;
+        const canManage = ['admin', 'super_admin', 'boarding_master'].includes(currentUser.role || '');
+        if (!canManage) {
+            alert('Access Denied: Bulk provisioning restricted to administrative profiles.');
+            return;
+        }
 
+        if (!selectedRoomId || !selectedRoom) return;
         if (!currentInstitution.id) {
             alert('Error: Institution ID is missing. Please refresh and try again.');
             return;
@@ -299,6 +310,12 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
     };
 
     const handleDeleteBed = async (bed: BoardingBed) => {
+        const canManage = ['admin', 'super_admin', 'boarding_master'].includes(currentUser.role || '');
+        if (!canManage) {
+            alert('Access Denied: Item decommission restricted.');
+            return;
+        }
+
         if (bed.status === 'Occupied') {
             alert('Cannot delete an occupied bed. Please deallocate the student first.');
             return;

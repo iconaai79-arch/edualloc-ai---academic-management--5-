@@ -61,7 +61,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
             setLoading(true);
             try {
                 // Load profile
-                const profiles = await apiService.fetchModuleRecords<CampaignProfile>('campaign_profiles');
+                const profiles = await apiService.fetchModuleRecords<CampaignProfile>('campaign_profiles', user.institutionId);
                 if (profiles.length > 0) {
                     setProfile(profiles[0]);
                     
@@ -453,7 +453,22 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
 
                             {/* Posters Section */}
                             <div className="p-8 bg-slate-50 dark:bg-slate-800/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
-                                <h4 className="font-black text-xs uppercase tracking-widest text-indigo-600 mb-8">Campaign Posters Gallery</h4>
+                                <div className="flex justify-between items-center mb-8">
+                                    <h4 className="font-black text-xs uppercase tracking-widest text-indigo-600">Campaign Posters Gallery</h4>
+                                    {(profile.campaignPosters || []).length > 0 && (
+                                        <button 
+                                            onClick={async () => {
+                                                if (!confirm("Are you sure you want to clear all posters?")) return;
+                                                const updated = { ...profile, campaignPosters: [] };
+                                                await apiService.saveModuleRecord('campaign_profiles', updated);
+                                                setProfile(updated);
+                                            }}
+                                            className="text-[9px] font-black uppercase text-red-500 hover:text-red-700 transition-colors tracking-widest"
+                                        >
+                                            Clear Gallery
+                                        </button>
+                                    )}
+                                </div>
                                 
                                 <div className="grid grid-cols-2 gap-4">
                                     {(profile.campaignPosters || []).map((p: string, i: number) => (
@@ -1018,6 +1033,8 @@ const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({
                 agendas: agendas.filter(a => a.trim() !== ''),
                 inviteSlug: slug || name.toLowerCase().replace(/\s+/g, '-'),
                 brandingStatus: profile?.brandingStatus || 'none',
+                profilePicture: profile?.profilePicture,
+                campaignPosters: profile?.campaignPosters,
                 createdAt: profile?.createdAt || new Date().toISOString()
             };
             await apiService.saveModuleRecord('campaign_profiles', newProfile);

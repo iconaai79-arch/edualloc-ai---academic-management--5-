@@ -162,41 +162,84 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                                         {groupAspirants.map(aspirant => (
-                                            <div key={aspirant.id} className="bg-white rounded-[3rem] p-8 border border-indigo-50 shadow-sm hover:shadow-2xl transition-all group relative overflow-hidden">
-                                                <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full -translate-y-1/2 translate-x-1/2"></div>
-                                                
-                                                <div className="flex items-center gap-4 mb-6">
-                                                    <div className="w-16 h-16 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg">
-                                                        {aspirant.candidateName[0]}
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">{aspirant.candidateName}</h3>
-                                                        <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest bg-indigo-50 px-2 py-0.5 rounded-full">{aspirant.partyName}</span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="space-y-4 mb-8">
-                                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest border-b border-slate-50 pb-2">Core Agendas</p>
-                                                    <div className="space-y-2">
-                                                        {(aspirant.agendas || []).slice(0, 3).map((a: string, i: number) => (
-                                                            <div key={i} className="flex gap-2 items-start">
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-1.5 shrink-0"></div>
-                                                                <p className="text-[11px] font-bold text-slate-600 uppercase leading-tight">{a}</p>
+                                                <div key={aspirant.id} className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-sm hover:shadow-2xl transition-all group relative overflow-hidden flex flex-col h-full">
+                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600/5 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-700"></div>
+                                                    
+                                                    <div className="flex items-center gap-5 mb-8">
+                                                        <div className="relative">
+                                                            {aspirant.profilePicture ? (
+                                                                <img 
+                                                                    src={aspirant.profilePicture} 
+                                                                    alt={aspirant.candidateName}
+                                                                    className="w-20 h-20 rounded-[2rem] object-cover shadow-xl ring-4 ring-white"
+                                                                />
+                                                            ) : (
+                                                                <div className="w-20 h-20 bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[2rem] flex items-center justify-center text-white font-black text-3xl shadow-xl ring-4 ring-white">
+                                                                    {aspirant.candidateName[0]}
+                                                                </div>
+                                                            )}
+                                                            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center border-4 border-white shadow-lg">
+                                                                <ShieldCheck className="w-4 h-4 text-white" />
                                                             </div>
-                                                        ))}
-                                                        {(!aspirant.agendas || aspirant.agendas.length === 0) && (
-                                                            <p className="text-[10px] text-slate-300 italic">No structured agendas listed yet.</p>
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none mb-1 group-hover:text-indigo-600 transition-colors">{aspirant.candidateName}</h3>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest bg-indigo-50 px-2 py-0.5 rounded-lg">{aspirant.partyName || 'Independent'}</span>
+                                                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{aspirant.constituencyWard}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex-1 space-y-8">
+                                                        {aspirant.tagline && (
+                                                            <p className="text-sm font-black text-slate-800 uppercase italic leading-tight tracking-tight border-l-4 border-indigo-500 pl-4">{aspirant.tagline}</p>
+                                                        )}
+
+                                                        <div className="space-y-4">
+                                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest border-b border-slate-50 pb-2 flex justify-between">
+                                                                <span>Strategic Agenda</span>
+                                                                {aspirant.campaignPosters?.length > 0 && <span className="text-indigo-500">{aspirant.campaignPosters.length} Posters Available</span>}
+                                                            </p>
+                                                            <div className="space-y-3">
+                                                                {(aspirant.agendas || []).slice(0, 3).map((a: string, i: number) => (
+                                                                    <div key={i} className="flex gap-3 items-start">
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-1.5 shrink-0"></div>
+                                                                        <p className="text-xs font-bold text-slate-600 uppercase leading-snug tracking-tight">{a}</p>
+                                                                    </div>
+                                                                ))}
+                                                                {(!aspirant.agendas || aspirant.agendas.length === 0) && (
+                                                                    <p className="text-[10px] text-slate-300 italic uppercase font-black tracking-widest">Awaiting manifesto publication...</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {aspirant.manifestoAiDraft && (
+                                                            <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Vision Summary</p>
+                                                                <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-3 font-medium italic">
+                                                                    "{aspirant.manifestoAiDraft.substring(0, 200)}..."
+                                                                </p>
+                                                            </div>
                                                         )}
                                                     </div>
-                                                </div>
 
-                                                <button 
-                                                    onClick={() => window.location.href = `/?view=join-campaign&id=${aspirant.inviteSlug || aspirant.id}`}
-                                                    className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 group-hover:bg-indigo-600 transition-all"
-                                                >
-                                                    Join Campaign <ArrowRight className="w-4 h-4" />
-                                                </button>
-                                            </div>
+                                                    <div className="mt-10 pt-8 border-t border-slate-50 flex items-center justify-between">
+                                                        <div className="flex -space-x-3">
+                                                            {[1, 2, 3].map(i => (
+                                                                <div key={i} className="w-8 h-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[8px] font-black text-slate-400">
+                                                                    {i}+
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <button 
+                                                            onClick={() => window.location.href = `/?view=join-campaign&id=${aspirant.inviteSlug || aspirant.id}`}
+                                                            className="flex items-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-600 hover:shadow-xl hover:shadow-indigo-200 transition-all active:scale-95 group/btn"
+                                                        >
+                                                            Pledge Support <ArrowRight className="w-4 h-4 transform group-hover/btn:translate-x-1 transition-transform" />
+                                                        </button>
+                                                    </div>
+                                                </div>
                                         ))}
                                     </div>
                                 </div>
