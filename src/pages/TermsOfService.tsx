@@ -1,5 +1,4 @@
 import React from 'react';
-import { GavelIcon, ScaleIcon, ClipboardCheckIcon, ShieldCheckIcon } from '../components/icons/LegalIcons'; // Assuming these or similar icons exist
 
 const TermsOfService: React.FC = () => {
     return (

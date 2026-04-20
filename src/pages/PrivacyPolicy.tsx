@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheckIcon, LockClosedIcon, DocumentTextIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { ShieldCheck, Lock, FileText, Users } from 'lucide-react';
 
 const PrivacyPolicy: React.FC = () => {
     return (
@@ -8,7 +8,7 @@ const PrivacyPolicy: React.FC = () => {
             <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 py-12 px-6">
                 <div className="max-w-4xl mx-auto flex items-center gap-4">
                     <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl">
-                        <ShieldCheckIcon className="w-10 h-10 text-indigo-600 dark:text-indigo-400" />
+                        <ShieldCheck className="w-10 h-10 text-indigo-600 dark:text-indigo-400" />
                     </div>
                     <div>
                         <h1 className="text-4xl font-black tracking-tight text-slate-900 dark:text-white">Privacy Policy</h1>
@@ -24,7 +24,7 @@ const PrivacyPolicy: React.FC = () => {
                     {/* Introduction */}
                     <section>
                         <h2 className="text-2xl font-bold flex items-center gap-3 text-indigo-600 dark:text-indigo-400 mb-6">
-                            <DocumentTextIcon className="w-7 h-7" />
+                            <FileText className="w-7 h-7" />
                             1. Introduction
                         </h2>
                         <p className="text-lg text-slate-600 dark:text-slate-400">
@@ -35,7 +35,7 @@ const PrivacyPolicy: React.FC = () => {
                     {/* Information Collection */}
                     <section>
                         <h2 className="text-2xl font-bold flex items-center gap-3 text-indigo-600 dark:text-indigo-400 mb-6">
-                            <UserGroupIcon className="w-7 h-7" />
+                            <Users className="w-7 h-7" />
                             2. Information We Collect
                         </h2>
                         <div className="grid md:grid-cols-2 gap-8">
@@ -57,7 +57,7 @@ const PrivacyPolicy: React.FC = () => {
                     {/* Google Drive Specifics */}
                     <section className="bg-indigo-50 dark:bg-indigo-900/10 p-8 rounded-3xl border border-indigo-100 dark:border-indigo-900/30">
                         <h2 className="text-2xl font-bold flex items-center gap-3 text-indigo-600 dark:text-indigo-400 mb-6">
-                            <LockClosedIcon className="w-7 h-7" />
+                            <Lock className="w-7 h-7" />
                             3. Google Drive Integration & Data Usage
                         </h2>
                         <p className="mb-4">Our application's use and transfer of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" className="text-indigo-600 hover:underline font-bold" target="_blank" rel="noreferrer">Google API Service User Data Policy</a>.</p>
