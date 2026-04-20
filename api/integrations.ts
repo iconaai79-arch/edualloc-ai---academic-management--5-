@@ -605,16 +605,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             
             if (!driveConfig || !driveConfig.isActive) {
+                const debugStr = JSON.stringify({
+                    configFound: !!driveConfig,
+                    isActiveFlag: driveConfig?.isActive,
+                    keys: driveConfig ? Object.keys(driveConfig).filter(k => !k.toLowerCase().includes('secret') && !k.toLowerCase().includes('token')) : [],
+                    useGlobal: useGlobalConfig
+                });
                 return res.status(400).json({ 
                     success: false, 
-                    message: 'Google Drive integration is not active.',
-                    debug: {
-                        configFound: !!driveConfig,
-                        isActiveFlag: driveConfig?.isActive,
-                        keys: driveConfig ? Object.keys(driveConfig).filter(k => !k.toLowerCase().includes('secret') && !k.toLowerCase().includes('token')) : [],
-                        instIdUsed: instId || user.user_metadata?.institutionId || user.institution_id || user.institutionId,
-                        useGlobalRequested: useGlobalConfig
-                    }
+                    message: `Google Drive integration is not active. (Diagnostic: ${debugStr})`
                 });
             }
 
