@@ -24,11 +24,15 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
     const [uploading, setUploading] = useState(false);
     const [loading, setLoading] = useState(true);
     const [generatingManifesto, setGeneratingManifesto] = useState(false);
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'voters' | 'events' | 'manifesto' | 'ai_pulse' | 'branding' | 'settings'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'voters' | 'events' | 'manifesto' | 'ai_pulse' | 'branding' | 'settings' | 'team' | 'sms_broadcast'>('dashboard');
     const [showProfileModal, setShowProfileModal] = useState(false);
     const [showVoterImportModal, setShowVoterImportModal] = useState(false);
     const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
     const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+    const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
+    const [staff, setStaff] = useState<User[]>([]);
+    const [smsMessage, setSmsMessage] = useState('');
+    const [isSendingSms, setIsSendingSms] = useState(false);
     const [editProfile, setEditProfile] = useState<Partial<CampaignProfile>>({});
     
     const [politicalParties, setPoliticalParties] = useState<PoliticalParty[]>([]);
@@ -71,6 +75,10 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     
                     const eventData = await apiService.fetchModuleRecords<CampaignEvent>('campaign_events', 'ALL', undefined, { filter: { campaign_id: profiles[0].id } });
                     setEvents(eventData);
+
+                    // Load campaign staff
+                    const staffData = await apiService.fetchModuleRecords<User>('users', user.institutionId);
+                    setStaff(staffData);
                 }
             } catch (e) {
                 console.error(e);
@@ -253,8 +261,8 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     </div>
                 </div>
 
-                <div className="flex bg-slate-100 dark:bg-slate-800 p-2 rounded-2xl relative z-10 overflow-x-auto max-w-full">
-                    {['dashboard', 'voters', 'events', 'manifesto', 'ai_pulse', 'branding', 'settings'].map(t => (
+                <div className="flex bg-slate-100 dark:bg-slate-800 p-2 rounded-2xl relative z-10 overflow-x-auto max-w-full no-scrollbar">
+                    {['dashboard', 'voters', 'events', 'sms_broadcast', 'manifesto', 'ai_pulse', 'team', 'branding', 'settings'].map(t => (
                         <button 
                             key={t}
                             onClick={() => setActiveTab(t as any)}
@@ -746,24 +754,143 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                 </div>
             )}
 
-            {/* AI Pulse / Analytics View */}
-            {activeTab === 'ai_pulse' && (
-                <div className="space-y-8 animate-fade-in">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {[
-                            { label: 'Total Supporters', value: voters.filter(v => v.status === 'supporter').length.toLocaleString(), sub: 'Verified Supporters', color: 'indigo' },
-                            { label: 'Conversion Rate', value: `${voters.length > 0 ? Math.round((voters.filter(v => v.status === 'supporter').length / voters.length) * 100) : 0}%`, sub: 'From Outreach', color: 'emerald' },
-                            { label: 'Campaign Events', value: events.length.toLocaleString(), sub: 'Scheduled & Past', color: 'orange' },
-                            { label: 'Target Completion', value: `${profile ? Math.round((voters.filter(v => v.status === 'supporter').length / profile.targetVoterCount) * 100) : 0}%`, sub: `Goal: ${profile?.targetVoterCount.toLocaleString()}`, color: 'blue' }
-                        ].map((stat, i) => (
-                            <div key={i} className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden group">
-                                <div className={`absolute top-0 right-0 w-24 h-24 bg-${stat.color}-500/5 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-all duration-700`}></div>
-                                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">{stat.label}</h4>
-                                <p className={`text-4xl font-black text-slate-900 dark:text-white tracking-tighter mb-2`}>{stat.value}</p>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{stat.sub}</p>
+            {/* SMS Broadcast View */}
+            {activeTab === 'sms_broadcast' && (
+                <div className="max-w-4xl mx-auto space-y-8 animate-fade-in-up">
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-12 shadow-2xl border border-slate-100 dark:border-slate-800">
+                        <div className="flex justify-between items-center mb-10">
+                            <div>
+                                <h3 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
+                                    <MegaphoneIcon className="w-8 h-8 text-indigo-600" />
+                                    Voter Broadcast
+                                </h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Send mass SMS to your entire voter database</p>
                             </div>
-                        ))}
+                            <div className="text-right">
+                                <p className="text-2xl font-black text-indigo-600 leading-none">{voters.length.toLocaleString()}</p>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Recipients</p>
+                            </div>
+                        </div>
+
+                        {user.role !== 'campaign_admin' && user.role !== 'super_admin' ? (
+                            <div className="p-10 bg-orange-50 dark:bg-orange-900/10 rounded-[2.5rem] border border-orange-100 dark:border-orange-800/30 text-center">
+                                <ShieldCheckIcon className="w-16 h-16 text-orange-400 mx-auto mb-4" />
+                                <h4 className="text-lg font-black text-orange-900 dark:text-orange-200 uppercase tracking-tight mb-2">Unauthorized Access</h4>
+                                <p className="text-sm text-orange-600 dark:text-orange-400 font-medium max-w-xs mx-auto">
+                                    Only the **Campaign Admin** is authorized to initiate mass SMS broadcasts to prevent unauthorized resource usage.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-8">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Message Content (Max 160 chars per unit)</label>
+                                    <textarea 
+                                        value={smsMessage}
+                                        onChange={e => setSmsMessage(e.target.value)}
+                                        rows={5}
+                                        placeholder="e.g. Join us this Saturday at 2PM for a major rally at central park! Your voice matters. #TeamMisoi"
+                                        className="w-full p-6 bg-slate-50 dark:bg-slate-800 border-none rounded-[2rem] font-medium text-slate-700 dark:text-slate-300 focus:bg-white transition-all outline-none resize-none shadow-inner"
+                                    />
+                                    <div className="flex justify-between px-2">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase">{smsMessage.length} characters used</p>
+                                        <p className="text-[10px] font-black text-indigo-500 uppercase">{Math.ceil(smsMessage.length / 160)} SMS Unit(s)</p>
+                                    </div>
+                                </div>
+
+                                <div className="p-6 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-800/30">
+                                    <div className="flex items-center gap-4">
+                                        <SparklesIcon className="w-10 h-10 text-indigo-400 shrink-0" />
+                                        <p className="text-xs font-bold text-indigo-900 dark:text-indigo-200 leading-relaxed uppercase">
+                                            Estimated Cost: <span className="font-black text-indigo-600">{ (voters.length * Math.ceil(smsMessage.length / 160)).toLocaleString() } SMS Units</span>. 
+                                            Ensure your balance is topped up in the settings tab.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <button 
+                                    disabled={isSendingSms || !smsMessage || voters.length === 0}
+                                    onClick={async () => {
+                                        if (!confirm(`Broadcast this message to ${voters.length} supporters?`)) return;
+                                        setIsSendingSms(true);
+                                        try {
+                                            const phones = voters.map(v => v.phoneNumber).filter(Boolean);
+                                            await apiService.sendSms(phones as any, smsMessage, undefined, 1, user.institutionId);
+                                            alert("Broadcast initiated successfully!");
+                                            setSmsMessage('');
+                                        } catch (e: any) {
+                                            alert(`Broadcast failed: ${e.message}`);
+                                        } finally {
+                                            setIsSendingSms(false);
+                                        }
+                                    }}
+                                    className="w-full py-5 bg-indigo-600 hover:bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-[0.3em] shadow-2xl shadow-indigo-200 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+                                >
+                                    {isSendingSms ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : <PaperAirplaneIcon className="w-5 h-5" />}
+                                    {isSendingSms ? 'Transmitting...' : 'Dispatch Hub Broadcast'}
+                                </button>
+                            </div>
+                        )}
                     </div>
+                </div>
+            )}
+
+            {/* Team Management View */}
+            {activeTab === 'team' && (
+                <div className="space-y-8 animate-fade-in-up">
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-10 shadow-xl border border-slate-100 dark:border-slate-800">
+                        <div className="flex justify-between items-center mb-12">
+                            <div>
+                                <h3 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
+                                    <ShieldCheckIcon className="w-8 h-8 text-indigo-600" />
+                                    Command Team
+                                </h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 ml-11">Manage authorized assistants and campaign agents</p>
+                            </div>
+                            <button 
+                                onClick={() => setIsStaffModalOpen(true)}
+                                className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-indigo-100 hover:scale-105 active:scale-95 transition-all flex items-center gap-3"
+                            >
+                                <PlusIcon className="w-5 h-5" />
+                                Register Staff
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {staff.map((member, i) => (
+                                <div key={i} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 group hover:border-indigo-500 transition-all">
+                                    <div className="flex items-center gap-4 mb-6">
+                                        <div className="w-14 h-14 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 flex items-center justify-center text-indigo-600 font-black text-xl shadow-sm">
+                                            {member.name[0]}
+                                        </div>
+                                        <div>
+                                            <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tighter line-clamp-1">{member.name}</h4>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${member.role === 'campaign_admin' ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500'} tracking-widest`}>
+                                                    {member.role.replace('_', ' ')}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="space-y-2 mb-6">
+                                        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase">
+                                            <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" /> {member.email}
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase">
+                                            <DevicePhoneMobileIcon className="w-3.5 h-3.5" /> {member.phoneNumber}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-2">
+                                        <button className="flex-1 py-2 rounded-xl bg-white dark:bg-slate-700 text-slate-400 text-[9px] font-black uppercase tracking-widest hover:text-red-500 transition-colors">Revoke</button>
+                                        <button className="flex-1 py-2 rounded-xl bg-white dark:bg-slate-700 text-slate-400 text-[9px] font-black uppercase tracking-widest hover:text-indigo-600 transition-colors">Permissions</button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-[3rem] p-12 shadow-2xl border border-slate-100 dark:border-slate-800">
@@ -840,31 +967,112 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     </div>
                 </div>
             )}
-            {isSetupModalOpen && (
-                    <CampaignProfileModal 
-                        profile={profile} 
-                        user={user} 
-                        parties={politicalParties}
-                        counties={politicalCounties}
-                        constituencies={politicalConstituencies}
-                        wards={politicalWards}
-                        onClose={() => setIsSetupModalOpen(false)} 
-                        onSave={(p) => {
-                            setProfile(p);
-                            setIsSetupModalOpen(false);
-                        }} 
-                    />
-            )}
-            {isEventModalOpen && (
-                <CampaignEventModal 
-                    profile={profile!} 
-                    onClose={() => setIsEventModalOpen(false)} 
-                    onSave={(newEvent) => {
-                        setEvents([...events, newEvent]);
-                        setIsEventModalOpen(false);
-                    }} 
+            {isStaffModalOpen && (
+                <CampaignStaffModal 
+                    institutionId={user.institutionId}
+                    onClose={() => setIsStaffModalOpen(false)}
+                    onSave={(newStaff) => {
+                        setStaff([...staff, newStaff]);
+                        setIsStaffModalOpen(false);
+                    }}
                 />
             )}
+        </div>
+    );
+};
+
+interface CampaignStaffModalProps {
+    institutionId: string;
+    onClose: () => void;
+    onSave: (user: User) => void;
+}
+
+const CampaignStaffModal: React.FC<CampaignStaffModalProps> = ({ institutionId, onClose, onSave }) => {
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [phone, setPhone] = useState('');
+    const [role, setRole] = useState<Role>('campaign_agent');
+    const [saving, setSaving] = useState(false);
+
+    const handleSave = async () => {
+        if (!name || !email || !phone) return;
+        setSaving(true);
+        try {
+            const newUser: User = {
+                id: `u_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                name,
+                email,
+                phoneNumber: phone,
+                role,
+                institutionId,
+                staffId: `STAFF_${Date.now()}`,
+                expertise: [],
+                password: 'password123' 
+            };
+            await apiService.saveModuleRecord('users', newUser);
+            onSave(newUser);
+        } catch (e) {
+            console.error(e);
+            alert("Error registering team member.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3rem] shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50">
+                    <div>
+                        <h3 className="text-2xl font-black uppercase tracking-tighter">Register Command Assistant</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Authorize New Team Member</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all">
+                        <XIcon className="w-5 h-5 text-slate-400" />
+                    </button>
+                </div>
+
+                <div className="p-8 space-y-6">
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Full Name</label>
+                        <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Samuel Okoth" className="form-input" />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Email Address</label>
+                            <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="samuel@example.com" className="form-input" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Phone Number</label>
+                            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="0712 345 678" className="form-input" />
+                        </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Command Role</label>
+                        <select value={role} onChange={e => setRole(e.target.value as any)} className="form-select uppercase text-xs font-black tracking-widest">
+                            <option value="campaign_agent">Campaign Agent (Standard)</option>
+                            <option value="campaign_admin">Campaign Co-Admin (Full Access)</option>
+                            <option value="staff">Logistics Support</option>
+                        </select>
+                    </div>
+
+                    <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <p className="text-[10px] font-medium text-slate-500 italic">
+                            Newly registered members will receive their login credentials (Portal URL, Email, and default password) via SMS and Email automatically.
+                        </p>
+                    </div>
+
+                    <button 
+                        onClick={handleSave}
+                        disabled={saving || !name || !email}
+                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-100 hover:bg-slate-900 transition-all disabled:opacity-50"
+                    >
+                        {saving ? 'Registering...' : 'Authorize Access'}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };
