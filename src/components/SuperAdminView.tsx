@@ -519,6 +519,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [healthStatus, setHealthStatus] = useState<any>(null);
     const [isRefreshingHealth, setIsRefreshingHealth] = useState(false);
     const [institutionSearchQuery, setInstitutionSearchQuery] = useState('');
+    const [institutionTimeFilter, setInstitutionTimeFilter] = useState<'all' | '7d' | '30d' | '90d' | 'active' | 'suspended'>('all');
     const [editingInstitution, setEditingInstitution] = useState<Institution | null>(null);
     const [migrationSubTab, setMigrationSubTab] = useState<'full' | 'semester'>('full');
     const [copyStatus, setCopyStatus] = useState(false);
@@ -628,13 +629,38 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
 
     const filteredInstitutions = useMemo(() => {
         const list = Array.isArray(institutions) ? institutions : [];
-        if (!institutionSearchQuery.trim()) return list;
-        const lower = institutionSearchQuery.toLowerCase();
-        return list.filter(inst =>
-            inst && (inst.name?.toLowerCase().includes(lower) ||
-                inst.institutionCode?.toLowerCase().includes(lower))
-        );
-    }, [institutions, institutionSearchQuery]);
+        const now = Date.now();
+        const days = (d: number) => now - d * 24 * 60 * 60 * 1000;
+
+        let result = list.filter(inst => {
+            if (!inst) return false;
+            // Time-based filter
+            if (institutionTimeFilter === '7d') {
+                const created = inst.createdAt ? new Date(inst.createdAt).getTime() : 0;
+                return created >= days(7);
+            }
+            if (institutionTimeFilter === '30d') {
+                const created = inst.createdAt ? new Date(inst.createdAt).getTime() : 0;
+                return created >= days(30);
+            }
+            if (institutionTimeFilter === '90d') {
+                const created = inst.createdAt ? new Date(inst.createdAt).getTime() : 0;
+                return created >= days(90);
+            }
+            if (institutionTimeFilter === 'active') return inst.status === 'active';
+            if (institutionTimeFilter === 'suspended') return inst.status === 'suspended';
+            return true;
+        });
+
+        if (institutionSearchQuery.trim()) {
+            const lower = institutionSearchQuery.toLowerCase();
+            result = result.filter(inst =>
+                inst.name?.toLowerCase().includes(lower) ||
+                inst.institutionCode?.toLowerCase().includes(lower)
+            );
+        }
+        return result;
+    }, [institutions, institutionSearchQuery, institutionTimeFilter]);
 
     // Configuration local states
     const [localCompanyInfo, setLocalCompanyInfo] = useState({
@@ -1681,7 +1707,7 @@ Please change it after login.`;
                                 <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                                     <div>
                                         <h3 className="text-xl font-black uppercase tracking-tighter">Institutional Tenants</h3>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Platform Multi-Tenancy Registry</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Platform Multi-Tenancy Registry · {filteredInstitutions.length} accounts</p>
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <div className="relative">
@@ -1703,6 +1729,59 @@ Please change it after login.`;
                                         </button>
                                     </div>
                                 </div>
+
+                                {/* ── Time-Based Group Filter Tabs ── */}
+                                {(() => {
+                                    const all = Array.isArray(institutions) ? institutions : [];
+                                    const now = Date.now();
+                                    const daysAgo = (d: number) => now - d * 24 * 60 * 60 * 1000;
+                                    const counts = {
+                                        all: all.length,
+                                        '7d': all.filter(i => i?.createdAt && new Date(i.createdAt).getTime() >= daysAgo(7)).length,
+                                        '30d': all.filter(i => i?.createdAt && new Date(i.createdAt).getTime() >= daysAgo(30)).length,
+                                        '90d': all.filter(i => i?.createdAt && new Date(i.createdAt).getTime() >= daysAgo(90)).length,
+                                        active: all.filter(i => i?.status === 'active').length,
+                                        suspended: all.filter(i => i?.status === 'suspended').length,
+                                    };
+                                    const tabs: { key: typeof institutionTimeFilter; label: string; color: string }[] = [
+                                        { key: 'all',       label: 'All Accounts',        color: 'text-slate-600 dark:text-slate-300' },
+                                        { key: '7d',        label: 'Last 7 Days',         color: 'text-emerald-600 dark:text-emerald-400' },
+                                        { key: '30d',       label: 'Last 30 Days',        color: 'text-blue-600 dark:text-blue-400' },
+                                        { key: '90d',       label: 'Last 90 Days',        color: 'text-indigo-600 dark:text-indigo-400' },
+                                        { key: 'active',    label: 'Active',              color: 'text-green-600 dark:text-green-400' },
+                                        { key: 'suspended', label: 'Suspended',           color: 'text-red-600 dark:text-red-400' },
+                                    ];
+                                    return (
+                                        <div className="flex flex-wrap gap-2 mt-1">
+                                            {tabs.map(tab => (
+                                                <button
+                                                    key={tab.key}
+                                                    onClick={() => setInstitutionTimeFilter(tab.key)}
+                                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                                                        institutionTimeFilter === tab.key
+                                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100'
+                                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:border-indigo-300 hover:text-indigo-600'
+                                                    }`}
+                                                >
+                                                    {tab.key === 'all' && <span className={institutionTimeFilter === tab.key ? 'text-white' : tab.color}>◉</span>}
+                                                    {tab.key === '7d' && <span className={institutionTimeFilter === tab.key ? 'text-white' : tab.color}>🆕</span>}
+                                                    {tab.key === '30d' && <span className={institutionTimeFilter === tab.key ? 'text-white' : tab.color}>📅</span>}
+                                                    {tab.key === '90d' && <span className={institutionTimeFilter === tab.key ? 'text-white' : tab.color}>📆</span>}
+                                                    {tab.key === 'active' && <span className={institutionTimeFilter === tab.key ? 'text-white' : tab.color}>✅</span>}
+                                                    {tab.key === 'suspended' && <span className={institutionTimeFilter === tab.key ? 'text-white' : tab.color}>🚫</span>}
+                                                    {tab.label}
+                                                    <span className={`ml-1 px-2 py-0.5 rounded-full text-[9px] font-black ${
+                                                        institutionTimeFilter === tab.key
+                                                            ? 'bg-white/20 text-white'
+                                                            : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
+                                                    }`}>
+                                                        {counts[tab.key]}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
 
                                 {isAddingInstitution && (
                                     <form onSubmit={handleAddInstitutionSubmit} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-6 animate-fade-in-up mb-8">
