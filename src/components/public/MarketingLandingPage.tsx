@@ -52,12 +52,26 @@ const ModuleCard: React.FC<ModuleProps> = (props) => {
   <div className="module-card animate-in">
     <div className="module-image-container">
       {imageUrl ? (
-        <img src={imageUrl} alt={title} className="hover-target" />
-      ) : (
-        <div className="p-8 rounded-3xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-          <Zap className="w-12 h-12" />
-        </div>
-      )}
+        <img
+          src={imageUrl}
+          alt={title}
+          className="hover-target"
+          onError={(e) => {
+            // Hide broken image and show fallback gradient
+            const img = e.currentTarget;
+            img.style.display = 'none';
+            const fallback = img.nextElementSibling as HTMLElement;
+            if (fallback) fallback.style.display = 'flex';
+          }}
+        />
+      ) : null}
+      <div
+        className="hover-target items-center justify-center flex-col gap-3"
+        style={{ display: imageUrl ? 'none' : 'flex', background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%)', borderRadius: '1.5rem', width: '100%', height: '100%', minHeight: '200px' }}
+      >
+        <div style={{ opacity: 0.6, transform: 'scale(2)' }}>{icon}</div>
+        <div style={{ color: 'rgba(165,180,252,0.5)', fontSize: '9px', fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', marginTop: '1rem' }}>{title}</div>
+      </div>
       <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
         <div className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[8px] font-black px-2 py-1 rounded-full uppercase tracking-widest shadow-lg shadow-emerald-500/10">
           Active Simulator

@@ -467,7 +467,7 @@ export const MODULES = [
     advantages: ["Inventory Sync", "Showroom Display", "Sales Pipeline"],
     role: 'retail_agent',
     category: 'Automotive',
-    imageUrl: '/marketing/marketing_showroom_render_1776486638624.png'
+    imageUrl: '/marketing/marketing_showroom.png'
   },
   {
     id: 'tourism',
@@ -476,12 +476,12 @@ export const MODULES = [
     advantages: ["Booking Engine", "Itinerary Planner", "Guest Services"],
     role: 'admin',
     category: 'Hospitality',
-    imageUrl: '/marketing/marketing_tourism_hub_render_1776512345678_1776488887029.png',
+    imageUrl: '/marketing/marketing_tourism.png',
     tutorial: {
       overview: "Premium hospitality and tour operator management systems.",
       steps: [
         { title: "Booking Engine", description: "Seamless itinerary planning and guest info.", image: "/marketing/tourism_hub_tutorial_ui_1776575408507.png" },
-        { title: "Service Tracking", description: "3D view of resort facilities and status.", image: "/marketing/marketing_tourism_hub_render_1776512345678_1776488887029.png" }
+        { title: "Service Tracking", description: "3D view of resort facilities and status.", image: "/marketing/marketing_tourism.png" }
       ]
     }
   },
@@ -492,7 +492,7 @@ export const MODULES = [
     advantages: ["Member Registry", "Event Sync", "Social Groups"],
     role: 'community_admin',
     category: 'Community',
-    imageUrl: '/marketing/marketing_community_hub_render_1776512345679_1776488906671.png'
+    imageUrl: '/marketing/marketing_community.png'
   },
   {
     id: 'alumni',
@@ -501,6 +501,6 @@ export const MODULES = [
     advantages: ["Member Directory", "Career Tracking", "Legacy Giving"],
     role: 'admin',
     category: 'Education',
-    imageUrl: '/marketing/marketing_alumni_render_1776577306227.png'
+    imageUrl: '/marketing/marketing_alumni.png'
   }
 ];
