@@ -530,23 +530,77 @@ export const ModernPharmacyManager: React.FC<{
         try {
             // Find all pending prescriptions
             const pending = prescriptions.filter(p => p.status === 'pending');
-            const newAlerts: any[] = pending.map(p => ({
-                id: `alt_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                institutionId,
-                patientId: p.patientId,
-                reminderTime: '08:00:00',
-                frequency: 'Daily',
-                status: 'active',
-                createdAt: new Date().toISOString(),
-                recordedBy: currentUser.id
-            }));
+            const newAlerts: any[] = [];
+            
+            for (const p of pending) {
+                const items = (p as any).items || [];
+                const patient = patients.find(pat => pat.id === p.patientId);
+                
+                for (const item of items) {
+                    // 1. Medication Reminders (if enabled)
+                    if (settings?.medicationRemindersEnabled) {
+                        newAlerts.push({
+                            id: `alt_med_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                            institutionId,
+                            patientId: p.patientId,
+                            drugName: item.drugName,
+                            reminderTime: '08:00:00',
+                            alertType: 'medication',
+                            frequency: item.frequency || 'Daily',
+                            messageTemplate: `Hi ${patient?.fullName}, it's time for your ${item.drugName} dosage. Stay healthy!`,
+                            status: 'active',
+                            createdAt: new Date().toISOString()
+                        });
+                    }
+
+                    // 2. Stop Reminders (if course has duration)
+                    if (settings?.stopRemindersEnabled && item.duration) {
+                        const days = parseInt(item.duration) || 5;
+                        const stopDate = new Date();
+                        stopDate.setDate(stopDate.getDate() + days);
+                        
+                        newAlerts.push({
+                            id: `alt_stop_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                            institutionId,
+                            patientId: p.patientId,
+                            drugName: item.drugName,
+                            alertType: 'stop_medication',
+                            stopDate: stopDate.toISOString().split('T')[0],
+                            reminderTime: '10:00:00',
+                            frequency: 'Once',
+                            messageTemplate: `Hi ${patient?.fullName}, today marks the end of your ${item.drugName} course. Please stop taking it now.`,
+                            status: 'active',
+                            createdAt: new Date().toISOString()
+                        });
+                    }
+                }
+
+                // 3. Checkup Reminders (Fallback if clinical notes imply it)
+                if (settings?.checkupRemindersEnabled && p.clinicalNotes?.toLowerCase().includes('return')) {
+                    const checkupDate = new Date();
+                    checkupDate.setDate(checkupDate.getDate() + 14); // Default 2 weeks
+                    
+                    newAlerts.push({
+                        id: `alt_chk_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                        institutionId,
+                        patientId: p.patientId,
+                        alertType: 'checkup',
+                        checkupDate: checkupDate.toISOString().split('T')[0],
+                        reminderTime: '09:00:00',
+                        frequency: 'Once',
+                        messageTemplate: `Hi ${patient?.fullName}, this is a reminder for your follow-up checkup scheduled for ${checkupDate.toLocaleDateString()}.`,
+                        status: 'active',
+                        createdAt: new Date().toISOString()
+                    });
+                }
+            }
 
             if (newAlerts.length > 0) {
                 await apiService.saveModuleRecords('his_pharmacy_adherence_alerts', newAlerts);
-                alert(`Successfully synthesized ${newAlerts.length} adherence nodes.`);
+                alert(`Successfully synthesized ${newAlerts.length} Bio-Adherence nodes into the GSM network.`);
                 loadData();
             } else {
-                alert("No new prescriptions found for synthesis.");
+                alert("No new prescription patterns detected for synthesis.");
             }
         } catch (e) {
             alert("Auto-sync failed.");
@@ -1474,12 +1528,51 @@ export const ModernPharmacyManager: React.FC<{
 
                                     <div className="flex items-center justify-between p-8 bg-black/40 rounded-[2.5rem] border border-white/5 group hover:border-indigo-500/30 transition-all">
                                         <div>
-                                            <p className="text-xs font-black uppercase italic text-white">Adherence SMS Triggers</p>
-                                            <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-1">Automatic GSM outreach</p>
+                                            <p className="text-xs font-black uppercase italic text-white text-left">Medication Alert Nodes</p>
+                                            <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-1 text-left">GSM Triggers for dosages</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => setSettings({...settings, medicationRemindersEnabled: !settings.medicationRemindersEnabled})}
+                                            className={`w-12 h-6 rounded-full p-1 transition-all flex items-center ${settings.medicationRemindersEnabled ? 'bg-indigo-500 justify-end' : 'bg-slate-800 justify-start'}`}
+                                        >
+                                            <div className="w-4 h-4 rounded-full bg-white shadow-lg"></div>
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center justify-between p-8 bg-black/40 rounded-[2.5rem] border border-white/5 group hover:border-rose-500/30 transition-all">
+                                        <div>
+                                            <p className="text-xs font-black uppercase italic text-white text-left">Course Completion Signals</p>
+                                            <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-1 text-left">Alert patient to STOP medication</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => setSettings({...settings, stopRemindersEnabled: !settings.stopRemindersEnabled})}
+                                            className={`w-12 h-6 rounded-full p-1 transition-all flex items-center ${settings.stopRemindersEnabled ? 'bg-rose-500 justify-end' : 'bg-slate-800 justify-start'}`}
+                                        >
+                                            <div className="w-4 h-4 rounded-full bg-white shadow-lg"></div>
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center justify-between p-8 bg-black/40 rounded-[2.5rem] border border-white/5 group hover:border-teal-500/30 transition-all">
+                                        <div>
+                                            <p className="text-xs font-black uppercase italic text-white text-left">Post-Clinical Checkup Prompts</p>
+                                            <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-1 text-left">Automated return appointment triggers</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => setSettings({...settings, checkupRemindersEnabled: !settings.checkupRemindersEnabled})}
+                                            className={`w-12 h-6 rounded-full p-1 transition-all flex items-center ${settings.checkupRemindersEnabled ? 'bg-teal-500 justify-end' : 'bg-slate-800 justify-start'}`}
+                                        >
+                                            <div className="w-4 h-4 rounded-full bg-white shadow-lg"></div>
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center justify-between p-8 bg-black/40 rounded-[2.5rem] border border-white/5 group hover:border-emerald-500/30 transition-all">
+                                        <div>
+                                            <p className="text-xs font-black uppercase italic text-white text-left">Global GSM Outreach</p>
+                                            <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-1 text-left">Master switch for all SMS broadcasts</p>
                                         </div>
                                         <button 
                                             onClick={() => setSettings({...settings, enableSmsReminders: !settings.enableSmsReminders})}
-                                            className={`w-12 h-6 rounded-full p-1 transition-all flex items-center ${settings.enableSmsReminders ? 'bg-indigo-500 justify-end' : 'bg-slate-800 justify-start'}`}
+                                            className={`w-12 h-6 rounded-full p-1 transition-all flex items-center ${settings.enableSmsReminders ? 'bg-emerald-500 justify-end' : 'bg-slate-800 justify-start'}`}
                                         >
                                             <div className="w-4 h-4 rounded-full bg-white shadow-lg"></div>
                                         </button>

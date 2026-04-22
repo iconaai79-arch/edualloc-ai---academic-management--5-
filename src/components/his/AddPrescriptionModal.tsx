@@ -28,6 +28,7 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
     const [notes, setNotes] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+    const [remindersEnabled, setRemindersEnabled] = useState(true);
 
     useEffect(() => {
         const loadDrugs = async () => {
@@ -218,31 +219,42 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
                                 className="w-full bg-white/5 border border-white/10 rounded-3xl p-6 text-xs text-white outline-none focus:border-indigo-500/50 transition-all min-h-[120px]"
                                 placeholder="E.g. Take with food, watch for allergic signals..."
                              ></textarea>
-                         </div>
+                         </div>                          <div className="space-y-4">
+                               <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] italic">Prescription Documentation (Scans/Files)</label>
+                               <div className="flex items-center justify-between gap-4">
+                                   <div className="flex items-center gap-4">
+                                       <input 
+                                           type="file" 
+                                           multiple 
+                                           onChange={(e) => setAttachedFiles([...attachedFiles, ...Array.from(e.target.files || [])])}
+                                           className="hidden" 
+                                           id="presc-upload" 
+                                       />
+                                       <label htmlFor="presc-upload" className="px-8 py-4 bg-white/5 border border-dashed border-white/20 rounded-2xl text-[9px] font-black uppercase tracking-widest cursor-pointer hover:bg-white/10 transition-all">
+                                           Upload Archive Node
+                                       </label>
+                                       <div className="flex gap-2">
+                                           {attachedFiles.map((f, i) => (
+                                               <div key={i} className="px-3 py-1 bg-indigo-500/10 text-indigo-400 text-[8px] rounded-lg border border-indigo-400/20 flex items-center gap-2">
+                                                   {f.name}
+                                                   <button onClick={() => setAttachedFiles(attachedFiles.filter((_, idx) => idx !== i))} className="text-rose-500">×</button>
+                                               </div>
+                                           ))}
+                                       </div>
+                                   </div>
 
-                         <div className="space-y-4">
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] italic">Prescription Documentation (Scans/Files)</label>
-                              <div className="flex items-center gap-4">
-                                  <input 
-                                      type="file" 
-                                      multiple 
-                                      onChange={(e) => setAttachedFiles([...attachedFiles, ...Array.from(e.target.files || [])])}
-                                      className="hidden" 
-                                      id="presc-upload" 
-                                  />
-                                  <label htmlFor="presc-upload" className="px-8 py-4 bg-white/5 border border-dashed border-white/20 rounded-2xl text-[9px] font-black uppercase tracking-widest cursor-pointer hover:bg-white/10 transition-all">
-                                      Upload Archive Node
-                                  </label>
-                                  <div className="flex gap-2">
-                                      {attachedFiles.map((f, i) => (
-                                          <div key={i} className="px-3 py-1 bg-indigo-500/10 text-indigo-400 text-[8px] rounded-lg border border-indigo-400/20 flex items-center gap-2">
-                                              {f.name}
-                                              <button onClick={() => setAttachedFiles(attachedFiles.filter((_, idx) => idx !== i))} className="text-rose-500">×</button>
-                                          </div>
-                                      ))}
-                                  </div>
-                              </div>
-                          </div>
+                                   <div className="flex items-center gap-3 bg-indigo-500/10 px-6 py-3 rounded-2xl border border-indigo-500/20">
+                                       <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Bio-Adherence GSM Reminders</p>
+                                       <button 
+                                           onClick={() => setRemindersEnabled(!remindersEnabled)}
+                                           className={`w-10 h-5 rounded-full p-1 transition-all flex items-center ${remindersEnabled ? 'bg-indigo-500 justify-end' : 'bg-slate-800 justify-start'}`}
+                                       >
+                                           <div className="w-3 h-3 rounded-full bg-white shadow-lg"></div>
+                                       </button>
+                                   </div>
+                               </div>
+                           </div>
+                        </div>
                     </div>
                 </div>
 

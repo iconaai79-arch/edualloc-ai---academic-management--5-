@@ -1,4 +1,4 @@
-
+/** HIS Nexus Type Definitions **/
 export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'pharmacy_admin' | 'pharmacist' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'legal_admin' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor' | 'driving_instructor' | 'construction_admin' | 'community_admin' | 'family_admin' | 'hospitality_admin' | 'alumni_admin' | 'campaign_admin' | 'campaign_agent' | 'fuel_admin' | 'attendant';
 
 export type RankingCriteria = 'points' | 'mean_points' | 'total_marks';
@@ -274,23 +274,6 @@ export interface Ward {
     createdAt?: string;
 }
 
-export interface HISPatient {
-    id: string;
-    fullName: string;
-    dob?: string;
-    gender: 'Male' | 'Female' | 'Other';
-    contact?: string;
-    address?: string;
-    bloodGroup?: string;
-    shaNumber?: string;
-    insuranceProvider?: string;
-    emergencyContactName?: string;
-    emergencyContactPhone?: string;
-    allergies?: string;
-    chronicConditions?: string;
-    institutionId: string;
-    createdAt?: string;
-}
 
 export interface ICDCode {
     id: string;
@@ -2781,7 +2764,7 @@ export interface HISPatient {
     userId?: string;
     fullName: string;
     dob?: string;
-    gender?: string;
+    gender: 'Male' | 'Female' | 'Other';
     bloodGroup?: string;
     allergies?: string[];
     chronicConditions?: string[];
@@ -2793,12 +2776,13 @@ export interface HISPatient {
     preferredLanguage?: string;
     insuranceProvider?: string;
     insurancePolicyNumber?: string;
+    address?: string;
     contact?: string;
     age?: number;
     status?: string;
     recordedBy?: string;
-    createdAt: string;
-    updatedAt: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface HISWard {
@@ -3026,8 +3010,13 @@ export interface HISPharmacyAdherenceAlert {
     institutionId: string;
     patientId: string;
     prescriptionItemId?: string;
+    drugName?: string;
     reminderTime: string;
     frequency: string;
+    alertType?: 'medication' | 'stop_medication' | 'checkup';
+    stopDate?: string;
+    checkupDate?: string;
+    messageTemplate?: string;
     status: 'active' | 'paused' | 'completed';
     lastSentAt?: string;
     createdAt: string;
@@ -3128,6 +3117,9 @@ export interface PharmacySettings {
     receiptFooter?: string;
     lowStockThreshold: number;
     enableSmsReminders: boolean;
+    medicationRemindersEnabled?: boolean;
+    stopRemindersEnabled?: boolean;
+    checkupRemindersEnabled?: boolean;
     autoPrintReceipt: boolean;
     theme?: 'indigo' | 'emerald' | 'rose' | 'amber' | 'cyan';
     updatedAt: string;

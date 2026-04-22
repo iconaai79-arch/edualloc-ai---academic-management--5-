@@ -664,6 +664,9 @@ export const analyzeVoterSpreadsheet = async (headers: string[]): Promise<Record
         const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
         const aiMapping = sanitizeAndParseJson(response.text || "{}");
         return { ...defaultMapping, ...aiMapping };
+    } catch (error) {
+        console.error("AI Voter map error:", error);
+        return defaultMapping;
     }
 };
 
