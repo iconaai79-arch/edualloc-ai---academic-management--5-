@@ -84,10 +84,10 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     setProfile(profiles[0]);
                     
                     // Load related data
-                    const voterData = await apiService.fetchModuleRecords<VoterOutreach>('voter_outreach', 'ALL', undefined, { filter: { campaign_id: profiles[0].id } });
+                    const voterData = await apiService.fetchModuleRecords<VoterOutreach>('voter_outreach', user.institutionId, undefined, { filter: { campaign_id: profiles[0].id } });
                     setVoters(voterData);
                     
-                    const eventData = await apiService.fetchModuleRecords<CampaignEvent>('campaign_events', 'ALL', undefined, { filter: { campaign_id: profiles[0].id } });
+                    const eventData = await apiService.fetchModuleRecords<CampaignEvent>('campaign_events', user.institutionId, undefined, { filter: { campaign_id: profiles[0].id } });
                     setEvents(eventData);
 
                     // Load campaign staff
@@ -95,13 +95,13 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     setStaff(staffData);
 
                     // Load Village & Groups
-                    const villageData = await apiService.fetchModuleRecords<CampaignVillage>('campaign_villages', 'ALL', undefined, { filter: { campaign_id: profiles[0].id } });
+                    const villageData = await apiService.fetchModuleRecords<CampaignVillage>('campaign_villages', user.institutionId, undefined, { filter: { campaign_id: profiles[0].id } });
                     setVillages(villageData);
 
-                    const groupData = await apiService.fetchModuleRecords<CampaignGroup>('campaign_groups', 'ALL', undefined, { filter: { campaign_id: profiles[0].id } });
+                    const groupData = await apiService.fetchModuleRecords<CampaignGroup>('campaign_groups', user.institutionId, undefined, { filter: { campaign_id: profiles[0].id } });
                     setGroups(groupData);
 
-                    const memberData = await apiService.fetchModuleRecords<CampaignGroupMember>('campaign_group_members', 'ALL', undefined, { filter: { campaign_id: profiles[0].id } });
+                    const memberData = await apiService.fetchModuleRecords<CampaignGroupMember>('campaign_group_members', user.institutionId, undefined, { filter: { campaign_id: profiles[0].id } });
                     setGroupMembers(memberData);
                 }
             } catch (e) {
@@ -135,7 +135,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
 
     const fetchVoters = async (campaignId: string) => {
         try {
-            const vData = await apiService.fetchModuleRecords<VoterOutreach>('voter_outreach', 'campaignId', campaignId);
+            const vData = await apiService.fetchModuleRecords<VoterOutreach>('voter_outreach', user.institutionId, undefined, { filter: { campaign_id: campaignId } });
             setVoters(vData);
         } catch (e) {
             console.error(e);
@@ -788,10 +788,10 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                         <SmartPoliticalImporterModal 
                             type="voters"
                             campaignId={profile.id}
-                            groupId={selectedGroupIdForImport}
+                            groupId={selectedGroupIdForImport || undefined}
                             onClose={() => {
                                 setShowVoterImportModal(false);
-                                setSelectedGroupIdForImport(undefined);
+                                setSelectedGroupIdForImport(null);
                             }}
                             onRefresh={() => fetchVoters(profile.id)}
                         />
@@ -1220,6 +1220,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
             {isGroupModalOpen && profile && (
                 <CampaignGroupModal 
                     campaignId={profile.id}
+                    institutionId={profile.institutionId}
                     onClose={() => setIsGroupModalOpen(false)}
                     onSave={(newGroup) => {
                         setGroups([...groups, newGroup]);
@@ -1231,6 +1232,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                 <CampaignVillageModal 
                     campaignId={profile.id}
                     wardName={profile.ward || ''}
+                    institutionId={profile.institutionId}
                     onClose={() => setIsVillageModalOpen(false)}
                     onSave={(newVillage) => {
                         setVillages([...villages, newVillage]);
@@ -1242,13 +1244,14 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                 <SmartPoliticalImporterModal
                     type="voters"
                     campaignId={profile.id}
+                    institutionId={profile.institutionId}
                     groupId={selectedGroupIdForImport || undefined}
                     onClose={() => {
                         setShowVoterImportModal(false);
                         setSelectedGroupIdForImport(null);
                     }}
                     onRefresh={async () => {
-                        const voterData = await apiService.fetchModuleRecords<VoterOutreach>('voter_outreach', 'ALL', undefined, { filter: { campaign_id: profile.id } });
+                        const voterData = await apiService.fetchModuleRecords<VoterOutreach>('voter_outreach', user.institutionId, undefined, { filter: { campaign_id: profile.id } });
                         setVoters(voterData);
                         setShowVoterImportModal(false);
                         setSelectedGroupIdForImport(null);
@@ -1392,6 +1395,7 @@ const CampaignEventModal: React.FC<CampaignEventModalProps> = ({ profile, onClos
             const newEvent: CampaignEvent = {
                 id: `evt_${Date.now()}`,
                 campaignId: profile.id,
+                institutionId: profile.institutionId,
                 title,
                 description,
                 location,
@@ -1706,11 +1710,12 @@ const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({
 
 interface CampaignGroupModalProps {
     campaignId: string;
+    institutionId: string;
     onClose: () => void;
     onSave: (group: CampaignGroup) => void;
 }
 
-const CampaignGroupModal: React.FC<CampaignGroupModalProps> = ({ campaignId, onClose, onSave }) => {
+const CampaignGroupModal: React.FC<CampaignGroupModalProps> = ({ campaignId, institutionId, onClose, onSave }) => {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [saving, setSaving] = useState(false);
@@ -1722,6 +1727,7 @@ const CampaignGroupModal: React.FC<CampaignGroupModalProps> = ({ campaignId, onC
             const newGroup: CampaignGroup = {
                 id: `grp_${Date.now()}`,
                 campaignId,
+                institutionId,
                 name,
                 description,
                 createdAt: new Date().toISOString()
@@ -1776,11 +1782,12 @@ const CampaignGroupModal: React.FC<CampaignGroupModalProps> = ({ campaignId, onC
 interface CampaignVillageModalProps {
     campaignId: string;
     wardName: string;
+    institutionId: string;
     onClose: () => void;
     onSave: (village: CampaignVillage) => void;
 }
 
-const CampaignVillageModal: React.FC<CampaignVillageModalProps> = ({ campaignId, wardName, onClose, onSave }) => {
+const CampaignVillageModal: React.FC<CampaignVillageModalProps> = ({ campaignId, wardName, institutionId, onClose, onSave }) => {
     const [name, setName] = useState('');
     const [saving, setSaving] = useState(false);
 
@@ -1792,6 +1799,7 @@ const CampaignVillageModal: React.FC<CampaignVillageModalProps> = ({ campaignId,
                 id: `vil_${Date.now()}`,
                 campaignId,
                 wardName,
+                institutionId,
                 villageName: name,
                 createdAt: new Date().toISOString()
             };

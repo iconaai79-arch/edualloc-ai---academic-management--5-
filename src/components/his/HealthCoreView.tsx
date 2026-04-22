@@ -291,18 +291,24 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                 <div className="flex bg-slate-100/50 dark:bg-white/5 p-1.5 rounded-2xl w-full overflow-x-auto scrollbar-hide border border-slate-200 dark:border-white/5 shadow-inner no-scrollbar">
                     <div className="flex gap-1.5 min-w-max text-white">
                         {[
-                            { id: 'general', label: 'Patient 360', icon: HeartIcon },
-                            { id: 'inpatient', label: 'Admissions', icon: BuildingOfficeIcon },
-                            { id: 'diagnostics', label: 'Diagnostics', icon: BeakerIcon },
-                            { id: 'dental', label: 'Dental Core', icon: ScissorsIcon },
-                            { id: 'eye', label: 'Ocular Hub', icon: EyeIcon },
-                            { id: 'billing', label: 'Revenue/SHA', icon: CreditCardIcon },
-                            { id: 'broadcaster', label: 'Communications', icon: BellIcon },
-                            { id: 'appointments', label: 'Scheduling', icon: CalendarIcon },
-                            { id: 'attendance', label: 'Presence', icon: ClockIcon },
-                            { id: 'config', label: 'Nexus', icon: SettingsIcon },
-                            { id: 'reports', label: 'Intelligence', icon: ChartBarIcon },
-                        ].map((mod) => (
+                            { id: 'general', label: 'Patient 360', icon: HeartIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                            { id: 'inpatient', label: 'Admissions', icon: BuildingOfficeIcon, categories: ['Hospital', 'Clinic', 'Healthcare'] },
+                            { id: 'diagnostics', label: 'Diagnostics', icon: BeakerIcon, categories: ['Hospital', 'Clinic', 'Healthcare'] },
+                            { id: 'dental', label: 'Dental Core', icon: ScissorsIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Healthcare'] },
+                            { id: 'eye', label: 'Ocular Hub', icon: EyeIcon, categories: ['Hospital', 'Clinic', 'Eye', 'Healthcare'] },
+                            { id: 'billing', label: 'Revenue/SHA', icon: CreditCardIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                            { id: 'broadcaster', label: 'Communications', icon: BellIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                            { id: 'appointments', label: 'Scheduling', icon: CalendarIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                            { id: 'attendance', label: 'Presence', icon: ClockIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                            { id: 'config', label: 'Nexus', icon: SettingsIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                            { id: 'reports', label: 'Intelligence', icon: ChartBarIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
+                        ]
+                        .filter(mod => {
+                            const cat = institutionData?.category || 'Hospital';
+                            // Exact match or contains
+                            return mod.categories.some(c => cat.includes(c));
+                        })
+                        .map((mod) => (
                             <button key={mod.id} onClick={() => setActiveModule(mod.id as HISModule)} className={`flex items-center gap-2.5 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeModule === mod.id ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-xl border border-slate-200 dark:border-slate-700/50 scale-105' : 'text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400'}`}>
                                 <mod.icon className="w-4 h-4" /> {mod.label}
                             </button>
@@ -336,7 +342,15 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
             <RegisterPatientModal isOpen={isRegisterModalOpen} onClose={() => setIsRegisterModalOpen(false)} onRegister={handleRegisterPatient} />
             <UpdateVitalsModal isOpen={isUpdateVitalsOpen} onClose={() => setIsUpdateVitalsOpen(false)} patientId={activePatientId || ''} patientName={activePatient?.fullName} onUpdate={handleUpdateVitals} />
             <AddWardModal isOpen={isAddWardOpen} onClose={() => setIsAddWardOpen(false)} onAdd={handleAddWard} />
-            <AddVisitModal isOpen={isAddVisitOpen} onClose={() => setIsAddVisitOpen(false)} patientName={activePatient?.fullName} onAdd={handleAddVisit} />
+            <AddVisitModal 
+                isOpen={isAddVisitOpen} 
+                onClose={() => setIsAddVisitOpen(false)} 
+                patientId={activePatientId || undefined}
+                patientName={activePatient?.fullName} 
+                patientGender={activePatient?.gender}
+                patientAge={activePatient?.dob ? (new Date().getFullYear() - new Date(activePatient.dob).getFullYear()) : 30}
+                onAdd={handleAddVisit} 
+            />
             <AddPrescriptionModal 
                 isOpen={isPrescriptionModalOpen} 
                 onClose={() => setIsPrescriptionModalOpen(false)} 

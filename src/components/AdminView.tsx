@@ -42,6 +42,9 @@ const AlumniManager = lazy(() => import('./AlumniManager').then(m => ({ default:
 const HospitalityManager = lazy(() => import('./HospitalityManager').then(m => ({ default: m.HospitalityManager })));
 const SchoolShowcaseManager = lazy(() => import('./SchoolShowcaseManager').then(m => ({ default: m.SchoolShowcaseManager })));
 const CampaignCommandView = lazy(() => import('./CampaignCommandView').then(m => ({ default: m.CampaignCommandView })));
+const AddCarListingModal = lazy(() => import('./modals/AddCarListingModal').then(m => ({ default: m.AddCarListingModal })));
+const AcademicConfigManager = lazy(() => import('./AcademicConfigManager').then(m => ({ default: m.AcademicConfigManager })));
+
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
@@ -378,10 +381,14 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station'>('dashboard');
 
-    const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'registry'>('wizard');
+    const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'registry' | 'subjects' | 'calendar'>('wizard');
     const [coursesSubTab, setCoursesSubTab] = useState<'registry' | 'calendar' | 'subjects' | 'settings'>('registry');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
     const [requestedSettingsTab, setRequestedSettingsTab] = useState<string | undefined>(undefined);
+    const [isSecurityAlertModalOpen, setIsSecurityAlertModalOpen] = useState(false);
+    const [isAddListingModalOpen, setIsAddListingModalOpen] = useState(false);
+    const [selectedListingForEdit, setSelectedListingForEdit] = useState<CarListing | null>(null);
+
     const [isPerspectiveModalOpen, setIsPerspectiveModalOpen] = useState(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [editingInstitution, setEditingInstitution] = useState<Institution | null>(null);
@@ -1517,14 +1524,17 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             ))}
                         </div>
 
-                        <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 p-12 flex flex-col items-center justify-center text-center shadow-xl">
+                    <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 p-12 flex flex-col items-center justify-center text-center shadow-xl">
                             <CarIcon className="w-20 h-20 text-indigo-600 mb-6 opacity-80" />
                             <h2 className="text-2xl font-black uppercase tracking-tighter mb-4 text-slate-800 dark:text-white">Inventory Management Hub</h2>
                             <p className="text-slate-500 max-w-lg mb-8 text-[13px] leading-relaxed">
                                 Manage your vehicle showroom, track booking requests for test drives, and oversee AI-powered vehicle appraisals. All automotive financial data is integrated directly into your institutional reports.
                             </p>
                             <button 
-                                onClick={props.onAddCarListing ? () => props.onAddCarListing?.({}) : undefined}
+                                onClick={() => { 
+                                    setSelectedListingForEdit(null); 
+                                    setIsAddListingModalOpen(true); 
+                                }}
                                 className="px-10 py-5 bg-slate-900 text-white rounded-[2rem] font-black uppercase tracking-widest text-[10px] shadow-2xl transition-all hover:bg-indigo-600 active:scale-95"
                             >
                                 <PlusIcon className="w-4 h-4 mr-2 inline" /> Add New Vehicle Listing
@@ -1647,6 +1657,26 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     defaultPrices={companyDetails.subscriptionConfig}
                     counties={props.counties || []}
                 />
+            )}
+            {isAddListingModalOpen && (
+                <React.Suspense fallback={<div className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>}>
+                    <AddCarListingModal
+                        listing={selectedListingForEdit}
+                        institution={props.currentInstitution!}
+                        onClose={() => { setIsAddListingModalOpen(false); setSelectedListingForEdit(null); }}
+                        onSave={async (data) => {
+                            await apiService.saveModuleRecord('car_listings', {
+                                ...data,
+                                institutionId: props.currentInstitution!.id,
+                                id: data.id || `car_${Date.now()}`,
+                                createdAt: new Date().toISOString()
+                            });
+                            setIsAddListingModalOpen(false);
+                            setSelectedListingForEdit(null);
+                            if (props.onRefreshData) props.onRefreshData();
+                        }}
+                    />
+                </React.Suspense>
             )}
         </div>
     );

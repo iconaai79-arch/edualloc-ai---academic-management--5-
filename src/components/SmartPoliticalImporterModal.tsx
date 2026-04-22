@@ -13,6 +13,7 @@ import {
 export interface SmartPoliticalImporterModalProps {
     type: 'registry' | 'voters';
     campaignId?: string;
+    institutionId?: string;
     groupId?: string;
     onClose: () => void;
     onRefresh: () => void;
@@ -21,6 +22,7 @@ export interface SmartPoliticalImporterModalProps {
 export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalProps> = ({ 
     type, 
     campaignId, 
+    institutionId,
     groupId,
     onClose, 
     onRefresh 
@@ -242,6 +244,7 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
             votersToSave.push({
                 id: voterId,
                 campaignId: campaignId,
+                institutionId: institutionId,
                 voterName: row[mapping.voterName!] || 'Anonymous Voter',
                 phoneNumber: phoneNumber,
                 idNumber: String(row[mapping.idNumber!] || ''),
@@ -257,6 +260,7 @@ export const SmartPoliticalImporterModal: React.FC<SmartPoliticalImporterModalPr
                     groupId: groupId,
                     voterId: voterId,
                     campaignId: campaignId,
+                    institutionId: institutionId,
                     createdAt: new Date().toISOString()
                 });
             }

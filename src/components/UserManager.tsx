@@ -345,7 +345,8 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                     expertise: userMapping.expertise ? parseExpertise(String(row[userMapping.expertise!] || '')) : [],
                     gender: 'Male',
                     generatedStaffId: !userMapping.staffId,
-                    generatedEmail: generatedEmail
+                    generatedEmail: generatedEmail,
+                    createdAt: new Date().toISOString()
                 });
             } catch (e: any) {
                 invalidRows.push({ row, error: e.message });
@@ -874,6 +875,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const [requestingTimeOffFor, setRequestingTimeOffFor] = useState<User | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [institutionFilter, setInstitutionFilter] = useState('all');
+    const [timeFilter, setTimeFilter] = useState<'all' | '7d' | '90d'>('all');
     const [isSaving, setIsSaving] = useState(false);
     const [isPayModalOpen, setIsPayModalOpen] = useState(false);
     const [pendingStudentSave, setPendingStudentSave] = useState<any | null>(null);
@@ -981,6 +983,16 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             return u.role === 'student' || u.role === 'member' || u.role === 'church_member';
         });
 
+        if (timeFilter !== 'all') {
+            const now = new Date();
+            const days = timeFilter === '7d' ? 7 : 90;
+            const threshold = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+            list = list.filter(u => {
+                const created = u.createdAt ? new Date(u.createdAt) : null;
+                return created && created >= threshold;
+            });
+        }
+
         // For Retail Agency, we only show specific roles in Staff tab
         if (isRetailAgency && activeTab === 'staff') {
             const retailRoles: Role[] = ['admin', 'retail_agent', 'field_agent', 'store', 'security', 'info_desk', 'driver'];
@@ -1072,7 +1084,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             roles: activeTab === 'staff' ? roles : (activeTab === 'customer' ? (roles.length > 0 ? roles : ['customer']) : ['student']),
             institutionId: currentUser?.institutionId || '',
             expertise: [],
-            driverType: roles.includes('driver') ? driverType : undefined
+            driverType: roles.includes('driver') ? driverType : undefined,
+            createdAt: new Date().toISOString()
         };
 
         if (activeTab === 'staff') {
@@ -1429,6 +1442,38 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                 </div>
             </div>
 
+            {/* Time-Based Grouping Tabs (7d/90d) */}
+            <div className="flex items-center justify-between px-2">
+                <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1 rounded-[1.2rem] border border-slate-200/50 dark:border-slate-700/50 shadow-sm">
+                    {[
+                        { id: 'all', label: 'All Registered', icon: <UserGroupIcon className="w-3.5 h-3.5" /> },
+                        { id: '7d', label: 'Last 7 Days', icon: <ClockIcon className="w-3.5 h-3.5 text-indigo-500" /> },
+                        { id: '90d', label: 'Last 90 Days', icon: <CalendarDaysIcon className="w-3.5 h-3.5 text-emerald-500" /> }
+                    ].map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setTimeFilter(tab.id as any)}
+                            className={`flex items-center gap-2 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
+                                timeFilter === tab.id 
+                                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xl shadow-slate-200 dark:shadow-none' 
+                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            {tab.icon}
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+                {timeFilter !== 'all' && (
+                    <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800 animate-fade-in">
+                        <SparklesIcon className="w-4 h-4 text-indigo-600 animate-pulse" />
+                        <span className="text-[10px] font-bold text-indigo-800 dark:text-indigo-300 uppercase tracking-widest">
+                            Showing {filteredUsers.length} recent registrations
+                        </span>
+                    </div>
+                )}
+            </div>
+
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-4">
                 <div className="flex flex-col sm:flex-row gap-4 items-center">
                     <div className="flex-grow w-full relative">
@@ -1549,7 +1594,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                                         <PencilIcon className="w-3.5 h-3.5" />
                                                         Edit
                                                     </button>
-                                                    {u.role !== 'student' && onAddTimeOffRequest && !isCommunity && (
+                                                    {u.role !== 'student' && u.role !== 'member' && u.role !== 'church_member' && onAddTimeOffRequest && !isCommunity && !isChurch && (
                                                         <button
                                                             onClick={() => setRequestingTimeOffFor(u)}
                                                             className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300 rounded-md text-xs font-bold transition-all"

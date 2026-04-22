@@ -643,6 +643,44 @@ export const ModernPharmacyManager: React.FC<{
                         </div>
                     </div>
 
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div className="glass-morphism-dark rounded-[4rem] border border-indigo-500/10 p-12 relative overflow-hidden">
+                             <div className="absolute top-0 right-0 p-10 opacity-10">
+                                 <SparklesIcon className="w-24 h-24 text-indigo-400" />
+                             </div>
+                             <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-8">Bio-Logistic <span className="text-indigo-400">Forecasting</span></h3>
+                             <div className="space-y-6">
+                                 {inventory.slice(0, 3).map((item, idx) => (
+                                     <div key={item.id || idx} className="p-6 bg-indigo-500/5 rounded-[2.5rem] border border-indigo-500/10 flex justify-between items-center group hover:bg-indigo-500/10 transition-all">
+                                         <div>
+                                             <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">{item.category}</p>
+                                             <h4 className="text-sm font-black uppercase text-white italic">{item.name}</h4>
+                                         </div>
+                                         <div className="text-right">
+                                             <p className="text-[9px] font-black text-slate-500 uppercase">Stock-out ETA</p>
+                                             <p className="text-lg font-black text-rose-400 italic">~12 Days</p>
+                                         </div>
+                                     </div>
+                                 ))}
+                                 <button className="w-full py-4 border border-indigo-500/30 rounded-2xl text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all">
+                                     Generate AI Procurement Nodes
+                                 </button>
+                             </div>
+                        </div>
+
+                        <div className="glass-morphism-dark rounded-[4rem] border border-emerald-500/10 p-12 relative overflow-hidden">
+                             <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-8">Interaction <span className="text-emerald-400">Sentinel</span></h3>
+                             <div className="p-10 bg-emerald-500/5 rounded-[3rem] border border-emerald-500/10 text-center flex flex-col items-center justify-center min-h-[300px]">
+                                 <ShieldCheckIcon className="w-20 h-20 text-emerald-500/20 mb-6" />
+                                 <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Real-time prescription <br/>audit core active</p>
+                                 <div className="flex gap-2 mt-8">
+                                     <span className="px-3 py-1 bg-emerald-500/20 text-emerald-500 text-[8px] font-black uppercase rounded-full border border-emerald-500/30">LORENZ-V2 AUDIT</span>
+                                     <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 text-[8px] font-black uppercase rounded-full border border-emerald-500/30">ALLERGY CHECK</span>
+                                 </div>
+                             </div>
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
                         {/* Summary Lists/Charts Placeholder */}
                         <div className="md:col-span-2 glass-morphism-dark rounded-[4rem] border border-white/5 p-12 overflow-hidden relative">

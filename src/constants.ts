@@ -351,17 +351,17 @@ export const MODULES = [
   },
   {
     id: 'his',
-    title: "HealthFirst HIS",
-    description: "Advanced Health Information System for clinics and hospitals with integrated pharmacy.",
-    advantages: ["Patient Records", "Prescription Flow", "Pharmacy Inventory"],
+    title: "HealthCore Quantum",
+    description: "Medical intelligence platform unifying clinical care with AI-driven diagnostics, 3D ward twins, and automated SHA claims.",
+    advantages: ["AI Diagnostic Core", "3D Ward Mapping", "SHA/Insurance Hub"],
     role: 'his_admin',
     category: 'Healthcare',
     imageUrl: '/marketing/marketing_his_1776367229035.png',
     tutorial: {
-      overview: "Efficient hospital workflows from triage to pharmacy dispensing.",
+      overview: "Efficient hospital workflows from AI-triage to biometric ward management.",
       steps: [
-        { title: "Patient Records", description: "Secure, digital EHR for every patient.", image: "/marketing/healthcare_his_tutorial_ui_1776575426876.png" },
-        { title: "Facility Layout", description: "3D visualization of wards and clinics.", image: "/marketing/marketing_his_1776367229035.png" }
+        { title: "Digital Physician", description: "Gemini-powered differential diagnosis for clinicians.", image: "/marketing/healthcare_his_tutorial_ui_1776575426876.png" },
+        { title: "Dynamic Ward Twin", description: "Visual 3D mapping of bed occupancy and patient status.", image: "/marketing/marketing_his_1776367229035.png" }
       ]
     }
   },

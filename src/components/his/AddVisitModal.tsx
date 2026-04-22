@@ -4,15 +4,21 @@ import { SparklesIcon } from '../icons/SparklesIcon';
 import { UsersIcon } from '../icons/UsersIcon';
 import { BuildingOfficeIcon } from '../icons/BuildingOfficeIcon';
 import { CalendarIcon, ClockIcon } from './HealthIcons';
+import { DiagnosisSelector } from './DiagnosisSelector';
+import { suggestDiagnosis } from '../../services/geminiService';
+import { apiService } from '../../services/apiService';
 
 interface AddVisitModalProps {
     isOpen: boolean;
     onClose: () => void;
+    patientId?: string;
     patientName?: string;
+    patientAge?: number;
+    patientGender?: string;
     onAdd: (visitData: any) => Promise<void>;
 }
 
-export const AddVisitModal: React.FC<AddVisitModalProps> = ({ isOpen, onClose, patientName, onAdd }) => {
+export const AddVisitModal: React.FC<AddVisitModalProps> = ({ isOpen, onClose, patientId, patientName, patientAge, patientGender, onAdd }) => {
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
         time: new Date().toTimeString().split(' ')[0].substring(0, 5),
@@ -21,8 +27,41 @@ export const AddVisitModal: React.FC<AddVisitModalProps> = ({ isOpen, onClose, p
         provider: ''
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
 
     if (!isOpen) return null;
+
+    const handleAiDiagnose = async () => {
+        if (!patientId || !formData.event) {
+            alert("Please enter clinical notes first for AI analysis.");
+            return;
+        }
+        setIsAnalyzing(true);
+        try {
+            // Fetch latest vitals for context
+            const vitals = await apiService.fetchModuleRecords('his_vital_statistics', 'ALL', undefined, { 
+                filter: { patient_id: patientId }, 
+                limit: 5,
+                order: 'recorded_at.desc'
+            });
+
+            const result = await suggestDiagnosis({
+                fullName: patientName || 'Unknown',
+                age: patientAge || 30,
+                gender: patientGender || 'Other',
+                vitals: vitals || [],
+                notes: formData.event
+            });
+
+            setAiSuggestions(result.suggestions);
+            if (result.warning) alert(`⚠️ CLINICAL WARNING: ${result.warning}`);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -80,13 +119,48 @@ export const AddVisitModal: React.FC<AddVisitModalProps> = ({ isOpen, onClose, p
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
                             <SparklesIcon className="w-3 h-3" /> Clinical Event / Diagnosis
                         </label>
-                        <input 
-                            placeholder="REASON FOR VISIT, DIAGNOSIS OR PROCEDURE..."
-                            required
+                        <DiagnosisSelector 
                             value={formData.event}
-                            onChange={(e) => setFormData(prev => ({ ...prev, event: e.target.value }))}
-                            className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all dark:text-white"
+                            onChange={(val) => setFormData(prev => ({ ...prev, event: val }))}
+                            placeholder="SEARCH BY ICD CODE OR DIAGNOSIS..."
                         />
+                        <div className="flex justify-between items-center px-1">
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Powered by Quantum AI Physician</p>
+                            <button 
+                                type="button"
+                                onClick={handleAiDiagnose}
+                                disabled={isAnalyzing}
+                                className="flex items-center gap-2 text-[9px] font-black text-indigo-500 uppercase tracking-widest hover:text-indigo-600 transition-all disabled:opacity-50"
+                            >
+                                <SparklesIcon className={`w-3 h-3 ${isAnalyzing ? 'animate-spin' : ''}`} /> 
+                                {isAnalyzing ? 'SYNCHRONIZING SYMPTOMS...' : 'AI SUGGEST DIAGNOSIS'}
+                            </button>
+                        </div>
+
+                        {aiSuggestions.length > 0 && (
+                            <div className="bg-indigo-50 dark:bg-indigo-950/20 rounded-3xl p-6 border border-indigo-100 dark:border-indigo-900/50 space-y-4 animate-in fade-in slide-in-from-top-4">
+                                <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                                    <SparklesIcon className="w-3 h-3" /> Clinical Suggestions
+                                </p>
+                                <div className="grid grid-cols-1 gap-3">
+                                    {aiSuggestions.map((s, i) => (
+                                        <button 
+                                            key={i}
+                                            type="button"
+                                            onClick={() => setFormData(prev => ({ ...prev, event: `${s.code} - ${s.diagnosis}` }))}
+                                            className="w-full text-left p-4 bg-white dark:bg-white/5 rounded-2xl border border-indigo-100/50 dark:border-indigo-900/30 hover:border-indigo-500 transition-all group"
+                                        >
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className="text-[10px] font-black text-indigo-600">{s.code}</span>
+                                                <span className="text-[8px] font-black text-emerald-500">{s.confidence}% Match</span>
+                                            </div>
+                                            <p className="text-[10px] font-bold text-slate-600 dark:text-white uppercase">{s.diagnosis}</p>
+                                            <p className="text-[8px] font-medium text-slate-400 mt-1 italic">"{s.reasoning}"</p>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-6">

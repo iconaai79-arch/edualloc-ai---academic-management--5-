@@ -18,14 +18,22 @@ interface InpatientViewProps {
 export const InpatientView: React.FC<InpatientViewProps> = ({ institutionId, onAddWard, refreshTrigger }) => {
     const [selectedWard, setSelectedWard] = useState<any | null>(null);
     const [wards, setWards] = useState<any[]>([]);
+    const [inpatientRecords, setInpatientRecords] = useState<any[]>([]);
+    const [patients, setPatients] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     const fetchWards = React.useCallback(async () => {
         if (!institutionId) return;
         setIsLoading(true);
         try {
-            const data = await apiService.fetchModuleRecords('his_wards', institutionId);
-            setWards(data || []);
+            const [wardsData, recordsData, patientsData] = await Promise.all([
+                apiService.fetchModuleRecords('his_wards', institutionId),
+                apiService.fetchModuleRecords('his_inpatient_records', institutionId),
+                apiService.fetchModuleRecords('his_patients', institutionId)
+            ]);
+            setWards(wardsData || []);
+            setInpatientRecords(recordsData || []);
+            setPatients(patientsData || []);
         } catch (error) {
             console.error("Failed to fetch wards:", error);
         } finally {
@@ -124,22 +132,39 @@ export const InpatientView: React.FC<InpatientViewProps> = ({ institutionId, onA
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-8 gap-4">
-                        {Array.from({ length: selectedWard.beds }).map((_, i) => {
-                            const isOccupied = i < selectedWard.occupied;
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                        {Array.from({ length: selectedWard.capacity || 0 }).map((_, i) => {
+                            const bedNumber = (i + 1).toString();
+                            const record = inpatientRecords.find(r => r.wardId === selectedWard.id && String(r.bedNumber) === bedNumber && r.status === 'Admitted');
+                            const patient = record ? patients.find(p => p.id === record.patientId) : null;
+                            const isOccupied = !!record;
+
                             return (
                                 <div 
                                     key={i}
-                                    className={`aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all cursor-pointer group ${
+                                    className={`p-6 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 border transition-all cursor-pointer group relative overflow-hidden ${
                                         isOccupied 
-                                        ? 'bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20' 
-                                        : 'bg-white/5 border-white/5 hover:border-white/20'
+                                        ? 'bg-indigo-600 text-white border-indigo-500 shadow-xl shadow-indigo-500/20' 
+                                        : 'bg-white dark:bg-white/5 border-slate-100 dark:border-white/5 hover:border-emerald-500/50'
                                     }`}
                                 >
-                                    <BedIcon className={`w-6 h-6 ${isOccupied ? 'text-emerald-400' : 'text-slate-600 group-hover:text-slate-400'}`} />
-                                    <span className={`text-[10px] font-black ${isOccupied ? 'text-white' : 'text-slate-500'}`}>
-                                        BED {String(i + 1).padStart(2, '0')}
-                                    </span>
+                                    {isOccupied && (
+                                        <div className="absolute top-2 right-2 flex gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                        </div>
+                                    )}
+                                    <div className={`p-4 rounded-2xl ${isOccupied ? 'bg-white/10' : 'bg-slate-50 dark:bg-white/5'}`}>
+                                        <BedIcon className={`w-8 h-8 ${isOccupied ? 'text-white' : 'text-slate-400'}`} />
+                                    </div>
+                                    <div className="text-center">
+                                        <p className={`text-[9px] font-black uppercase tracking-widest ${isOccupied ? 'text-indigo-200' : 'text-slate-400'}`}>BED {bedNumber.padStart(2, '0')}</p>
+                                        <h4 className={`text-[11px] font-black uppercase tracking-tight mt-1 truncate max-w-[120px] ${isOccupied ? 'text-white' : 'text-slate-300'}`}>
+                                            {isOccupied ? patient?.fullName : 'VACANT'}
+                                        </h4>
+                                        {isOccupied && (
+                                            <p className="text-[8px] font-bold text-indigo-200 mt-1 uppercase">Since {new Date(record.admissionDate).toLocaleDateString()}</p>
+                                        )}
+                                    </div>
                                 </div>
                             );
                         })}

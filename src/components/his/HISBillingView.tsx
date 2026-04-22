@@ -10,6 +10,7 @@ import { MpesaIcon } from '../icons/MpesaIcon';
 import { ShieldIcon } from '../icons/ShieldIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { ChartBarIcon } from '../icons/ChartBarIcon';
+import { ClaimsManager } from './ClaimsManager';
 
 interface Claim {
     id: string;
@@ -85,55 +86,9 @@ export const HISBillingView: React.FC<{ institutionId?: string }> = ({ instituti
                  ))}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {/* Claims Monitoring Board */}
-                <div className="md:col-span-2 glass-morphism rounded-[3.5rem] border border-white/5 overflow-hidden">
-                    <div className="p-10 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
-                        <h3 className="text-xl font-black uppercase tracking-tighter">Claims <span className="text-rose-400">Monitoring</span></h3>
-                        <div className="flex gap-3">
-                             <button className="text-[9px] font-black px-4 py-2 bg-rose-500/10 text-rose-400 rounded-full border border-rose-400/20 uppercase tracking-widest">SHA Integration Active</button>
-                        </div>
-                    </div>
-                    
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead className="bg-white/5">
-                                <tr>
-                                    <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Beneficiary</th>
-                                    <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Payer</th>
-                                    <th className="px-6 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Amount</th>
-                                    <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 text-right">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/5">
-                                {MOCK_CLAIMS.map((claim, idx) => (
-                                    <tr key={idx} className="hover:bg-white/[0.02] transition-colors group cursor-pointer">
-                                        <td className="px-10 py-8">
-                                            <p className="text-sm font-black text-white">{claim.patient}</p>
-                                            {claim.shaId && <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest mt-1">ID: {claim.shaId}</p>}
-                                        </td>
-                                        <td className="px-6 py-8">
-                                            <span className="text-xs font-bold text-slate-300">{claim.provider}</span>
-                                        </td>
-                                        <td className="px-6 py-8 text-sm font-black">
-                                            KES {claim.amount.toLocaleString()}
-                                        </td>
-                                        <td className="px-10 py-8 text-right">
-                                            <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                                                claim.status === 'Approved' ? 'bg-emerald-500/20 text-emerald-400' :
-                                                claim.status === 'Paid' ? 'bg-blue-500/20 text-blue-400' :
-                                                claim.status === 'Queried' ? 'bg-rose-500/20 text-rose-400' :
-                                                'bg-white/5 text-slate-400'
-                                            }`}>
-                                                {claim.status}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+            <div className="grid grid-cols-1 gap-8">
+                <ClaimsManager institutionId={institutionId} />
+            </div>
 
                 {/* Instant Invoicing / M-Pesa Integration Point */}
                 <div className="space-y-8">
@@ -197,6 +152,5 @@ export const HISBillingView: React.FC<{ institutionId?: string }> = ({ instituti
                     </div>
                 </div>
             </div>
-        </div>
     );
 };

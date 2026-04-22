@@ -187,6 +187,7 @@ export interface User {
     subscriptionExpiry?: string;
     walletBalance?: number;
     loyaltyPoints?: number;
+    createdAt?: string;
 }
 
 export interface GradeDefinition {
@@ -273,6 +274,47 @@ export interface Ward {
     createdAt?: string;
 }
 
+export interface HISPatient {
+    id: string;
+    fullName: string;
+    dob?: string;
+    gender: 'Male' | 'Female' | 'Other';
+    contact?: string;
+    address?: string;
+    bloodGroup?: string;
+    shaNumber?: string;
+    insuranceProvider?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+    allergies?: string;
+    chronicConditions?: string;
+    institutionId: string;
+    createdAt?: string;
+}
+
+export interface ICDCode {
+    id: string;
+    code: string;
+    description: string;
+    category?: string;
+    version?: string;
+    createdAt?: string;
+}
+
+export interface HISClaim {
+    id: string;
+    institutionId: string;
+    patientId: string;
+    visitId?: string;
+    icdCode: string;
+    serviceType: string;
+    amount: number;
+    status: 'Pending' | 'Submitted' | 'Approved' | 'Rejected' | 'Paid';
+    claimNumber: string;
+    shaResponseCode?: string;
+    createdAt: string;
+}
+
 export interface CoopSettings {
     payoutRate?: number;
     milkPrice?: number;
@@ -289,8 +331,9 @@ export interface Institution {
     name: string;
     email: string;
     phoneNumber: string;
-    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist' | 'Political Campaign';
+    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist' | 'Political Campaign' | 'Fuel Station' | 'Retail' | 'Security' | 'Transport';
     category?: string;
+    createdAt?: string;
     businessSubType?: string; // Legacy field, eventually merge with category
     slug?: string;
     status: 'active' | 'trial' | 'suspended';

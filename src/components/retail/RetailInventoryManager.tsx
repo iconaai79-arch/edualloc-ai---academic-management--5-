@@ -139,31 +139,25 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
         }
     };
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         setIsUploading(true);
         try {
-            const timestamp = Date.now();
-            const ext = file.name.split('.').pop() || 'png';
-            const path = `retail/${institutionId}/products/${timestamp}.${ext}`;
+            const folderName = 'Retail_Inventory';
+            const res = await apiService.uploadToGoogleDrive(file, folderName, { 
+                institutionId 
+            });
 
-            const publicUrl = await apiService.uploadFile('eduai', path, file);
-
-            if (publicUrl) {
-                // Background Mirroring to Google Drive
-                try {
-                    await apiService.uploadToGoogleDrive(file, 'Retail_Inventory', { institutionId });
-                } catch (err) {
-                    console.log("Cloud mirror failed:", err);
-                }
-
-                setFormData(prev => ({ ...prev, imageUrl: publicUrl }));
+            if (res.success && res.fileUrl) {
+                setFormData(prev => ({ ...prev, imageUrl: res.fileUrl }));
+            } else {
+                throw new Error(res.error || 'Upload failed');
             }
-        } catch (error) {
-            console.error("Upload error:", error);
-            alert("Failed to upload image");
+        } catch (error: any) {
+            console.error('Upload Error:', error);
+            alert("Failed to upload image: " + error.message);
         } finally {
             setIsUploading(false);
         }

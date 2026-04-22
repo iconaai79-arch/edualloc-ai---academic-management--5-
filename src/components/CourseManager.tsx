@@ -321,6 +321,7 @@ interface CourseManagerProps {
     allTimetableEntries?: TimetableEntry[];
     onSaveTimetableSettings?: (settings: TimetableSettings) => void;
     onLogAction?: (action: string) => Promise<void>;
+    buildings?: Building[];
 }
 
 export const CourseManager: React.FC<CourseManagerProps> = ({

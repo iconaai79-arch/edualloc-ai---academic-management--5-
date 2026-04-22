@@ -29,6 +29,7 @@ interface VehicleMarketplaceViewProps {
     listings: CarListing[];
     onBookTestDrive: (listing: CarListing) => void;
     onInquiry: (listing: CarListing) => void;
+    onEditListing?: (listing: CarListing) => void;
     currentInstitution: any;
 }
 
@@ -36,6 +37,7 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
     listings, 
     onBookTestDrive, 
     onInquiry,
+    onEditListing,
     currentInstitution 
 }) => {
     const [selectedCategory, setSelectedCategory] = useState('All');
@@ -163,6 +165,14 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                                 {vehicle.make} <br />
                                 <span className="text-indigo-600 italic">{vehicle.model}</span>
                             </h1>
+                            {onEditListing && (
+                                <button
+                                    onClick={() => onEditListing(vehicle)}
+                                    className="mb-6 px-6 py-3 bg-slate-900 text-white rounded-2xl font-black uppercase text-[9px] tracking-widest shadow-xl flex items-center gap-2 hover:bg-slate-800 transition-all active:scale-95"
+                                >
+                                    <Settings2 className="w-3.5 h-3.5" /> Edit This Listing
+                                </button>
+                            )}
                             <div className="flex gap-6 items-center">
                                 <div className="text-4xl font-black text-slate-900 leading-none">
                                     KES {vehicle.price.toLocaleString()}

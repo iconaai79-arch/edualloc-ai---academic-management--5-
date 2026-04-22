@@ -1464,26 +1464,28 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({
         }
 
         for (const file of files) {
-            if (file.size > 2 * 1024 * 1024) {
-                alert(`File ${file.name} is larger than 2MB.`);
+            if (file.size > 5 * 1024 * 1024) { // Increased to 5MB for high quality property photos
+                alert(`File ${file.name} is larger than 5MB.`);
                 continue;
             }
 
             try {
-                const timestamp = Date.now();
-                const ext = file.name.split('.').pop() || 'jpg';
-                const path = `marketplace/${institutionId}/listings/${timestamp}_${Math.random().toString(36).substring(7)}.${ext}`;
+                const folderName = `Property_Marketplace_${currentInstitution.name.replace(/\s+/g, '_')}`;
+                const res = await apiService.uploadToGoogleDrive(file, folderName, { 
+                    institutionId 
+                });
 
-                const publicUrl = await apiService.uploadFile('eduai', path, file);
-                if (publicUrl) {
+                if (res.success && res.fileUrl) {
                     setNewListingImages(prev => {
-                        const next = [...prev, publicUrl];
+                        const next = [...prev, res.fileUrl!];
                         return next.slice(0, 5);
                     });
+                } else {
+                    throw new Error(res.error || 'Upload failed');
                 }
-            } catch (err) {
+            } catch (err: any) {
                 console.error("Marketplace image upload error:", err);
-                alert(`Failed to upload ${file.name}`);
+                alert(`Failed to upload ${file.name}: ${err.message}`);
             }
         }
     };

@@ -1589,6 +1589,8 @@ export const App: React.FC = () => {
                 slug: `sim-${modId}-${Date.now()}`,
                 moduleStates: [
                     {
+                        id: `ms_${Date.now()}`,
+                        institutionId: instId,
                         moduleId: modId,
                         status: 'active',
                         subscriptionEndsAt: new Date(Date.now() + 86400000 * 365).toISOString()
@@ -5053,9 +5055,17 @@ export const App: React.FC = () => {
                         handleLogout();
                         setImpersonatedRole(null);
                         setShowGuestFeedback(false);
+                        setShowGuestPortal(false);
                         setShowMarketplace(false);
                         setShowCommunityHub(false);
-                        setShowMarketing(true);
+                        setShowTransportHub(false);
+                        setShowTenantStore(false);
+                        setActiveStoreTenantId(null);
+                        setShowAlumnaeRegister(false);
+                        setShowAlumnaeActivation(false);
+                        setShowPrivacyPolicy(false);
+                        setShowTermsOfService(false);
+                        setShowMarketing(false);
                         // Force clear search params if in a public view to ensure we return to home/login
                         if (window.location.search) {
                             window.history.pushState({}, '', '/');

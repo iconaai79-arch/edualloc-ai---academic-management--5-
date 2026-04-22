@@ -664,8 +664,75 @@ export const analyzeVoterSpreadsheet = async (headers: string[]): Promise<Record
         const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
         const aiMapping = sanitizeAndParseJson(response.text || "{}");
         return { ...defaultMapping, ...aiMapping };
+    }
+};
+
+export const analyzeIcdSpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
+    const defaultMapping = {
+        code: null,
+        description: null,
+        category: null,
+        version: null
+    };
+
+    try {
+        checkAiAvailable();
+        const prompt = `
+            Act as a Medical Data Integrator. Map these headers to ICD (International Classification of Diseases) fields:
+            - code: The alphanumeric diagnosis code (e.g., A00.0, Z01.1)
+            - description: The full clinical description of the diagnosis
+            - category: The broad chapter or category group (e.g., Infectious diseases)
+            - version: The version system (e.g., ICD-10, ICD-11)
+            
+            Spreadsheet Headers: ${JSON.stringify(headers)}
+            
+            Return ONLY a JSON object mapping these 4 fields to the original headers. Use null if not found.
+        `;
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
+        const aiMapping = sanitizeAndParseJson(response.text || "{}");
+        return { ...defaultMapping, ...aiMapping };
     } catch (error) {
-        console.error("AI voter map error:", error);
+        console.error("AI ICD map error:", error);
         return defaultMapping;
     }
 };
+
+export async function suggestDiagnosis(patientData: {
+    fullName: string,
+    age: number,
+    gender: string,
+    vitals: any[],
+    notes: string,
+    history?: { allergies?: string, chronic?: string }
+}): Promise<{
+    suggestions: Array<{ code: string, diagnosis: string, confidence: number, reasoning: string }>,
+    warning?: string
+}> {
+    try {
+        checkAiAvailable();
+        const prompt = `
+            Act as a Senior Clinical Diagnostic Assistant. Analyze this patient data:
+            - Patient: ${patientData.fullName} (${patientData.age}y, ${patientData.gender})
+            - Vitals: ${JSON.stringify(patientData.vitals)}
+            - Clinical Notes: ${patientData.notes}
+            - History: ${patientData.history?.chronic || 'None'} ${patientData.history?.allergies ? `(Allergies: ${patientData.history.allergies})` : ''}
+            
+            Provide a list of 3 potential ICD-10 diagnoses (Differential Diagnoses).
+            For each, provide:
+            1. code: The ICD-10 alphanumeric code
+            2. diagnosis: The standard medical name
+            3. confidence: A percentage (0-100) based on signals
+            4. reasoning: A short sentence explaining why.
+            
+            Also, if you detect any life-threatening signals or potential drug-allergy interactions, include a 'warning' field.
+            
+            Return ONLY a valid JSON object in this format:
+            { "suggestions": [...], "warning": "string | undefined" }
+        `;
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
+        return sanitizeAndParseJson(response.text || '{"suggestions":[]}');
+    } catch (error) {
+        console.error("AI Diagnosis Error:", error);
+        return { suggestions: [] };
+    }
+}

@@ -61,16 +61,16 @@ export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ sc
         }
     };
 
-    const handleFileUploadToCpanel = async (file: File, type: 'gallery' | 'ads') => {
-        if (!formData.showcaseCpanelUrl || !formData.showcaseCpanelToken) {
-            alert("cPanel remote storage not configured. Please visit the 'Configuration' tab.");
-            return;
-        }
-
+    const handleFileUpload = async (file: File, type: 'gallery' | 'ads') => {
         setIsSaving(true);
         try {
-            const uploadedUrl = await apiService.uploadToShowcaseCpanel(file, formData.showcaseCpanelUrl, formData.showcaseCpanelToken);
-            if (uploadedUrl) {
+            const folderName = `Showcase_${school.name.replace(/\s+/g, '_')}`;
+            const res = await apiService.uploadToGoogleDrive(file, folderName, { 
+                institutionId: school.id 
+            });
+            
+            if (res.success && res.fileUrl) {
+                const uploadedUrl = res.fileUrl;
                 if (type === 'gallery') {
                     const newEntry: Omit<SchoolGallery, 'id' | 'createdAt'> = {
                         institutionId: school.id,
@@ -98,6 +98,8 @@ export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ sc
                 ]);
                 setGallery(updatedGallery);
                 setAds(updatedAds);
+            } else {
+                throw new Error(res.error || 'Upload failed');
             }
         } catch (error: any) {
             alert(`Upload failure: ${error.message}`);
@@ -218,7 +220,7 @@ export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ sc
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Uploaded direct to cPanel showcasing event highlights</p>
                             </div>
                             <label className="cursor-pointer">
-                                <input type="file" className="hidden" accept="image/*" onChange={e => e.target.files?.[0] && handleFileUploadToCpanel(e.target.files[0], 'gallery')} />
+                                <input type="file" className="hidden" accept="image/*" onChange={e => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'gallery')} />
                                 <div className="px-8 py-4 bg-indigo-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg flex items-center gap-2 hover:bg-indigo-700 transition-colors">
                                     <PlusIcon className="w-4 h-4" />
                                     Upload Photo
@@ -260,7 +262,7 @@ export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ sc
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Manage active recruitment and event banners</p>
                             </div>
                             <label className="cursor-pointer">
-                                <input type="file" className="hidden" accept="image/*" onChange={e => e.target.files?.[0] && handleFileUploadToCpanel(e.target.files[0], 'ads')} />
+                                <input type="file" className="hidden" accept="image/*" onChange={e => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'ads')} />
                                 <div className="px-8 py-4 bg-emerald-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg flex items-center gap-2 hover:bg-emerald-700 transition-colors">
                                     <PlusIcon className="w-4 h-4" />
                                     Post Ad
