@@ -34,6 +34,8 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
     const [isVoterModalOpen, setIsVoterModalOpen] = useState(false);
     const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
     const [isVillageModalOpen, setIsVillageModalOpen] = useState(false);
+    const [pulseInsights, setPulseInsights] = useState<string>('');
+    const [analyzingPulse, setAnalyzingPulse] = useState(false);
     
     // Core Data
     const [staff, setStaff] = useState<User[]>([]);
@@ -130,6 +132,34 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
             alert(e.message || "Error generating manifesto.");
         } finally {
             setGeneratingManifesto(false);
+        }
+    };
+
+    const generatePulseInsights = async () => {
+        if (!profile) return;
+        setAnalyzingPulse(true);
+        try {
+            const prompt = `Perform a strategic AI Pulse analysis for ${profile.candidateName} (${profile.position}).
+            Campaign Context:
+            - Party: ${profile.partyName}
+            - Region: ${profile.constituencyWard}
+            - Current Reach: ${stats.totalReached} voters
+            - Supporter Count: ${stats.supporters}
+            - Upcoming Events: ${stats.upcomingEvents}
+            
+            Provide 3 key strategic insights:
+            1. Sentiment Analysis based on current reach.
+            2. Demographic focus recommendation.
+            3. A "Win Strategy" tip for the next 30 days.
+            
+            Format as a professional political report with clear headings.`;
+            
+            const response = await generateAIContent(prompt);
+            setPulseInsights(response);
+        } catch (e: any) {
+            console.error(e);
+        } finally {
+            setAnalyzingPulse(false);
         }
     };
 
@@ -375,6 +405,183 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                     <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest bg-white/10 p-4 rounded-2xl">
                                         <ShieldCheckIcon className="w-5 h-5 text-emerald-400" /> Align with local ward needs
                                     </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* AI Pulse Intelligence View */}
+            {activeTab === 'ai_pulse' && (
+                <div className="space-y-8 animate-fade-in-up">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-[3rem] p-10 shadow-xl border border-slate-100 dark:border-slate-800 relative overflow-hidden">
+                            <div className="flex justify-between items-center mb-12">
+                                <div>
+                                    <h3 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
+                                        <SparklesIcon className="w-8 h-8 text-indigo-600 animate-pulse" />
+                                        Campaign AI Pulse
+                                    </h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 ml-11">Real-time Campaign Intelligence & Sentiment</p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <div className="bg-emerald-500/10 text-emerald-500 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-emerald-500/20">System Optimal</div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="space-y-6">
+                                    <h4 className="text-[10px] font-black uppercase text-indigo-600 tracking-[0.2em]">Strategic Sentiment Analysis</h4>
+                                    <div className="space-y-4">
+                                        {[
+                                            { label: 'Youth Engagement', val: 78, color: 'bg-indigo-500' },
+                                            { label: 'Ward Penetration', val: 45, color: 'bg-emerald-500' },
+                                            { label: 'Sentiment Index', val: 82, color: 'bg-amber-500' },
+                                            { label: 'Supporter Loyalty', val: 91, color: 'bg-red-500' }
+                                        ].map(s => (
+                                            <div key={s.label} className="space-y-2">
+                                                <div className="flex justify-between items-end">
+                                                    <span className="text-[10px] font-black uppercase text-slate-500">{s.label}</span>
+                                                    <span className="text-sm font-black text-slate-900 dark:text-white">{s.val}%</span>
+                                                </div>
+                                                <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                    <div className={`h-full ${s.color} rounded-full transition-all duration-1000`} style={{ width: `${s.val}%` }}></div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="p-8 bg-slate-50 dark:bg-slate-800/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 h-full overflow-y-auto no-scrollbar">
+                                    <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-6">AI Strategic Intelligence</h4>
+                                    {pulseInsights ? (
+                                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                                            <div className="text-[11px] font-medium text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-wrap">
+                                                {pulseInsights}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-6">
+                                            <div className="flex gap-4">
+                                                <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center shrink-0">
+                                                    <ChartBarIcon className="w-4 h-4 text-indigo-600" />
+                                                </div>
+                                                <p className="text-xs font-medium text-slate-600 dark:text-slate-400 leading-relaxed">
+                                                    Based on current data, your strongest support base is within the <span className="font-bold text-indigo-600">24-35 demographic</span>. 
+                                                </p>
+                                            </div>
+                                            <div className="flex gap-4">
+                                                <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center shrink-0">
+                                                    <MapPinIcon className="w-4 h-4 text-emerald-600" />
+                                                </div>
+                                                <p className="text-xs font-medium text-slate-600 dark:text-slate-400 leading-relaxed">
+                                                    High rally potential detected in <span className="font-bold text-emerald-600">Central Ward</span>. Recommend a Town Hall session.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-8">
+                            <div className="bg-indigo-600 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl"></div>
+                                <h4 className="text-lg font-black uppercase tracking-tighter mb-4 relative z-10">AI Recommendations</h4>
+                                <div className="space-y-4 relative z-10">
+                                    <div className="p-4 bg-white/10 rounded-2xl border border-white/10 backdrop-blur-sm">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.1em] text-indigo-200 mb-1">Target Action</p>
+                                        <p className="text-xs font-bold leading-relaxed italic">"Double down on transparency agendas to bridge the undecided gap in urban constituencies."</p>
+                                    </div>
+                                    <div className="p-4 bg-white/10 rounded-2xl border border-white/10 backdrop-blur-sm">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.1em] text-indigo-200 mb-1">Mobilization</p>
+                                        <p className="text-xs font-bold leading-relaxed italic">"Deploy Lead Scouts to high-density markets in the evening for maximum reach."</p>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={generatePulseInsights}
+                                    disabled={analyzingPulse}
+                                    className="w-full mt-6 py-4 bg-white text-indigo-600 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    {analyzingPulse ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <SparklesIcon className="w-4 h-4" />}
+                                    {analyzingPulse ? 'Deep Intelligence Scan...' : 'Generate New Analysis'}
+                                </button>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-xl border border-slate-100 dark:border-slate-800">
+                                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-6">Live Pulse Monitor</h4>
+                                <div className="flex items-center justify-center py-10">
+                                    <div className="relative">
+                                        <div className="w-24 h-24 bg-indigo-500/20 rounded-full animate-ping absolute inset-0"></div>
+                                        <div className="w-24 h-24 bg-indigo-500 rounded-full flex items-center justify-center relative z-10 shadow-xl shadow-indigo-500/50">
+                                            <SparklesIcon className="w-10 h-10 text-white" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-[10px] font-black text-center uppercase tracking-widest text-slate-400">Monitoring Voter Frequency...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Branding & Asset Management View */}
+            {activeTab === 'branding' && profile && (
+                <div className="space-y-8 animate-fade-in-up">
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-10 shadow-xl border border-slate-100 dark:border-slate-800">
+                        <div className="flex justify-between items-center mb-12">
+                            <div>
+                                <h3 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
+                                    <PhotoIcon className="w-8 h-8 text-indigo-600" />
+                                    Campaign Branding
+                                </h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 ml-11">Manage your visual identity and campaign posters</p>
+                            </div>
+                            <div className="flex gap-4">
+                                <div className={`px-6 py-3 rounded-2xl border font-black text-[10px] uppercase tracking-widest flex items-center gap-2 ${profile.brandingStatus === 'active' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-orange-50 border-orange-200 text-orange-600'}`}>
+                                    {profile.brandingStatus === 'active' ? <ShieldCheckIcon className="w-4 h-4" /> : <ArrowPathIcon className="w-4 h-4" />}
+                                    Status: {profile.brandingStatus}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                            {/* Profile Picture */}
+                            <div className="space-y-6">
+                                <h4 className="text-[10px] font-black uppercase text-indigo-600 tracking-[0.2em]">Candidate Official Portrait</h4>
+                                <div className="aspect-square rounded-[3rem] bg-slate-50 dark:bg-slate-800 border-4 border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden relative group">
+                                    {profile.profilePicture ? (
+                                        <img src={profile.profilePicture} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="Candidate" />
+                                    ) : (
+                                        <div className="text-center p-8">
+                                            <CameraIcon className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">No Portrait Uploaded</p>
+                                        </div>
+                                    )}
+                                    <button className="absolute bottom-6 right-6 p-4 bg-indigo-600 text-white rounded-2xl shadow-xl opacity-0 group-hover:opacity-100 transition-all hover:scale-110">
+                                        <PlusIcon className="w-6 h-6" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Campaign Posters */}
+                            <div className="space-y-6">
+                                <h4 className="text-[10px] font-black uppercase text-indigo-600 tracking-[0.2em]">Campaign Posters & Banners</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {(profile.campaignPosters || []).map((poster, i) => (
+                                        <div key={i} className="aspect-[3/4] rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden relative group">
+                                            <img src={poster} className="w-full h-full object-cover" alt="Poster" />
+                                            <button className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all">
+                                                <XIcon className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <button className="aspect-[3/4] rounded-2xl bg-slate-50 dark:bg-slate-800 border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-3 hover:bg-slate-100 transition-all group">
+                                        <div className="w-10 h-10 rounded-full bg-white dark:bg-slate-900 flex items-center justify-center text-slate-400 group-hover:text-indigo-600 shadow-sm transition-colors">
+                                            <PlusIcon className="w-6 h-6" />
+                                        </div>
+                                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Add Poster</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
