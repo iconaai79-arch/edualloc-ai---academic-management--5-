@@ -32,9 +32,10 @@ interface AlumnaeRegistrationViewProps {
     onCheckAdmission?: (admNo: string, schoolId: string) => Promise<{ exists: boolean; message?: string }>;
     onInitiatePayment?: (amount: number, phone: string, reference: string) => Promise<{ success: boolean; transactionId?: string; message?: string }>;
     joiningFee?: number;
+    feeEnabled?: boolean;
 }
 
-export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = ({ registry, initialSchool, onComplete, onBackToPortal, onCheckAdmission, onInitiatePayment, joiningFee = 0 }) => {
+export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = ({ registry, initialSchool, onComplete, onBackToPortal, onCheckAdmission, onInitiatePayment, joiningFee = 0, feeEnabled = true }) => {
     const [step, setStep] = useState(initialSchool ? 2 : 1);
     const [searchTerm, setSearchTerm] = useState(initialSchool?.name || '');
     const [selectedSchool, setSelectedSchool] = useState<SchoolRegistry | null>(initialSchool || null);
@@ -103,6 +104,10 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
     };
 
     const handlePayment = async () => {
+        if (!feeEnabled || joiningFee <= 0) {
+            handleFinalize();
+            return;
+        }
         if (!onInitiatePayment) return;
         setPaymentStatus('pending');
         setPaymentMessage('Waiting for M-Pesa Prompt...');

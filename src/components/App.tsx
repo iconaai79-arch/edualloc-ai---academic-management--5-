@@ -4888,6 +4888,7 @@ export const App: React.FC = () => {
                                     window.location.href = '/?view=community';
                                 }}
                                 joiningFee={companyDetails?.alumnaeJoiningFee || 0}
+                                feeEnabled={companyDetails?.portalSettings?.alumnaeRegistrationFeeEnabled !== false}
                                 onInitiatePayment={async (amount, phone, reference) => {
                                     try {
                                         const res = await apiService.triggerMpesaStkPush({

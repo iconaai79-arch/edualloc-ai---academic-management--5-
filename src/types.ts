@@ -816,6 +816,7 @@ export interface CompanyDetails {
         showCommunityHub: boolean;
         showTransportHub: boolean;
         publicRegistrationEnabled: boolean;
+        alumnaeRegistrationFeeEnabled?: boolean;
     };
 }
 
