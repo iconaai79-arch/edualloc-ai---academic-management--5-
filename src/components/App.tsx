@@ -593,6 +593,8 @@ export const App: React.FC = () => {
         } catch (e) { return false; }
     });
 
+    const [showAlumnaeActivation, setShowAlumnaeActivation] = useState(false);
+
     const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(() => {
         try {
             const params = new URLSearchParams(window.location.search);
