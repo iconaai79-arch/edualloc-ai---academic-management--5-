@@ -106,8 +106,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
             price: Number(newItem.price),
             features: newItem.features.split(',').map(f => f.trim()),
             rating: 5.0,
-            reviews: 0,
-            available: true
+            isAvailable: true
         };
 
         await apiService.saveModuleRecord('hospitality_items', payload);
