@@ -4929,6 +4929,52 @@ export const App: React.FC = () => {
                                         delete (registrationPayload as any).profilePictureFile;
 
                                         await apiService.saveModuleRecord('alumnae_members', registrationPayload);
+                                        
+                                        // Generate Invoice and Receipt for the payment
+                                        if (data.paymentId && (companyDetails?.alumnaeJoiningFee || 0) > 0) {
+                                            const amount = companyDetails.alumnaeJoiningFee;
+                                            const invoiceId = `INV_AL_${Date.now()}`;
+                                            const receiptId = `REC_AL_${Date.now()}`;
+
+                                            const invoiceData = {
+                                                id: invoiceId,
+                                                invoiceNumber: `AL-INV-${generateAlphanumericCode(6)}`,
+                                                institutionId: school?.institutionId || 'GLOBAL',
+                                                studentId: registrationPayload.id,
+                                                items: [{ description: 'Alumnae Network Lifetime Service Fee', quantity: 1, unitPrice: amount, total: amount }],
+                                                totalAmount: amount,
+                                                status: 'paid',
+                                                date: new Date().toISOString(),
+                                                dueDate: new Date().toISOString()
+                                            };
+
+                                            const receiptData = {
+                                                id: receiptId,
+                                                receiptNumber: `AL-REC-${generateAlphanumericCode(6)}`,
+                                                invoiceId: invoiceId,
+                                                amountPaid: amount,
+                                                paymentDate: new Date().toISOString(),
+                                                paymentMethod: 'MPESA',
+                                                transactionId: data.paymentId,
+                                                paidBy: registrationPayload.fullName,
+                                                paidFor: 'Alumnae Activation Service Fee'
+                                            };
+
+                                            await Promise.all([
+                                                apiService.saveModuleRecord('invoices', invoiceData),
+                                                apiService.saveModuleRecord('receipts', receiptData)
+                                            ]);
+
+                                            // Trigger Notifications (Email & SMS)
+                                            const emailSubject = `Payment Confirmation: Alumnae Network Activation`;
+                                            const emailBody = `Dear ${registrationPayload.fullName},\n\nThank you for activating your membership in the ${school?.name || 'Alumnae'} Network.\n\nPayment Details:\n- Amount: KES ${amount.toLocaleString()}\n- Receipt: ${receiptData.receiptNumber}\n- Transaction ID: ${data.paymentId}\n\nYou can now access the social portal and connect with your alma mater.\n\nRegards,\nEduAI Network Team`;
+                                            
+                                            const smsMessage = `Hello ${registrationPayload.fullName}, your payment of KES ${amount.toLocaleString()} for Alumnae Network activation is received. Receipt: ${receiptData.receiptNumber}. Welcome!`;
+
+                                            apiService.sendEmail(registrationPayload.email, emailSubject, emailBody).catch(console.error);
+                                            apiService.sendSms(registrationPayload.phoneNumber, smsMessage).catch(console.error);
+                                        }
+
                                         localStorage.setItem('eduai_alumna_session', JSON.stringify(registrationPayload));
                                         setActiveAlumna(registrationPayload);
                                         setShowAlumnaeRegister(false);
