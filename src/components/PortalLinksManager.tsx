@@ -29,6 +29,8 @@ interface PortalLinksManagerProps {
 
 export const PortalLinksManager: React.FC<PortalLinksManagerProps> = ({ companyDetails, onUpdateSettings }) => {
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
+    const [localJoiningFee, setLocalJoiningFee] = useState<string>(companyDetails?.alumnaeJoiningFee?.toString() || '');
+    const [localFeatureFee, setLocalFeatureFee] = useState<string>(companyDetails?.alumnaeFeatureFee?.toString() || '');
 
     const baseUrl = window.location.origin;
 
@@ -216,8 +218,9 @@ export const PortalLinksManager: React.FC<PortalLinksManagerProps> = ({ companyD
                             <label className="text-[9px] font-black uppercase tracking-widest text-indigo-100">Alumnae Platform Service Fee (KES)</label>
                             <input 
                                 type="number"
-                                value={companyDetails?.alumnaeJoiningFee || 0}
-                                onChange={(e) => onUpdateSettings({ alumnaeJoiningFee: Number(e.target.value) })}
+                                value={localJoiningFee}
+                                onChange={(e) => setLocalJoiningFee(e.target.value)}
+                                onBlur={() => onUpdateSettings({ alumnaeJoiningFee: Number(localJoiningFee) || 0 })}
                                 className="bg-white/10 border-white/20 text-white rounded-xl px-4 py-3 text-lg font-black focus:ring-2 focus:ring-white/40 outline-none w-48"
                                 placeholder="e.g. 500"
                             />
@@ -226,8 +229,9 @@ export const PortalLinksManager: React.FC<PortalLinksManagerProps> = ({ companyD
                             <label className="text-[9px] font-black uppercase tracking-widest text-indigo-100">Featured Alumna Fee (KES)</label>
                             <input 
                                 type="number"
-                                value={companyDetails?.alumnaeFeatureFee || 0}
-                                onChange={(e) => onUpdateSettings({ alumnaeFeatureFee: Number(e.target.value) })}
+                                value={localFeatureFee}
+                                onChange={(e) => setLocalFeatureFee(e.target.value)}
+                                onBlur={() => onUpdateSettings({ alumnaeFeatureFee: Number(localFeatureFee) || 0 })}
                                 className="bg-white/10 border-white/20 text-white rounded-xl px-4 py-3 text-lg font-black focus:ring-2 focus:ring-white/40 outline-none w-48"
                                 placeholder="e.g. 1000"
                             />
