@@ -1554,9 +1554,22 @@ export const apiService = {
             const data = await response.json();
             if (!data.success) throw new Error(data.message || 'Upload failed');
             
+            const getDirectLink = (url: string) => {
+                if (url.includes('drive.google.com')) {
+                    const idMatch = url.match(/\/d\/([^\/]+)/) || url.match(/id=([^\/&]+)/);
+                    if (idMatch && idMatch[1]) {
+                        return `https://drive.google.com/uc?export=view&id=${idMatch[1]}`;
+                    }
+                }
+                return url;
+            };
+
+            const directUrl = getDirectLink(data.url);
+
             return {
                 success: true,
-                fileUrl: data.url, 
+                url: directUrl,
+                fileUrl: directUrl, 
                 fileId: data.fileId
             };
         } catch (error: any) {
