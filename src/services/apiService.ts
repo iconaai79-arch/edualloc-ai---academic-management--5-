@@ -2127,12 +2127,17 @@ export const apiService = {
     async triggerNcbaPayment(params: { amount: number; phoneNumber: string; reference: string; description: string; institutionId: string }): Promise<any> {
         try {
             const token = await apiService.getAuthToken();
+            const config = apiService.getActiveConfig();
             const headers: Record<string, string> = {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'apikey': config.key
             };
             
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
+            } else if (config.key) {
+                // Fallback to anonymous application key for public registration flows
+                headers['Authorization'] = `Bearer ${config.key}`;
             }
 
             const response = await fetch('/api/integrations', {
@@ -2156,12 +2161,16 @@ export const apiService = {
     async triggerMpesaStkPush(params: { amount: number; phoneNumber: string; reference: string; description: string; institutionId: string }): Promise<any> {
         try {
             const token = await apiService.getAuthToken();
+            const config = apiService.getActiveConfig();
             const headers: Record<string, string> = {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'apikey': config.key
             };
             
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
+            } else if (config.key) {
+                headers['Authorization'] = `Bearer ${config.key}`;
             }
 
             const response = await fetch('/api/integrations', {
