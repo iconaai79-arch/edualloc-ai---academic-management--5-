@@ -1656,7 +1656,53 @@ const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({
                     </button>
                 </div>
 
-                <div className="p-10 overflow-y-auto space-y-10 no-scrollbar">
+                <div className="p-10 overflow-y-auto space-y-10">
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                            <h4 className="text-[10px] font-black uppercase text-indigo-600 tracking-[0.2em]">Priority Agendas (Publicly Visible)</h4>
+                            <button 
+                                onClick={async () => {
+                                    setLoadingAi(true);
+                                    try {
+                                        const aiAgendas = await generateManifestoAgendas({
+                                            candidateName: name,
+                                            position,
+                                            partyName: party,
+                                            county: selectedCounty,
+                                            constituency: selectedConstituency,
+                                            ward: selectedWard
+                                        });
+                                        setAgendas(aiAgendas);
+                                    } catch (e) {
+                                        console.error(e);
+                                    } finally {
+                                        setLoadingAi(false);
+                                    }
+                                }}
+                                disabled={loadingAi}
+                                className="text-[9px] font-black uppercase text-indigo-600 flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-all disabled:opacity-50"
+                            >
+                                {loadingAi ? <ArrowPathIcon className="w-3 h-3 animate-spin" /> : <SparklesIcon className="w-3 h-3" />}
+                                {loadingAi ? 'AI Thinking...' : 'Redraft with AI'}
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {agendas.map((a, i) => (
+                                <input 
+                                    key={i}
+                                    value={a}
+                                    onChange={e => {
+                                        const next = [...agendas];
+                                        next[i] = e.target.value;
+                                        setAgendas(next);
+                                    }}
+                                    placeholder={`Agenda Item #${i+1}`}
+                                    className="form-input"
+                                />
+                            ))}
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         {/* Basic Identity */}
                         <div className="space-y-6">
@@ -1764,51 +1810,6 @@ const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({
                         </div>
                     </div>
 
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                            <h4 className="text-[10px] font-black uppercase text-indigo-600 tracking-[0.2em]">Priority Agendas (Publicly Visible)</h4>
-                            <button 
-                                onClick={async () => {
-                                    setLoadingAi(true);
-                                    try {
-                                        const aiAgendas = await generateManifestoAgendas({
-                                            candidateName: name,
-                                            position,
-                                            partyName: party,
-                                            county: selectedCounty,
-                                            constituency: selectedConstituency,
-                                            ward: selectedWard
-                                        });
-                                        setAgendas(aiAgendas);
-                                    } catch (e) {
-                                        console.error(e);
-                                    } finally {
-                                        setLoadingAi(false);
-                                    }
-                                }}
-                                disabled={loadingAi}
-                                className="text-[9px] font-black uppercase text-indigo-600 flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-all disabled:opacity-50"
-                            >
-                                {loadingAi ? <ArrowPathIcon className="w-3 h-3 animate-spin" /> : <SparklesIcon className="w-3 h-3" />}
-                                {loadingAi ? 'AI Thinking...' : 'Redraft with AI'}
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {agendas.map((a, i) => (
-                                <input 
-                                    key={i}
-                                    value={a}
-                                    onChange={e => {
-                                        const next = [...agendas];
-                                        next[i] = e.target.value;
-                                        setAgendas(next);
-                                    }}
-                                    placeholder={`Agenda Item #${i+1}`}
-                                    className="form-input"
-                                />
-                            ))}
-                        </div>
-                    </div>
                 </div>
 
                 <div className="p-10 border-t border-slate-50 dark:border-slate-800 bg-slate-50/50 flex gap-4">
