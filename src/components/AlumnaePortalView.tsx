@@ -39,6 +39,35 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [selectedPost, setSelectedPost] = useState<AlumniPost | null>(null);
     const [comments, setComments] = useState<Record<string, AlumniComment[]>>({});
     const [loadingPosts, setLoadingPosts] = useState(true);
+    const [isEditingProfile, setIsEditingProfile] = useState(false);
+    const [profileData, setProfileData] = useState({
+        fullName: currentAlumna.fullName || '',
+        currentJob: currentAlumna.currentJob || '',
+        currentCompany: currentAlumna.currentCompany || '',
+        bio: currentAlumna.bio || '',
+        linkedinUrl: currentAlumna.linkedinUrl || '',
+        twitterUrl: currentAlumna.twitterUrl || ''
+    });
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+    const handleUpdateProfile = async () => {
+        setIsSavingProfile(true);
+        try {
+            await apiService.saveModuleRecord('alumnae_members', {
+                id: currentAlumna.id,
+                ...profileData
+            });
+            // Update local session
+            const updated = { ...currentAlumna, ...profileData };
+            localStorage.setItem('eduai_alumna_session', JSON.stringify(updated));
+            setIsEditingProfile(false);
+            window.location.reload(); // Refresh to propagate changes
+        } catch (e: any) {
+            alert("Update Error: " + e.message);
+        } finally {
+            setIsSavingProfile(false);
+        }
+    };
 
     const loadPosts = async () => {
         setLoadingPosts(true);
@@ -174,9 +203,13 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         { icon: Hash, label: 'Explore' },
                         { icon: Bell, label: 'Notifications' },
                         { icon: MessageSquare, label: 'Messages' },
-                        { icon: User, label: 'Profile' }
+                        { icon: User, label: 'Profile', onClick: () => setIsEditingProfile(true) }
                     ].map((item, idx) => (
-                        <button key={idx} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${item.active ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}>
+                        <button 
+                            key={idx} 
+                            onClick={item.onClick}
+                            className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${item.active ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                        >
                             <item.icon className="w-6 h-6" />
                             <span className="hidden md:block font-bold text-sm uppercase tracking-widest">{item.label}</span>
                         </button>
@@ -429,6 +462,103 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     </div>
                 </div>
             </aside>
+
+            {/* Edit Profile Modal */}
+            {isEditingProfile && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-300">
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Edit <span className="text-indigo-600">Profile</span></h2>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Update your professional legacy</p>
+                            </div>
+                            <button onClick={() => setIsEditingProfile(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                                <X className="w-5 h-5 text-slate-400" />
+                            </button>
+                        </div>
+
+                        <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto no-scrollbar">
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Full Name</label>
+                                <input 
+                                    type="text"
+                                    value={profileData.fullName}
+                                    onChange={(e) => setProfileData({...profileData, fullName: e.target.value})}
+                                    className="w-full h-12 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-4">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Current Job</label>
+                                    <input 
+                                        type="text"
+                                        value={profileData.currentJob}
+                                        onChange={(e) => setProfileData({...profileData, currentJob: e.target.value})}
+                                        className="w-full h-12 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all"
+                                    />
+                                </div>
+                                <div className="space-y-4">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Company</label>
+                                    <input 
+                                        type="text"
+                                        value={profileData.currentCompany}
+                                        onChange={(e) => setProfileData({...profileData, currentCompany: e.target.value})}
+                                        className="w-full h-12 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Professional Bio</label>
+                                <textarea 
+                                    value={profileData.bio}
+                                    onChange={(e) => setProfileData({...profileData, bio: e.target.value})}
+                                    className="w-full h-32 p-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-indigo-600 transition-all resize-none"
+                                ></textarea>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-4">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">LinkedIn URL</label>
+                                    <input 
+                                        type="text"
+                                        value={profileData.linkedinUrl}
+                                        onChange={(e) => setProfileData({...profileData, linkedinUrl: e.target.value})}
+                                        className="w-full h-12 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all"
+                                    />
+                                </div>
+                                <div className="space-y-4">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Twitter URL</label>
+                                    <input 
+                                        type="text"
+                                        value={profileData.twitterUrl}
+                                        onChange={(e) => setProfileData({...profileData, twitterUrl: e.target.value})}
+                                        className="w-full h-12 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-8 bg-slate-50 dark:bg-slate-800/50 flex gap-4">
+                            <button 
+                                onClick={() => setIsEditingProfile(false)}
+                                className="flex-1 py-4 bg-white dark:bg-slate-900 text-slate-400 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:text-slate-600 transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleUpdateProfile}
+                                disabled={isSavingProfile}
+                                className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-indigo-200 dark:shadow-none flex items-center justify-center gap-2"
+                            >
+                                {isSavingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                                Save Changes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

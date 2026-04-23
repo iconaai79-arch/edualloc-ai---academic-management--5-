@@ -4890,7 +4890,7 @@ export const App: React.FC = () => {
                                 joiningFee={companyDetails?.alumnaeJoiningFee || 0}
                                 onInitiatePayment={async (amount, phone, reference) => {
                                     try {
-                                        const res = await apiService.initiateSTKPush({
+                                        const res = await apiService.triggerMpesaStkPush({
                                             amount,
                                             phoneNumber: phone,
                                             accountReference: reference,
