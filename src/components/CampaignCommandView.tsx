@@ -921,6 +921,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                 <p className="text-xl font-black text-slate-900 dark:text-white uppercase">{profile!.partyName || 'Independent'}</p>
                             </div>
 
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
                             <div className="bg-slate-50 dark:bg-slate-800/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 relative group">
                                 <ChatBubbleLeftRightIcon className="w-12 h-12 text-indigo-600 mb-6" />
                                 <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white mb-2">Unique Invite Link</h4>
@@ -943,6 +944,26 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                         Copy
                                     </button>
                                 </div>
+                            </div>
+
+                            <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] relative overflow-hidden group shadow-2xl">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl"></div>
+                                <div className="flex items-center gap-4 mb-6 relative z-10">
+                                    <div className="p-3 bg-indigo-600 rounded-xl">
+                                        <SpeakerWaveIcon className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-black uppercase tracking-widest">Campaign Wallet</h4>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">SMS Units Balance</p>
+                                    </div>
+                                </div>
+                                <div className="mb-8 relative z-10">
+                                    <p className="text-4xl font-black tracking-tighter text-indigo-400">12,450 <span className="text-xs text-slate-500 ml-1">Units</span></p>
+                                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">Sufficient for ~12.4k single-page messages</p>
+                                </div>
+                                <button className="w-full py-4 bg-white text-slate-900 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg hover:scale-[1.02] active:scale-95 transition-all relative z-10 flex items-center justify-center gap-2">
+                                    <PlusIcon className="w-4 h-4" /> Top-Up Units Now
+                                </button>
                             </div>
                         </div>
 
@@ -1150,8 +1171,16 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                 </h3>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Send mass SMS to your entire voter database</p>
                             </div>
-                            <div className="text-right">
-                                <p className="text-2xl font-black text-indigo-600 leading-none">
+                            <div className="flex items-center gap-6">
+                                <button 
+                                    onClick={() => setActiveTab('settings')}
+                                    className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-100 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                                >
+                                    <SpeakerWaveIcon className="w-4 h-4" />
+                                    Buy SMS Units
+                                </button>
+                                <div className="text-right">
+                                    <p className="text-2xl font-black text-indigo-600 leading-none">
                                     {(() => {
                                         let filtered = voters;
                                         if (activeVillageFilter) filtered = filtered.filter(v => v.village === activeVillageFilter);
