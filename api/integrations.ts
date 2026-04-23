@@ -143,7 +143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     // Priority 1: Mandatory Global Bypass for Test Handshakes & Configuration (Super Admin setup)
-    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'updateInstitutionConfig' || action === 'googleDriveUpload' || action === 'mpesa-callback' || action === 'ncbaWebhook';
+    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'updateInstitutionConfig' || action === 'googleDriveUpload' || action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush';
     
     // Logic restored.
 

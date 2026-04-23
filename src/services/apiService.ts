@@ -2159,7 +2159,7 @@ export const apiService = {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
-                    action: 'ncbaPush',
+                    action: 'ncbaInitiateStk',
                     ...params
                 })
             });
@@ -2205,7 +2205,7 @@ export const apiService = {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
-                    action: 'stkPush',
+                    action: 'initiateStkPush',
                     ...params
                 })
             });
