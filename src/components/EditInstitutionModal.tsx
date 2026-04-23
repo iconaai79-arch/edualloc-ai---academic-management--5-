@@ -143,6 +143,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                         let cat = '';
                         if (type === 'Education') cat = 'Primary';
                         if (type === 'Business') cat = 'Agrovet';
+                        if (type === 'Hospitality') cat = 'Hotel';
                         setFormData({ ...formData, institutionType: type, category: cat });
                       }} 
                       className="form-select font-black text-indigo-600 border-indigo-100"
@@ -158,6 +159,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       <option value="Pharmacy">Pharmacy / Chemist</option>
                       <option value="Community">Community & Politics</option>
                       <option value="Political Campaign">Political / Election Campaign</option>
+                      <option value="Hospitality">Tourism & Hospitality</option>
                     </select>
                   </div>
                   {(formData.institutionType === 'Education') && (
@@ -237,6 +239,23 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                         <option value="NGO/Foundation">NGO / Social Foundation</option>
                         <option value="Political Campaign">Political Campaign Management</option>
                         <option value="General">General Community</option>
+                      </select>
+                    </div>
+                  )}
+                  {formData.institutionType === 'Hospitality' && (
+                    <div className="animate-fade-in-up">
+                      <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1">Hospitality & Tourism Focus</label>
+                      <select
+                        value={formData.category}
+                        onChange={e => setFormData({ ...formData, category: e.target.value })}
+                        className="form-select border-2 border-indigo-200 font-bold"
+                        required
+                      >
+                        <option value="">-- Select Focus --</option>
+                        <option value="Hotel">Hotel / Resort</option>
+                        <option value="Travel Agency">Travel / Tour Agency</option>
+                        <option value="Restaurant">Fine Dining / Restaurant</option>
+                        <option value="Safari">Safari / Game Lodge</option>
                       </select>
                     </div>
                   )}

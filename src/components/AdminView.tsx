@@ -464,7 +464,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     }, [props.currentInstitution]);
 
     const isRetailAgency = useMemo(() => {
-        if (props.currentInstitution?.institutionType === 'Church') return false;
+        if (props.currentInstitution?.institutionType === 'Church' || props.currentInstitution?.institutionType === 'Hospitality') return false;
         const subType = props.currentInstitution?.businessSubType || '';
         const type = props.currentInstitution?.institutionType || '';
         return RETAIL_SUBTYPES.includes(subType) || RETAIL_SUBTYPES.includes(type);
@@ -501,6 +501,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 setActiveTab('car_service');
             } else if (isChurch || role === 'church_admin') {
                 setActiveTab('church');
+            } else if (isHospitality || role === 'hospitality_admin') {
+                setActiveTab('hospitality');
             } else if (isRetailAgency || ['Pharmacy', 'Chemist'].includes(businessSubType || '')) {
                 setActiveTab('retail');
             } else if (isDS || role === 'driving_instructor') {
@@ -515,8 +517,6 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 setActiveTab('community');
             } else if (isAlumni || role === 'alumni_admin') {
                 setActiveTab('alumni');
-            } else if (isHospitality || role === 'hospitality_admin') {
-                setActiveTab('hospitality');
             } else if (isAutoMarket) {
                 setActiveTab('auto_marketplace');
             } else if (isFuelStation) {
@@ -608,7 +608,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
             // Retail & Procurement tabs
             if (['retail', 'procurement'].includes(tab.id)) {
-                if (isEdu || isChurch || isCommunity) return false;
+                if (isEdu || isChurch || isCommunity || isHospitality) return false;
                 if (isBusiness) {
                     return RETAIL_SUBTYPES.includes(businessSubType || '');
                 }
