@@ -2160,6 +2160,7 @@ export const apiService = {
                 headers,
                 body: JSON.stringify({
                     action: 'ncbaInitiateStk',
+                    metadata: { type: 'one-off' },
                     ...params
                 })
             });
@@ -2206,6 +2207,7 @@ export const apiService = {
                 headers,
                 body: JSON.stringify({
                     action: 'initiateStkPush',
+                    metadata: { type: 'one-off' },
                     ...params
                 })
             });
