@@ -55,19 +55,27 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         currentCompany: currentAlumna.currentCompany || '',
         bio: currentAlumna.bio || '',
         linkedinUrl: currentAlumna.linkedinUrl || '',
-        twitterUrl: currentAlumna.twitterUrl || ''
+        twitterUrl: currentAlumna.twitterUrl || '',
+        profilePhoto: currentAlumna.profilePhoto || ''
     });
+    const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
     const [isSavingProfile, setIsSavingProfile] = useState(false);
 
     const handleUpdateProfile = async () => {
         setIsSavingProfile(true);
         try {
+            let photoUrl = profileData.profilePhoto;
+            if (profilePhotoFile) {
+                photoUrl = await apiService.uploadFile(profilePhotoFile, 'alumnae_profiles');
+            }
+
             await apiService.saveModuleRecord('alumnae_members', {
                 id: currentAlumna.id,
-                ...profileData
+                ...profileData,
+                profilePhoto: photoUrl
             });
             // Update local session
-            const updated = { ...currentAlumna, ...profileData };
+            const updated = { ...currentAlumna, ...profileData, profilePhoto: photoUrl };
             localStorage.setItem('eduai_alumna_session', JSON.stringify(updated));
             setIsEditingProfile(false);
             window.location.reload(); // Refresh to propagate changes
@@ -714,6 +722,33 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         </div>
 
                         <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto no-scrollbar">
+                            {/* Profile Photo Section */}
+                            <div className="flex flex-col items-center gap-4 mb-8">
+                                <div className="relative group">
+                                    <div className="w-24 h-24 rounded-[2rem] bg-slate-100 dark:bg-slate-800 overflow-hidden ring-4 ring-indigo-50 dark:ring-indigo-900/20 shadow-xl">
+                                        {profilePhotoFile ? (
+                                            <img src={URL.createObjectURL(profilePhotoFile)} className="w-full h-full object-cover" />
+                                        ) : profileData.profilePhoto ? (
+                                            <img src={profileData.profilePhoto} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <User className="w-full h-full p-6 text-slate-300" />
+                                        )}
+                                    </div>
+                                    <label className="absolute -bottom-2 -right-2 w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center cursor-pointer hover:scale-110 transition-transform shadow-lg shadow-indigo-200">
+                                        <ImageIcon className="w-5 h-5" />
+                                        <input 
+                                            type="file" 
+                                            className="hidden" 
+                                            accept="image/*"
+                                            onChange={(e) => {
+                                                if (e.target.files?.[0]) setProfilePhotoFile(e.target.files[0]);
+                                            }}
+                                        />
+                                    </label>
+                                </div>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Update Profile Avatar</p>
+                            </div>
+
                             <div className="space-y-4">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Full Name</label>
                                 <input 
