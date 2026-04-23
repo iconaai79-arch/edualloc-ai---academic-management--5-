@@ -45,4 +45,8 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'profile_photo') THEN
         ALTER TABLE alumnae_members ADD COLUMN profile_photo TEXT;
     END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'school_name') THEN
+        ALTER TABLE alumnae_members ADD COLUMN school_name TEXT;
+    END IF;
 END $$;
