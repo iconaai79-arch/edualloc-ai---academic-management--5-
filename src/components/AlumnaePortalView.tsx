@@ -42,7 +42,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [loadingPosts, setLoadingPosts] = useState(true);
     const [isProcessingFeature, setIsProcessingFeature] = useState(false);
     const [featuredMembers, setFeaturedMembers] = useState<any[]>([]);
-    const [activeSection, setActiveSection] = useState<'feed' | 'messages' | 'explore' | 'notifications'>('feed');
+    const [activeSection, setActiveSection] = useState<'feed' | 'messages' | 'explore' | 'notifications' | 'classmates'>('feed');
     const [messages, setMessages] = useState<any[]>([]);
     const [activeConversationPartner, setActiveConversationPartner] = useState<any | null>(null);
     const [newMessage, setNewMessage] = useState('');
@@ -296,6 +296,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 <nav className="space-y-2 flex-1">
                     {[
                         { icon: Home, label: 'Feed', onClick: () => setActiveSection('feed'), active: activeSection === 'feed' },
+                        { icon: Users, label: 'Classmates', onClick: () => setActiveSection('classmates'), active: activeSection === 'classmates' },
                         { icon: Hash, label: 'Explore', onClick: () => setActiveSection('explore'), active: activeSection === 'explore' },
                         { icon: Bell, label: 'Notifications', onClick: () => setActiveSection('notifications'), active: activeSection === 'notifications' },
                         { icon: MessageSquare, label: 'Messages', onClick: () => setActiveSection('messages'), active: activeSection === 'messages' },
@@ -519,7 +520,62 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     </div>
                 )}
                 </>
-                : activeSection === 'explore' ? (
+                : activeSection === 'classmates' ? (
+                    <div className="p-8">
+                        <header className="mb-12 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Class of <span className="text-indigo-600">{currentAlumna.graduationYear}</span></h2>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">
+                                    {alumnaeMembers.filter(m => m.graduationYear === currentAlumna.graduationYear).length} Members found in your year
+                                </p>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    const text = `Join me in the Alumnae Circle! Connect with our classmates from the Class of ${currentAlumna.graduationYear} at ${window.location.origin}/?view=alumnae_register`;
+                                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                                }}
+                                className="px-6 py-3 bg-emerald-500 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-emerald-200 dark:shadow-none flex items-center gap-2 hover:scale-105 transition-all"
+                            >
+                                <Share2 className="w-4 h-4" /> Invite via WhatsApp
+                            </button>
+                        </header>
+
+                        <div className="space-y-4">
+                            {alumnaeMembers.filter(m => m.graduationYear === currentAlumna.graduationYear && m.id !== currentAlumna.id).map(member => (
+                                <div key={member.id} className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 flex items-center gap-6 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group">
+                                    <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
+                                        {member.profilePhoto ? <img src={member.profilePhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{member.fullName}</h3>
+                                            <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{member.currentJob || 'Alumna'} at {member.currentCompany || 'EduAI Network'}</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => {
+                                            setActiveConversationPartner(member);
+                                            setActiveSection('messages');
+                                        }}
+                                        className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-2xl flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                                    >
+                                        <MessageSquare className="w-5 h-5" />
+                                    </button>
+                                </div>
+                            ))}
+                            {alumnaeMembers.filter(m => m.graduationYear === currentAlumna.graduationYear && m.id !== currentAlumna.id).length === 0 && (
+                                <div className="p-20 text-center">
+                                    <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-[2.5rem] flex items-center justify-center text-slate-300 mx-auto mb-6">
+                                        <Users className="w-10 h-10" />
+                                    </div>
+                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">You're the first one here from {currentAlumna.graduationYear}!</p>
+                                    <p className="text-xs text-slate-400 mt-2">Invite your classmates to join the legacy.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : activeSection === 'explore' ? (
                     <div className="p-8">
                         <header className="mb-12">
                             <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Explore <span className="text-indigo-600">Network</span></h2>
