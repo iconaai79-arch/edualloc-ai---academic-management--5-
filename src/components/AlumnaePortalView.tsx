@@ -518,9 +518,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                             </div>
                         </div>
                     </div>
-                )}
-                </>
-                : activeSection === 'classmates' ? (
+                    </>
+                ) : activeSection === 'classmates' ? (
                     <div className="p-8">
                         <header className="mb-12 flex items-center justify-between">
                             <div>
