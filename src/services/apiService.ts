@@ -2127,12 +2127,17 @@ export const apiService = {
     async triggerNcbaPayment(params: { amount: number; phoneNumber: string; reference: string; description: string; institutionId: string }): Promise<any> {
         try {
             const token = await apiService.getAuthToken();
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json'
+            };
+            
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
             const response = await fetch('/api/integrations', {
                 method: 'POST',
-                headers: {
-                    'Authorization': token ? `Bearer ${token}` : '',
-                    'Content-Type': 'application/json'
-                },
+                headers,
                 body: JSON.stringify({
                     action: 'ncbaPush',
                     ...params
@@ -2151,12 +2156,17 @@ export const apiService = {
     async triggerMpesaStkPush(params: { amount: number; phoneNumber: string; reference: string; description: string; institutionId: string }): Promise<any> {
         try {
             const token = await apiService.getAuthToken();
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json'
+            };
+            
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
             const response = await fetch('/api/integrations', {
                 method: 'POST',
-                headers: {
-                    'Authorization': token ? `Bearer ${token}` : '',
-                    'Content-Type': 'application/json'
-                },
+                headers,
                 body: JSON.stringify({
                     action: 'stkPush',
                     ...params
