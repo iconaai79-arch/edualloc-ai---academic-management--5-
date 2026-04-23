@@ -49,6 +49,14 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'school_name') THEN
         ALTER TABLE alumnae_members ADD COLUMN school_name TEXT;
     END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'is_featured') THEN
+        ALTER TABLE alumnae_members ADD COLUMN is_featured BOOLEAN DEFAULT false;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'featured_until') THEN
+        ALTER TABLE alumnae_members ADD COLUMN featured_until TIMESTAMP WITH TIME ZONE;
+    END IF;
 END $$;
 
 -- Secure Private Messaging for Alumnae

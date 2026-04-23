@@ -808,6 +808,7 @@ export interface CompanyDetails {
     enabledGateways?: string[];
     smsBalance?: number;
     alumnaeJoiningFee?: number;
+    alumnaeFeatureFee?: number;
     portalSettings?: {
         showAlumnaeHub: boolean;
         showTouristHub: boolean;

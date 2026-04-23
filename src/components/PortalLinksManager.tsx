@@ -221,6 +221,16 @@ export const PortalLinksManager: React.FC<PortalLinksManagerProps> = ({ companyD
                                 placeholder="e.g. 500"
                             />
                         </div>
+                        <div className="flex flex-col gap-2">
+                            <label className="text-[9px] font-black uppercase tracking-widest text-indigo-100">Featured Alumna Fee (KES)</label>
+                            <input 
+                                type="number"
+                                value={companyDetails?.alumnaeFeatureFee || 0}
+                                onChange={(e) => onUpdateSettings({ alumnaeFeatureFee: Number(e.target.value) })}
+                                className="bg-white/10 border-white/20 text-white rounded-xl px-4 py-3 text-lg font-black focus:ring-2 focus:ring-white/40 outline-none w-48"
+                                placeholder="e.g. 1000"
+                            />
+                        </div>
                         <button 
                             onClick={() => onUpdateSettings({ publicRegistrationEnabled: !settings.publicRegistrationEnabled })}
                             className={`px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all shadow-2xl ${ settings.publicRegistrationEnabled ? 'bg-white text-indigo-600 hover:bg-slate-900 hover:text-white' : 'bg-rose-500 text-white hover:bg-rose-600' }`}

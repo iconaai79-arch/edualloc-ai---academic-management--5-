@@ -4988,6 +4988,7 @@ export const App: React.FC = () => {
                             <AlumnaePortalView 
                                 currentAlumna={activeAlumna}
                                 institutions={institutions}
+                                featureFee={companyDetails?.alumnaeFeatureFee || 0}
                                 onBack={() => {
                                     setShowAlumnaePortal(false);
                                     window.location.href = '/?view=community';

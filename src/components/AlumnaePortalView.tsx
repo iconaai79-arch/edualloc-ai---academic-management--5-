@@ -28,10 +28,11 @@ import { apiService } from '../services/apiService';
 interface AlumnaePortalViewProps {
     currentAlumna: any;
     institutions: Institution[];
+    featureFee: number;
     onBack: () => void;
 }
 
-export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlumna, institutions, onBack }) => {
+export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlumna, institutions, featureFee, onBack }) => {
     const [posts, setPosts] = useState<AlumniPost[]>([]);
     const [newPostContent, setNewPostContent] = useState('');
     const [isPosting, setIsPosting] = useState(false);
@@ -39,6 +40,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [selectedPost, setSelectedPost] = useState<AlumniPost | null>(null);
     const [comments, setComments] = useState<Record<string, AlumniComment[]>>({});
     const [loadingPosts, setLoadingPosts] = useState(true);
+    const [isProcessingFeature, setIsProcessingFeature] = useState(false);
+    const [featuredMembers, setFeaturedMembers] = useState<any[]>([]);
     const [activeSection, setActiveSection] = useState<'feed' | 'messages'>('feed');
     const [messages, setMessages] = useState<any[]>([]);
     const [activeConversationPartner, setActiveConversationPartner] = useState<any | null>(null);
@@ -125,7 +128,44 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         try {
             const data = await apiService.fetchModuleRecords('alumnae_members');
             setAlumnaeMembers(data || []);
+            setFeaturedMembers((data || []).filter((m: any) => m.isFeatured));
         } catch (e) {}
+    };
+
+    const handleBeFeatured = async () => {
+        if (!window.confirm(`Become a Featured Alumna for KES ${featureFee}? This will boost your profile visibility.`)) return;
+        setIsProcessingFeature(true);
+        
+        try {
+            const res = await apiService.triggerMpesaStkPush({
+                amount: featureFee,
+                phoneNumber: currentAlumna.phoneNumber,
+                reference: `FEAT_${currentAlumna.id}`,
+                description: 'Featured Alumna Promotion',
+                institutionId: currentAlumna.institutionId || 'GLOBAL'
+            });
+
+            if (res.success) {
+                // Success - Update record
+                const featuredUntil = new Date();
+                featuredUntil.setMonth(featuredUntil.getMonth() + 1); // 1 month feature
+
+                await apiService.saveModuleRecord('alumnae_members', {
+                    id: currentAlumna.id,
+                    isFeatured: true,
+                    featuredUntil: featuredUntil.toISOString()
+                });
+
+                alert("Congratulations! You are now a Featured Alumna.");
+                window.location.reload();
+            } else {
+                alert("Payment failed: " + res.message);
+            }
+        } catch (e: any) {
+            alert("Payment Error: " + e.message);
+        } finally {
+            setIsProcessingFeature(false);
+        }
     };
 
     useEffect(() => {
@@ -283,6 +323,23 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         </div>
                     </div>
                 </div>
+
+                {featureFee > 0 && !currentAlumna.isFeatured && (
+                    <div className="p-4 mx-2 mb-4 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-100 dark:shadow-none">
+                        <div className="flex items-center gap-3 mb-2">
+                            <Sparkles className="w-5 h-5 text-indigo-200" />
+                            <span className="text-[9px] font-black uppercase tracking-[0.2em]">Premium Visibility</span>
+                        </div>
+                        <p className="text-[10px] font-bold leading-tight mb-3 opacity-90 uppercase">Get featured at the top of the network for KES {featureFee}/mo</p>
+                        <button 
+                            onClick={handleBeFeatured}
+                            disabled={isProcessingFeature}
+                            className="w-full py-2.5 bg-white text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all flex items-center justify-center gap-2"
+                        >
+                            {isProcessingFeature ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Get Featured Now'}
+                        </button>
+                    </div>
+                )}
             </aside>
 
             {/* Main Content Area */}
@@ -599,6 +656,46 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         </div>
                         <button className="w-full mt-6 py-3 text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all">Show More</button>
                     </div>
+
+                    {/* Featured Members Showcase */}
+                    {featuredMembers.length > 0 && (
+                        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-2xl shadow-indigo-500/5">
+                            <div className="flex items-center gap-3 mb-8">
+                                <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white">
+                                    <Sparkles className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Featured <span className="text-indigo-600">Alumnae</span></h3>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Premium Network Spotlight</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-6">
+                                {featuredMembers.map((member) => (
+                                    <div key={member.id} className="group flex items-center gap-4 p-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all cursor-pointer">
+                                        <div className="relative">
+                                            <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-900">
+                                                {member.profilePhoto ? <img src={member.profilePhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-300" />}
+                                            </div>
+                                            <div className="absolute -top-1 -right-1 bg-indigo-600 text-white p-1 rounded-lg">
+                                                <CheckCircle2 className="w-2 h-2" />
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase truncate">{member.fullName || 'Featured Alumna'}</p>
+                                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest truncate">{member.currentJob} at {member.currentCompany}</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => setActiveConversationPartner(member)}
+                                            className="w-8 h-8 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 hover:bg-indigo-600 hover:text-white transition-all"
+                                        >
+                                            <MessageSquare className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </aside>
 
