@@ -42,7 +42,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [loadingPosts, setLoadingPosts] = useState(true);
     const [isProcessingFeature, setIsProcessingFeature] = useState(false);
     const [featuredMembers, setFeaturedMembers] = useState<any[]>([]);
-    const [activeSection, setActiveSection] = useState<'feed' | 'messages'>('feed');
+    const [activeSection, setActiveSection] = useState<'feed' | 'messages' | 'explore' | 'notifications'>('feed');
     const [messages, setMessages] = useState<any[]>([]);
     const [activeConversationPartner, setActiveConversationPartner] = useState<any | null>(null);
     const [newMessage, setNewMessage] = useState('');
@@ -296,8 +296,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 <nav className="space-y-2 flex-1">
                     {[
                         { icon: Home, label: 'Feed', onClick: () => setActiveSection('feed'), active: activeSection === 'feed' },
-                        { icon: Hash, label: 'Explore' },
-                        { icon: Bell, label: 'Notifications' },
+                        { icon: Hash, label: 'Explore', onClick: () => setActiveSection('explore'), active: activeSection === 'explore' },
+                        { icon: Bell, label: 'Notifications', onClick: () => setActiveSection('notifications'), active: activeSection === 'notifications' },
                         { icon: MessageSquare, label: 'Messages', onClick: () => setActiveSection('messages'), active: activeSection === 'messages' },
                         { icon: User, label: 'Profile', onClick: () => setIsEditingProfile(true) }
                     ].map((item, idx) => (
@@ -516,9 +516,77 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                 </div>
                             </div>
                         </div>
-                    ))}
-                </div>
+                    </div>
+                )}
                 </>
+                : activeSection === 'explore' ? (
+                    <div className="p-8">
+                        <header className="mb-12">
+                            <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Explore <span className="text-indigo-600">Network</span></h2>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Connect with graduates from your alma mater</p>
+                        </header>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {alumnaeMembers.filter(m => m.id !== currentAlumna.id).map(member => (
+                                <div key={member.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-100/50 dark:shadow-none hover:scale-[1.02] transition-all group">
+                                    <div className="flex items-center gap-4 mb-6">
+                                        <div className="w-16 h-16 rounded-[1.5rem] bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 ring-4 ring-slate-50 dark:ring-slate-800">
+                                            {member.profilePhoto ? <img src={member.profilePhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{member.fullName}</h3>
+                                                {member.isFeatured && <Sparkles className="w-3.5 h-3.5 text-indigo-600" />}
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{member.currentJob || 'Alumna'}</p>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Alma Mater</p>
+                                            <p className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate">{member.schoolName || 'Partner Institution'}</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => {
+                                                setActiveConversationPartner(member);
+                                                setActiveSection('messages');
+                                            }}
+                                            className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-indigo-200 dark:shadow-none flex items-center justify-center gap-2 group-hover:scale-[1.02] transition-all"
+                                        >
+                                            <MessageSquare className="w-4 h-4" /> Message
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : activeSection === 'notifications' ? (
+                    <div className="p-8">
+                        <header className="mb-12">
+                            <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Recent <span className="text-indigo-600">Activity</span></h2>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Stay updated on your social footprint</p>
+                        </header>
+
+                        <div className="space-y-4">
+                            {[
+                                { icon: MessageSquare, color: 'text-indigo-600', bg: 'bg-indigo-50', text: 'Someone sent you a private message', time: '2 mins ago' },
+                                { icon: Heart, color: 'text-rose-500', bg: 'bg-rose-50', text: 'An alumna liked your post about networking', time: '1 hour ago' },
+                                { icon: User, color: 'text-blue-600', bg: 'bg-blue-50', text: 'New graduate joined the circle', time: '3 hours ago' },
+                                { icon: Sparkles, color: 'text-indigo-600', bg: 'bg-indigo-50', text: 'Institutional update: Legacy Fund launched', time: '5 hours ago' }
+                            ].map((notif, idx) => (
+                                <div key={idx} className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 flex items-center gap-6 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all cursor-pointer">
+                                    <div className={`w-12 h-12 ${notif.bg} rounded-2xl flex items-center justify-center ${notif.color}`}>
+                                        <notif.icon className="w-6 h-6" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-tight">{notif.text}</p>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{notif.time}</p>
+                                    </div>
+                                    <div className="w-2 h-2 rounded-full bg-indigo-600"></div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 ) : (
                     <div className="flex h-screen flex-col">
                         <header className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl">
