@@ -23,6 +23,7 @@ import {
     Loader2
 } from 'lucide-react';
 import type { SchoolRegistry } from '../types';
+import { apiService } from '../services/apiService';
 
 interface AlumnaeRegistrationViewProps {
     registry: SchoolRegistry[];
@@ -30,7 +31,7 @@ interface AlumnaeRegistrationViewProps {
     onComplete: (data: any) => void;
     onBackToPortal: () => void;
     onCheckAdmission?: (admNo: string, schoolId: string) => Promise<{ exists: boolean; message?: string }>;
-    onInitiatePayment?: (amount: number, phone: string, reference: string) => Promise<{ success: boolean; transactionId?: string; message?: string }>;
+    onInitiatePayment?: (amount: number, phone: string, reference: string) => Promise<{ success: boolean; transactionId?: string; checkoutRequestId?: string; message?: string }>;
     joiningFee?: number;
     feeEnabled?: boolean;
 }
@@ -110,11 +111,32 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
         }
         if (!onInitiatePayment) return;
         setPaymentStatus('pending');
-        setPaymentMessage('Waiting for M-Pesa Prompt...');
+        setPaymentMessage('Waiting for NCBA Loop Prompt...');
         
         try {
             const res = await onInitiatePayment(joiningFee, formData.phoneNumber, `ALUMNA_${formData.admissionNumber}`);
-            if (res.success) {
+            if (res.success && res.checkoutRequestId) {
+                setPaymentMessage('Prompt sent! Waiting for your pin... Do not close this page.');
+                
+                // Polling logic
+                let attempts = 0;
+                const maxAttempts = 30; // 1.5 minutes
+                const pollTimer = setInterval(async () => {
+                    attempts++;
+                    const statusRes = await apiService.checkPaymentStatus('ncba', res.checkoutRequestId);
+                    if (statusRes.status === 'completed') {
+                        clearInterval(pollTimer);
+                        setPaymentStatus('success');
+                        setPaymentMessage('Payment Verified! Finalizing your registration...');
+                        setTimeout(() => handleFinalize(), 2000);
+                    } else if (statusRes.status === 'failed' || attempts >= maxAttempts) {
+                        clearInterval(pollTimer);
+                        setPaymentStatus('error');
+                        setPaymentMessage(statusRes.message || 'Payment failed or timed out. Please try again.');
+                    }
+                }, 3000);
+            } else if (res.success) {
+                // Fallback if no checkout requestId was returned
                 setPaymentStatus('success');
                 setPaymentMessage('Payment Verified! Finalizing your registration...');
                 setTimeout(() => handleFinalize(), 2000);

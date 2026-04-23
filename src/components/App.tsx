@@ -4898,7 +4898,7 @@ export const App: React.FC = () => {
                                             description: 'Alumnae Network Activation',
                                             institutionId: 'GLOBAL'
                                         });
-                                        return { success: res.success, message: res.message };
+                                        return { success: res.success, message: res.message, checkoutRequestId: res.checkoutRequestId || res.checkoutRequestID || res.checkout_request_id || res.id };
                                     } catch (e: any) {
                                         return { success: false, message: e.message };
                                     }

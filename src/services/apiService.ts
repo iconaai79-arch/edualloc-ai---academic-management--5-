@@ -1354,12 +1354,22 @@ export const apiService = {
     async checkPaymentStatus(provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba', checkoutRequestId: string, config?: any) {
         try {
             const token = await apiService.getAuthToken();
+            const systemConfig = apiService.getActiveConfig();
+            
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+                'apikey': systemConfig.key
+            };
+            
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            } else if (systemConfig.key) {
+                headers['Authorization'] = `Bearer ${systemConfig.key}`;
+            }
+
             const response = await fetch('/api/integrations', {
                 method: 'POST',
-                headers: { 
-                    'Authorization': token ? `Bearer ${token}` : '',
-                    'Content-Type': 'application/json' 
-                },
+                headers,
                 body: JSON.stringify({
                     action: 'queryPaymentStatus',
                     provider,
