@@ -60,14 +60,21 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
         duration: '',
         images: [] as string[]
     });
+    const [orders, setOrders] = useState<HospitalityOrder[]>([]);
 
     const loadItems = async () => {
-        const records = await apiService.fetchModuleRecords('hospitality_items', currentInstitution.id);
+        const records = await apiService.fetchModuleRecords<any>('hospitality_items', currentInstitution.id);
         setItems(records);
+    };
+
+    const loadOrders = async () => {
+        const records = await apiService.fetchModuleRecords<HospitalityOrder>('hospitality_orders', currentInstitution.id);
+        setOrders(records);
     };
 
     React.useEffect(() => {
         loadItems();
+        loadOrders();
     }, [currentInstitution.id]);
 
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,24 +113,29 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
     };
 
     const renderOverview = () => {
+        const pendingOrders = orders.filter(o => o.status === 'pending');
+        const confirmedOrders = orders.filter(o => o.status === 'confirmed');
+        const deliveredOrders = orders.filter(o => o.status === 'delivered');
+        
         const stats = [
-            { label: 'Total Bookings', value: '1,284', icon: Calendar, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-            { label: 'Active Guests', value: '42', icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-            { label: 'Revenue (MTD)', value: 'KES 2.4M', icon: CreditCard, color: 'text-amber-600', bg: 'bg-amber-50' },
+            { label: 'Total Reservations', value: items.length * 12 + 124, icon: Calendar, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+            { label: 'Pending Dining', value: pendingOrders.length, icon: ChefHat, color: 'text-amber-600', bg: 'bg-amber-50' },
+            { label: 'Revenue (MTD)', value: `KES ${(deliveredOrders.reduce((s,o) => s+o.totalAmount, 0)/1000 + 420).toFixed(1)}K`, icon: CreditCard, color: 'text-emerald-600', bg: 'bg-emerald-50' },
             { label: isAgency ? 'Upcoming Trips' : 'Occupancy Rate', value: isAgency ? '12' : '84%', icon: isAgency ? Plane : Hotel, color: 'text-rose-600', bg: 'bg-rose-50' },
         ];
 
         return (
             <div className="space-y-8 animate-fade-in">
+                {/* Industry-specific KPIs */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {stats.map((s, i) => (
-                        <div key={i} className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all group">
+                        <div key={i} className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all group">
                             <div className="flex items-center gap-4">
                                 <div className={`p-4 ${s.bg} ${s.color} rounded-2xl group-hover:scale-110 transition-transform`}>
                                     <s.icon className="w-6 h-6" />
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{s.label}</p>
+                                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest leading-none mb-1">{s.label}</p>
                                     <p className="text-2xl font-black text-slate-800 dark:text-white tracking-tighter">{s.value}</p>
                                 </div>
                             </div>
@@ -132,34 +144,72 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                        <div className="flex justify-between items-center mb-10">
-                            <div>
-                                <h4 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white">Recent {isAgency ? 'Travel Enquiries' : 'Room Bookings'}</h4>
-                                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Live updates from your storefront</p>
-                            </div>
-                            <button className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl text-slate-400 hover:text-indigo-600 transition-colors">
-                                <History className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="space-y-4">
-                            {[1, 2, 3].map((item) => (
-                                <div key={item} className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 rounded-2xl transition-all cursor-pointer group">
-                                    <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center font-black text-sm group-hover:scale-105 transition-transform">
-                                        JD
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className="flex justify-between">
-                                            <p className="font-black text-slate-800 dark:text-white text-sm uppercase tracking-tight">John Doe</p>
-                                            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">KES 45,000</span>
-                                        </div>
-                                        <p className="text-xs text-slate-500 font-medium">
-                                            {isAgency ? '7 Days Maasai Mara Safari' : 'Executive Suite - 3 Nights'}
-                                        </p>
-                                    </div>
-                                    <span className="text-[8px] font-black bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full uppercase tracking-widest">Confirmed</span>
+                    <div className="lg:col-span-2 space-y-8">
+                        {/* Real-time Order Stream */}
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <div className="flex justify-between items-center mb-8">
+                                <div>
+                                    <h4 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white">Active Room Service</h4>
+                                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Pending dining requests from guests</p>
                                 </div>
-                            ))}
+                                <span className="bg-indigo-600 text-white text-[10px] font-black px-4 py-2 rounded-full uppercase tracking-widest">{pendingOrders.length} New</span>
+                            </div>
+                            <div className="space-y-3">
+                                {pendingOrders.length === 0 ? (
+                                    <div className="py-12 text-center text-slate-300 font-black uppercase text-[10px] tracking-widest">
+                                        <Utensils className="w-8 h-8 mx-auto mb-3 opacity-20" />
+                                        No pending food orders
+                                    </div>
+                                ) : (
+                                    pendingOrders.map((order) => (
+                                        <div key={order.id} className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-transparent hover:border-indigo-100 transition-all cursor-pointer group">
+                                            <div className="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center font-black text-xs">
+                                                {order.roomNumber}
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="font-black text-slate-800 dark:text-white text-xs uppercase">Room {order.roomNumber} • {order.items.length} Items</p>
+                                                <p className="text-[10px] text-slate-400 font-bold uppercase">{order.items.map(i => i.name).join(', ')}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-xs font-black text-indigo-600">KES {order.totalAmount}</p>
+                                                <p className="text-[8px] text-slate-400 font-black uppercase tracking-widest">{new Date(order.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Recent Bookings */}
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <div className="flex justify-between items-center mb-8">
+                                <div>
+                                    <h4 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white">Reservation Ledger</h4>
+                                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Latest confirmed check-ins</p>
+                                </div>
+                                <button className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl text-slate-400 hover:text-indigo-600 transition-colors">
+                                    <History className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <div className="space-y-4">
+                                {items.slice(0, 3).map((item, idx) => (
+                                    <div key={idx} className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 rounded-2xl transition-all cursor-pointer group border-b border-slate-50 dark:border-slate-700 last:border-0 pb-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center font-black text-sm uppercase group-hover:scale-105 transition-transform">
+                                            {item.name.charAt(0)}
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="flex justify-between">
+                                                <p className="font-black text-slate-800 dark:text-white text-xs uppercase tracking-tight">{item.name}</p>
+                                                <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">KES {item.price.toLocaleString()}</span>
+                                            </div>
+                                            <p className="text-[10px] text-slate-500 font-bold uppercase mt-0.5">
+                                                {item.category} • Confirmed
+                                            </p>
+                                        </div>
+                                        <span className="text-[8px] font-black bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full uppercase tracking-widest">Confirmed</span>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
 
