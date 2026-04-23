@@ -41,4 +41,8 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'joined_at') THEN
         ALTER TABLE alumnae_members ADD COLUMN joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
     END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'profile_photo') THEN
+        ALTER TABLE alumnae_members ADD COLUMN profile_photo TEXT;
+    END IF;
 END $$;
