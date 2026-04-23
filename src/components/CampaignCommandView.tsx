@@ -317,6 +317,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                         ))}
                     </div>
                 </div>
+                </div>
             </div>
 
             {/* Manifesto & Agendas View */}
