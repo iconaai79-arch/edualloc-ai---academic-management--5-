@@ -739,3 +739,38 @@ export async function suggestDiagnosis(patientData: {
         return { suggestions: [] };
     }
 }
+
+/**
+ * Political AI Agent: Redrafts high-impact agendas for a political manifesto.
+ */
+export const generateManifestoAgendas = async (profile: any): Promise<string[]> => {
+    try {
+        checkAiAvailable();
+        const prompt = `
+            Act as a Senior Political Strategist. Draft 3 high-impact, actionable, and persuasive political agendas for a candidate in Kenya.
+            
+            Candidate Context:
+            - Name: ${profile.candidateName}
+            - Position: ${profile.position}
+            - Party: ${profile.partyName}
+            - Location: ${profile.county || ''} ${profile.constituency || ''} ${profile.ward || ''}
+            
+            Requirements:
+            - Each agenda must be concise (max 10 words).
+            - Focus on tangible community benefits (e.g., water, youth employment, healthcare, transparency).
+            - Use powerful, active language.
+            
+            Return ONLY a JSON array of 3 strings.
+        `;
+        const response = await safeGenerateContent(prompt, { 
+            responseMimeType: 'application/json',
+            temperature: 0.7 
+        }, 'flash');
+        
+        const result = sanitizeAndParseJson(response.text || "[]");
+        return Array.isArray(result) ? result.slice(0, 3) : ["Better Healthcare", "Youth Empowerment", "Economic Growth"];
+    } catch (error) {
+        console.error("AI Manifesto error:", error);
+        return ["Better Healthcare", "Youth Empowerment", "Economic Growth"];
+    }
+};

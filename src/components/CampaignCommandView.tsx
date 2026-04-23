@@ -10,7 +10,7 @@ import {
 import { SmartPoliticalImporterModal } from './SmartPoliticalImporterModal';
 import { CampaignProfile, VoterOutreach, CampaignEvent, User, PoliticalParty, County, Constituency, Ward, CampaignVillage, CampaignGroup, CampaignGroupMember, Role } from '../types';
 import { apiService } from '../services/apiService';
-import { generateAIContent } from '../services/geminiService';
+import { generateAIContent, generateManifestoAgendas } from '../services/geminiService';
 import { LeadScoutManager } from './LeadScoutManager';
 
 interface CampaignCommandViewProps {
@@ -1576,6 +1576,7 @@ const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({
     const [agendas, setAgendas] = useState<string[]>(profile?.agendas || ['', '', '']);
     const [slug, setSlug] = useState(profile?.inviteSlug || name.toLowerCase().replace(/\s+/g, '-'));
     const [saving, setSaving] = useState(false);
+    const [loadingAi, setLoadingAi] = useState(false);
     const [copied, setCopied] = useState(false);
 
     // Derived lists
@@ -1744,7 +1745,34 @@ const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({
                     </div>
 
                     <div className="space-y-4">
-                        <h4 className="text-[10px] font-black uppercase text-indigo-600 tracking-[0.2em]">Priority Agendas (Publicly Visible)</h4>
+                        <div className="flex justify-between items-center">
+                            <h4 className="text-[10px] font-black uppercase text-indigo-600 tracking-[0.2em]">Priority Agendas (Publicly Visible)</h4>
+                            <button 
+                                onClick={async () => {
+                                    setLoadingAi(true);
+                                    try {
+                                        const aiAgendas = await generateManifestoAgendas({
+                                            candidateName: name,
+                                            position,
+                                            partyName: party,
+                                            county: selectedCounty,
+                                            constituency: selectedConstituency,
+                                            ward: selectedWard
+                                        });
+                                        setAgendas(aiAgendas);
+                                    } catch (e) {
+                                        console.error(e);
+                                    } finally {
+                                        setLoadingAi(false);
+                                    }
+                                }}
+                                disabled={loadingAi}
+                                className="text-[9px] font-black uppercase text-indigo-600 flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-all disabled:opacity-50"
+                            >
+                                {loadingAi ? <ArrowPathIcon className="w-3 h-3 animate-spin" /> : <SparklesIcon className="w-3 h-3" />}
+                                {loadingAi ? 'AI Thinking...' : 'Redraft with AI'}
+                            </button>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             {agendas.map((a, i) => (
                                 <input 
