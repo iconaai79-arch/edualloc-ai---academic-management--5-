@@ -25,9 +25,12 @@ import {
     ChefHat,
     ShoppingBag,
     UtensilsCrossed,
-    Sparkles
+    Sparkles,
+    Car,
+    Plus,
+    Compass
 } from 'lucide-react';
-import { Institution, HospitalityMenuItem, HospitalityOrder } from '../../types';
+import { Institution, HospitalityMenuItem, HospitalityOrder, HospitalityVehicle, HospitalityDriveBooking } from '../../types';
 import { apiService } from '../../services/apiService';
 
 interface HospitalityStorefrontProps {
@@ -69,8 +72,10 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
     });
 
     const [isDiningMode, setIsDiningMode] = useState(false);
+    const [isExcursionMode, setIsExcursionMode] = useState(false);
     const [menuItems, setMenuItems] = useState<HospitalityMenuItem[]>([]);
-    const [cart, setCart] = useState<CartItem[]>([]);
+    const [vehicles, setVehicles] = useState<HospitalityVehicle[]>([]);
+    const [cart, setCart] = useState<(HospitalityMenuItem & { qty: number })[]>([]);
     const [roomNumber, setRoomNumber] = useState('');
     const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
@@ -87,13 +92,14 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                     setTenant(resolvedTenant);
                     document.title = `${resolvedTenant.name} | Book Online`;
 
-                    // Fetch Real Items
-                    const hospitalityItems = await apiService.fetchModuleRecords<HospitalityItem>('hospitality_items', resolvedTenant.id);
-                    setItems(hospitalityItems);
-
-                    // Fetch Menu Items
-                    const mItems = await apiService.fetchModuleRecords<HospitalityMenuItem>('hospitality_menu_items', resolvedTenant.id);
-                    setMenuItems(mItems.filter(i => i.isAvailable));
+                    const [itemRecords, menuRecords, vehicleRecords] = await Promise.all([
+                        apiService.fetchModuleRecords<HospitalityItem>('hospitality_items', resolvedTenant.id),
+                        apiService.fetchModuleRecords<HospitalityMenuItem>('hospitality_menu_items', resolvedTenant.id),
+                        apiService.fetchModuleRecords<HospitalityVehicle>('hospitality_vehicles', resolvedTenant.id)
+                    ]);
+                    setItems(itemRecords);
+                    setMenuItems(menuRecords.filter(i => i.isAvailable));
+                    setVehicles(vehicleRecords);
                 }
             } catch (err) {
                 console.error("Storefront Load Error:", err);
@@ -155,11 +161,22 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                     </div>
                     <div className="flex items-center gap-4">
                         <button 
-                            onClick={() => setIsDiningMode(!isDiningMode)}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-full font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-transform shadow-xl"
+                            onClick={() => {
+                                setIsDiningMode(!isDiningMode);
+                                setIsExcursionMode(false);
+                            }}
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-black uppercase text-[10px] tracking-widest transition-all shadow-xl ${isDiningMode ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
                         >
-                            {isDiningMode ? <Hotel className="w-4 h-4" /> : <Utensils className="w-4 h-4" />}
-                            {isDiningMode ? 'Back to Stays' : 'Order Food'}
+                            <Utensils className="w-4 h-4" /> Order Food
+                        </button>
+                        <button 
+                            onClick={() => {
+                                setIsExcursionMode(!isExcursionMode);
+                                setIsDiningMode(false);
+                            }}
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-black uppercase text-[10px] tracking-widest transition-all shadow-xl ${isExcursionMode ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                        >
+                            <Compass className="w-4 h-4" /> Book a Drive
                         </button>
                         <button className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-full font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-transform shadow-xl">
                             <Phone className="w-4 h-4" /> Contact Us
@@ -406,6 +423,57 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                )}
+
+                {isExcursionMode && (
+                    <div className="animate-fade-in space-y-12">
+                        <div className="max-w-3xl mx-auto text-center">
+                            <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">Adventure Awaits</h3>
+                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Select a vehicle and reserve your game drive slot</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                            {vehicles.map(veh => (
+                                <div key={veh.id} className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 p-8 shadow-sm hover:shadow-2xl transition-all group">
+                                    <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                                        <Car className="w-8 h-8" />
+                                    </div>
+                                    <h4 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white mb-2">{veh.type}</h4>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Capacity: {veh.capacity} People • {veh.plateNumber}</p>
+                                    
+                                    <div className="space-y-4 pt-6 border-t border-slate-50 dark:border-slate-800">
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {['06:30 AM', '04:00 PM', '08:00 PM'].map(slot => (
+                                                <button 
+                                                    key={slot}
+                                                    onClick={async () => {
+                                                        const room = prompt("Please enter your Room Number:");
+                                                        if (!room) return;
+                                                        const booking: Partial<HospitalityDriveBooking> = {
+                                                            id: `drv_${Date.now()}`,
+                                                            institutionId: tenant.id,
+                                                            guestName: "Guest",
+                                                            roomNumber: room,
+                                                            vehicleId: veh.id,
+                                                            date: new Date().toISOString().split('T')[0],
+                                                            timeSlot: slot,
+                                                            status: 'pending',
+                                                            createdAt: new Date().toISOString()
+                                                        };
+                                                        await apiService.saveModuleRecord('hospitality_drive_bookings', booking);
+                                                        alert("Drive booking requested! Management will confirm shortly.");
+                                                    }}
+                                                    className="px-3 py-2 bg-slate-50 dark:bg-slate-800 text-[9px] font-black uppercase tracking-widest rounded-xl hover:bg-indigo-600 hover:text-white transition-all"
+                                                >
+                                                    {slot}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}

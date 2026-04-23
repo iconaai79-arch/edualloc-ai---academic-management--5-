@@ -27,10 +27,14 @@ import {
     Utensils,
     Wifi,
     X,
-    ChefHat
+    ChefHat,
+    Truck,
+    Settings,
+    LayoutDashboard
 } from 'lucide-react';
 import { apiService } from '../services/apiService';
 import { DiningManager } from './hospitality/DiningManager';
+import { FleetManager } from './hospitality/FleetManager';
 import type { Institution, User } from '../types';
 
 interface HospitalityManagerProps {
@@ -46,7 +50,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
         category.toLowerCase().includes('tour') ||
         currentInstitution.institutionType === 'Hospitality' && category === 'Travel Agency'
     , [category, currentInstitution.institutionType]);
-    const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'itineraries' | 'inventory' | 'customers' | 'dining'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'itineraries' | 'inventory' | 'customers' | 'dining' | 'fleet' | 'settings'>('overview');
     const [items, setItems] = useState<any[]>([]);
     const [isAddingItem, setIsAddingItem] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
@@ -60,7 +64,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
         duration: '',
         images: [] as string[]
     });
-    const [orders, setOrders] = useState<HospitalityOrder[]>([]);
+    const [orders, setOrders] = useState<any[]>([]);
 
     const loadItems = async () => {
         const records = await apiService.fetchModuleRecords<any>('hospitality_items', currentInstitution.id);
@@ -68,7 +72,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
     };
 
     const loadOrders = async () => {
-        const records = await apiService.fetchModuleRecords<HospitalityOrder>('hospitality_orders', currentInstitution.id);
+        const records = await apiService.fetchModuleRecords<any>('hospitality_orders', currentInstitution.id);
         setOrders(records);
     };
 
@@ -114,13 +118,12 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
 
     const renderOverview = () => {
         const pendingOrders = orders.filter(o => o.status === 'pending');
-        const confirmedOrders = orders.filter(o => o.status === 'confirmed');
         const deliveredOrders = orders.filter(o => o.status === 'delivered');
         
         const stats = [
             { label: 'Total Reservations', value: items.length * 12 + 124, icon: Calendar, color: 'text-indigo-600', bg: 'bg-indigo-50' },
             { label: 'Pending Dining', value: pendingOrders.length, icon: ChefHat, color: 'text-amber-600', bg: 'bg-amber-50' },
-            { label: 'Revenue (MTD)', value: `KES ${(deliveredOrders.reduce((s,o) => s+o.totalAmount, 0)/1000 + 420).toFixed(1)}K`, icon: CreditCard, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+            { label: 'Revenue (MTD)', value: `KES ${(deliveredOrders.reduce((s:any,o:any) => s+o.totalAmount, 0)/1000 + 420).toFixed(1)}K`, icon: CreditCard, color: 'text-emerald-600', bg: 'bg-emerald-50' },
             { label: isAgency ? 'Upcoming Trips' : 'Occupancy Rate', value: isAgency ? '12' : '84%', icon: isAgency ? Plane : Hotel, color: 'text-rose-600', bg: 'bg-rose-50' },
         ];
 
@@ -161,14 +164,14 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                                         No pending food orders
                                     </div>
                                 ) : (
-                                    pendingOrders.map((order) => (
+                                    pendingOrders.map((order:any) => (
                                         <div key={order.id} className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-transparent hover:border-indigo-100 transition-all cursor-pointer group">
                                             <div className="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center font-black text-xs">
                                                 {order.roomNumber}
                                             </div>
                                             <div className="flex-1">
                                                 <p className="font-black text-slate-800 dark:text-white text-xs uppercase">Room {order.roomNumber} • {order.items.length} Items</p>
-                                                <p className="text-[10px] text-slate-400 font-bold uppercase">{order.items.map(i => i.name).join(', ')}</p>
+                                                <p className="text-[10px] text-slate-400 font-bold uppercase">{order.items.map((i:any) => i.name).join(', ')}</p>
                                             </div>
                                             <div className="text-right">
                                                 <p className="text-xs font-black text-indigo-600">KES {order.totalAmount}</p>
@@ -462,7 +465,8 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                         { id: 'bookings', label: 'Bookings', icon: Calendar },
                         { id: 'inventory', label: isAgency ? 'Packages' : 'Inventory', icon: isAgency ? Map : Bed },
                         { id: 'dining', label: 'Dining', icon: ChefHat },
-                        { id: 'customers', label: 'Guests', icon: Users },
+                        { id: 'fleet', label: 'Fleet', icon: Truck },
+                        { id: 'settings', label: 'Settings', icon: Settings },
                     ].map((tab) => (
                         <button
                             key={tab.id}
@@ -481,10 +485,11 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                 {activeTab === 'bookings' && renderBookings()}
                 {activeTab === 'inventory' && renderInventory()}
                 {activeTab === 'dining' && <DiningManager currentInstitution={currentInstitution} />}
-                {activeTab === 'customers' && (
+                {activeTab === 'fleet' && <FleetManager currentInstitution={currentInstitution} />}
+                {activeTab === 'settings' && (
                     <div className="bg-white dark:bg-slate-800 p-12 rounded-[3rem] border-2 border-dashed border-slate-100 dark:border-slate-700 text-center text-slate-400">
                         <Users className="w-16 h-16 mx-auto mb-4 opacity-20" />
-                        <p className="font-black uppercase tracking-widest text-sm">Guest Management Module Loading...</p>
+                        <p className="font-black uppercase tracking-widest text-sm">Settings Module Loading...</p>
                     </div>
                 )}
             </div>

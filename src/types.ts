@@ -2679,6 +2679,39 @@ export interface HospitalityOrder {
     createdAt: string;
 }
 
+export interface HospitalityVehicle {
+    id: string;
+    institutionId: string;
+    type: string; // e.g., 'Land Cruiser', 'Safari Van'
+    plateNumber: string;
+    capacity: number;
+    features: string[];
+    status: 'available' | 'on-drive' | 'maintenance';
+    imageUrl?: string;
+}
+
+export interface HospitalityDriver {
+    id: string;
+    institutionId: string;
+    name: string;
+    phone: string;
+    licenseNumber: string;
+    status: 'available' | 'busy' | 'off-duty';
+}
+
+export interface HospitalityDriveBooking {
+    id: string;
+    institutionId: string;
+    guestName: string;
+    roomNumber?: string;
+    vehicleId: string;
+    driverId?: string;
+    date: string;
+    timeSlot: string;
+    status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+    createdAt: string;
+}
+
 export interface RetailInventoryItem {
     id: string;
     institutionId: string;
