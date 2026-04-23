@@ -2648,6 +2648,37 @@ export interface CafeMenuItem {
     lastUpdated: string;
 }
 
+export interface HospitalityMenuItem {
+    id: string;
+    institutionId: string;
+    name: string;
+    description?: string;
+    basePrice: number;
+    category: string;
+    imageUrl?: string;
+    isAvailable: boolean;
+    sku?: string;
+    lastUpdated: string;
+}
+
+export interface HospitalityOrder {
+    id: string;
+    institutionId: string;
+    roomNumber: string;
+    guestName?: string;
+    items: {
+        itemId: string;
+        name: string;
+        quantity: number;
+        unitPrice: number;
+        kitchenStatus: 'pending' | 'preparing' | 'ready' | 'delivered';
+    }[];
+    totalAmount: number;
+    status: 'pending' | 'confirmed' | 'delivered' | 'cancelled';
+    waiterId?: string;
+    createdAt: string;
+}
+
 export interface RetailInventoryItem {
     id: string;
     institutionId: string;

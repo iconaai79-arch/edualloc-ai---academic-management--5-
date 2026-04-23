@@ -21,9 +21,12 @@ import {
     Utensils,
     Camera,
     ShieldCheck,
-    Clock
+    Clock,
+    ChefHat,
+    ShoppingBag,
+    UtensilsCrossed
 } from 'lucide-react';
-import { Institution } from '../../types';
+import { Institution, HospitalityMenuItem, HospitalityOrder } from '../../types';
 import { apiService } from '../../services/apiService';
 
 interface HospitalityStorefrontProps {
@@ -45,6 +48,10 @@ interface HospitalityItem {
     available?: boolean;
 }
 
+interface CartItem extends HospitalityMenuItem {
+    qty: number;
+}
+
 export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ institutionId }) => {
     const [tenant, setTenant] = useState<Institution | null>(null);
     const [items, setItems] = useState<HospitalityItem[]>([]);
@@ -59,6 +66,12 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
         guests: 1,
         notes: ''
     });
+
+    const [isDiningMode, setIsDiningMode] = useState(false);
+    const [menuItems, setMenuItems] = useState<HospitalityMenuItem[]>([]);
+    const [cart, setCart] = useState<CartItem[]>([]);
+    const [roomNumber, setRoomNumber] = useState('');
+    const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
     useEffect(() => {
         const loadStore = async () => {
@@ -76,6 +89,10 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                     // Fetch Real Items
                     const hospitalityItems = await apiService.fetchModuleRecords<HospitalityItem>('hospitality_items', resolvedTenant.id);
                     setItems(hospitalityItems);
+
+                    // Fetch Menu Items
+                    const mItems = await apiService.fetchModuleRecords<HospitalityMenuItem>('hospitality_menu_items', resolvedTenant.id);
+                    setMenuItems(mItems.filter(i => i.isAvailable));
                 }
             } catch (err) {
                 console.error("Storefront Load Error:", err);
@@ -136,6 +153,13 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                         </h1>
                     </div>
                     <div className="flex items-center gap-4">
+                        <button 
+                            onClick={() => setIsDiningMode(!isDiningMode)}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-full font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-transform shadow-xl"
+                        >
+                            {isDiningMode ? <Hotel className="w-4 h-4" /> : <Utensils className="w-4 h-4" />}
+                            {isDiningMode ? 'Back to Stays' : 'Order Food'}
+                        </button>
                         <button className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-full font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-transform shadow-xl">
                             <Phone className="w-4 h-4" /> Contact Us
                         </button>
@@ -151,7 +175,11 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                         <Compass className="w-4 h-4" /> Discover Your Next Adventure
                     </div>
                     <h2 className="text-5xl md:text-7xl font-black uppercase tracking-tighter text-slate-800 dark:text-white leading-none mb-8">
-                        Experience <span className="text-indigo-600 italic">Excellence</span> <br /> In Every Journey
+                        {isDiningMode ? (
+                            <>Exquisite <span className="text-indigo-600 italic">Flavors</span> <br /> Delivered to Your Room</>
+                        ) : (
+                            <>Experience <span className="text-indigo-600 italic">Excellence</span> <br /> In Every Journey</>
+                        )}
                     </h2>
                     
                     {/* Search Bar */}
@@ -191,58 +219,197 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {items.map(item => (
-                        <div key={item.id} className="group bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all cursor-pointer" onClick={() => setSelectedItem(item)}>
-                            {/* Image Placeholder */}
-                            <div className="h-64 bg-slate-100 dark:bg-slate-800 relative overflow-hidden">
-                                <div className="absolute top-6 left-6 z-10">
-                                    <span className="bg-white/90 dark:bg-slate-900/90 backdrop-blur px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-indigo-600 shadow-sm">
-                                        {item.category}
-                                    </span>
-                                </div>
-                                <div className="absolute top-6 right-6 z-10 flex items-center gap-1 bg-slate-900/60 backdrop-blur px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-white">
-                                    <Star className="w-3 h-3 text-amber-400 fill-amber-400" /> {item.rating}
-                                </div>
-                                
-                                {item.images && item.images.length > 0 ? (
-                                    <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-slate-200 group-hover:scale-110 transition-transform duration-700">
-                                        {item.category === 'Safari' ? <Compass className="w-16 h-16" /> : <Hotel className="w-16 h-16" />}
-                                    </div>
-                                )}
-                                <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between text-white z-10 opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300">
-                                    <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest">
-                                        <MapPin className="w-4 h-4" /> {item.location.split(',')[0]}
-                                    </div>
-                                    <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest">
-                                        <Clock className="w-4 h-4" /> {item.duration || 'Daily'}
-                                    </div>
-                                </div>
-                                <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-950/60 to-transparent"></div>
-                            </div>
-
-                            <div className="p-8">
-                                <h4 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white mb-2 leading-none">{item.name}</h4>
-                                <p className="text-xs text-slate-500 line-clamp-2 mb-6 h-8">{item.description}</p>
-                                
-                                <div className="flex items-center justify-between pt-6 border-t border-slate-50 dark:border-slate-800">
-                                    <div>
-                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Starting From</p>
-                                        <p className="text-2xl font-black text-slate-800 dark:text-white italic tracking-tighter">
-                                            <span className="text-xs font-bold not-italic mr-1">KES</span>
-                                            {(item.price/1000).toFixed(0)}K
-                                        </p>
-                                    </div>
-                                    <button className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-indigo-100 dark:shadow-none hover:bg-slate-900 transition-all active:scale-95">
-                                        Book Now
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
                 </div>
+
+                {!isDiningMode ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {items.map(item => (
+                            <div key={item.id} className="group bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all cursor-pointer" onClick={() => setSelectedItem(item)}>
+                                {/* Image Placeholder */}
+                                <div className="h-64 bg-slate-100 dark:bg-slate-800 relative overflow-hidden">
+                                    <div className="absolute top-6 left-6 z-10">
+                                        <span className="bg-white/90 dark:bg-slate-900/90 backdrop-blur px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-indigo-600 shadow-sm">
+                                            {item.category}
+                                        </span>
+                                    </div>
+                                    <div className="absolute top-6 right-6 z-10 flex items-center gap-1 bg-slate-900/60 backdrop-blur px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-white">
+                                        <Star className="w-3 h-3 text-amber-400 fill-amber-400" /> {item.rating}
+                                    </div>
+                                    
+                                    {item.images && item.images.length > 0 ? (
+                                        <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-slate-200 group-hover:scale-110 transition-transform duration-700">
+                                            {item.category === 'Safari' ? <Compass className="w-16 h-16" /> : <Hotel className="w-16 h-16" />}
+                                        </div>
+                                    )}
+                                    <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between text-white z-10 opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300">
+                                        <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest">
+                                            <MapPin className="w-4 h-4" /> {item.location.split(',')[0]}
+                                        </div>
+                                        <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest">
+                                            <Clock className="w-4 h-4" /> {item.duration || 'Daily'}
+                                        </div>
+                                    </div>
+                                    <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-950/60 to-transparent"></div>
+                                </div>
+
+                                <div className="p-8">
+                                    <h4 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white mb-2 leading-none">{item.name}</h4>
+                                    <p className="text-xs text-slate-500 line-clamp-2 mb-6 h-8">{item.description}</p>
+                                    
+                                    <div className="flex items-center justify-between pt-6 border-t border-slate-50 dark:border-slate-800">
+                                        <div>
+                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Starting From</p>
+                                            <p className="text-2xl font-black text-slate-800 dark:text-white italic tracking-tighter">
+                                                <span className="text-xs font-bold not-italic mr-1">KES</span>
+                                                {(item.price/1000).toFixed(0)}K
+                                            </p>
+                                        </div>
+                                        <button className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-indigo-100 dark:shadow-none hover:bg-slate-900 transition-all active:scale-95">
+                                            Book Now
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="flex flex-col lg:flex-row gap-12 animate-fade-in">
+                        <div className="flex-1 space-y-12">
+                            {['Breakfast', 'Main Course', 'Dessert', 'Drinks'].map(cat => {
+                                const catItems = menuItems.filter(i => i.category === cat);
+                                if (catItems.length === 0) return null;
+                                return (
+                                    <div key={cat}>
+                                        <h4 className="text-xl font-black uppercase tracking-widest text-slate-800 dark:text-white mb-6 border-l-4 border-indigo-600 pl-4">{cat}</h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {catItems.map(dish => (
+                                                <div key={dish.id} className="flex gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-transparent hover:border-indigo-100 transition-all group">
+                                                    <div className="w-24 h-24 bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-sm flex-shrink-0">
+                                                        {dish.imageUrl ? (
+                                                            <img src={dish.imageUrl} alt={dish.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-slate-200">
+                                                                <ChefHat className="w-8 h-8" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 flex flex-col justify-between">
+                                                        <div>
+                                                            <h5 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm">{dish.name}</h5>
+                                                            <p className="text-[10px] text-slate-400 font-medium line-clamp-1">{dish.description}</p>
+                                                        </div>
+                                                        <div className="flex justify-between items-center mt-2">
+                                                            <p className="font-black text-indigo-600 text-sm">KES {dish.basePrice}</p>
+                                                            <button 
+                                                                onClick={() => {
+                                                                    const existing = cart.find(c => c.id === dish.id);
+                                                                    if (existing) {
+                                                                        setCart(cart.map(c => c.id === dish.id ? { ...c, qty: c.qty + 1 } : c));
+                                                                    } else {
+                                                                        setCart([...cart, { ...dish, qty: 1 }]);
+                                                                    }
+                                                                }}
+                                                                className="p-2 bg-white dark:bg-slate-800 text-slate-400 hover:text-indigo-600 rounded-xl shadow-sm transition-all active:scale-90"
+                                                            >
+                                                                <Plus className="w-5 h-5" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Dining Cart */}
+                        <div className="w-full lg:w-96 bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 p-8 shadow-xl h-fit sticky top-24">
+                            <h4 className="text-xl font-black uppercase tracking-tighter text-slate-800 dark:text-white mb-6 flex items-center gap-2">
+                                <ShoppingBag className="w-6 h-6 text-indigo-600" />
+                                Your Order
+                            </h4>
+                            
+                            {cart.length === 0 ? (
+                                <div className="py-12 text-center space-y-4">
+                                    <UtensilsCrossed className="w-12 h-12 text-slate-200 mx-auto" />
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Hungry? Add something from the menu!</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    <div className="max-h-64 overflow-y-auto space-y-4 pr-2">
+                                        {cart.map(item => (
+                                            <div key={item.id} className="flex justify-between items-center">
+                                                <div>
+                                                    <p className="text-xs font-black text-slate-800 dark:text-white uppercase">{item.qty}x {item.name}</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold">KES {item.basePrice * item.qty}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={() => {
+                                                        if (item.qty > 1) setCart(cart.map(c => c.id === item.id ? { ...c, qty: c.qty - 1 } : c));
+                                                        else setCart(cart.filter(c => c.id !== item.id));
+                                                    }} className="p-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg text-slate-400 hover:text-red-500">-</button>
+                                                    <button onClick={() => setCart(cart.map(c => c.id === item.id ? { ...c, qty: c.qty + 1 } : c))} className="p-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600">+</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    
+                                    <div className="pt-6 border-t border-slate-100 dark:border-slate-800 space-y-4">
+                                        <div className="flex justify-between items-center text-sm font-black text-slate-800 dark:text-white uppercase">
+                                            <span>Total Amount</span>
+                                            <span className="text-indigo-600">KES {cart.reduce((s, i) => s + (i.basePrice * i.qty), 0)}</span>
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Room Number</label>
+                                            <input 
+                                                type="text" 
+                                                value={roomNumber}
+                                                onChange={e => setRoomNumber(e.target.value)}
+                                                placeholder="e.g. 204"
+                                                className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-black text-sm outline-none focus:ring-2 ring-indigo-500/50" 
+                                            />
+                                        </div>
+
+                                        <button 
+                                            onClick={async () => {
+                                                if (!roomNumber) return alert('Please enter your room number.');
+                                                setIsPlacingOrder(true);
+                                                const order: Partial<HospitalityOrder> = {
+                                                    id: `hord_${Date.now()}`,
+                                                    institutionId: tenant.id,
+                                                    roomNumber,
+                                                    items: cart.map(i => ({
+                                                        itemId: i.id,
+                                                        name: i.name,
+                                                        quantity: i.qty,
+                                                        unitPrice: i.basePrice,
+                                                        kitchenStatus: 'pending'
+                                                    })),
+                                                    totalAmount: cart.reduce((s, i) => s + (i.basePrice * i.qty), 0),
+                                                    status: 'pending',
+                                                    createdAt: new Date().toISOString()
+                                                };
+                                                await apiService.saveModuleRecord('hospitality_orders', order);
+                                                setIsPlacingOrder(false);
+                                                setCart([]);
+                                                setRoomNumber('');
+                                                alert('Your order has been sent to the kitchen! We will deliver it shortly.');
+                                            }}
+                                            disabled={isPlacingOrder || !roomNumber || cart.length === 0}
+                                            className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-2xl shadow-indigo-100 hover:bg-slate-900 transition-all disabled:opacity-50"
+                                        >
+                                            {isPlacingOrder ? 'Sending...' : 'Place Order'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Why Us Section */}

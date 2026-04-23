@@ -26,9 +26,11 @@ import {
     Coffee,
     Utensils,
     Wifi,
-    X
+    X,
+    ChefHat
 } from 'lucide-react';
 import { apiService } from '../services/apiService';
+import { DiningManager } from './hospitality/DiningManager';
 import type { Institution, User } from '../types';
 
 interface HospitalityManagerProps {
@@ -44,7 +46,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
         category.toLowerCase().includes('tour') ||
         currentInstitution.institutionType === 'Hospitality' && category === 'Travel Agency'
     , [category, currentInstitution.institutionType]);
-    const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'itineraries' | 'inventory' | 'customers'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'itineraries' | 'inventory' | 'customers' | 'dining'>('overview');
     const [items, setItems] = useState<any[]>([]);
     const [isAddingItem, setIsAddingItem] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
@@ -409,6 +411,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                         { id: 'overview', label: 'Dashboard', icon: Sparkles },
                         { id: 'bookings', label: 'Bookings', icon: Calendar },
                         { id: 'inventory', label: isAgency ? 'Packages' : 'Inventory', icon: isAgency ? Map : Bed },
+                        { id: 'dining', label: 'Dining', icon: ChefHat },
                         { id: 'customers', label: 'Guests', icon: Users },
                     ].map((tab) => (
                         <button
@@ -427,6 +430,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                 {activeTab === 'overview' && renderOverview()}
                 {activeTab === 'bookings' && renderBookings()}
                 {activeTab === 'inventory' && renderInventory()}
+                {activeTab === 'dining' && <DiningManager currentInstitution={currentInstitution} />}
                 {activeTab === 'customers' && (
                     <div className="bg-white dark:bg-slate-800 p-12 rounded-[3rem] border-2 border-dashed border-slate-100 dark:border-slate-700 text-center text-slate-400">
                         <Users className="w-16 h-16 mx-auto mb-4 opacity-20" />
