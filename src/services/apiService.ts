@@ -2161,6 +2161,7 @@ export const apiService = {
                 body: JSON.stringify({
                     action: 'ncbaInitiateStk',
                     metadata: { type: 'one-off' },
+                    phone: params.phoneNumber,
                     ...params
                 })
             });
@@ -2208,6 +2209,7 @@ export const apiService = {
                 body: JSON.stringify({
                     action: 'initiateStkPush',
                     metadata: { type: 'one-off' },
+                    phone: params.phoneNumber,
                     ...params
                 })
             });
