@@ -485,7 +485,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                 {activeTab === 'bookings' && renderBookings()}
                 {activeTab === 'inventory' && renderInventory()}
                 {activeTab === 'dining' && <DiningManager currentInstitution={currentInstitution} />}
-                {activeTab === 'fleet' && <FleetManager currentInstitution={currentInstitution} />}
+                {activeTab === 'fleet' && <FleetManager institution={currentInstitution} />}
                 {activeTab === 'settings' && (
                     <div className="bg-white dark:bg-slate-800 p-12 rounded-[3rem] border-2 border-dashed border-slate-100 dark:border-slate-700 text-center text-slate-400">
                         <Users className="w-16 h-16 mx-auto mb-4 opacity-20" />
