@@ -446,7 +446,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                             
                             <div className="flex items-center justify-between mb-8">
                                 <div>
-                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">M-Pesa Number</p>
+                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">NCBA Connected Number</p>
                                     <p className="text-xl font-black text-slate-800 dark:text-white">{formData.phoneNumber}</p>
                                 </div>
                                 <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-emerald-200 ring-4 ring-white dark:ring-slate-700">
@@ -459,7 +459,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                                     onClick={handlePayment}
                                     className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:bg-slate-900 transition-all shadow-2xl shadow-indigo-100 flex items-center justify-center gap-3 active:scale-95"
                                 >
-                                    <ArrowRight className="w-5 h-5" /> Pay KES {joiningFee.toLocaleString()} via M-Pesa
+                                    <ArrowRight className="w-5 h-5" /> Pay KES {joiningFee.toLocaleString()} via NCBA
                                 </button>
                             )}
 

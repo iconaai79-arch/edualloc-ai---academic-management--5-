@@ -2124,6 +2124,30 @@ export const apiService = {
             timestamp: new Date().toISOString()
         };
     },
+    async triggerNcbaPayment(params: { amount: number; phoneNumber: string; reference: string; description: string; institutionId: string }): Promise<any> {
+        try {
+            const token = await apiService.getAuthToken();
+            const response = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    action: 'ncbaPush',
+                    ...params
+                })
+            });
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.message || 'NCBA Push failed');
+            }
+            return response.json();
+        } catch (error) {
+            console.error('NCBA Push error:', error);
+            throw error;
+        }
+    },
     async triggerMpesaStkPush(params: { amount: number; phoneNumber: string; reference: string; description: string; institutionId: string }): Promise<any> {
         try {
             const token = await apiService.getAuthToken();

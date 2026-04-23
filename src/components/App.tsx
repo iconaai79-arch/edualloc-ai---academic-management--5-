@@ -4891,7 +4891,7 @@ export const App: React.FC = () => {
                                 feeEnabled={companyDetails?.portalSettings?.alumnaeRegistrationFeeEnabled !== false}
                                 onInitiatePayment={async (amount, phone, reference) => {
                                     try {
-                                        const res = await apiService.triggerMpesaStkPush({
+                                        const res = await apiService.triggerNcbaPayment({
                                             amount,
                                             phoneNumber: phone,
                                             reference: reference,
