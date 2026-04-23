@@ -25,8 +25,10 @@ import {
     Star,
     Coffee,
     Utensils,
-    Wifi
+    Wifi,
+    X
 } from 'lucide-react';
+import { apiService } from '../services/apiService';
 import type { Institution, User } from '../types';
 
 interface HospitalityManagerProps {
@@ -36,6 +38,12 @@ interface HospitalityManagerProps {
 
 export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentInstitution, users }) => {
     const category = currentInstitution.category || 'Travel Agency';
+    const isAgency = useMemo(() => 
+        category.toLowerCase().includes('agency') || 
+        category.toLowerCase().includes('safari') || 
+        category.toLowerCase().includes('tour') ||
+        currentInstitution.institutionType === 'Hospitality' && category === 'Travel Agency'
+    , [category, currentInstitution.institutionType]);
     const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'itineraries' | 'inventory' | 'customers'>('overview');
     const [items, setItems] = useState<any[]>([]);
     const [isAddingItem, setIsAddingItem] = useState(false);
