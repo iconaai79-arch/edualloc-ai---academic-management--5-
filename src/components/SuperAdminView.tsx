@@ -1130,7 +1130,11 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 inst.institutionCode?.toLowerCase().includes(lower)
             );
         }
-        return result;
+        return result.sort((a, b) => {
+            const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return timeB - timeA;
+        });
     }, [institutions, institutionSearchQuery, institutionTimeFilter]);
 
     // Configuration local states
