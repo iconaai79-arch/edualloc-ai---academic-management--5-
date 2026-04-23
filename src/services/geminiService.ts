@@ -768,9 +768,12 @@ export const generateManifestoAgendas = async (profile: any): Promise<string[]> 
         }, 'flash');
         
         const result = sanitizeAndParseJson(response.text || "[]");
-        return Array.isArray(result) ? result.slice(0, 3) : ["Better Healthcare", "Youth Empowerment", "Economic Growth"];
+        if (Array.isArray(result) && result.length > 0) {
+            return result.slice(0, 3);
+        }
+        return ["Revitalizing Local Economy", "Sustainable Healthcare Access", "Youth & Women Empowerment"];
     } catch (error) {
         console.error("AI Manifesto error:", error);
-        return ["Better Healthcare", "Youth Empowerment", "Economic Growth"];
+        return ["Revitalizing Local Economy", "Sustainable Healthcare Access", "Youth & Women Empowerment"];
     }
 };
