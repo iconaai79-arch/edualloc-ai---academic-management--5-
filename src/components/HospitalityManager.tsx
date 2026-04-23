@@ -87,7 +87,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
 
         setIsUploading(true);
         try {
-            const result = await apiService.uploadToShowcaseCpanel(file, currentInstitution.id);
+            const result = await apiService.uploadToGoogleDrive(file, currentInstitution.id);
             if (result.success) {
                 setNewItem(prev => ({ ...prev, images: [...prev.images, result.url] }));
             }

@@ -51,6 +51,22 @@ export const DiningManager: React.FC<DiningManagerProps> = ({ currentInstitution
         loadData();
     }, [currentInstitution.id]);
 
+    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setIsUploading(true);
+        try {
+            const result = await apiService.uploadToGoogleDrive(file, currentInstitution.id);
+            if (result.success) {
+                setNewItem(prev => ({ ...prev, imageUrl: result.url }));
+            }
+        } catch (err) {
+            console.error("Upload failed:", err);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
     const handleSaveMenuItem = async () => {
         const payload = {
             ...newItem,
@@ -273,6 +289,21 @@ export const DiningManager: React.FC<DiningManagerProps> = ({ currentInstitution
                                             <option value="Drinks">Drinks / Beverages</option>
                                             <option value="Breakfast">Breakfast</option>
                                         </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Item Image</label>
+                                    <div className="flex items-center gap-4">
+                                        {newItem.imageUrl && (
+                                            <img src={newItem.imageUrl} className="w-16 h-16 rounded-2xl object-cover" alt="Preview" />
+                                        )}
+                                        <label className="flex-1 cursor-pointer group">
+                                            <div className="w-full py-4 bg-slate-50 dark:bg-slate-800 border-2 border-dashed border-slate-100 dark:border-slate-700 rounded-2xl flex items-center justify-center gap-2 text-[10px] font-black uppercase text-slate-400 group-hover:border-indigo-600 group-hover:text-indigo-600 transition-all">
+                                                {isUploading ? <Sparkles className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+                                                {isUploading ? 'Uploading...' : 'Upload to G-Drive'}
+                                            </div>
+                                            <input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} />
+                                        </label>
                                     </div>
                                 </div>
                                 <div>

@@ -29,6 +29,7 @@ export const FleetManager: React.FC<FleetManagerProps> = ({ institution }) => {
     const [activeTab, setActiveTab] = useState<'vehicles' | 'drivers' | 'bookings'>('bookings');
     const [isAddingVehicle, setIsAddingVehicle] = useState(false);
     const [isAddingDriver, setIsAddingDriver] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
 
     const [newVehicle, setNewVehicle] = useState<Partial<HospitalityVehicle>>({
         type: '',
@@ -54,6 +55,22 @@ export const FleetManager: React.FC<FleetManagerProps> = ({ institution }) => {
         setVehicles(v);
         setDrivers(d);
         setBookings(b);
+    };
+
+    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setIsUploading(true);
+        try {
+            const result = await apiService.uploadToGoogleDrive(file, institution.id);
+            if (result.success) {
+                setNewVehicle(prev => ({ ...prev, imageUrl: result.url }));
+            }
+        } catch (err) {
+            console.error("Upload failed:", err);
+        } finally {
+            setIsUploading(false);
+        }
     };
 
     useEffect(() => {
@@ -296,6 +313,22 @@ export const FleetManager: React.FC<FleetManagerProps> = ({ institution }) => {
                                     <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Features (csv)</label>
                                     <input value={newVehicle.features} onChange={e => setNewVehicle({...newVehicle, features: e.target.value as any})} placeholder="Open roof, Fridge..." className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-black text-sm outline-none focus:ring-2 ring-indigo-500/50" />
                                 </div>
+                            </div>
+                            <div>
+                                <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Vehicle Image</label>
+                                <label className="flex items-center gap-4 cursor-pointer group p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-dashed border-slate-100 dark:border-slate-700 hover:border-indigo-600 transition-all">
+                                    {newVehicle.imageUrl ? (
+                                        <img src={newVehicle.imageUrl} className="w-12 h-12 rounded-xl object-cover" alt="Vehicle" />
+                                    ) : (
+                                        <div className="w-12 h-12 bg-white dark:bg-slate-900 rounded-xl flex items-center justify-center text-slate-300">
+                                            <Car className="w-6 h-6" />
+                                        </div>
+                                    )}
+                                    <div className="flex-1 text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-indigo-600">
+                                        {isUploading ? 'Uploading...' : 'Upload to G-Drive'}
+                                    </div>
+                                    <input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} />
+                                </label>
                             </div>
                             <button onClick={handleSaveVehicle} className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-100 hover:bg-slate-900 transition-all">
                                 Complete Registration
