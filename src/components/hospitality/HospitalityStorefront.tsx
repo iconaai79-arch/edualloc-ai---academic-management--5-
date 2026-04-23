@@ -37,6 +37,17 @@ interface HospitalityStorefrontProps {
     institutionId: string;
 }
 
+const getDirectUrl = (url: string) => {
+    if (!url) return '';
+    if (url.includes('drive.google.com')) {
+        const idMatch = url.match(/\/d\/([^\/]+)/) || url.match(/id=([^\/&]+)/);
+        if (idMatch && idMatch[1]) {
+            return `https://drive.google.com/uc?export=view&id=${idMatch[1]}`;
+        }
+    }
+    return url;
+};
+
 interface HospitalityItem {
     id: string;
     name: string;
@@ -253,7 +264,7 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                                     </div>
                                     
                                     {item.images && item.images.length > 0 ? (
-                                        <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                        <img src={getDirectUrl(item.images[0])} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-slate-200 group-hover:scale-110 transition-transform duration-700">
                                             {item.category === 'Safari' ? <Compass className="w-16 h-16" /> : <Hotel className="w-16 h-16" />}

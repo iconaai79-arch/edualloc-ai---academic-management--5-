@@ -22,6 +22,17 @@ interface FleetManagerProps {
     institution: Institution;
 }
 
+const getDirectUrl = (url: string) => {
+    if (!url) return '';
+    if (url.includes('drive.google.com')) {
+        const idMatch = url.match(/\/d\/([^\/]+)/) || url.match(/id=([^\/&]+)/);
+        if (idMatch && idMatch[1]) {
+            return `https://drive.google.com/uc?export=view&id=${idMatch[1]}`;
+        }
+    }
+    return url;
+};
+
 export const FleetManager: React.FC<FleetManagerProps> = ({ institution }) => {
     const [vehicles, setVehicles] = useState<HospitalityVehicle[]>([]);
     const [drivers, setDrivers] = useState<HospitalityDriver[]>([]);
@@ -319,7 +330,7 @@ export const FleetManager: React.FC<FleetManagerProps> = ({ institution }) => {
                                 <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Vehicle Image</label>
                                 <label className="flex items-center gap-4 cursor-pointer group p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-dashed border-slate-100 dark:border-slate-700 hover:border-indigo-600 transition-all">
                                     {newVehicle.imageUrl ? (
-                                        <img src={newVehicle.imageUrl} className="w-12 h-12 rounded-xl object-cover" alt="Vehicle" />
+                                        <img src={getDirectUrl(newVehicle.imageUrl)} className="w-12 h-12 rounded-xl object-cover" alt="Vehicle" />
                                     ) : (
                                         <div className="w-12 h-12 bg-white dark:bg-slate-900 rounded-xl flex items-center justify-center text-slate-300">
                                             <Car className="w-6 h-6" />

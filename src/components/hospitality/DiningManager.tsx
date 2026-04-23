@@ -22,6 +22,17 @@ interface DiningManagerProps {
     currentInstitution: Institution;
 }
 
+const getDirectUrl = (url: string) => {
+    if (!url) return '';
+    if (url.includes('drive.google.com')) {
+        const idMatch = url.match(/\/d\/([^\/]+)/) || url.match(/id=([^\/&]+)/);
+        if (idMatch && idMatch[1]) {
+            return `https://drive.google.com/uc?export=view&id=${idMatch[1]}`;
+        }
+    }
+    return url;
+};
+
 export const DiningManager: React.FC<DiningManagerProps> = ({ currentInstitution }) => {
     const [activeSubTab, setActiveSubTab] = useState<'menu' | 'orders'>('menu');
     const [menuItems, setMenuItems] = useState<HospitalityMenuItem[]>([]);
@@ -296,7 +307,7 @@ export const DiningManager: React.FC<DiningManagerProps> = ({ currentInstitution
                                     <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Item Image</label>
                                     <div className="flex items-center gap-4">
                                         {newItem.imageUrl && (
-                                            <img src={newItem.imageUrl} className="w-16 h-16 rounded-2xl object-cover" alt="Preview" />
+                                            <img src={getDirectUrl(newItem.imageUrl)} className="w-16 h-16 rounded-2xl object-cover" alt="Preview" />
                                         )}
                                         <label className="flex-1 cursor-pointer group">
                                             <div className="w-full py-4 bg-slate-50 dark:bg-slate-800 border-2 border-dashed border-slate-100 dark:border-slate-700 rounded-2xl flex items-center justify-center gap-2 text-[10px] font-black uppercase text-slate-400 group-hover:border-indigo-600 group-hover:text-indigo-600 transition-all">

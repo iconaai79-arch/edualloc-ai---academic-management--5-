@@ -42,6 +42,17 @@ interface HospitalityManagerProps {
     users: User[];
 }
 
+const getDirectUrl = (url: string) => {
+    if (!url) return '';
+    if (url.includes('drive.google.com')) {
+        const idMatch = url.match(/\/d\/([^\/]+)/) || url.match(/id=([^\/&]+)/);
+        if (idMatch && idMatch[1]) {
+            return `https://drive.google.com/uc?export=view&id=${idMatch[1]}`;
+        }
+    }
+    return url;
+};
+
 export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentInstitution, users }) => {
     const category = currentInstitution.category || 'Travel Agency';
     const isAgency = useMemo(() => 
@@ -332,7 +343,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                     <div key={item.id} className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden group hover:shadow-2xl transition-all">
                         <div className="aspect-video bg-slate-100 dark:bg-slate-900 relative">
                             {item.images && item.images.length > 0 ? (
-                                <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                <img src={getDirectUrl(item.images[0])} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center text-slate-200">
                                     {isAgency ? <Plane className="w-12 h-12" /> : <Bed className="w-12 h-12" />}
@@ -404,7 +415,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                                 <div className="grid grid-cols-4 gap-4">
                                     {newItem.images.map((img, idx) => (
                                         <div key={idx} className="aspect-square bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 relative group">
-                                            <img src={img} alt="Preview" className="w-full h-full object-cover" />
+                                            <img src={getDirectUrl(img)} alt="Preview" className="w-full h-full object-cover" />
                                             <button 
                                                 onClick={() => setNewItem(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }))}
                                                 className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
