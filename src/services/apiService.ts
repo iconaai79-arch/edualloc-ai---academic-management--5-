@@ -2126,8 +2126,23 @@ export const apiService = {
     },
     async triggerNcbaPayment(params: { amount: number; phoneNumber: string; reference: string; description: string; institutionId: string }): Promise<any> {
         try {
-            const token = await apiService.getAuthToken();
+            let token = await apiService.getAuthToken();
             const config = apiService.getActiveConfig();
+            
+            // If no token (unauthenticated public flow), try to create a temporary anonymous session
+            // to satisfy the strict backend Edge Function identity checks.
+            if (!token && apiService.isConfigured()) {
+                try {
+                    // @ts-ignore - dynamic auth check
+                    const { data } = await _supabase.auth.signInAnonymously();
+                    if (data?.session?.access_token) {
+                        token = data.session.access_token;
+                    }
+                } catch (e) {
+                    console.warn("Failed to generate anonymous session for payment trigger", e);
+                }
+            }
+
             const headers: Record<string, string> = {
                 'Content-Type': 'application/json',
                 'apikey': config.key
@@ -2160,8 +2175,21 @@ export const apiService = {
     },
     async triggerMpesaStkPush(params: { amount: number; phoneNumber: string; reference: string; description: string; institutionId: string }): Promise<any> {
         try {
-            const token = await apiService.getAuthToken();
+            let token = await apiService.getAuthToken();
             const config = apiService.getActiveConfig();
+            
+            if (!token && apiService.isConfigured()) {
+                try {
+                    // @ts-ignore - dynamic auth check
+                    const { data } = await _supabase.auth.signInAnonymously();
+                    if (data?.session?.access_token) {
+                        token = data.session.access_token;
+                    }
+                } catch (e) {
+                    console.warn("Failed to generate anonymous session for payment trigger", e);
+                }
+            }
+
             const headers: Record<string, string> = {
                 'Content-Type': 'application/json',
                 'apikey': config.key
