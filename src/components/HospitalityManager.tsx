@@ -75,6 +75,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
         duration: '',
         images: [] as string[]
     });
+    const [editingId, setEditingId] = useState<string | null>(null);
     const [orders, setOrders] = useState<any[]>([]);
 
     const loadItems = async () => {
@@ -113,16 +114,17 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
     const handleSaveItem = async () => {
         const payload = {
             ...newItem,
-            id: `hosp_${Date.now()}`,
+            id: editingId || `hosp_${Date.now()}`,
             institutionId: currentInstitution.id,
             price: Number(newItem.price),
-            features: newItem.features.split(',').map(f => f.trim()),
+            features: typeof newItem.features === 'string' ? newItem.features.split(',').map(f => f.trim()) : newItem.features,
             rating: 5.0,
             isAvailable: true
         };
 
         await apiService.saveModuleRecord('hospitality_items', payload);
         setIsAddingItem(false);
+        setEditingId(null);
         setNewItem({ name: '', description: '', price: '', category: isAgency ? 'Safari' : 'Room', features: '', location: '', duration: '', images: [] });
         loadItems();
     };
@@ -366,7 +368,23 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                                     <p className="text-sm font-black text-indigo-600 tracking-tighter">KES {item.price.toLocaleString()}</p>
                                 </div>
                             </div>
-                            <button className="w-full py-4 bg-slate-900 dark:bg-slate-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest group-hover:bg-indigo-600 transition-all">
+                            <button 
+                                onClick={() => {
+                                    setEditingId(item.id);
+                                    setNewItem({
+                                        name: item.name,
+                                        description: item.description,
+                                        price: item.price.toString(),
+                                        category: item.category,
+                                        features: Array.isArray(item.features) ? item.features.join(', ') : item.features,
+                                        location: item.location || '',
+                                        duration: item.duration || '',
+                                        images: item.images || []
+                                    });
+                                    setIsAddingItem(true);
+                                }}
+                                className="w-full py-4 bg-slate-900 dark:bg-slate-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest group-hover:bg-indigo-600 transition-all"
+                            >
                                 Edit Details
                             </button>
                         </div>
@@ -377,10 +395,12 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
             {/* Add Item Modal */}
             {isAddingItem && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
-                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-xl" onClick={() => setIsAddingItem(false)}></div>
+                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-xl" onClick={() => { setIsAddingItem(false); setEditingId(null); }}></div>
                     <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
                         <div className="p-10">
-                            <h4 className="text-2xl font-black uppercase tracking-tight text-slate-800 dark:text-white mb-8">New {isAgency ? 'Safari Package' : 'Room Category'}</h4>
+                            <h4 className="text-2xl font-black uppercase tracking-tight text-slate-800 dark:text-white mb-8">
+                                {editingId ? 'Edit' : 'New'} {isAgency ? 'Safari Package' : 'Room Category'}
+                            </h4>
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                                 <div>
