@@ -20,7 +20,8 @@ import {
     Loader2,
     Plus,
     X,
-    Sparkles
+    Sparkles,
+    Users
 } from 'lucide-react';
 import type { AlumniPost, AlumniComment, Institution } from '../types';
 import { apiService } from '../services/apiService';
