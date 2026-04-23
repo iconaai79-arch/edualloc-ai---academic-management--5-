@@ -495,6 +495,20 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                         </div>
                     </div>
 
+                    <div className="space-y-6">
+                         <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white mb-4">Core Agendas</h4>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {(profile!.agendas || []).length > 0 ? profile!.agendas?.map((agenda, i) => (
+                                <div key={i} className="flex gap-3 p-4 bg-white dark:bg-slate-900 rounded-2xl border-l-4 border-indigo-500 shadow-sm">
+                                    <div className="w-6 h-6 shrink-0 bg-slate-50 dark:bg-slate-800 rounded-lg flex items-center justify-center font-black text-xs text-indigo-600 shadow-sm">{i+1}</div>
+                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight">{agenda}</p>
+                                </div>
+                            )) : (
+                                <p className="text-slate-400 text-[10px] font-black uppercase">No structured agendas defined. Edit profile to add some.</p>
+                            )}
+                         </div>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         {[
                             { label: 'Total Supporter Strength', val: stats.supporters.toLocaleString(), sub: 'Hard Votes', icon: HeartIcon, color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/10' },
@@ -1573,7 +1587,13 @@ const CampaignProfileModal: React.FC<CampaignProfileModalProps> = ({
     const [selectedWard, setSelectedWard] = useState(profile?.ward || '');
 
     const [target, setTarget] = useState(profile?.targetVoterCount || 50000);
-    const [agendas, setAgendas] = useState<string[]>(profile?.agendas || ['', '', '']);
+    const [agendas, setAgendas] = useState<string[]>(() => {
+        const existing = profile?.agendas || [];
+        if (existing.length === 0) return ['', '', ''];
+        if (existing.length === 1) return [...existing, '', ''];
+        if (existing.length === 2) return [...existing, ''];
+        return existing;
+    });
     const [slug, setSlug] = useState(profile?.inviteSlug || name.toLowerCase().replace(/\s+/g, '-'));
     const [saving, setSaving] = useState(false);
     const [loadingAi, setLoadingAi] = useState(false);
