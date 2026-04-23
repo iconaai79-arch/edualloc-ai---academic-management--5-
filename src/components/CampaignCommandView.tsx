@@ -286,7 +286,14 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     </div>
                 </div>
 
-                <div className="flex flex-col gap-2 bg-slate-100 dark:bg-slate-800 p-2 rounded-2xl relative z-10">
+                <div className="flex items-center gap-3 relative z-10">
+                    <button 
+                        onClick={() => setIsSetupModalOpen(true)}
+                        className="px-6 py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-95"
+                    >
+                        Edit Profile
+                    </button>
+                    <div className="flex flex-col gap-2 bg-slate-100 dark:bg-slate-800 p-2 rounded-2xl">
                     <div className="flex">
                         {['dashboard', 'voters', 'groups', 'events', 'sms_broadcast'].map(t => (
                             <button 
@@ -311,6 +318,68 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     </div>
                 </div>
             </div>
+
+            {/* Manifesto & Agendas View */}
+            {activeTab === 'manifesto' && (
+                <div className="space-y-8 animate-fade-in-up">
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-10 shadow-xl border border-slate-100 dark:border-slate-800">
+                        <div className="flex justify-between items-center mb-12">
+                            <div>
+                                <h3 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
+                                    <SparklesIcon className="w-8 h-8 text-indigo-600" />
+                                    Campaign Manifesto
+                                </h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 ml-11">Edit your core priorities and voter promises</p>
+                            </div>
+                            <button 
+                                onClick={() => setIsSetupModalOpen(true)}
+                                className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-indigo-100 hover:scale-105 active:scale-95 transition-all flex items-center gap-3"
+                            >
+                                <ArrowPathIcon className="w-5 h-5" />
+                                Edit Agendas
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="space-y-6">
+                                <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white mb-4">Core Agendas</h4>
+                                <div className="grid grid-cols-1 gap-4">
+                                    {(profile.agendas || []).length > 0 ? profile.agendas.map((agenda, i) => (
+                                        <div key={i} className="flex gap-4 p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border-l-8 border-indigo-500 shadow-sm">
+                                            <div className="w-10 h-10 shrink-0 bg-white dark:bg-slate-900 rounded-xl flex items-center justify-center font-black text-lg text-indigo-600 shadow-sm">{i+1}</div>
+                                            <p className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight leading-relaxed">{agenda}</p>
+                                        </div>
+                                    )) : (
+                                        <div className="p-12 border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-3xl text-center">
+                                            <p className="text-slate-400 text-xs font-black uppercase">No agendas defined yet.</p>
+                                            <button onClick={() => setIsSetupModalOpen(true)} className="mt-4 text-indigo-600 font-black text-[10px] uppercase tracking-widest">Setup Agendas →</button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="p-10 bg-indigo-600 rounded-[2.5rem] text-white relative overflow-hidden shadow-2xl">
+                                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+                                <h4 className="text-2xl font-black uppercase tracking-tighter mb-4 relative z-10">Strategic Guidance</h4>
+                                <p className="text-indigo-100 text-sm font-medium leading-relaxed mb-8 relative z-10">
+                                    Your agendas are the foundation of your campaign. They are displayed on your public join link and are used to train the AI on your specific political stance.
+                                </p>
+                                <div className="space-y-4 relative z-10">
+                                    <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest bg-white/10 p-4 rounded-2xl">
+                                        <ShieldCheckIcon className="w-5 h-5 text-emerald-400" /> Keep them concise (max 100 chars)
+                                    </div>
+                                    <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest bg-white/10 p-4 rounded-2xl">
+                                        <ShieldCheckIcon className="w-5 h-5 text-emerald-400" /> Focus on tangible deliverables
+                                    </div>
+                                    <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest bg-white/10 p-4 rounded-2xl">
+                                        <ShieldCheckIcon className="w-5 h-5 text-emerald-400" /> Align with local ward needs
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ── Dashboard (War Room Intelligence) ── */}
             {activeTab === 'dashboard' && (
