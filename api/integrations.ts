@@ -1419,12 +1419,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // 1. Fetch Institution
             let inst = null;
-            if (instId && instId !== 'SYSTEM') {
+            if (instId && instId !== 'SYSTEM' && instId !== 'GLOBAL') {
                 const { data } = await supabase.from('institutions').select('*').eq('id', instId).maybeSingle();
                 inst = data;
             }
 
-            if (!inst && instId !== 'SYSTEM') {
+            if (!inst && instId !== 'SYSTEM' && instId !== 'GLOBAL') {
                 console.error(`[Reconcile] Institution ${instId} not found.`);
                 return;
             }
