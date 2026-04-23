@@ -64,6 +64,7 @@ export const DiningManager: React.FC<DiningManagerProps> = ({ currentInstitution
             console.error("Upload failed:", err);
         } finally {
             setIsUploading(false);
+            e.target.value = '';
         }
     };
 

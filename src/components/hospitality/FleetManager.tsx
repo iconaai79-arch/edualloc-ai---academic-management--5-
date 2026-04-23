@@ -70,6 +70,7 @@ export const FleetManager: React.FC<FleetManagerProps> = ({ institution }) => {
             console.error("Upload failed:", err);
         } finally {
             setIsUploading(false);
+            e.target.value = '';
         }
     };
 

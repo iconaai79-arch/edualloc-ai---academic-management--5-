@@ -95,6 +95,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
             console.error("Upload failed:", err);
         } finally {
             setIsUploading(false);
+            e.target.value = '';
         }
     };
 
@@ -399,7 +400,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
 
                             {/* Photo Upload Section */}
                             <div className="mb-10">
-                                <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-4 block">Package Gallery (Uploaded to cPanel Showcase)</label>
+                                <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-4 block">Package Gallery (Cloud Storage)</label>
                                 <div className="grid grid-cols-4 gap-4">
                                     {newItem.images.map((img, idx) => (
                                         <div key={idx} className="aspect-square bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 relative group">
