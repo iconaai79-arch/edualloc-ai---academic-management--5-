@@ -1450,7 +1450,7 @@ export const ModernPharmacyManager: React.FC<{
                                             value={settings.receiptHeader || ''} 
                                             onChange={e => setSettings({...settings, receiptHeader: e.target.value})}
                                             className="w-full bg-black/40 border border-white/5 rounded-[2rem] p-6 text-white text-xs outline-none focus:border-indigo-500/50 transition-all h-20" 
-                                            placeholder="Molecular Nexus Medical Center | P.O. BOX 123..."
+                                            placeholder="Molecular Nexus Hospital/Clinic | P.O. BOX 123..."
                                         ></textarea>
                                     </div>
                                     <div className="space-y-4 md:col-span-2">

@@ -1511,6 +1511,12 @@ export const App: React.FC = () => {
             }
 
             if (admin) {
+                // Save original super admin session if not already in an impersonated session
+                if (!originalSuperAdminSession && currentUser?.role === 'super_admin') {
+                    setOriginalSuperAdminSession(currentUser);
+                    localStorage.setItem('eduai_super_admin_session', JSON.stringify(currentUser));
+                }
+
                 const impersonatedUser = {
                     ...admin,
                     institutionId: institutionId,
@@ -1526,7 +1532,7 @@ export const App: React.FC = () => {
             }
             setIsTransitioning(false);
         }, 300);
-    }, [users, institutions]);
+    }, [users, institutions, currentUser, originalSuperAdminSession]);
     
     useEffect(() => {
         onLoginAsAdminRef.current = onLoginAsAdmin;
@@ -1578,7 +1584,10 @@ export const App: React.FC = () => {
                            modId === 'retail' ? 'Retail' : 
                            modId === 'showroom' ? 'Automotive Marketplace' : 
                            modId === 'tourism' ? 'Hospitality' :
-                           modId === 'community' ? 'Community' : 'General'),
+                           modId === 'community' ? 'Community' : 
+                           modId === 'his' ? 'Hospital/Clinic' :
+                           modId === 'pharmacy' ? 'Hospital/Clinic' :
+                           'General'),
                 businessSubType: (modId === 'fuel' ? 'Fuel Station' : 
                                   modId === 'retail' ? 'Retail' : 
                                   modId === 'autoservice' ? 'Car Wash' : 
@@ -3551,21 +3560,29 @@ export const App: React.FC = () => {
                                     onDeleteUser={onDeleteUser}
                                     onEditUser={onEditUser}
                                     onAddInstitution={async (d) => { 
-                                        const newId = (d as any).id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`; 
-                                        await apiService.saveInstitution({ ...d, id: newId } as any); 
-                                        const role = d.institutionType === 'Reseller' ? 'reseller' : 'admin'; 
-                                        await apiService.registerUser({ 
-                                            id: `u_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, 
-                                            name: `${d.name} Admin`, 
-                                            email: d.email, 
-                                            phoneNumber: d.phoneNumber, 
-                                            role: role, 
-                                            institutionId: newId, 
-                                            countyId: (d as any).countyId, 
-                                            status: 'active' 
-                                        } as any, d.name); 
-                                        loadData(); 
-                                    }}
+                                         const newId = (d as any).id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`; 
+                                         const now = new Date().toISOString();
+                                         await apiService.saveInstitution({ 
+                                             ...d, 
+                                             id: newId,
+                                             createdAt: now,
+                                             updatedAt: now
+                                         } as any); 
+                                         const role = d.institutionType === 'Reseller' ? 'reseller' : 'admin'; 
+                                         await apiService.registerUser({ 
+                                             id: `u_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, 
+                                             name: `${d.name} Admin`, 
+                                             email: d.email, 
+                                             phoneNumber: d.phoneNumber, 
+                                             role: role, 
+                                             institutionId: newId, 
+                                             countyId: (d as any).countyId, 
+                                             status: 'active',
+                                             createdAt: now,
+                                             updatedAt: now
+                                         } as any, d.name); 
+                                         loadData(); 
+                                     }}
                                     onUpdateInstitution={onUpdateInstitution}
                                     onDeleteInstitution={(id) => { if (id) onDeleteInstitution(id); }}
                                     onToggleInstitutionStatus={onToggleInstitutionStatus}

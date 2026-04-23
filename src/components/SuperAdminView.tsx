@@ -1107,15 +1107,15 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             if (!inst) return false;
             // Time-based filter
             if (institutionTimeFilter === '7d') {
-                const created = inst.createdAt ? new Date(inst.createdAt).getTime() : 0;
+                const created = inst.createdAt ? new Date(inst.createdAt).getTime() : now;
                 return created >= days(7);
             }
             if (institutionTimeFilter === '30d') {
-                const created = inst.createdAt ? new Date(inst.createdAt).getTime() : 0;
+                const created = inst.createdAt ? new Date(inst.createdAt).getTime() : now;
                 return created >= days(30);
             }
             if (institutionTimeFilter === '90d') {
-                const created = inst.createdAt ? new Date(inst.createdAt).getTime() : 0;
+                const created = inst.createdAt ? new Date(inst.createdAt).getTime() : now;
                 return created >= days(90);
             }
             if (institutionTimeFilter === 'active') return inst.status === 'active';
@@ -2218,9 +2218,18 @@ Please change it after login.`;
                                     const daysAgo = (d: number) => now - d * 24 * 60 * 60 * 1000;
                                     const counts = {
                                         all: all.length,
-                                        '7d': all.filter(i => i?.createdAt && new Date(i.createdAt).getTime() >= daysAgo(7)).length,
-                                        '30d': all.filter(i => i?.createdAt && new Date(i.createdAt).getTime() >= daysAgo(30)).length,
-                                        '90d': all.filter(i => i?.createdAt && new Date(i.createdAt).getTime() >= daysAgo(90)).length,
+                                        '7d': all.filter(i => {
+                                            const created = i?.createdAt ? new Date(i.createdAt).getTime() : now;
+                                            return created >= daysAgo(7);
+                                        }).length,
+                                        '30d': all.filter(i => {
+                                            const created = i?.createdAt ? new Date(i.createdAt).getTime() : now;
+                                            return created >= daysAgo(30);
+                                        }).length,
+                                        '90d': all.filter(i => {
+                                            const created = i?.createdAt ? new Date(i.createdAt).getTime() : now;
+                                            return created >= daysAgo(90);
+                                        }).length,
                                         active: all.filter(i => i?.status === 'active').length,
                                         suspended: all.filter(i => i?.status === 'suspended').length,
                                     };
@@ -2288,11 +2297,11 @@ Please change it after login.`;
                                                         let category = '';
                                                         if (type === 'Education') category = 'Primary';
                                                         if (type === 'Business') category = 'Agrovet';
-                                                        if (type === 'HIS') category = 'Medical Center';
+                                                        if (type === 'HIS') category = 'Hospital/Clinic';
                                                         if (type === 'Law Firm') category = 'Law Firm';
                                                         if (type === 'Broadcaster') category = 'TV/Radio Station';
                                                         if (type === 'Political Campaign') category = 'Political Campaign Management';
-                                                        setNewInstData({ ...newInstData, institutionType: type, category: category });
+                                                        setNewInstData({ ...newInstData, institutionType: type, category: category, businessSubType: category });
                                                     }}
                                                     className="form-select font-black text-indigo-600 border-indigo-100"
                                                 >                                                    <option value="Education">Education Sector</option>
@@ -2325,12 +2334,28 @@ Please change it after login.`;
                                                     ))}
                                                 </select>
                                             </div>
+                                            {newInstData.institutionType === 'HIS' && (
+                                                <div className="animate-fade-in-up">
+                                                    <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Health Sector Category</label>
+                                                    <select
+                                                        value={newInstData.category}
+                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value, businessSubType: e.target.value })}
+                                                        className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
+                                                        required
+                                                    >
+                                                        <option value="Hospital/Clinic">Hospital / Clinic (Standard)</option>
+                                                        <option value="Dental">Dental Clinic</option>
+                                                        <option value="Eye">Eye Care / Ophthalmology</option>
+                                                        <option value="Ear">Ear, Nose & Throat (ENT)</option>
+                                                    </select>
+                                                </div>
+                                            )}
                                             {newInstData.institutionType === 'Education' && (
                                                 <div className="animate-fade-in-up">
                                                     <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Education Level / Category</label>
                                                     <select
                                                         value={newInstData.category}
-                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value })}
+                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value, businessSubType: e.target.value })}
                                                         className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
                                                         required
                                                     >
@@ -2353,7 +2378,7 @@ Please change it after login.`;
                                                     <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Logistics Niche / Focus</label>
                                                     <select
                                                         value={newInstData.category}
-                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value })}
+                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value, businessSubType: e.target.value })}
                                                         className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
                                                         required
                                                     >
@@ -2369,7 +2394,7 @@ Please change it after login.`;
                                                     <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Community Focus Area</label>
                                                     <select
                                                         value={newInstData.category}
-                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value })}
+                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value, businessSubType: e.target.value })}
                                                         className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
                                                         required
                                                     >
@@ -2387,7 +2412,7 @@ Please change it after login.`;
                                                     <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Select Business Niche / Category</label>
                                                     <select
                                                         value={newInstData.category}
-                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value })}
+                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value, businessSubType: e.target.value })}
                                                         className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
                                                         required
                                                     >
@@ -2410,7 +2435,7 @@ Please change it after login.`;
                                                     <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Church Tradition (Denomination)</label>
                                                     <select
                                                         value={newInstData.category}
-                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value })}
+                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value, businessSubType: e.target.value })}
                                                         className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
                                                         required
                                                     >
@@ -2426,7 +2451,7 @@ Please change it after login.`;
                                                     <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Tourism Specialization</label>
                                                     <select
                                                         value={newInstData.category}
-                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value })}
+                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value, businessSubType: e.target.value })}
                                                         className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
                                                         required
                                                     >
@@ -2442,7 +2467,7 @@ Please change it after login.`;
                                                     <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Campaign Strategy Focus</label>
                                                     <select
                                                         value={newInstData.category}
-                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value })}
+                                                        onChange={e => setNewInstData({ ...newInstData, category: e.target.value, businessSubType: e.target.value })}
                                                         className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
                                                         required
                                                     >

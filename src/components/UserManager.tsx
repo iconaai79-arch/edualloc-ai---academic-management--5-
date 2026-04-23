@@ -31,6 +31,7 @@ import { ChatBubbleLeftRightIcon } from './icons/ChatBubbleLeftRightIcon';
 import { PhoneIcon } from './icons/PhoneIcon';
 import { QrCodeIcon } from './icons/QrCodeIcon';
 import { ClockIcon } from './icons/ClockIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
 
 import { analyzeUserSpreadsheet } from '../services/geminiService';
 import { apiService } from '../services/apiService';

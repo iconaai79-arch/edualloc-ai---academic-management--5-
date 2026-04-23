@@ -16,7 +16,7 @@ type ConfigTab = 'branding' | 'staff' | 'clinic';
 export const HISConfigView: React.FC<HISConfigProps> = ({ demoStaff }) => {
     const [activeTab, setActiveTab] = useState<ConfigTab>('branding');
     const [branding, setBranding] = useState({
-        hospitalName: 'Quantum Health Medical Center',
+        hospitalName: 'Quantum Health Hospital/Clinic',
         motto: 'Precision in Care, Excellence in Service',
         primaryColor: '#6366f1',
         logoUrl: ''

@@ -16,7 +16,7 @@ import { Cog8ToothIcon as SettingsIcon } from '../icons/Cog8ToothIcon';
 import { ChartBarIcon } from '../icons/ChartBarIcon';
 import { XIcon } from '../icons/XIcon';
 import { BeakerIcon } from '../icons/BeakerIcon';
-import { HeartIcon, ActivityIcon, ScissorsIcon, CalendarIcon, GlobeAltIcon, PhotoIcon, ChartLineIcon, ClockIcon } from './HealthIcons';
+import { HeartIcon, ActivityIcon, ScissorsIcon, CalendarIcon, GlobeAltIcon, PhotoIcon, ChartLineIcon, ClockIcon, SignalIcon } from './HealthIcons';
 
 import { InpatientView } from './InpatientView';
 import { DentalView } from './DentalView';
@@ -38,7 +38,7 @@ import { generateInstitutionalDemoData } from '../../utils/demoData';
 import { apiService } from '../../services/apiService';
 import { generateOphthalPrescriptionPdf } from '../../services/pdfService';
 
-type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics';
+type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'ear' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics';
 
 interface HealthCoreProps {
     activeRole?: Role;
@@ -293,9 +293,10 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                         {[
                             { id: 'general', label: 'Patient 360', icon: HeartIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
                             { id: 'inpatient', label: 'Admissions', icon: BuildingOfficeIcon, categories: ['Hospital', 'Clinic', 'Healthcare'] },
-                            { id: 'diagnostics', label: 'Diagnostics', icon: BeakerIcon, categories: ['Hospital', 'Clinic', 'Healthcare'] },
+                            { id: 'diagnostics', label: 'Diagnostics', icon: BeakerIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
                             { id: 'dental', label: 'Dental Core', icon: ScissorsIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Healthcare'] },
                             { id: 'eye', label: 'Ocular Hub', icon: EyeIcon, categories: ['Hospital', 'Clinic', 'Eye', 'Healthcare'] },
+                            { id: 'ear', label: 'ENT Hub', icon: SignalIcon, categories: ['Hospital', 'Clinic', 'Ear', 'Healthcare'] },
                             { id: 'billing', label: 'Revenue/SHA', icon: CreditCardIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
                             { id: 'broadcaster', label: 'Communications', icon: BellIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
                             { id: 'appointments', label: 'Scheduling', icon: CalendarIcon, categories: ['Hospital', 'Clinic', 'Dental', 'Eye', 'Ear', 'Healthcare'] },
@@ -327,6 +328,13 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                             case 'diagnostics': return <LabDiagnosticsView institutionId={institutionId} activeRole={activeRole} userName={userName} activePatientId={activePatientId} />;
                             case 'dental': return <DentalView onAddVisit={() => setIsAddVisitOpen(true)} />;
                             case 'eye': return <OphthalmologyView onAddVisit={() => setIsAddVisitOpen(true)} onPrintRx={handlePrintOphthalRx} />;
+                            case 'ear': return (
+                                <div className="flex flex-col items-center justify-center py-20 text-center opacity-50 grayscale">
+                                    <SignalIcon className="w-20 h-20 text-slate-700 mb-6" />
+                                    <h3 className="text-xl font-black uppercase tracking-widest text-slate-400">ENT Hub (Ear, Nose & Throat)</h3>
+                                    <p className="text-xs font-black uppercase tracking-[0.4em] text-slate-500 mt-2">Specialized ENT clinical workflows are being synchronized.<br/>Please use Patient 360 for general ENT consultations.</p>
+                                </div>
+                            );
                             case 'billing': return <HISBillingView institutionId={institutionId} />;
                             case 'broadcaster': return <HISBroadcasterView />;
                             case 'appointments': return <AppointmentsView activeRole={activeRole} userName={userName} institutionId={institutionId} demoAppointments={demoData?.hisAppointments} />;

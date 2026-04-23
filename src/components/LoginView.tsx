@@ -600,7 +600,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                     let cat = '';
                                                     if (type === 'Education') cat = 'Primary';
                                                     if (type === 'Business') cat = 'Agrovet';
-                                                    if (type === 'HIS') cat = 'Medical Center';
+                                                    if (type === 'HIS') cat = 'Hospital/Clinic';
                                                     if (type === 'Law Firm') cat = 'Law Firm';
                                                     if (type === 'Logistics') cat = 'Cargo & Delivery';
                                                     if (type === 'Community') cat = 'Chama/Savings Group';
@@ -623,6 +623,23 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                 <option value="Reseller">Reseller Agency</option>
                                                 <option value="Hospitality">Tourism & Hospitality</option>
                                             </select>
+
+                                            {regData.institutionType === 'HIS' && (
+                                                <div className="mt-3 animate-fade-in">
+                                                    <label className={labelClasses}>Health Sector Category</label>
+                                                    <select
+                                                        className={inputClasses}
+                                                        value={regData.category || 'Hospital/Clinic'}
+                                                        onChange={e => setRegData({ ...regData, category: e.target.value, businessSubType: e.target.value })}
+                                                        required
+                                                    >
+                                                        <option value="Hospital/Clinic">Hospital / Clinic (Standard)</option>
+                                                        <option value="Dental">Dental Clinic</option>
+                                                        <option value="Eye">Eye Care / Ophthalmology</option>
+                                                        <option value="Ear">Ear, Nose & Throat (ENT)</option>
+                                                    </select>
+                                                </div>
+                                            )}
 
                                             {regData.institutionType === 'Education' && (
                                                 <div className="mt-3 animate-fade-in">
