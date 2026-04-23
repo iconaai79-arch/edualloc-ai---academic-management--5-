@@ -282,7 +282,7 @@ export const generateStandardTimetable = (
                                 courseId: linkedCourse?.id || 'unknown',
                                 courseLevelId: alloc.courseLevelIds?.[0] || 'unknown',
                                 duration: requiredDuration,
-                                hasConflict: true
+                                isConflicting: true
                             });
                             notifications.push(`Workload Integrity Force: ${subject.name} (Lecturer: ${alloc.lecturerId}) forced into timetable to guarantee 100% completion.`);
                             placed = true;

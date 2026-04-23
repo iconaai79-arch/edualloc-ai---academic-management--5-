@@ -314,7 +314,7 @@ export interface Institution {
     name: string;
     email: string;
     phoneNumber: string;
-    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist' | 'Political Campaign' | 'Fuel Station' | 'Retail' | 'Security' | 'Transport';
+    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist' | 'Political Campaign' | 'Fuel Station' | 'Retail' | 'Transport';
     category?: string;
     createdAt?: string;
     businessSubType?: string; // Legacy field, eventually merge with category
@@ -634,6 +634,7 @@ export interface SemesterSession {
     examPeriods?: ExamPeriod[];
 }
 
+
 export interface Semester {
     id: string;
     name: string;
@@ -806,6 +807,15 @@ export interface CompanyDetails {
     enforceGlobalOtp?: boolean;
     enabledGateways?: string[];
     smsBalance?: number;
+    alumnaeJoiningFee?: number;
+    portalSettings?: {
+        showAlumnaeHub: boolean;
+        showTouristHub: boolean;
+        showMarketplace: boolean;
+        showCommunityHub: boolean;
+        showTransportHub: boolean;
+        publicRegistrationEnabled: boolean;
+    };
 }
 
 export interface UserTask {
@@ -846,13 +856,11 @@ export interface AppNotification {
 export interface SmsLog {
     id: string;
     institutionId: string;
-    senderId: string;
+    senderId?: string;
     recipient: string;
     message: string;
     units: number;
     status: string;
-    provider: string;
-    gatewayResponse?: any;
     createdAt: string;
 }
 
@@ -4191,3 +4199,26 @@ export interface LogisticTrip {
     completedAt?: string;
 }
 
+export interface AlumniPost {
+    id: string;
+    authorId: string;
+    authorName: string;
+    authorPhoto?: string;
+    institutionId: string;
+    content: string;
+    mediaUrls?: string[];
+    likes: string[];
+    commentsCount: number;
+    createdAt: string;
+    hashtags?: string[];
+}
+
+export interface AlumniComment {
+    id: string;
+    postId: string;
+    authorId: string;
+    authorName: string;
+    authorPhoto?: string;
+    content: string;
+    createdAt: string;
+}

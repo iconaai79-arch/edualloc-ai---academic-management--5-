@@ -542,7 +542,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         chatEnabled: props.companyDetails?.chatAssistantConfig?.enabled ?? true,
         enforceGlobalOtp: props.currentInstitution?.institutionType === 'Business' ? props.companyDetails?.enforceGlobalOtp ?? false : props.companyDetails?.enforceGlobalOtp ?? false,
         enabledGateways: props.companyDetails?.enabledGateways || ['mpesa'],
-        showcaseConfig: props.companyDetails?.showcaseConfig || { enabled: true, showLoginLink: true }
+        showcaseConfig: props.companyDetails?.showcaseConfig || { enabled: true, showLoginLink: true },
+        alumnaeJoiningFee: props.companyDetails?.alumnaeJoiningFee || 0
     });
 
     const [localSmsConfig, setLocalSmsConfig] = useState<SmsConfig>(props.companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -576,7 +577,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 chatEnabled: props.companyDetails.chatAssistantConfig?.enabled ?? true,
                 enforceGlobalOtp: props.companyDetails.enforceGlobalOtp ?? false,
                 enabledGateways: props.companyDetails.enabledGateways || ['mpesa'],
-                showcaseConfig: props.companyDetails.showcaseConfig || { enabled: true, showLoginLink: true }
+                showcaseConfig: props.companyDetails.showcaseConfig || { enabled: true, showLoginLink: true },
+                alumnaeJoiningFee: props.companyDetails.alumnaeJoiningFee || 0
             });
             setLocalSmsConfig(props.companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
             setLocalEmailConfig(props.companyDetails.emailConfig || { provider: 'smtp', host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
@@ -825,6 +827,31 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     <div className="p-6 bg-slate-50 dark:bg-slate-900 rounded-[2rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-center">
                                         {localCompanyInfo.logoUrl ? <img src={localCompanyInfo.logoUrl} className="h-20 object-contain mb-4" alt="Logo" /> : <BuildingOfficeIcon className="w-10 h-10 text-slate-200 mb-2" />}
                                         <p className="text-[10px] font-bold text-slate-400 uppercase">System Logo</p>
+                                        <div className="space-y-6">
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Alumnae Joining Fee (KES)</label>
+                                                <div className="relative">
+                                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                                        <CurrencyIcon className="w-4 h-4 text-slate-400" />
+                                                    </div>
+                                                    <input 
+                                                        type="number" 
+                                                        value={(localCompanyInfo as any).alumnaeJoiningFee} 
+                                                        onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, alumnaeJoiningFee: Number(e.target.value) } as any)}
+                                                        className="form-input pl-10" 
+                                                        placeholder="0.00" 
+                                                    />
+                                                </div>
+                                                <p className="text-[9px] text-slate-400 mt-2 italic">Set to 0 to disable mandatory payment during registration.</p>
+                                            </div>
+                                            <div className="p-6 bg-amber-50 dark:bg-amber-900/10 rounded-[2rem] border border-amber-100 dark:border-amber-800">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <ShieldCheckIcon className="w-5 h-5 text-amber-600" />
+                                                    <span className="text-[10px] font-black uppercase text-amber-600">Monetization Guard</span>
+                                                </div>
+                                                <p className="text-[10px] text-amber-700/70 leading-relaxed">Incoming payments will be processed via the platform's primary M-Pesa gateway. Ensure Daraja credentials are active.</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

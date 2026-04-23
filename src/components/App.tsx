@@ -22,6 +22,7 @@ import { ChurchDenominationProvider } from './church/ChurchDenominationProvider'
 import { BookDemoModal } from './public/BookDemoModal';
 import { AlumnaeRegistrationView } from './AlumnaeRegistrationView';
 import { AlumnaeActivationView } from './AlumnaeActivationView';
+import { AlumnaePortalView } from './AlumnaePortalView';
 import { ConstructionManager } from './ConstructionManager';
 import { ConstructionProjectView } from './ConstructionProjectView';
 const PrivacyPolicy = lazy(() => import('../pages/PrivacyPolicy'));
@@ -607,7 +608,6 @@ export const App: React.FC = () => {
     });
 
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
-    const [showAlumnaeActivation, setShowAlumnaeActivation] = useState(false);
     const [selectedRegistrySchool, setSelectedRegistrySchool] = useState<SchoolRegistry | null>(null);
 
     // SEO and Deeplinking for Alumnae
@@ -628,6 +628,23 @@ export const App: React.FC = () => {
     }, [schoolRegistry]);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [showBookDemo, setShowBookDemo] = useState(false);
+    const [activeAlumna, setActiveAlumna] = useState<any>(null);
+    const [showAlumnaePortal, setShowAlumnaePortal] = useState(false);
+
+    useEffect(() => {
+        const saved = localStorage.getItem('eduai_alumna_session');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                setActiveAlumna(parsed);
+                // If on community view, show portal
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('view') === 'community') {
+                    setShowAlumnaePortal(true);
+                }
+            } catch (e) {}
+        }
+    }, []);
 
     // 2FA State
     const [otpPendingUser, setOtpPendingUser] = useState<User | null>(null);
@@ -2881,7 +2898,7 @@ export const App: React.FC = () => {
 
         return roleToUse;
     }, [impersonatedRole, currentUser, institutions, selectedRole]);
-    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'carwash_admin', 'transport_admin', 'retail_agent', 'his_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin'].includes(activeRole || '');
+    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin'].includes(activeRole || '');
 
     const isFullWidthLayout = useMemo(() => {
         return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
@@ -3445,6 +3462,7 @@ export const App: React.FC = () => {
                                         const instId = activeInstitution?.id || currentUser.institutionId;
                                         const riderId = `r_${Date.now()}`;
                                         await apiService.saveModuleRecord('coop_riders', { ...data, id: riderId, institutionId: instId }); 
+                                        
                                         // Auto-register a user for the rider to enable portal access
                                         await apiService.registerUser({
                                             name: data.name,
@@ -3454,6 +3472,7 @@ export const App: React.FC = () => {
                                             institutionId: instId,
                                             email: `${data.phone}@eduai.co.ke`
                                         }, activeInstitution?.name);
+                                        
                                         await loadData(); 
                                     }}
                                     onConfirmCollection={async (id, qty) => { 
@@ -3485,21 +3504,6 @@ export const App: React.FC = () => {
                                         const instId = activeInstitution?.id || currentUser.institutionId;
                                         await apiService.saveCoopExpense({ ...data, id: `exp_${Date.now()}`, institutionId: instId, recordedBy: currentUser.id }); 
                                         await loadData(); 
-                                    }}
-                                    onAddCoopAgrovetInventory={async (data) => {
-                                        const instId = activeInstitution?.id || currentUser.institutionId;
-                                        await apiService.saveCoopAgrovetInventory({ ...data, institutionId: instId });
-                                        loadData();
-                                    }}
-                                    onAddCoopAgrovetSale={async (data) => {
-                                        const instId = activeInstitution?.id || currentUser.institutionId;
-                                        await apiService.saveCoopAgrovetSale({ ...data, institutionId: instId });
-                                        loadData();
-                                    }}
-                                    onAddCoopAgrovetSales={async (data) => {
-                                        const instId = activeInstitution?.id || currentUser.institutionId;
-                                        await apiService.saveModuleRecords('coop_agrovet_sales', data.map(s => ({ ...s, institutionId: instId })));
-                                        loadData();
                                     }}
                                     onInitiatePayouts={async (payoutIds) => {
                                         await apiService.disburseBulkMpesa(payoutIds, currentUser.id);
@@ -4824,6 +4828,8 @@ export const App: React.FC = () => {
                                 counties={counties}
                                 onBack={() => setShowCommunityHub(false)}
                                 onBookDemo={() => setShowBookDemo(true)}
+                                hasActiveAlumnaSession={!!activeAlumna}
+                                onEnterCircle={() => setShowAlumnaePortal(true)}
                             />
                          ) : showTransportHub ? (
                             <TransportHubView 
@@ -4862,27 +4868,81 @@ export const App: React.FC = () => {
                             <AlumnaeRegistrationView 
                                 registry={schoolRegistry}
                                 initialSchool={selectedRegistrySchool}
+                                onCheckAdmission={async (admNo, schoolId) => {
+                                    // Discovery check across active alumnae
+                                    const school = schoolRegistry.find(s => s.id === schoolId);
+                                    const instId = school?.institutionId;
+                                    
+                                    const filters: any = { admission_number: admNo };
+                                    if (instId) filters.institution_id = instId;
+                                    
+                                    const existing = await apiService.fetchModuleRecords('alumnae_members', undefined, undefined, { filter: filters });
+                                    if (existing && existing.length > 0) {
+                                        return { exists: true, message: 'Admission number already claimed in the Alumnae Network.' };
+                                    }
+                                    return { exists: false };
+                                }}
                                 onBackToPortal={() => {
                                     window.location.href = '/?view=community';
                                 }}
+                                joiningFee={companyDetails?.alumnaeJoiningFee || 0}
+                                onInitiatePayment={async (amount, phone, reference) => {
+                                    try {
+                                        const res = await apiService.initiateSTKPush({
+                                            amount,
+                                            phoneNumber: phone,
+                                            accountReference: reference,
+                                            transactionDesc: 'Alumnae Network Activation'
+                                        });
+                                        return { success: res.success, message: res.message };
+                                    } catch (e: any) {
+                                        return { success: false, message: e.message };
+                                    }
+                                }}
                                 onComplete={async (data) => {
                                     try {
-                                        // Find the school in the registry to see if it's already claimed by an institution
                                         const school = schoolRegistry.find(s => s.id === data.schoolId);
+                                        let profilePhotoUrl = '';
+
+                                        if (data.profilePictureFile) {
+                                            const uploadRes = await apiService.uploadToGoogleDrive(data.profilePictureFile, 'Alumnae_Profiles', {
+                                                institutionId: school?.institutionId,
+                                                useGlobalConfig: !school?.institutionId
+                                            });
+                                            if (uploadRes.success) profilePhotoUrl = uploadRes.url;
+                                        }
+
                                         const registrationPayload = {
                                             ...data,
                                             id: `alumna_${Date.now()}`,
                                             institutionId: school?.institutionId || null,
-                                            status: 'pending_verification'
+                                            status: 'verified', // Auto-approve
+                                            profilePhoto: profilePhotoUrl,
+                                            payment_id: data.paymentId || null,
+                                            registration_fee: companyDetails?.alumnaeJoiningFee || 0,
+                                            joinedAt: new Date().toISOString()
                                         };
                                         
+                                        // Clean up internal file reference before saving
+                                        delete (registrationPayload as any).profilePictureFile;
+
                                         await apiService.saveModuleRecord('alumnae_members', registrationPayload);
-                                        setShowAlumnaeActivation(true);
+                                        localStorage.setItem('eduai_alumna_session', JSON.stringify(registrationPayload));
+                                        setActiveAlumna(registrationPayload);
                                         setShowAlumnaeRegister(false);
-                                    } catch (error) {
-                                        console.error("Alumnae Registration Persistence Error:", error);
-                                        alert("Registration failed. Please check your connection and try again.");
+                                        setShowAlumnaePortal(true);
+                                    } catch (e: any) {
+                                        alert("Registration Sync Error: " + e.message);
                                     }
+                                }}
+                            />
+                        ) : showAlumnaePortal ? (
+                            <AlumnaePortalView 
+                                currentAlumna={activeAlumna}
+                                institutions={institutions}
+                                onBack={() => {
+                                    setShowAlumnaePortal(false);
+                                    window.location.href = '/?view=community';
                                 }}
                             />
                         ) : showGuestPortal ? (

@@ -149,12 +149,17 @@ export const apiService = {
         }
 
         // 2. Fallback to session ID
-        const session = apiService.getSession();
-        const token = session?.id || '';
-        // Changed to debug to avoid console noise during high-frequency data fetching
-        if (token && token.length > 0) {
-            // console.debug(`[apiService] getAuthToken: ${token.substring(0, 10)}${token.length > 10 ? '...' : ''} (length: ${token.length})`);
+        let session = apiService.getSession();
+        
+        // 2.1 Try Alumnae Session fallback
+        if (!session) {
+            try {
+                const alumStored = localStorage.getItem('eduai_alumna_session');
+                if (alumStored) session = JSON.parse(alumStored);
+            } catch (e) {}
         }
+
+        const token = session?.id || '';
         return token;
     },
     getToken(): string {

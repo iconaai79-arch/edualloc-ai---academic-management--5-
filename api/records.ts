@@ -64,7 +64,17 @@ async function getAuthUser(supabase: any, authHeader?: string) {
 
     if (profile) return { id: profile.id, institutionId: profile.institution_id, role: profile.role };
     
-    // 3. Try Temp Admin bypass (Development / Maintenance Mode)
+    // 3. Try Alumnae discovery if token looks like an alumna ID
+    if (token && token.startsWith('alumna_')) {
+      const { data: alumna } = await supabase.from('alumnae_members')
+        .select('id, institutionId, fullName')
+        .eq('id', token)
+        .single();
+      
+      if (alumna) return { id: alumna.id, institutionId: alumna.institutionId || 'GLOBAL', role: 'alumna' };
+    }
+
+    // 4. Try Temp Admin bypass (Development / Maintenance Mode)
     if (token && token.startsWith('temp_admin_')) {
        console.log(`[getAuthUser] Bypass active for ${token.substring(0, 15)}...`);
        return { id: token, institutionId: 'GLOBAL', role: 'super_admin' };
@@ -77,7 +87,7 @@ async function getAuthUser(supabase: any, authHeader?: string) {
   return null;
 }
 
-const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings', 'pm_listings', 'retail_inventory_items', 'school_registry', 'car_sales_listings', 'campaign_profiles'];
+const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings', 'pm_listings', 'retail_inventory_items', 'school_registry', 'car_sales_listings', 'campaign_profiles', 'alumnae_members', 'alumni_posts', 'alumni_comments'];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -101,9 +111,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const user = await getAuthUser(supabase, authHeader);
         const isPublicModule = PUBLIC_MODULES.includes(moduleName);
         const isPublicGet = req.method === 'GET' && isPublicModule;
-        const isRegistration = req.method === 'POST' && (['users', 'institutions', 'counties', 'demo_requests', 'pm_inquiries', 'retail_wishlist', 'app_notifications', 'voter_outreach'].includes(moduleName));
         
-        if (!user && !isPublicGet && !isRegistration) {
+        // Allow POST for registration and social interactions
+        const isPublicPost = req.method === 'POST' && (['users', 'institutions', 'counties', 'demo_requests', 'pm_inquiries', 'retail_wishlist', 'app_notifications', 'voter_outreach', 'alumnae_members'].includes(moduleName));
+        const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments'].includes(moduleName)) && user?.role === 'alumna';
+        
+        if (!user && !isPublicGet && !isPublicPost && !isSocialInteraction) {
             const tokenSnippet = authHeader ? `${authHeader.substring(0, 15)}... (len: ${authHeader.length})` : 'NONE';
             return res.status(401).json({ 
                 success: false, 

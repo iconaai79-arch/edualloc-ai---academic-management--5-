@@ -14,6 +14,7 @@ interface AlumniMember {
     name: string;
     email: string;
     phone?: string;
+    admissionNumber?: string;
     schoolId: string;
     schoolName: string;
     graduationYear: string;
@@ -22,7 +23,7 @@ interface AlumniMember {
     company: string;
     location: string;
     bio: string;
-    status: 'pending' | 'verified' | 'rejected';
+    status: 'pending' | 'verified' | 'rejected' | 'deactivated';
     website?: string;
     linkedIn?: string;
     profilePhoto?: string;
@@ -60,9 +61,9 @@ interface AlumniManagerProps {
 }
 
 const SAMPLE_ALUMNI: AlumniMember[] = [
-    { id: '1', name: 'Dr. Sarah Kamau', email: 'sarah@example.com', schoolId: 'sch1', schoolName: 'Nairobi Academy', graduationYear: '2005', course: 'Medicine', profession: 'Neurosurgeon', company: 'Kenyatta National Hospital', location: 'Nairobi, Kenya', bio: 'Pioneer in minimally invasive neurosurgery in East Africa.', status: 'verified', achievements: ['Best Student 2005', 'WHO Fellow 2018'], joinedAt: '2024-01-10' },
-    { id: '2', name: 'James Odhiambo', email: 'james@example.com', schoolId: 'sch1', schoolName: 'Nairobi Academy', graduationYear: '2010', course: 'Computer Science', profession: 'CTO', company: 'TechHub Africa', location: 'Kampala, Uganda', bio: 'Building Africa\'s next unicorn tech startup.', status: 'verified', achievements: ['Forbes 30 under 30 Africa'], joinedAt: '2024-02-15' },
-    { id: '3', name: 'Fatuma Hassan', email: 'fatuma@example.com', schoolId: 'sch2', schoolName: 'Stars Secondary', graduationYear: '2015', course: 'Law', profession: 'Advocate', company: 'Hassan & Partners', location: 'Mombasa, Kenya', bio: 'Human rights advocate with 10+ years experience.', status: 'pending', joinedAt: '2025-01-20' },
+    { id: '1', name: 'Dr. Sarah Kamau', admissionNumber: 'ADM/2001/045', email: 'sarah@example.com', schoolId: 'sch1', schoolName: 'Nairobi Academy', graduationYear: '2005', course: 'Medicine', profession: 'Neurosurgeon', company: 'Kenyatta National Hospital', location: 'Nairobi, Kenya', bio: 'Pioneer in minimally invasive neurosurgery in East Africa.', status: 'verified', achievements: ['Best Student 2005', 'WHO Fellow 2018'], joinedAt: '2024-01-10' },
+    { id: '2', name: 'James Odhiambo', admissionNumber: 'ADM/2006/892', email: 'james@example.com', schoolId: 'sch1', schoolName: 'Nairobi Academy', graduationYear: '2010', course: 'Computer Science', profession: 'CTO', company: 'TechHub Africa', location: 'Kampala, Uganda', bio: 'Building Africa\'s next unicorn tech startup.', status: 'verified', achievements: ['Forbes 30 under 30 Africa'], joinedAt: '2024-02-15' },
+    { id: '3', name: 'Fatuma Hassan', admissionNumber: 'ADM/2011/112', email: 'fatuma@example.com', schoolId: 'sch2', schoolName: 'Stars Secondary', graduationYear: '2015', course: 'Law', profession: 'Advocate', company: 'Hassan & Partners', location: 'Mombasa, Kenya', bio: 'Human rights advocate with 10+ years experience.', status: 'pending', joinedAt: '2025-01-20' },
 ];
 
 const SAMPLE_JOBS: AlumniJob[] = [
@@ -84,11 +85,27 @@ export const AlumniManager: React.FC<AlumniManagerProps> = ({ currentInstitution
     const [selectedSchool, setSelectedSchool] = useState('all');
     const [showAddJobModal, setShowAddJobModal] = useState(false);
     const [showAddEventModal, setShowAddEventModal] = useState(false);
-    const [alumni] = useState<AlumniMember[]>(SAMPLE_ALUMNI);
+    const [alumni, setAlumni] = useState<AlumniMember[]>(SAMPLE_ALUMNI);
     const [jobs] = useState<AlumniJob[]>(SAMPLE_JOBS);
     const [events] = useState<AlumniEvent[]>(SAMPLE_EVENTS);
     const [donationAmount, setDonationAmount] = useState('');
     const [donationFund, setDonationFund] = useState('General Scholarship Fund');
+
+    const handleStatusChange = async (memberId: string, newStatus: AlumniMember['status']) => {
+        try {
+            const member = alumni.find(a => a.id === memberId);
+            if (!member) return;
+
+            const updatedMember = { ...member, status: newStatus };
+            
+            // In a real app, we'd save to the module record
+            // await apiService.saveModuleRecord('alumnae_members', updatedMember);
+            
+            setAlumni(prev => prev.map(a => a.id === memberId ? updatedMember : a));
+        } catch (e) {
+            console.error("Status Update Failed:", e);
+        }
+    };
 
     // Filter schools that are Education type from all institutions
     const schools = useMemo(() => {
@@ -100,11 +117,13 @@ export const AlumniManager: React.FC<AlumniManagerProps> = ({ currentInstitution
 
     const verifiedAlumni = alumni.filter(a => a.status === 'verified');
     const pendingAlumni = alumni.filter(a => a.status === 'pending');
+    const deactivatedAlumni = alumni.filter(a => a.status === 'deactivated');
 
     const filteredAlumni = useMemo(() => verifiedAlumni.filter(a => {
         const matchesSearch = a.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             a.profession.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            a.company.toLowerCase().includes(searchTerm.toLowerCase());
+            a.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            a.admissionNumber?.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesYear = selectedYear === 'all' || a.graduationYear === selectedYear;
         const matchesSchool = selectedSchool === 'all' || a.schoolId === selectedSchool;
         return matchesSearch && matchesYear && matchesSchool;
@@ -239,8 +258,10 @@ export const AlumniManager: React.FC<AlumniManagerProps> = ({ currentInstitution
                             <div className="space-y-4">
                                 {verifiedAlumni.slice(0, 3).map(a => (
                                     <div key={a.id} className="flex items-center gap-4 p-3 hover:bg-slate-50 dark:hover:bg-slate-900/50 rounded-2xl transition-all cursor-pointer group">
-                                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white flex items-center justify-center font-black text-lg group-hover:scale-105 transition-transform">
-                                            {a.name.charAt(0)}
+                                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white flex items-center justify-center font-black text-lg group-hover:scale-105 transition-transform overflow-hidden">
+                                            {a.profilePhoto ? (
+                                                <img src={a.profilePhoto} alt={a.name} className="w-full h-full object-cover" />
+                                            ) : a.name.charAt(0)}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="font-black text-slate-800 dark:text-white text-sm uppercase tracking-tight truncate">{a.name}</p>
@@ -350,8 +371,10 @@ export const AlumniManager: React.FC<AlumniManagerProps> = ({ currentInstitution
                                 {/* Card Header */}
                                 <div className="h-24 bg-gradient-to-br from-indigo-600 to-blue-700 relative">
                                     <div className="absolute bottom-0 left-8 translate-y-1/2">
-                                        <div className="w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 border-4 border-white shadow-xl flex items-center justify-center text-2xl font-black text-indigo-600">
-                                            {a.name.charAt(0)}
+                                        <div className="w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 border-4 border-white shadow-xl flex items-center justify-center text-2xl font-black text-indigo-600 overflow-hidden">
+                                            {a.profilePhoto ? (
+                                                <img src={a.profilePhoto} alt={a.name} className="w-full h-full object-cover" />
+                                            ) : a.name.charAt(0)}
                                         </div>
                                     </div>
                                     <div className="absolute top-4 right-4">
@@ -620,49 +643,80 @@ export const AlumniManager: React.FC<AlumniManagerProps> = ({ currentInstitution
                 <div className="space-y-6 animate-fade-in">
                     <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-800 dark:text-white flex items-center gap-3">
                         <UserCheck className="w-7 h-7 text-indigo-600" />
-                        Admin — Membership Approvals
+                        Admin — Membership Control
                     </h2>
 
-                    {pendingAlumni.length === 0 ? (
-                        <div className="text-center py-20 bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                            <CheckCircle className="w-16 h-16 text-emerald-500 mx-auto mb-4 opacity-50" />
-                            <p className="font-black uppercase tracking-widest text-slate-400 text-sm">All caught up! No pending approvals.</p>
-                        </div>
-                    ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-4">
+                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                                <Clock className="w-4 h-4" /> Pending / New Arrivals
+                            </h3>
+                            {pendingAlumni.length === 0 && (
+                                <div className="p-10 bg-white dark:bg-slate-800 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700 text-center">
+                                    <CheckCircle className="w-10 h-10 text-emerald-500/30 mx-auto mb-3" />
+                                    <p className="text-[10px] font-black uppercase text-slate-400">All members are verified</p>
+                                </div>
+                            )}
                             {pendingAlumni.map(a => (
-                                <div key={a.id} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-amber-100 dark:border-amber-900 shadow-sm">
-                                    <div className="flex flex-col md:flex-row gap-6 items-start">
-                                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center text-2xl font-black flex-shrink-0">
-                                            {a.name.charAt(0)}
+                                <div key={a.id} className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <div className="flex gap-4">
+                                        <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black overflow-hidden">
+                                            {a.profilePhoto ? <img src={a.profilePhoto} className="w-full h-full object-cover" /> : a.name.charAt(0)}
                                         </div>
                                         <div className="flex-1">
-                                            <div className="flex flex-wrap justify-between items-start gap-3">
-                                                <div>
-                                                    <h4 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">{a.name}</h4>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{a.course} · {a.schoolName} · Class of {a.graduationYear}</p>
-                                                </div>
-                                                <span className="text-[9px] font-black bg-amber-50 text-amber-600 px-3 py-1 rounded-full uppercase tracking-widest border border-amber-100">Pending Review</span>
+                                            <p className="font-black text-slate-800 dark:text-white uppercase text-xs">{a.name}</p>
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase">{a.admissionNumber} • {a.graduationYear}</p>
+                                            <div className="flex gap-2 mt-3">
+                                                <button 
+                                                    onClick={() => handleStatusChange(a.id, 'verified')}
+                                                    className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[8px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-colors"
+                                                >
+                                                    Verify
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleStatusChange(a.id, 'rejected')}
+                                                    className="px-3 py-1.5 bg-red-50 text-red-500 rounded-lg text-[8px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-colors"
+                                                >
+                                                    Reject
+                                                </button>
                                             </div>
-                                            <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3 text-xs text-slate-500">
-                                                <p className="flex items-center gap-1"><Mail className="w-3.5 h-3.5" />{a.email}</p>
-                                                <p className="flex items-center gap-1"><Briefcase className="w-3.5 h-3.5" />{a.profession} @ {a.company}</p>
-                                                <p className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{a.location}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-3 flex-shrink-0">
-                                            <button className="flex items-center gap-2 px-6 py-3 bg-emerald-50 text-emerald-700 rounded-2xl font-black uppercase text-[9px] tracking-widest hover:bg-emerald-600 hover:text-white transition-all border border-emerald-100">
-                                                <CheckCircle className="w-4 h-4" /> Approve
-                                            </button>
-                                            <button className="flex items-center gap-2 px-6 py-3 bg-red-50 text-red-500 rounded-2xl font-black uppercase text-[9px] tracking-widest hover:bg-red-500 hover:text-white transition-all border border-red-100">
-                                                <XCircle className="w-4 h-4" /> Reject
-                                            </button>
                                         </div>
                                     </div>
                                 </div>
                             ))}
                         </div>
-                    )}
+
+                        <div className="space-y-4">
+                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                                <UserCheck className="w-4 h-4" /> Active Alumnae (Audit)
+                            </h3>
+                            {verifiedAlumni.map(a => (
+                                <div key={a.id} className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm group">
+                                    <div className="flex gap-4">
+                                        <div className="w-12 h-12 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center font-black overflow-hidden">
+                                            {a.profilePhoto ? <img src={a.profilePhoto} className="w-full h-full object-cover" /> : a.name.charAt(0)}
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="font-black text-slate-800 dark:text-white uppercase text-xs">{a.name}</p>
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase">{a.admissionNumber} • Verified</p>
+                                                </div>
+                                                <button 
+                                                    onClick={() => handleStatusChange(a.id, 'deactivated')}
+                                                    className="p-2 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100" 
+                                                    title="Deactivate Member"
+                                                >
+                                                    <XCircle className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                            <p className="text-[9px] text-slate-500 mt-1 italic">Joined {new Date(a.joinedAt).toLocaleDateString()}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
 
                     {/* Stats for Admin */}
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">

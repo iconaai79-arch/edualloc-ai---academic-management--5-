@@ -6,8 +6,10 @@ import {
     Waves, Wrench, Car, Play, CheckCircle, MapPin, ChevronDown, ArrowDownToLine, Truck, BrainCircuit, History, MessageSquare, ShieldAlert, Trophy, Star
 } from 'lucide-react';
 import type { 
-    FuelTank, FuelPump, FuelSale, Institution, StationShift, StationItem, 
-    StationPosSale, CarwashService, CarServicingPackage, CarwashSale, CarServicingSale, FuelStation
+    FuelStation, FuelTank, FuelPump, FuelSale, StationShift, StationItem, 
+    StationPosSale, CarwashService, CarwashSale, CarServicingPackage, 
+    CarServicingSale, SMSLog, ReorderPrediction, LeakAlert, StaffAchievement,
+    StationAsset, MaintenanceLog, FinancialReport, FleetAccount, PriceHistory, FleetCard, Institution
 } from '../types';
 
 interface FuelStationDashboardProps {
@@ -230,6 +232,7 @@ export const FuelStationDashboard: React.FC<FuelStationDashboardProps> = ({ inst
     const [posSearchQuery, setPosSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState<TabType>('overview');
     const [subTab, setSubTab] = useState<'inventory' | 'loyalty'>('inventory');
+    const [cart, setCart] = useState<CartItem[]>([]);
 
     const MOCK_REWARDS = [
         { id: 'r1', name: 'Free Carwash (Full)', points: 1000, type: 'carwash' },

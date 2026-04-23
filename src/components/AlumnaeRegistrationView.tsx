@@ -17,7 +17,10 @@ import {
     ShieldCheck,
     ArrowRight,
     MapPin,
-    Star
+    Star,
+    Camera,
+    Hash,
+    Loader2
 } from 'lucide-react';
 import type { SchoolRegistry } from '../types';
 
@@ -26,12 +29,20 @@ interface AlumnaeRegistrationViewProps {
     initialSchool?: SchoolRegistry | null;
     onComplete: (data: any) => void;
     onBackToPortal: () => void;
+    onCheckAdmission?: (admNo: string, schoolId: string) => Promise<{ exists: boolean; message?: string }>;
+    onInitiatePayment?: (amount: number, phone: string, reference: string) => Promise<{ success: boolean; transactionId?: string; message?: string }>;
+    joiningFee?: number;
 }
 
-export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = ({ registry, initialSchool, onComplete, onBackToPortal }) => {
+export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = ({ registry, initialSchool, onComplete, onBackToPortal, onCheckAdmission, onInitiatePayment, joiningFee = 0 }) => {
     const [step, setStep] = useState(initialSchool ? 2 : 1);
     const [searchTerm, setSearchTerm] = useState(initialSchool?.name || '');
     const [selectedSchool, setSelectedSchool] = useState<SchoolRegistry | null>(initialSchool || null);
+    const [isCheckingAdm, setIsCheckingAdm] = useState(false);
+    const [admError, setAdmError] = useState('');
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [paymentStatus, setPaymentStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
+    const [paymentMessage, setPaymentMessage] = useState('');
 
     React.useEffect(() => {
         if (initialSchool) {
@@ -45,6 +56,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
         fullName: '',
         email: '',
         phoneNumber: '',
+        admissionNumber: '',
         graduationYear: new Date().getFullYear().toString(),
         department: '',
         currentJob: '',
@@ -52,7 +64,8 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
         linkedinUrl: '',
         twitterUrl: '',
         bio: '',
-        isAnonymous: false
+        isAnonymous: false,
+        profilePictureFile: null as File | null
     });
 
     const filteredSchools = useMemo(() => {
@@ -71,12 +84,76 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
         }).slice(0, 15);
     }, [registry, searchTerm, selectedSchool]);
 
-    const handleNext = () => setStep(step + 1);
+    const handleNext = () => {
+        if (step === 3 && joiningFee === 0) {
+            handleFinalize();
+        } else {
+            setStep(step + 1);
+        }
+    };
     const handlePrev = () => setStep(step - 1);
 
+    const handleFinalize = () => {
+        onComplete({
+            ...formData,
+            schoolId: selectedSchool?.id,
+            schoolName: selectedSchool?.name,
+            paymentId: paymentStatus === 'success' ? 'paid_' + Date.now() : null
+        });
+    };
+
+    const handlePayment = async () => {
+        if (!onInitiatePayment) return;
+        setPaymentStatus('pending');
+        setPaymentMessage('Waiting for M-Pesa Prompt...');
+        
+        try {
+            const res = await onInitiatePayment(joiningFee, formData.phoneNumber, `ALUMNA_${formData.admissionNumber}`);
+            if (res.success) {
+                setPaymentStatus('success');
+                setPaymentMessage('Payment Verified! Finalizing your registration...');
+                setTimeout(() => handleFinalize(), 2000);
+            } else {
+                setPaymentStatus('error');
+                setPaymentMessage(res.message || 'Payment failed. Please try again.');
+            }
+        } catch (e) {
+            setPaymentStatus('error');
+            setPaymentMessage('Connection error. Please try again.');
+        }
+    };
+
     const isStep1Valid = !!selectedSchool;
-    const isStep2Valid = formData.fullName && formData.email && formData.phoneNumber;
+    const isStep2Valid = formData.fullName && formData.email && formData.phoneNumber && formData.admissionNumber && !admError;
     const isStep3Valid = formData.graduationYear && formData.currentJob;
+
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setFormData({ ...formData, profilePictureFile: file });
+            const reader = new FileReader();
+            reader.onloadend = () => setImagePreview(reader.result as string);
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const validateAdmission = async (admNo: string) => {
+        if (!admNo || !selectedSchool) return;
+        setIsCheckingAdm(true);
+        setAdmError('');
+        try {
+            if (onCheckAdmission) {
+                const res = await onCheckAdmission(admNo, selectedSchool.id);
+                if (res.exists) {
+                    setAdmError(res.message || 'This admission number is already registered.');
+                }
+            }
+        } catch (e) {
+            console.error("Validation Error:", e);
+        } finally {
+            setIsCheckingAdm(false);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center py-20 px-4">
@@ -92,9 +169,9 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
             <div className="w-full max-w-2xl mb-12 px-10">
                 <div className="relative flex justify-between items-center">
                     <div className="absolute inset-0 top-1/2 -translate-y-1/2 h-0.5 bg-slate-200 dark:bg-slate-800 -z-10"></div>
-                    <div className="absolute inset-0 top-1/2 -translate-y-1/2 h-0.5 bg-indigo-600 -z-10 transition-all duration-500" style={{ width: `${((step - 1) / 3) * 100}%` }}></div>
+                    <div className="absolute inset-0 top-1/2 -translate-y-1/2 h-0.5 bg-indigo-600 -z-10 transition-all duration-500" style={{ width: `${((step - 1) / (joiningFee > 0 ? 4 : 3)) * 100}%` }}></div>
                     
-                    {[1, 2, 3, 4].map((s) => (
+                    {[1, 2, 3, 4, ...(joiningFee > 0 ? [5] : [])].map((s) => (
                         <div key={s} className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-xs transition-all duration-500 ${
                             step >= s ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100' : 'bg-slate-100 text-slate-400 dark:bg-slate-800'
                         }`}>
@@ -106,7 +183,8 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                     <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600">Institution</span>
                     <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 2 ? 'text-indigo-600' : 'text-slate-400'}`}>Identity</span>
                     <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 3 ? 'text-indigo-600' : 'text-slate-400'}`}>Career</span>
-                    <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 4 ? 'text-indigo-600' : 'text-slate-400'}`}>Verify</span>
+                    <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 4 ? 'text-indigo-600' : 'text-slate-400'}`}>{joiningFee > 0 ? 'Billing' : 'Verify'}</span>
+                    {joiningFee > 0 && <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 5 ? 'text-indigo-600' : 'text-slate-400'}`}>Verify</span>}
                 </div>
             </div>
 
@@ -196,16 +274,52 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                         </div>
 
                         <div className="space-y-6">
-                            <div className="relative">
-                                <input 
-                                    type="text" 
-                                    placeholder="Full Legal Name" 
-                                    value={formData.fullName}
-                                    onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                                    className="w-full h-16 pl-14 pr-6 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600" 
-                                />
-                                <User className="w-5 h-5 absolute left-5 top-5.5 text-slate-400" />
+                            <div className="flex justify-center mb-8">
+                                <div className="relative group">
+                                    <div className="w-32 h-32 rounded-3xl bg-slate-50 dark:bg-slate-800 border-4 border-white dark:border-slate-700 shadow-xl overflow-hidden flex items-center justify-center relative">
+                                        {imagePreview ? (
+                                            <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <User className="w-12 h-12 text-slate-300" />
+                                        )}
+                                        <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
+                                            <Camera className="w-8 h-8 text-white" />
+                                            <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+                                        </label>
+                                    </div>
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-2 text-center">Profile Picture</p>
+                                </div>
                             </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="relative">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Full Legal Name" 
+                                        value={formData.fullName}
+                                        onChange={(e) => setFormData({...formData, fullName: e.target.value})}
+                                        className="w-full h-16 pl-14 pr-6 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600" 
+                                    />
+                                    <User className="w-5 h-5 absolute left-5 top-5.5 text-slate-400" />
+                                </div>
+                                <div className="relative">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Admission Number" 
+                                        value={formData.admissionNumber}
+                                        onChange={(e) => {
+                                            setFormData({...formData, admissionNumber: e.target.value});
+                                            if (admError) setAdmError('');
+                                        }}
+                                        onBlur={(e) => validateAdmission(e.target.value)}
+                                        className={`w-full h-16 pl-14 pr-10 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 ${admError ? 'ring-2 ring-red-500' : 'focus:ring-indigo-600'}`} 
+                                    />
+                                    <Hash className="w-5 h-5 absolute left-5 top-5.5 text-slate-400" />
+                                    {isCheckingAdm && <Loader2 className="w-5 h-5 absolute right-4 top-5.5 text-indigo-600 animate-spin" />}
+                                    {admError && <p className="text-[9px] font-black text-red-500 uppercase tracking-widest mt-1 ml-2">{admError}</p>}
+                                </div>
+                            </div>
+
                             <div className="relative">
                                 <input 
                                     type="email" 
@@ -310,8 +424,74 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                     </div>
                 )}
 
-                {/* Step 4: Verification & Complete */}
-                {step === 4 && (
+                {/* Step 4: Billing (If applicable) */}
+                {step === 4 && joiningFee > 0 && (
+                    <div className="space-y-8 animate-fade-in-up text-center">
+                        <div className="w-24 h-24 bg-emerald-50 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-600">
+                             <CheckCircle2 className="w-12 h-12" />
+                        </div>
+                        
+                        <div>
+                            <h2 className="text-3xl font-black uppercase tracking-tighter text-slate-800 dark:text-white leading-tight">Activation <br /> <span className="text-indigo-600 italic">Financials</span></h2>
+                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-4">A one-off network entry fee of <span className="text-slate-900 dark:text-white font-black italic">KES {joiningFee.toLocaleString()}</span> is required.</p>
+                        </div>
+
+                        <div className="bg-slate-50 dark:bg-slate-800 rounded-[2.5rem] p-10 text-left relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-700"></div>
+                            
+                            <div className="flex items-center justify-between mb-8">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">M-Pesa Number</p>
+                                    <p className="text-xl font-black text-slate-800 dark:text-white">{formData.phoneNumber}</p>
+                                </div>
+                                <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-emerald-200 ring-4 ring-white dark:ring-slate-700">
+                                    <Hash className="w-6 h-6" />
+                                </div>
+                            </div>
+
+                            {paymentStatus === 'idle' && (
+                                <button 
+                                    onClick={handlePayment}
+                                    className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:bg-slate-900 transition-all shadow-2xl shadow-indigo-100 flex items-center justify-center gap-3 active:scale-95"
+                                >
+                                    <ArrowRight className="w-5 h-5" /> Pay KES {joiningFee.toLocaleString()} via M-Pesa
+                                </button>
+                            )}
+
+                            {paymentStatus === 'pending' && (
+                                <div className="space-y-6 text-center py-4">
+                                    <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mx-auto" />
+                                    <p className="text-[10px] font-black uppercase text-indigo-600 tracking-widest animate-pulse">{paymentMessage}</p>
+                                </div>
+                            )}
+
+                            {paymentStatus === 'success' && (
+                                <div className="text-center py-4">
+                                    <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                                    </div>
+                                    <p className="text-xs font-black uppercase text-emerald-600 tracking-widest">{paymentMessage}</p>
+                                </div>
+                            )}
+
+                            {paymentStatus === 'error' && (
+                                <div className="space-y-4 text-center">
+                                    <p className="text-xs font-black text-red-500 uppercase">{paymentMessage}</p>
+                                    <button onClick={() => setPaymentStatus('idle')} className="text-[10px] font-black uppercase text-indigo-600 underline">Try Again</button>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="pt-6">
+                            <button onClick={handlePrev} className="flex items-center gap-2 text-slate-400 font-black uppercase text-[10px] tracking-widest hover:text-slate-900 transition-all mx-auto">
+                                <ChevronLeft className="w-4 h-4" /> Go Back
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Step 4/5: Verification & Complete */}
+                {((step === 4 && joiningFee === 0) || step === 5) && (
                     <div className="space-y-10 animate-fade-in-up text-center">
                         <div className="w-24 h-24 bg-emerald-50 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-10 text-emerald-600">
                              <ShieldCheck className="w-12 h-12" />
@@ -327,20 +507,20 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                                 <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 italic">Alumna Name</span>
                                 <span className="text-sm font-black text-slate-800 dark:text-white uppercase italic">{formData.fullName}</span>
                             </div>
+                             <div className="flex justify-between items-center pb-4 border-b border-slate-200 dark:border-white/5">
+                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 italic">Admission No</span>
+                                <span className="text-sm font-black text-slate-800 dark:text-white uppercase italic">{formData.admissionNumber}</span>
+                            </div>
                             <div className="flex justify-between items-center pb-4 border-b border-slate-200 dark:border-white/5">
                                 <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 italic">Institution</span>
                                 <span className="text-sm font-black text-indigo-600 uppercase italic">{selectedSchool?.name.slice(0, 20)}...</span>
                             </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 italic">Legacy Year</span>
-                                <span className="text-sm font-black text-slate-800 dark:text-white">{formData.graduationYear}</span>
-                            </div>
                         </div>
 
-                        <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-4 pt-6">
                             <button 
-                                onClick={() => onComplete({ ...formData, schoolId: selectedSchool?.id })}
-                                className="w-full h-20 bg-indigo-600 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] text-[11px] shadow-2xl shadow-indigo-100 hover:bg-slate-900 transition-all flex items-center justify-center gap-3 active:scale-95 group"
+                                onClick={handleFinalize}
+                                className="w-full h-20 bg-slate-900 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] text-[11px] shadow-2xl shadow-slate-100 hover:bg-indigo-600 transition-all flex items-center justify-center gap-3 active:scale-95 group"
                             >
                                 Finalize Membership <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-all" />
                             </button>

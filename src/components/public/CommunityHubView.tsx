@@ -23,9 +23,11 @@ interface CommunityHubViewProps {
     counties: County[];
     onBack?: () => void;
     onBookDemo?: () => void;
+    onEnterCircle?: () => void;
+    hasActiveAlumnaSession?: boolean;
 }
 
-export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions, counties, onBack, onBookDemo }) => {
+export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions, counties, onBack, onBookDemo, onEnterCircle, hasActiveAlumnaSession }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCounty, setSelectedCounty] = useState('all');
     const [activeFilter, setActiveFilter] = useState('all');
@@ -279,29 +281,54 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
                             </div>
                         </div>
 
-                        {/* Alumnae Registry Card */}
-                        <div 
-                            onClick={() => window.location.href = '/?view=alumnae_register'}
-                            className="bg-indigo-700 rounded-[3rem] p-8 border border-indigo-600 shadow-2xl hover:-translate-y-2 transition-all group overflow-hidden relative cursor-pointer"
-                        >
-                            <div className="absolute bottom-0 right-0 w-48 h-48 bg-white/5 rounded-full -mb-20 -mr-20 group-hover:scale-110 transition-transform"></div>
-                            <div className="relative z-10 h-full flex flex-col justify-between">
-                                <div>
-                                    <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center text-white mb-6 backdrop-blur-md">
-                                        <GraduationCap className="w-8 h-8" />
+                        {/* Alumnae Registry or Circle Card */}
+                        {hasActiveAlumnaSession ? (
+                            <div 
+                                onClick={onEnterCircle}
+                                className="bg-indigo-600 rounded-[3rem] p-8 border border-indigo-500 shadow-2xl hover:-translate-y-2 transition-all group overflow-hidden relative cursor-pointer"
+                            >
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mt-16 -mr-16 group-hover:scale-150 transition-transform duration-700"></div>
+                                <div className="relative z-10 h-full flex flex-col justify-between">
+                                    <div>
+                                        <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-white mb-6 backdrop-blur-xl">
+                                            <Sparkles className="w-8 h-8 animate-pulse" />
+                                        </div>
+                                        <h3 className="text-3xl font-black text-white uppercase tracking-tighter leading-none mb-4">
+                                            My Alumnae <br /> <span className="text-indigo-200 italic">Circle Feed</span>
+                                        </h3>
+                                        <p className="text-indigo-100 text-xs font-bold uppercase tracking-widest leading-relaxed">
+                                            Jump back into the conversation. See what's happening in your institutional network.
+                                        </p>
                                     </div>
-                                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter leading-none mb-4">
-                                        Alumnae & <br /> <span className="text-white/60 italic">Graduates</span>
-                                    </h3>
-                                    <p className="text-white/60 text-xs font-bold uppercase tracking-widest leading-relaxed">
-                                        Join your institution's elite professional network. Reconnect with peers and mentor the next generation.
-                                    </p>
+                                    <button className="mt-8 py-4 bg-white text-indigo-600 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 shadow-2xl shadow-indigo-900/40">
+                                        Open Social Feed <ArrowRight className="w-4 h-4" />
+                                    </button>
                                 </div>
-                                <button className="mt-8 py-4 bg-white text-indigo-700 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 shadow-xl shadow-indigo-900/40">
-                                    Join Network Now <ArrowRight className="w-4 h-4" />
-                                </button>
                             </div>
-                        </div>
+                        ) : (
+                            <div 
+                                onClick={() => window.location.href = '/?view=alumnae_register'}
+                                className="bg-indigo-700 rounded-[3rem] p-8 border border-indigo-600 shadow-2xl hover:-translate-y-2 transition-all group overflow-hidden relative cursor-pointer"
+                            >
+                                <div className="absolute bottom-0 right-0 w-48 h-48 bg-white/5 rounded-full -mb-20 -mr-20 group-hover:scale-110 transition-transform"></div>
+                                <div className="relative z-10 h-full flex flex-col justify-between">
+                                    <div>
+                                        <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center text-white mb-6 backdrop-blur-md">
+                                            <GraduationCap className="w-8 h-8" />
+                                        </div>
+                                        <h3 className="text-2xl font-black text-white uppercase tracking-tighter leading-none mb-4">
+                                            Alumnae & <br /> <span className="text-white/60 italic">Graduates</span>
+                                        </h3>
+                                        <p className="text-white/60 text-xs font-bold uppercase tracking-widest leading-relaxed">
+                                            Join your institution's elite professional network. Reconnect with peers and mentor the next generation.
+                                        </p>
+                                    </div>
+                                    <button className="mt-8 py-4 bg-white text-indigo-700 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 shadow-xl shadow-indigo-900/40">
+                                        Become a Member <ArrowRight className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
                         {filteredInsts.map((inst, i) => (
                             <div key={inst.id} className="bg-white rounded-[3rem] p-8 border border-slate-100 shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all group overflow-hidden relative">

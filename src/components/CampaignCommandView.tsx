@@ -352,30 +352,29 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
 
             {/* Manifesto & Agendas View */}
             {activeTab === 'manifesto' && (
-                <div className="space-y-8 animate-fade-in-up">
-                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-10 shadow-xl border border-slate-100 dark:border-slate-800">
-                        <div className="flex justify-between items-center mb-12">
-                            <div>
-                                <h3 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
-                                    <SparklesIcon className="w-8 h-8 text-indigo-600" />
-                                    Campaign Manifesto
-                                </h3>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 ml-11">Edit your core priorities and voter promises</p>
+                <div className="space-y-12 animate-fade-in-up">
+                    {/* Strategy & Agendas Section */}
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 md:p-12 shadow-2xl border border-slate-100 dark:border-slate-800">
+                        <div className="flex justify-between items-center mb-8">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center">
+                                    <SparklesIcon className="w-6 h-6 text-indigo-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Campaign Strategy</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Core priorities & voter promises</p>
+                                </div>
                             </div>
-                            <button 
-                                onClick={() => setIsSetupModalOpen(true)}
-                                className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-indigo-100 hover:scale-105 active:scale-95 transition-all flex items-center gap-3"
-                            >
-                                <ArrowPathIcon className="w-5 h-5" />
+                            <button onClick={() => setIsSetupModalOpen(true)} className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all border border-slate-100 dark:border-slate-700 shadow-sm">
                                 Edit Agendas
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                             <div className="space-y-6">
                                 <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white mb-4">Core Agendas</h4>
                                 <div className="grid grid-cols-1 gap-4">
-                                    {(profile.agendas || []).length > 0 ? profile.agendas.map((agenda, i) => (
+                                    {(profile?.agendas || []).length > 0 ? profile.agendas.map((agenda, i) => (
                                         <div key={i} className="flex gap-4 p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border-l-8 border-indigo-500 shadow-sm">
                                             <div className="w-10 h-10 shrink-0 bg-white dark:bg-slate-900 rounded-xl flex items-center justify-center font-black text-lg text-indigo-600 shadow-sm">{i+1}</div>
                                             <p className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight leading-relaxed">{agenda}</p>
@@ -389,23 +388,57 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                 </div>
                             </div>
 
-                            <div className="p-10 bg-indigo-600 rounded-[2.5rem] text-white relative overflow-hidden shadow-2xl">
-                                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
-                                <h4 className="text-2xl font-black uppercase tracking-tighter mb-4 relative z-10">Strategic Guidance</h4>
-                                <p className="text-indigo-100 text-sm font-medium leading-relaxed mb-8 relative z-10">
-                                    Your agendas are the foundation of your campaign. They are displayed on your public join link and are used to train the AI on your specific political stance.
-                                </p>
-                                <div className="space-y-4 relative z-10">
-                                    <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest bg-white/10 p-4 rounded-2xl">
-                                        <ShieldCheckIcon className="w-5 h-5 text-emerald-400" /> Keep them concise (max 100 chars)
+                            <div className="space-y-6">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Pulse AI Guidance</h4>
+                                    <span className="text-[9px] font-black bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 px-2 py-0.5 rounded-full uppercase tracking-tighter">AI Pulse Active</span>
+                                </div>
+                                <div className="bg-indigo-600 rounded-[2.5rem] p-8 text-white shadow-xl shadow-indigo-500/20 relative overflow-hidden group min-h-[250px] flex flex-col justify-center">
+                                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                        <SparklesIcon className="w-24 h-24 transform rotate-12" />
                                     </div>
-                                    <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest bg-white/10 p-4 rounded-2xl">
-                                        <ShieldCheckIcon className="w-5 h-5 text-emerald-400" /> Focus on tangible deliverables
+                                    <p className="text-lg font-medium leading-relaxed italic relative z-10">
+                                        "Focus on the {profile?.agendas?.[0] || 'primary agenda'} to resonate with voters in {profile?.constituencyWard || 'your constituency'}. Leverage the demographic shifts in your base to maximize impact."
+                                    </p>
+                                    <div className="mt-8 flex items-center gap-4 relative z-10">
+                                        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                                            <ChartBarIcon className="w-5 h-5" />
+                                        </div>
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Trending high in {profile?.constituencyWard}</span>
                                     </div>
-                                    <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest bg-white/10 p-4 rounded-2xl">
-                                        <ShieldCheckIcon className="w-5 h-5 text-emerald-400" /> Align with local ward needs
-                                    </div>
+                                </div>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* AI Manifesto Draft Section */}
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-12 shadow-2xl border border-slate-100 dark:border-slate-800 relative">
+                        <div className="absolute top-8 right-8">
+                            <button 
+                                onClick={generateManifesto}
+                                disabled={generatingManifesto}
+                                className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:scale-105 transition-all disabled:opacity-50 shadow-lg shadow-indigo-500/20"
+                            >
+                                {generatingManifesto ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <SparklesIcon className="w-4 h-4" />}
+                                {profile?.manifestoAiDraft ? 'RE-DRAFT WITH AI' : 'GENERATE WITH AI'}
+                            </button>
+                        </div>
+
+                        <div className="mb-12 border-b border-slate-100 dark:border-slate-800 pb-12 text-center">
+                            <p className="text-indigo-600 font-black text-xs uppercase tracking-[0.5em] mb-4">Official 2027 Manifesto Draft</p>
+                            <h2 className="text-5xl font-black tracking-tighter text-slate-900 dark:text-white uppercase mb-2">The Digital Hustle</h2>
+                            <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">Empowering {profile?.constituencyWard} Through Innovation</p>
+                        </div>
+
+                        <div className="prose dark:prose-invert max-w-none">
+                            {profile?.manifestoAiDraft ? (
+                                <div dangerouslySetInnerHTML={{ __html: profile.manifestoAiDraft.replace(/\n/g, '<br/>') }} className="text-lg leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-medium" />
+                            ) : (
+                                <div className="text-center py-20 bg-slate-50 dark:bg-slate-800/50 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700">
+                                    <DocumentTextIcon className="w-16 h-16 text-slate-200 dark:text-slate-700 mx-auto mb-4" />
+                                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">No manifesto draft yet. Use Pulse AI to generate your vision.</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -519,70 +552,6 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                     </div>
                                 </div>
                                 <p className="text-[10px] font-black text-center uppercase tracking-widest text-slate-400">Monitoring Voter Frequency...</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Branding & Asset Management View */}
-            {activeTab === 'branding' && profile && (
-                <div className="space-y-8 animate-fade-in-up">
-                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-10 shadow-xl border border-slate-100 dark:border-slate-800">
-                        <div className="flex justify-between items-center mb-12">
-                            <div>
-                                <h3 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
-                                    <PhotoIcon className="w-8 h-8 text-indigo-600" />
-                                    Campaign Branding
-                                </h3>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 ml-11">Manage your visual identity and campaign posters</p>
-                            </div>
-                            <div className="flex gap-4">
-                                <div className={`px-6 py-3 rounded-2xl border font-black text-[10px] uppercase tracking-widest flex items-center gap-2 ${profile.brandingStatus === 'active' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-orange-50 border-orange-200 text-orange-600'}`}>
-                                    {profile.brandingStatus === 'active' ? <ShieldCheckIcon className="w-4 h-4" /> : <ArrowPathIcon className="w-4 h-4" />}
-                                    Status: {profile.brandingStatus}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                            {/* Profile Picture */}
-                            <div className="space-y-6">
-                                <h4 className="text-[10px] font-black uppercase text-indigo-600 tracking-[0.2em]">Candidate Official Portrait</h4>
-                                <div className="aspect-square rounded-[3rem] bg-slate-50 dark:bg-slate-800 border-4 border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden relative group">
-                                    {profile.profilePicture ? (
-                                        <img src={profile.profilePicture} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="Candidate" />
-                                    ) : (
-                                        <div className="text-center p-8">
-                                            <CameraIcon className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">No Portrait Uploaded</p>
-                                        </div>
-                                    )}
-                                    <button className="absolute bottom-6 right-6 p-4 bg-indigo-600 text-white rounded-2xl shadow-xl opacity-0 group-hover:opacity-100 transition-all hover:scale-110">
-                                        <PlusIcon className="w-6 h-6" />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Campaign Posters */}
-                            <div className="space-y-6">
-                                <h4 className="text-[10px] font-black uppercase text-indigo-600 tracking-[0.2em]">Campaign Posters & Banners</h4>
-                                <div className="grid grid-cols-2 gap-4">
-                                    {(profile.campaignPosters || []).map((poster, i) => (
-                                        <div key={i} className="aspect-[3/4] rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden relative group">
-                                            <img src={poster} className="w-full h-full object-cover" alt="Poster" />
-                                            <button className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all">
-                                                <XIcon className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    ))}
-                                    <button className="aspect-[3/4] rounded-2xl bg-slate-50 dark:bg-slate-800 border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-3 hover:bg-slate-100 transition-all group">
-                                        <div className="w-10 h-10 rounded-full bg-white dark:bg-slate-900 flex items-center justify-center text-slate-400 group-hover:text-indigo-600 shadow-sm transition-colors">
-                                            <PlusIcon className="w-6 h-6" />
-                                        </div>
-                                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Add Poster</span>
-                                    </button>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -920,6 +889,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mt-6">Political Party</label>
                                 <p className="text-xl font-black text-slate-900 dark:text-white uppercase">{profile!.partyName || 'Independent'}</p>
                             </div>
+                        </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
                             <div className="bg-slate-50 dark:bg-slate-800/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 relative group">
@@ -1026,40 +996,6 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                 </div>
             )}
 
-            {/* Manifesto View */}
-            {activeTab === 'manifesto' && (
-                <div className="max-w-4xl mx-auto space-y-8 animate-fade-in-up">
-                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-12 shadow-2xl border border-slate-100 dark:border-slate-800 relative">
-                        <div className="absolute top-8 right-8">
-                            <button 
-                                onClick={generateManifesto}
-                                disabled={generatingManifesto}
-                                className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:scale-105 transition-all disabled:opacity-50"
-                            >
-                                {generatingManifesto ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <SparklesIcon className="w-4 h-4" />}
-                                RE-DRAFT WITH AI
-                            </button>
-                        </div>
-
-                        <div className="mb-12 border-b border-slate-100 dark:border-slate-800 pb-12 text-center">
-                            <p className="text-indigo-600 font-black text-xs uppercase tracking-[0.5em] mb-4">Official 2027 Manifesto Draft</p>
-                            <h2 className="text-5xl font-black tracking-tighter text-slate-900 dark:text-white uppercase mb-2">The Digital Hustle</h2>
-                            <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">Empowering {profile.constituencyWard} Through Innovation</p>
-                        </div>
-
-                        <div className="prose dark:prose-invert max-w-none">
-                            {profile.manifestoAiDraft ? (
-                                <div dangerouslySetInnerHTML={{ __html: profile.manifestoAiDraft.replace(/\n/g, '<br/>') }} className="text-lg leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-medium" />
-                            ) : (
-                                <div className="text-center py-20">
-                                    <DocumentTextIcon className="w-20 h-20 text-slate-100 dark:text-slate-800 mx-auto mb-4" />
-                                    <p className="text-slate-400 font-bold uppercase text-xs">No manifesto draft yet. Use AI to generate one.</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Voters View */}
             {activeTab === 'voters' && (
@@ -1192,6 +1128,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                     })()}
                                 </p>
                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Target Recipients</p>
+                                </div>
                             </div>
                         </div>
 
@@ -1438,84 +1375,6 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                 </div>
             )}
 
-            {/* Dashboard Bottom Section */}
-            {activeTab === 'dashboard' && (
-                <div className="space-y-8 animate-fade-in-up">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-[3rem] p-12 shadow-2xl border border-slate-100 dark:border-slate-800">
-                            <h3 className="text-3xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3">
-                                <ChartBarIcon className="w-8 h-8 text-indigo-600" /> Supporter Growth & Status
-                            </h3>
-                            <div className="space-y-8">
-                                {[
-                                    { label: 'Strong Supporters', count: voters.filter(v => v.status === 'supporter').length, color: 'bg-emerald-500', icon: '🔥' },
-                                    { label: 'Undecided / Potential', count: voters.filter(v => v.status === 'undecided' || v.status === 'uncontacted').length, color: 'bg-indigo-500', icon: '⏳' },
-                                    { label: 'Opposed / Rivals', count: voters.filter(v => v.status === 'opposed').length, color: 'bg-red-500', icon: '⚠️' }
-                                ].map((group, i) => (
-                                    <div key={i} className="space-y-2">
-                                        <div className="flex justify-between items-end">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-xl">{group.icon}</span>
-                                                <span className="font-black text-[10px] uppercase tracking-widest text-slate-500">{group.label}</span>
-                                            </div>
-                                            <span className="font-black text-xl text-slate-900 dark:text-white">
-                                                {group.count.toLocaleString()}
-                                                <span className="text-[10px] text-slate-400 ml-1">({voters.length > 0 ? Math.round((group.count / voters.length) * 100) : 0}%)</span>
-                                            </span>
-                                        </div>
-                                        <div className="w-full bg-slate-100 dark:bg-slate-800 h-4 rounded-full overflow-hidden border border-slate-50 dark:border-slate-700">
-                                            <div className={`${group.color} h-full transition-all duration-1000`} style={{ width: `${voters.length > 0 ? (group.count / voters.length) * 100 : 0}%` }}></div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div className="mt-12 pt-8 border-t border-slate-50 dark:border-slate-800">
-                                <p className="text-sm font-medium text-slate-400 italic flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl">
-                                    <SparklesIcon className="w-10 h-10 text-emerald-400 shrink-0" />
-                                    "Your supporter conversion rate is currently {voters.length > 0 ? Math.round((voters.filter(v => v.status === 'supporter').length / voters.length) * 100) : 0}%. To reach your 2027 target, you need to recruit roughly {profile ? Math.max(0, Math.round((profile.targetVoterCount - voters.filter(v => v.status === 'supporter').length) / 100)) : 0} new supporters daily."
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="bg-slate-900 text-white rounded-[3rem] p-12 shadow-2xl relative overflow-hidden flex flex-col justify-between">
-                            <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl"></div>
-                            
-                            <div>
-                                <h3 className="text-3xl font-black uppercase tracking-tighter mb-8 flex items-center gap-3">
-                                    <MapPinIcon className="w-8 h-8 text-indigo-400" /> Ward Hotspots
-                                </h3>
-                                <div className="space-y-6">
-                                    {Array.from(new Set(voters.map(v => v.ward).filter(Boolean))).slice(0, 5).map((wardName, i) => {
-                                        const wardSupporters = voters.filter(v => v.ward === wardName && v.status === 'supporter').length;
-                                        return (
-                                            <div key={i} className="flex justify-between items-center group">
-                                                <div>
-                                                    <h5 className="font-black text-xs uppercase tracking-widest text-white group-hover:text-indigo-400 transition-colors">{wardName}</h5>
-                                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{voters.filter(v => v.ward === wardName).length} Total Contacts</p>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="font-black text-indigo-400">{wardSupporters}</p>
-                                                    <p className="text-[8px] font-bold text-slate-500 uppercase">Supporters</p>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                    {voters.filter(v => !v.ward).length > 0 && (
-                                        <div className="pt-4 border-t border-white/5">
-                                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{voters.filter(v => !v.ward).length} Supporters have no ward data</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <button className="mt-12 bg-indigo-600 hover:bg-white hover:text-indigo-600 py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all shadow-xl shadow-indigo-500/20">
-                                View Full Voter Map
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
             {isVoterModalOpen && profile && (
                 <CampaignVoterModal 
                     campaignId={profile.id}

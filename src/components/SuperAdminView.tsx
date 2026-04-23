@@ -98,6 +98,7 @@ import { GuestFeedbackView } from './GuestFeedbackView';
 import { ChatBot } from './ChatBot';
 import { SuspendedAccountView } from './SuspendedAccountView';
 import { MandatoryUpdateView } from './MandatoryUpdateView';
+import { PortalLinksManager } from './PortalLinksManager';
 import { TimetableWizard } from './TimetableWizard';
 import { SmartPoliticalImporterModal } from './SmartPoliticalImporterModal';
 import { SmartMedicalImporterModal } from './SmartMedicalImporterModal';
@@ -979,7 +980,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         onLogAction
     } = props;
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout' | 'campaigns' | 'financials' | 'integrations'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'portal_links' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout' | 'campaigns' | 'financials' | 'integrations'>('dashboard');
     const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry' | 'scouting' | 'branding' | 'political' | 'medical' | 'business_profile'>('list');
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses' | 'registry' | 'calendar' | 'timetable'>('subjects');
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
@@ -1050,6 +1051,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         phoneNumber: '',
         institutionType: 'Education' as Institution['institutionType'],
         category: 'University',
+        businessSubType: 'University',
         countyId: ''
     });
 
@@ -1613,6 +1615,7 @@ Please change it after login.`;
         { key: 'lead_scout', label: 'AI Lead Scout', icon: <SparklesIcon className="w-5 h-5 mr-2 text-indigo-500" /> },
         { key: 'settings', label: 'Global Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
         { key: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
+        { key: 'portal_links', label: 'Portal Links', icon: <GlobeAltIcon className="w-5 h-5 mr-2 text-emerald-500" /> },
     ];
 
 
@@ -4702,6 +4705,43 @@ Please change it after login.`;
                             )}
                         </div>
                     </div>
+                )}
+                {activeTab === 'portal_links' && (
+                    <PortalLinksManager 
+                        companyDetails={companyDetails}
+                        onUpdateSettings={async (newSettings) => {
+                            if (!companyDetails) return;
+                            
+                            const topLevelKeys = ['alumnaeJoiningFee', 'enforceGlobalOtp'];
+                            const updated = { ...companyDetails };
+                            const portalSettingsUpdates: any = {};
+
+                            Object.keys(newSettings).forEach(key => {
+                                if (topLevelKeys.includes(key)) {
+                                    (updated as any)[key] = newSettings[key];
+                                } else {
+                                    portalSettingsUpdates[key] = newSettings[key];
+                                }
+                            });
+
+                            if (Object.keys(portalSettingsUpdates).length > 0) {
+                                updated.portalSettings = {
+                                    ...(companyDetails.portalSettings || {
+                                        showAlumnaeHub: true,
+                                        showTouristHub: true,
+                                        showMarketplace: true,
+                                        showCommunityHub: true,
+                                        showTransportHub: true,
+                                        publicRegistrationEnabled: true
+                                    }),
+                                    ...portalSettingsUpdates
+                                };
+                            }
+
+                            await apiService.saveCompanyDetails(updated);
+                            onRefreshData?.();
+                        }}
+                    />
                 )}
             </main>
 
