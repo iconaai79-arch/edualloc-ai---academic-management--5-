@@ -39,6 +39,12 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [selectedPost, setSelectedPost] = useState<AlumniPost | null>(null);
     const [comments, setComments] = useState<Record<string, AlumniComment[]>>({});
     const [loadingPosts, setLoadingPosts] = useState(true);
+    const [activeSection, setActiveSection] = useState<'feed' | 'messages'>('feed');
+    const [messages, setMessages] = useState<any[]>([]);
+    const [activeConversationPartner, setActiveConversationPartner] = useState<any | null>(null);
+    const [newMessage, setNewMessage] = useState('');
+    const [isSendingMessage, setIsSendingMessage] = useState(false);
+    const [alumnaeMembers, setAlumnaeMembers] = useState<any[]>([]);
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [profileData, setProfileData] = useState({
         fullName: currentAlumna.fullName || '',
@@ -106,9 +112,51 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         } catch (e) {}
     };
 
+    const loadMessages = async () => {
+        try {
+            const data = await apiService.fetchModuleRecords('alumni_messages', undefined, undefined, {
+                order: 'created_at.asc'
+            });
+            setMessages(data || []);
+        } catch (e) {}
+    };
+
+    const loadAlumnaeMembers = async () => {
+        try {
+            const data = await apiService.fetchModuleRecords('alumnae_members');
+            setAlumnaeMembers(data || []);
+        } catch (e) {}
+    };
+
     useEffect(() => {
         loadPosts();
+        loadMessages();
+        loadAlumnaeMembers();
     }, [currentAlumna, activeTab]);
+
+    const handleSendMessage = async () => {
+        if (!newMessage.trim() || !activeConversationPartner) return;
+        setIsSendingMessage(true);
+        
+        const msg = {
+            id: `msg_${Date.now()}`,
+            senderId: currentAlumna.id,
+            receiverId: activeConversationPartner.id,
+            content: newMessage,
+            isRead: false,
+            createdAt: new Date().toISOString()
+        };
+
+        try {
+            await apiService.saveModuleRecord('alumni_messages', msg);
+            setMessages([...messages, msg]);
+            setNewMessage('');
+        } catch (e: any) {
+            alert("Message Error: " + e.message);
+        } finally {
+            setIsSendingMessage(false);
+        }
+    };
 
     const handleCreatePost = async () => {
         if (!newPostContent.trim()) return;
@@ -199,10 +247,10 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
                 <nav className="space-y-2 flex-1">
                     {[
-                        { icon: Home, label: 'Feed', active: true },
+                        { icon: Home, label: 'Feed', onClick: () => setActiveSection('feed'), active: activeSection === 'feed' },
                         { icon: Hash, label: 'Explore' },
                         { icon: Bell, label: 'Notifications' },
-                        { icon: MessageSquare, label: 'Messages' },
+                        { icon: MessageSquare, label: 'Messages', onClick: () => setActiveSection('messages'), active: activeSection === 'messages' },
                         { icon: User, label: 'Profile', onClick: () => setIsEditingProfile(true) }
                     ].map((item, idx) => (
                         <button 
@@ -239,7 +287,9 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
             {/* Main Content Area */}
             <main className="flex-1 ml-20 md:ml-64 max-w-2xl border-r border-slate-100 dark:border-slate-800">
-                {/* Header Tabs */}
+                {activeSection === 'feed' ? (
+                    <>
+                    {/* Header Tabs */}
                 <header className="sticky top-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-100 dark:border-slate-800 z-40">
                     <div className="px-6 py-4">
                         <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Alumnae <span className="text-indigo-600">Circle</span></h2>
@@ -403,6 +453,95 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         </div>
                     ))}
                 </div>
+                </>
+                ) : (
+                    <div className="flex h-screen flex-col">
+                        <header className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl">
+                            <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Secure <span className="text-indigo-600">Inbox</span></h2>
+                            {activeConversationPartner && (
+                                <button onClick={() => setActiveConversationPartner(null)} className="md:hidden p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                                    <X className="w-5 h-5 text-slate-400" />
+                                </button>
+                            )}
+                        </header>
+
+                        <div className="flex-1 flex overflow-hidden">
+                            {/* Conversations List */}
+                            <div className={`w-full md:w-80 border-r border-slate-100 dark:border-slate-800 overflow-y-auto no-scrollbar ${activeConversationPartner ? 'hidden md:block' : 'block'}`}>
+                                <div className="p-4 space-y-2">
+                                    {alumnaeMembers.filter(m => m.id !== currentAlumna.id).map(member => {
+                                        const lastMsg = [...messages].reverse().find(m => (m.senderId === member.id && m.receiverId === currentAlumna.id) || (m.senderId === currentAlumna.id && m.receiverId === member.id));
+                                        return (
+                                            <button 
+                                                key={member.id}
+                                                onClick={() => setActiveConversationPartner(member)}
+                                                className={`w-full p-4 rounded-2xl flex items-center gap-3 transition-all ${activeConversationPartner?.id === member.id ? 'bg-indigo-50 dark:bg-indigo-900/20 ring-1 ring-indigo-100' : 'hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                                            >
+                                                <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
+                                                    {member.profilePhoto ? <img src={member.profilePhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-300" />}
+                                                </div>
+                                                <div className="text-left flex-1 min-w-0">
+                                                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase truncate">{member.fullName || 'Alumna'}</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{lastMsg?.content || 'No messages yet'}</p>
+                                                </div>
+                                                {lastMsg && !lastMsg.isRead && lastMsg.receiverId === currentAlumna.id && (
+                                                    <div className="w-2 h-2 rounded-full bg-indigo-600"></div>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Chat Window */}
+                            <div className={`flex-1 flex flex-col bg-slate-50/50 dark:bg-slate-950/20 ${!activeConversationPartner ? 'hidden md:flex' : 'flex'}`}>
+                                {activeConversationPartner ? (
+                                    <>
+                                        <div className="flex-1 p-6 overflow-y-auto space-y-6 no-scrollbar">
+                                            {messages.filter(m => (m.senderId === activeConversationPartner.id && m.receiverId === currentAlumna.id) || (m.senderId === currentAlumna.id && m.receiverId === activeConversationPartner.id)).map(msg => (
+                                                <div key={msg.id} className={`flex ${msg.senderId === currentAlumna.id ? 'justify-end' : 'justify-start'}`}>
+                                                    <div className={`max-w-[80%] p-4 rounded-[2rem] text-sm font-medium shadow-sm ${msg.senderId === currentAlumna.id ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-bl-none border border-slate-100 dark:border-slate-800'}`}>
+                                                        {msg.content}
+                                                        <p className={`text-[8px] font-bold uppercase tracking-widest mt-2 opacity-50 ${msg.senderId === currentAlumna.id ? 'text-white' : 'text-slate-400'}`}>
+                                                            {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="p-6 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
+                                            <div className="relative">
+                                                <input 
+                                                    type="text" 
+                                                    placeholder={`Message ${activeConversationPartner.fullName.split(' ')[0]}...`}
+                                                    value={newMessage}
+                                                    onChange={(e) => setNewMessage(e.target.value)}
+                                                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                                                    className="w-full h-14 pl-6 pr-16 bg-slate-100 dark:bg-slate-900 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all"
+                                                />
+                                                <button 
+                                                    onClick={handleSendMessage}
+                                                    disabled={!newMessage.trim() || isSendingMessage}
+                                                    className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-30"
+                                                >
+                                                    {isSendingMessage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+                                        <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/20 rounded-[2.5rem] flex items-center justify-center text-indigo-600 mb-6 animate-pulse">
+                                            <MessageSquare className="w-10 h-10" />
+                                        </div>
+                                        <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">Your Conversations</h3>
+                                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest max-w-xs mx-auto mt-2 leading-relaxed">Select a member from the list to start a secure encrypted legacy conversation.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </main>
 
             {/* Right Sidebar - Recommendations */}

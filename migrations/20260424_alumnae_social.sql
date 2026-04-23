@@ -50,3 +50,13 @@ BEGIN
         ALTER TABLE alumnae_members ADD COLUMN school_name TEXT;
     END IF;
 END $$;
+
+-- Secure Private Messaging for Alumnae
+CREATE TABLE IF NOT EXISTS alumni_messages (
+    id TEXT PRIMARY KEY,
+    sender_id TEXT NOT NULL,
+    receiver_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);

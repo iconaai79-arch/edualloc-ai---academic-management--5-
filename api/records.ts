@@ -87,7 +87,7 @@ async function getAuthUser(supabase: any, authHeader?: string) {
   return null;
 }
 
-const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings', 'pm_listings', 'retail_inventory_items', 'school_registry', 'car_sales_listings', 'campaign_profiles', 'alumnae_members', 'alumni_posts', 'alumni_comments'];
+const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings', 'pm_listings', 'retail_inventory_items', 'school_registry', 'car_sales_listings', 'campaign_profiles', 'alumnae_members', 'alumni_posts', 'alumni_comments', 'alumni_messages'];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -114,7 +114,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         // Allow POST for registration and social interactions
         const isPublicPost = req.method === 'POST' && (['users', 'institutions', 'counties', 'demo_requests', 'pm_inquiries', 'retail_wishlist', 'app_notifications', 'voter_outreach', 'alumnae_members'].includes(moduleName));
-        const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments'].includes(moduleName)) && user?.role === 'alumna';
+        const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments', 'alumni_messages'].includes(moduleName)) && user?.role === 'alumna';
         
         if (!user && !isPublicGet && !isPublicPost && !isSocialInteraction) {
             const tokenSnippet = authHeader ? `${authHeader.substring(0, 15)}... (len: ${authHeader.length})` : 'NONE';
@@ -139,6 +139,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (moduleName === 'counties') q = q.eq('id', user.institutionId);
                     else if (moduleName === 'institutions') q = q.eq('county_id', user.institutionId);
                     else q = q.eq('county_id', user.institutionId);
+                } else if (user.role === 'alumna') {
+                    if (moduleName === 'alumni_messages') {
+                        q = q.or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
+                    } else if (moduleName === 'alumnae_members') {
+                        // Allow alumnae to see other members (networking)
+                    } else if (['alumni_posts', 'alumni_comments'].includes(moduleName)) {
+                        // Social feed is semi-public/scoped
+                    } else {
+                        q = q.eq('institution_id', user.institutionId);
+                    }
                 } else {
                     if (moduleName === 'institutions') q = q.eq('id', user.institutionId);
                     else if (moduleName !== 'counties') q = q.eq('institution_id', user.institutionId);
