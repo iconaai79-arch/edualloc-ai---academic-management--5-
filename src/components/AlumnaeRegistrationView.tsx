@@ -433,7 +433,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                         
                         <div>
                             <h2 className="text-3xl font-black uppercase tracking-tighter text-slate-800 dark:text-white leading-tight">Activation <br /> <span className="text-indigo-600 italic">Financials</span></h2>
-                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-4">A one-off network entry fee of <span className="text-slate-900 dark:text-white font-black italic">KES {joiningFee.toLocaleString()}</span> is required.</p>
+                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-4">A one-off service fee of <span className="text-slate-900 dark:text-white font-black italic">KES {joiningFee.toLocaleString()}</span> is required for platform access and networking tools.</p>
                         </div>
 
                         <div className="bg-slate-50 dark:bg-slate-800 rounded-[2.5rem] p-10 text-left relative overflow-hidden group">

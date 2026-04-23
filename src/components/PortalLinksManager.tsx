@@ -212,7 +212,7 @@ export const PortalLinksManager: React.FC<PortalLinksManagerProps> = ({ companyD
                     </div>
                     <div className="flex flex-col gap-4">
                         <div className="flex flex-col gap-2">
-                            <label className="text-[9px] font-black uppercase tracking-widest text-indigo-100">Alumnae Joining Fee (KES)</label>
+                            <label className="text-[9px] font-black uppercase tracking-widest text-indigo-100">Alumnae Platform Service Fee (KES)</label>
                             <input 
                                 type="number"
                                 value={companyDetails?.alumnaeJoiningFee || 0}
