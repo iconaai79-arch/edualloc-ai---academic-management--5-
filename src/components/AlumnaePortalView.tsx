@@ -511,14 +511,15 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                          <Send className="w-4 h-4" />
                                                      </button>
                                                  </div>
-                                             </div>
-                                         </div>
-                                     )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    </>
+                                              </div>
+                                          </div>
+                                      )}
+                                  </div>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              </>
                 ) : activeSection === 'classmates' ? (
                     <div className="p-8">
                         <header className="mb-12 flex items-center justify-between">

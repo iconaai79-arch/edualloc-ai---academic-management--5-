@@ -4894,8 +4894,9 @@ export const App: React.FC = () => {
                                         const res = await apiService.triggerMpesaStkPush({
                                             amount,
                                             phoneNumber: phone,
-                                            accountReference: reference,
-                                            transactionDesc: 'Alumnae Network Activation'
+                                            reference: reference,
+                                            description: 'Alumnae Network Activation',
+                                            institutionId: 'GLOBAL'
                                         });
                                         return { success: res.success, message: res.message };
                                     } catch (e: any) {

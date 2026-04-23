@@ -4712,7 +4712,7 @@ Please change it after login.`;
                         onUpdateSettings={async (newSettings) => {
                             if (!companyDetails) return;
                             
-                            const topLevelKeys = ['alumnaeJoiningFee', 'enforceGlobalOtp'];
+                            const topLevelKeys = ['alumnaeJoiningFee', 'alumnaeFeatureFee', 'enforceGlobalOtp'];
                             const updated = { ...companyDetails };
                             const portalSettingsUpdates: any = {};
 
@@ -4738,7 +4738,7 @@ Please change it after login.`;
                                 };
                             }
 
-                            await apiService.saveCompanyDetails(updated);
+                            await apiService.saveCompanySettings(updated);
                             onRefreshData?.();
                         }}
                     />

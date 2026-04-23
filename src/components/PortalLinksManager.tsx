@@ -101,7 +101,8 @@ export const PortalLinksManager: React.FC<PortalLinksManagerProps> = ({ companyD
         showMarketplace: true,
         showCommunityHub: true,
         showTransportHub: true,
-        publicRegistrationEnabled: true
+        publicRegistrationEnabled: true,
+        alumnaeRegistrationFeeEnabled: true
     };
 
     return (
@@ -233,10 +234,10 @@ export const PortalLinksManager: React.FC<PortalLinksManagerProps> = ({ companyD
                         </div>
                         <div className="flex flex-col gap-4">
                             <button 
-                                onClick={() => onUpdateSettings({ alumnaeRegistrationFeeEnabled: !settings.alumnaeRegistrationFeeEnabled })}
-                                className={`w-full py-4 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all border ${ settings.alumnaeRegistrationFeeEnabled ? 'bg-indigo-700 border-indigo-400 text-white' : 'bg-white/10 border-white/20 text-indigo-100' }`}
+                                onClick={() => onUpdateSettings({ alumnaeRegistrationFeeEnabled: !(settings.alumnaeRegistrationFeeEnabled !== false) })}
+                                className={`w-full py-4 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all border ${ (settings.alumnaeRegistrationFeeEnabled !== false) ? 'bg-indigo-700 border-indigo-400 text-white' : 'bg-white/10 border-white/20 text-indigo-100' }`}
                             >
-                                {settings.alumnaeRegistrationFeeEnabled ? 'Fee Enabled' : 'Fee Disabled'}
+                                {(settings.alumnaeRegistrationFeeEnabled !== false) ? 'Fee Enabled' : 'Fee Disabled'}
                             </button>
                             <button 
                                 onClick={() => onUpdateSettings({ publicRegistrationEnabled: !settings.publicRegistrationEnabled })}
