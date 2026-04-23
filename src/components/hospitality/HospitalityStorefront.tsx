@@ -24,7 +24,8 @@ import {
     Clock,
     ChefHat,
     ShoppingBag,
-    UtensilsCrossed
+    UtensilsCrossed,
+    Sparkles
 } from 'lucide-react';
 import { Institution, HospitalityMenuItem, HospitalityOrder } from '../../types';
 import { apiService } from '../../services/apiService';
@@ -217,8 +218,6 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                             <button key={f} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${f === 'All' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>{f}</button>
                         ))}
                     </div>
-                </div>
-
                 </div>
 
                 {!isDiningMode ? (
