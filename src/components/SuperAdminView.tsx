@@ -320,6 +320,7 @@ export interface SuperAdminViewProps {
     onDeleteInstitution: (institutionId: string) => void;
     onToggleInstitutionStatus: (institutionId: string) => void;
     onLoginAsAdmin: (institutionId: string, initialRole?: Role | null) => void;
+    onAccessAlumnaPortal: (school: SchoolRegistry) => void;
     onGenerateReceipt: (transaction: MpesaTransaction) => void;
 
     // New Props
@@ -883,6 +884,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         onToggleInstitutionStatus,
         onUpdateInstitution,
         onLoginAsAdmin,
+        onAccessAlumnaPortal,
         onSendSms,
         currentUser,
         onRefreshData,
@@ -2991,6 +2993,7 @@ Please change it after login.`;
                                     registry={schoolRegistry} 
                                     onRefresh={fetchSchoolRegistry} 
                                     onAccessPortal={onLoginAsAdmin}
+                                    onAccessAlumnaPortal={onAccessAlumnaPortal}
                                 />
                             </div>
                         {institutionsSubTab === 'scouting' && (

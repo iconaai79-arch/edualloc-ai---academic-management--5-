@@ -17,7 +17,8 @@ import {
     X,
     Database,
     Zap,
-    Edit2
+    Edit2,
+    Heart
 } from 'lucide-react';
 import type { SchoolRegistry } from '../../types';
 import { apiService } from '../../services/apiService';
@@ -31,9 +32,10 @@ interface SchoolRegistryManagerProps {
     registry: SchoolRegistry[];
     onRefresh: () => void;
     onAccessPortal?: (institutionId: string) => void;
+    onAccessAlumnaPortal?: (school: SchoolRegistry) => void;
 }
 
-export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ registry, onRefresh, onAccessPortal }) => {
+export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ registry, onRefresh, onAccessPortal, onAccessAlumnaPortal }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [isUploading, setIsUploading] = useState(false);
     const [isAddingManually, setIsAddingManually] = useState(false);
@@ -360,11 +362,19 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <div className="flex justify-end gap-2">
-                                            {s.institutionId && onAccessPortal && (
+                                            <button 
+                                                onClick={() => onAccessAlumnaPortal?.(s)}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-all shadow-sm"
+                                                title="Access School Alumnae Network"
+                                            >
+                                                <Heart className="w-3.5 h-3.5" />
+                                                Alumnae
+                                            </button>
+                                            {onAccessPortal && (
                                                 <button 
-                                                    onClick={() => onAccessPortal(s.institutionId!)}
+                                                    onClick={() => onAccessPortal(s.institutionId || s.id)}
                                                     className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
-                                                    title="Access Institution Alumna Portal"
+                                                    title={s.institutionId ? "Access Admin Portal" : "Provision & Access Temporary Portal"}
                                                 >
                                                     <Zap className="w-3.5 h-3.5" />
                                                     Portal

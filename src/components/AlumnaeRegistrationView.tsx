@@ -31,7 +31,7 @@ interface AlumnaeRegistrationViewProps {
     onComplete: (data: any) => void;
     onBackToPortal: () => void;
     onCheckAdmission?: (admNo: string, schoolId: string) => Promise<{ exists: boolean; message?: string }>;
-    onInitiatePayment?: (amount: number, phone: string, reference: string) => Promise<{ success: boolean; transactionId?: string; checkoutRequestId?: string; message?: string }>;
+    onInitiatePayment?: (amount: number, phone: string, reference: string, schoolId?: string) => Promise<{ success: boolean; transactionId?: string; checkoutRequestId?: string; message?: string }>;
     joiningFee?: number;
     feeEnabled?: boolean;
 }
@@ -114,16 +114,16 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
         setPaymentMessage('Waiting for NCBA Loop Prompt...');
         
         try {
-            const res = await onInitiatePayment(joiningFee, formData.phoneNumber, `ALUMNA_${formData.admissionNumber}`);
+            const res = await onInitiatePayment(joiningFee, formData.phoneNumber, `ALUMNA_${formData.admissionNumber}`, selectedSchool?.id);
             if (res.success && res.checkoutRequestId) {
                 setPaymentMessage('Prompt sent! Waiting for your pin... Do not close this page.');
                 
                 // Polling logic
                 let attempts = 0;
-                const maxAttempts = 30; // 1.5 minutes
+                const maxAttempts = 60; // 3 minutes (up from 1.5m)
                 const pollTimer = setInterval(async () => {
                     attempts++;
-                    const statusRes = await apiService.checkPaymentStatus('ncba', res.checkoutRequestId);
+                    const statusRes = await apiService.checkPaymentStatus('ncba', res.checkoutRequestId, { institutionId: selectedSchool?.institutionId || 'GLOBAL' });
                     if (statusRes.status === 'completed') {
                         clearInterval(pollTimer);
                         setPaymentStatus('success');

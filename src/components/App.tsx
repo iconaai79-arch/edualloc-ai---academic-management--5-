@@ -1551,14 +1551,16 @@ export const App: React.FC = () => {
             if (!admin) {
                 console.warn(`No users found for institution ${institutionId}. Creating temporary admin session.`);
                 const targetInstitution = institutions.find(i => i.id === institutionId);
-                const fallbackRole = targetInstitution?.institutionType === 'Reseller' ? 'reseller' : (initialRole || 'admin');
+                const registryEntry = schoolRegistry.find(s => s.id === institutionId || s.institutionId === institutionId);
+                
+                const fallbackRole = (targetInstitution?.institutionType === 'Reseller' || registryEntry?.institutionType === 'Reseller') ? 'reseller' : (initialRole || 'admin');
 
                 admin = {
                     id: `temp_admin_${institutionId}_${Date.now()}`,
                     institutionId: institutionId,
                     role: fallbackRole as Role,
                     email: `admin@${institutionId.replace('demo_', '')}.eduai.io`,
-                    name: `Demo Administrator`,
+                    name: registryEntry ? `${registryEntry.name} Admin` : `Demo Administrator`,
                     phoneNumber: '+254700000000',
                     password: 'password123',
                     expertise: []
@@ -1592,6 +1594,29 @@ export const App: React.FC = () => {
         }, 300);
     }, [users, institutions, currentUser, originalSuperAdminSession]);
     
+    const handleAccessAlumnaPortal = (school: SchoolRegistry) => {
+        setIsTransitioning(true);
+        setTimeout(() => {
+            const mockAlumna = {
+                id: `sa_alumna_${Date.now()}`,
+                fullName: `Super Admin (${school.name})`,
+                email: currentUser?.email || 'admin@edualloc.com',
+                phone: currentUser?.phoneNumber || '',
+                institutionId: school.institutionId || 'GLOBAL',
+                registryId: school.id,
+                schoolId: school.id,
+                schoolName: school.name,
+                isSuperAdmin: true,
+                profilePhoto: currentUser?.profilePhoto || currentUser?.profile_photo
+            };
+            
+            setAlumnaSession(mockAlumna);
+            localStorage.setItem('eduai_alumna_session', JSON.stringify(mockAlumna));
+            setView('alumnae_portal');
+            setIsTransitioning(false);
+        }, 600);
+    };
+
     useEffect(() => {
         onLoginAsAdminRef.current = onLoginAsAdmin;
     }, [onLoginAsAdmin]);
@@ -3731,6 +3756,7 @@ export const App: React.FC = () => {
                                      onUpdateRequestStatus={async (id, status) => { await apiService.updateAllocationStatus(id, status); await loadData(); }}
                                     onBulkUpdateRequestStatus={async (status: RequestStatus, deptId?: string) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
                                     onGenerateReceipt={onGenerateReceipt}
+                                    onAccessAlumnaPortal={handleAccessAlumnaPortal}
                                     getLecturerById={getLecturerById}
                                     getSubjectById={getSubjectById}
                                     getRoomById={getRoomById}
@@ -3939,6 +3965,8 @@ export const App: React.FC = () => {
                                     users={users}
                                     onLogout={handleLogout}
                                     onUpdateInstitution={onUpdateInstitution}
+                                    onAccessAlumnaPortal={handleAccessAlumnaPortal}
+                                    onGenerateReceipt={handleGenerateReceipt}
                                     onUpdateCounty={handleUpdateCounty}
                                     onAddInstitution={handleAddCountyInstitution}
                                     onLoginAsAdmin={onLoginAsAdmin}
@@ -4942,14 +4970,17 @@ export const App: React.FC = () => {
                                 }}
                                 joiningFee={companyDetails?.alumnaeJoiningFee || 0}
                                 feeEnabled={companyDetails?.portalSettings?.alumnaeRegistrationFeeEnabled !== false}
-                                onInitiatePayment={async (amount, phone, reference) => {
+                                onInitiatePayment={async (amount, phone, reference, schoolId) => {
                                     try {
+                                        const school = schoolRegistry.find(s => s.id === schoolId);
+                                        const instId = school?.institutionId || 'GLOBAL';
+
                                         const res = await apiService.triggerNcbaPayment({
                                             amount,
                                             phoneNumber: phone,
                                             reference: reference,
                                             description: 'Alumnae Network Activation',
-                                            institutionId: 'GLOBAL'
+                                            institutionId: instId
                                         });
                                         return { success: res.success, message: res.message, checkoutRequestId: res.checkoutRequestId || res.checkoutRequestID || res.checkout_request_id || res.id };
                                     } catch (e: any) {
