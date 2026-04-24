@@ -14,7 +14,7 @@ const apiKey = getSafeKey();
 const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
 export const config = {
-    maxDuration: 60,
+    maxDuration: 300,
     api: {
         bodyParser: {
             sizeLimit: '10mb'
