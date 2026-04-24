@@ -50,24 +50,19 @@ async function getAuthUser(supabase: any, authHeader?: string) {
     const { data: profile, error: dbErr } = await supabase.from('users')
       .select('id, institution_id, role')
       .or(`id.eq.${token},id.eq.u_${token}`)
-      .single();
+      .maybeSingle();
     
     if (dbErr) {
-        // Only log if it's not a "not found" error to avoid spam
-        if (dbErr.code !== 'PGRST116') console.error('[Auth DB Error]', dbErr.message);
+        console.error('[Auth DB Error]', dbErr.message);
     }
     
-    // Additional fallback for Super Admin literal email check if profile not found
-    if (!profile && token === 'super_admin_bypass_token') { // Add a safeguard if needed
-       // This is just a conceptual placeholder; the JWT check above is the primary fix.
-    }
-
     if (profile) return { id: profile.id, institutionId: profile.institution_id, role: profile.role };
     
     // 3. Try Alumnae discovery if token looks like an alumna ID
     if (token && token.startsWith('alumna_')) {
+      console.log(`[getAuthUser] Checking Alumnae record for: ${token}`);
       const { data: alumna, error: alumError } = await supabase.from('alumnae_members')
-        .select('id, institutionId, institution_id, fullName, full_name')
+        .select('id, institutionId, institution_id, fullName, full_name, email')
         .eq('id', token)
         .maybeSingle();
       
@@ -75,7 +70,9 @@ async function getAuthUser(supabase: any, authHeader?: string) {
       if (alumna) {
           const instId = alumna.institutionId || alumna.institution_id || 'GLOBAL';
           console.log(`[getAuthUser] Alumna authenticated: ${alumna.fullName || alumna.full_name} (${instId})`);
-          return { id: alumna.id, institutionId: instId, role: 'alumna' };
+          return { id: alumna.id, institutionId: instId, role: 'alumna', email: alumna.email };
+      } else {
+          console.warn(`[getAuthUser] No Alumna record found for ID: ${token}`);
       }
     }
 
