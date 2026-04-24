@@ -27,6 +27,8 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [matchingProfiles, setMatchingProfiles] = useState<any[]>([]);
+    const [isSelectingProfile, setIsSelectingProfile] = useState(false);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -43,21 +45,81 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
                 email: email.toLowerCase().trim()
             });
 
-            const alumna = results.find((a: any) => 
-                (a.email?.toLowerCase() === email.toLowerCase().trim()) || 
-                (a.user_email?.toLowerCase() === email.toLowerCase().trim())
+            // Filter for exact matches and valid password
+            const validProfiles = results.filter((a: any) => 
+                ((a.email?.toLowerCase() === email.toLowerCase().trim()) || 
+                 (a.user_email?.toLowerCase() === email.toLowerCase().trim())) &&
+                a.password === password
             );
 
-            if (!alumna) throw new Error('Network Identity not recognized.');
-            if (alumna.password !== password) throw new Error('Secure access denied. Check password.');
+            if (validProfiles.length === 0) {
+                throw new Error('Identity verification failed. Check credentials.');
+            }
 
-            onLoginSuccess(alumna);
+            if (validProfiles.length === 1) {
+                onLoginSuccess(validProfiles[0]);
+            } else {
+                setMatchingProfiles(validProfiles);
+                setIsSelectingProfile(true);
+            }
         } catch (e: any) {
             setError(e.message || 'Identity verification failed');
         } finally {
             setIsLoading(false);
         }
     };
+
+    if (isSelectingProfile) {
+        return (
+            <div className="min-h-screen w-full flex bg-[#020617] items-center justify-center p-6 relative overflow-hidden font-sans">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/20 rounded-full blur-[120px]"></div>
+                <div className="w-full max-w-2xl bg-white/5 backdrop-blur-3xl p-10 sm:p-14 rounded-[4rem] border border-white/10 shadow-2xl relative z-10 animate-in fade-in zoom-in-95 duration-700">
+                    <div className="text-center mb-10">
+                        <div className="w-20 h-20 bg-indigo-600/20 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-indigo-500/20 shadow-inner">
+                            <Users className="w-10 h-10 text-indigo-400" />
+                        </div>
+                        <h2 className="text-4xl font-black text-white uppercase tracking-tighter leading-none mb-3">Multi-Network <br /> <span className="italic text-indigo-400">Identity Detected</span></h2>
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Select which institution circle you wish to enter</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                        {matchingProfiles.map((profile) => (
+                            <button
+                                key={profile.id}
+                                onClick={() => onLoginSuccess(profile)}
+                                className="group flex items-center justify-between p-6 bg-white/5 border border-white/5 rounded-[2rem] hover:bg-white/10 hover:border-indigo-500/50 transition-all text-left relative overflow-hidden"
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/0 to-indigo-600/0 group-hover:to-indigo-600/5 transition-all"></div>
+                                <div className="flex items-center gap-5 relative z-10">
+                                    <div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-xl font-black text-indigo-400 group-hover:scale-110 transition-transform">
+                                        {profile.institutionName?.charAt(0) || profile.full_name?.charAt(0) || 'A'}
+                                    </div>
+                                    <div>
+                                        <h4 className="font-black text-white uppercase tracking-tight text-lg leading-tight group-hover:text-indigo-300 transition-colors">
+                                            {profile.institutionName || 'Legacy Institution'}
+                                        </h4>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-1">
+                                            Class of {profile.graduationYear || profile.class_year || 'N/A'} • {profile.profession || 'Verified Alumna'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <ArrowRight className="w-6 h-6 text-slate-700 group-hover:text-indigo-400 group-hover:translate-x-2 transition-all" />
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="mt-10 pt-8 border-t border-white/5 flex justify-center">
+                        <button 
+                            onClick={() => setIsSelectingProfile(false)}
+                            className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors flex items-center gap-2"
+                        >
+                            <ChevronLeft className="w-4 h-4" /> Cancel Selection
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen w-full flex bg-[#020617] overflow-hidden font-sans selection:bg-indigo-500/30">

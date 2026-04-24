@@ -62,6 +62,9 @@ const CampaignJoinPage = lazy(() => import('./public/CampaignJoinPage').then(m =
 const FuelStationDashboard = lazy(() => import('./FuelStationDashboard').then(m => ({ default: m.FuelStationDashboard })));
 const CivilWorksDashboard = lazy(() => import('./CivilWorksDashboard'));
 const LogisticsDashboard = lazy(() => import('./LogisticsDashboard'));
+const CampaignSocialPortal = lazy(() => import('./CampaignSocialPortal').then(m => ({ default: m.CampaignSocialPortal })));
+const CampaignLoginView = lazy(() => import('./CampaignLoginView').then(m => ({ default: m.CampaignLoginView })));
+
 
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { getAdminRoleForInstitution } from '../utils/roleUtils';
@@ -645,6 +648,12 @@ export const App: React.FC = () => {
     const [activeAlumna, setActiveAlumna] = useState<any>(null);
     const [showAlumnaePortal, setShowAlumnaePortal] = useState(false);
     const [showAlumnaeSecureAccount, setShowAlumnaeSecureAccount] = useState(false);
+    
+    // Campaign Social States
+    const [activeCampaignMember, setActiveCampaignMember] = useState<any>(null);
+    const [showCampaignPortal, setShowCampaignPortal] = useState(false);
+    const [showCampaignLogin, setShowCampaignLogin] = useState(false);
+    const [activeCampaignProfile, setActiveCampaignProfile] = useState<CampaignProfile | null>(null);
 
     useEffect(() => {
         const saved = localStorage.getItem('eduai_alumna_session');
@@ -659,6 +668,20 @@ export const App: React.FC = () => {
                     setShowAlumnaePortal(true);
                     setShowAlumnaeLogin(false);
                     setShowAlumnaeRegister(false);
+                }
+            } catch (e) {}
+        }
+        
+        const campaignSaved = localStorage.getItem('eduai_campaign_session');
+        if (campaignSaved) {
+            try {
+                const parsed = JSON.parse(campaignSaved);
+                setActiveCampaignMember(parsed);
+                const params = new URLSearchParams(window.location.search);
+                const view = params.get('view');
+                if (view === 'campaign_social' || view === 'campaign_portal') {
+                    setShowCampaignPortal(true);
+                    setShowCampaignLogin(false);
                 }
             } catch (e) {}
         }
@@ -4842,16 +4865,26 @@ export const App: React.FC = () => {
                             })()
                          ) : showCommunityHub ? (
                             <CommunityHubView 
-                                institutions={institutions}
-                                counties={counties}
-                                onBack={() => setShowCommunityHub(false)}
-                                onBookDemo={() => setShowBookDemo(true)}
-                                hasActiveAlumnaSession={!!activeAlumna}
-                                onEnterCircle={() => {
+                                 institutions={institutions}
+                                 counties={counties}
+                                 onBack={() => setShowCommunityHub(false)}
+                                 onBookDemo={() => setShowBookDemo(true)}
+                                 hasActiveAlumnaSession={!!activeAlumna}
+                                 hasActiveCampaignSession={!!activeCampaignMember}
+                                 onEnterCircle={() => {
                                     setShowAlumnaePortal(true);
                                     setShowCommunityHub(false);
-                                }}
-                            />
+                                 }}
+                                 onEnterWarRoom={(profile) => {
+                                     setActiveCampaignProfile(profile);
+                                     if (activeCampaignMember) {
+                                         setShowCampaignPortal(true);
+                                     } else {
+                                         setShowCampaignLogin(true);
+                                     }
+                                     setShowCommunityHub(false);
+                                 }}
+                             />
                          ) : showTransportHub ? (
                             <TransportHubView 
                                 institutions={institutions}
@@ -5035,7 +5068,7 @@ export const App: React.FC = () => {
                                 }}
                                 onBack={() => {
                                     setShowAlumnaeLogin(false);
-                                    setShowMarketing(true);
+                                    setShowCommunityHub(true);
                                 }}
                             />
                         ) : showAlumnaePortal ? (
@@ -5046,6 +5079,28 @@ export const App: React.FC = () => {
                                 onBack={() => {
                                     setShowAlumnaePortal(false);
                                     window.location.href = '/?view=community';
+                                }}
+                            />
+                        ) : showCampaignLogin ? (
+                            <CampaignLoginView 
+                                onLoginSuccess={(member) => {
+                                    setActiveCampaignMember(member);
+                                    localStorage.setItem('eduai_campaign_session', JSON.stringify(member));
+                                    setShowCampaignLogin(false);
+                                    setShowCampaignPortal(true);
+                                }}
+                                onBack={() => {
+                                    setShowCampaignLogin(false);
+                                    setShowCommunityHub(true);
+                                }}
+                            />
+                        ) : showCampaignPortal ? (
+                            <CampaignSocialPortal 
+                                currentMember={activeCampaignMember}
+                                campaignProfile={activeCampaignProfile || ({} as CampaignProfile)}
+                                onBack={() => {
+                                    setShowCampaignPortal(false);
+                                    window.location.href = '/?view=community&filter=Political%20Campaign';
                                 }}
                             />
                         ) : showGuestPortal ? (

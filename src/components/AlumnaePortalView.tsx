@@ -63,6 +63,33 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     });
     const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
     const [isSavingProfile, setIsSavingProfile] = useState(false);
+    const [otherMemberships, setOtherMemberships] = useState<any[]>([]);
+    const [isDetectingMemberships, setIsDetectingMemberships] = useState(false);
+    const [showSwitcher, setShowSwitcher] = useState(false);
+
+    const loadOtherMemberships = async () => {
+        setIsDetectingMemberships(true);
+        try {
+            const results = await apiService.fetchModuleRecords('alumnae_members', {
+                email: currentAlumna.email?.toLowerCase().trim()
+            });
+            // Filter to ensure same email and valid memberships, excluding current active one
+            const others = results.filter((m: any) => 
+                (m.email?.toLowerCase() === currentAlumna.email?.toLowerCase()) && 
+                m.id !== currentAlumna.id
+            );
+            setOtherMemberships(others);
+        } catch (e) {
+            console.error("Failed to detect other memberships:", e);
+        } finally {
+            setIsDetectingMemberships(false);
+        }
+    };
+
+    const handleSwitchCircle = (membership: any) => {
+        localStorage.setItem('eduai_alumna_session', JSON.stringify(membership));
+        window.location.reload(); // Hard refresh to reset all states with new institution
+    };
 
     const handleUpdateProfile = async () => {
         setIsSavingProfile(true);
@@ -199,6 +226,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         loadPosts();
         loadMessages();
         loadAlumnaeMembers();
+        loadOtherMemberships();
     }, [currentAlumna, activeTab]);
 
     const handleSendMessage = async () => {
@@ -340,16 +368,24 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     <span className="hidden md:block font-black uppercase text-[10px] tracking-[0.2em]">Exit Portal</span>
                 </button>
 
-                <div className="p-2 border-t border-slate-100 dark:border-slate-800 pt-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                            {currentAlumna.profilePhoto ? <img src={currentAlumna.profilePhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-300" />}
+                <div className="p-4 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-4 p-2">
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-lg shadow-lg shrink-0">
+                            {currentAlumna.fullName?.charAt(0) || 'A'}
                         </div>
-                        <div className="hidden md:block">
-                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase truncate max-w-[120px]">{currentAlumna.fullName || 'Alumna Member'}</p>
-                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Verified Alumna</p>
+                        <div className="flex-1 min-w-0">
+                            <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{currentAlumna.fullName}</h3>
+                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest truncate">{currentAlumna.institutionName || 'Verified Alumna'}</p>
                         </div>
                     </div>
+                    {otherMemberships.length > 0 && (
+                        <button 
+                            onClick={() => setShowSwitcher(true)}
+                            className="w-full mt-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl text-[8px] font-black uppercase tracking-[0.2em] text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center gap-2"
+                        >
+                            <Repeat2 className="w-3 h-3" /> Switch Circle ({otherMemberships.length + 1})
+                        </button>
+                    )}
                 </div>
 
                 {featureFee > 0 && !currentAlumna.isFeatured && (
@@ -969,6 +1005,62 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                 {isSavingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                                 Save Changes
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Multi-Circle Switcher Modal */}
+            {showSwitcher && (
+                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xl z-[100] flex items-center justify-center p-6">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Switch <span className="text-indigo-600 italic">Prestige Circle</span></h3>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1">Jump between your verified institution memberships</p>
+                            </div>
+                            <button onClick={() => setShowSwitcher(false)} className="w-10 h-10 bg-white dark:bg-slate-950 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors shadow-sm">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-8 space-y-4 max-h-[450px] overflow-y-auto custom-scrollbar">
+                            {/* Current Active */}
+                            <div className="p-6 bg-indigo-600 rounded-[2rem] text-white shadow-xl shadow-indigo-200 dark:shadow-none border border-indigo-500 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-4 opacity-20"><CheckCircle2 className="w-12 h-12" /></div>
+                                <div className="flex items-center gap-4 relative z-10">
+                                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center font-black text-lg">
+                                        {currentAlumna.institutionName?.charAt(0) || 'A'}
+                                    </div>
+                                    <div>
+                                        <p className="text-[8px] font-black uppercase tracking-[0.2em] opacity-70 mb-1">Active Now</p>
+                                        <h4 className="font-black uppercase tracking-tight text-lg">{currentAlumna.institutionName || 'Current Institution'}</h4>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Other Options */}
+                            {otherMemberships.map((membership) => (
+                                <button
+                                    key={membership.id}
+                                    onClick={() => handleSwitchCircle(membership)}
+                                    className="w-full flex items-center justify-between p-6 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-[2rem] hover:bg-white dark:hover:bg-slate-700 hover:border-indigo-400 transition-all text-left group"
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center text-indigo-600 font-black text-lg group-hover:scale-110 transition-transform">
+                                            {membership.institutionName?.charAt(0) || 'A'}
+                                        </div>
+                                        <div>
+                                            <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">{membership.institutionName || 'Legacy Institution'}</h4>
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1">Class of {membership.graduationYear || membership.class_year || 'N/A'}</p>
+                                        </div>
+                                    </div>
+                                    <ArrowLeft className="w-5 h-5 text-slate-300 group-hover:text-indigo-600 group-hover:-translate-x-1 transition-all rotate-180" />
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="p-8 bg-slate-50 dark:bg-slate-800/50 flex justify-center border-t border-slate-100 dark:border-slate-800">
+                            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">EduAI Social Infrastructure • Verified Membership v2.0</p>
                         </div>
                     </div>
                 </div>

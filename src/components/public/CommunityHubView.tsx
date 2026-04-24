@@ -24,10 +24,12 @@ interface CommunityHubViewProps {
     onBack?: () => void;
     onBookDemo?: () => void;
     onEnterCircle?: () => void;
+    onEnterWarRoom?: (profile: CampaignProfile) => void;
     hasActiveAlumnaSession?: boolean;
+    hasActiveCampaignSession?: boolean;
 }
 
-export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions, counties, onBack, onBookDemo, onEnterCircle, hasActiveAlumnaSession }) => {
+export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions, counties, onBack, onBookDemo, onEnterCircle, onEnterWarRoom, hasActiveAlumnaSession, hasActiveCampaignSession }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCounty, setSelectedCounty] = useState('all');
     const [activeFilter, setActiveFilter] = useState('all');
@@ -226,21 +228,31 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
                                                         )}
                                                     </div>
 
-                                                    <div className="mt-10 pt-8 border-t border-slate-50 flex items-center justify-between">
-                                                        <div className="flex -space-x-3">
-                                                            {[1, 2, 3].map(i => (
-                                                                <div key={i} className="w-8 h-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[8px] font-black text-slate-400">
-                                                                    {i}+
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                        <button 
-                                                            onClick={() => window.location.href = `/?view=join-campaign&id=${aspirant.inviteSlug || aspirant.id}`}
-                                                            className="flex items-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-600 hover:shadow-xl hover:shadow-indigo-200 transition-all active:scale-95 group/btn"
-                                                        >
-                                                            Pledge Support <ArrowRight className="w-4 h-4 transform group-hover/btn:translate-x-1 transition-transform" />
-                                                        </button>
-                                                    </div>
+                                                    <div className="mt-10 pt-8 border-t border-slate-50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                                         <div className="flex -space-x-3">
+                                                             {[1, 2, 3].map(i => (
+                                                                 <div key={i} className="w-8 h-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[8px] font-black text-slate-400">
+                                                                     {i}+
+                                                                 </div>
+                                                             ))}
+                                                         </div>
+                                                         <div className="flex gap-2">
+                                                             {hasActiveCampaignSession && (
+                                                                 <button 
+                                                                     onClick={() => onEnterWarRoom?.(aspirant)}
+                                                                     className="flex items-center gap-3 px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[9px] tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-100"
+                                                                 >
+                                                                     Enter War Room <Zap className="w-3 h-3" />
+                                                                 </button>
+                                                             )}
+                                                             <button 
+                                                                 onClick={() => window.location.href = `/?view=join-campaign&id=${aspirant.inviteSlug || aspirant.id}`}
+                                                                 className="flex items-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-600 hover:shadow-xl hover:shadow-indigo-200 transition-all active:scale-95 group/btn"
+                                                             >
+                                                                 Pledge Support <ArrowRight className="w-4 h-4 transform group-hover/btn:translate-x-1 transition-transform" />
+                                                             </button>
+                                                         </div>
+                                                     </div>
                                                 </div>
                                         ))}
                                     </div>

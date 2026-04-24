@@ -16,7 +16,8 @@ import {
     Download,
     X,
     Database,
-    Zap
+    Zap,
+    Edit2
 } from 'lucide-react';
 import type { SchoolRegistry } from '../../types';
 import { apiService } from '../../services/apiService';
@@ -58,8 +59,17 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
         uic: '',
         genderType: 'Mixed',
         accommodationType: 'Mixed',
-        specialNeedType: 'Regular'
+        specialNeedType: 'Regular',
+        institutionType: 'Secondary'
     });
+
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+    const [selectedType, setSelectedType] = useState('Secondary');
+    const [isProcessingBulk, setIsProcessingBulk] = useState(false);
+    const [editingSchool, setEditingSchool] = useState<SchoolRegistry | null>(null);
+
+    const institutionTypes = ['Primary', 'Secondary', 'TVET', 'University', 'College', 'Institute', 'Polytechnic', 'Driving School'];
 
     const filteredSchools = useMemo(() => {
         const lower = searchTerm.toLowerCase();
@@ -89,6 +99,52 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
     useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm]);
+
+    const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.checked) {
+            setSelectedIds(new Set(paginatedSchools.map(s => s.id)));
+        } else {
+            setSelectedIds(new Set());
+        }
+    };
+
+    const toggleSelect = (id: string) => {
+        const next = new Set(selectedIds);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setSelectedIds(next);
+    };
+
+    const handleBulkUpdateType = async () => {
+        if (selectedIds.size === 0) return;
+        setIsProcessingBulk(true);
+        try {
+            const ids = Array.from(selectedIds);
+            const batchSize = 10;
+            for (let i = 0; i < ids.length; i += batchSize) {
+                const batch = ids.slice(i, i + batchSize);
+                await Promise.all(batch.map(async (id) => {
+                    const original = registry.find(s => s.id === id);
+                    if (original) {
+                        await apiService.saveModuleRecord('school_registry', {
+                            ...original,
+                            institutionType: selectedType,
+                            updatedAt: new Date().toISOString()
+                        });
+                    }
+                }));
+            }
+            setSelectedIds(new Set());
+            setIsBulkUpdating(false);
+            onRefresh();
+            alert(`Successfully updated ${ids.length} institutions to ${selectedType}.`);
+        } catch (err: any) {
+            console.error(err);
+            alert("Bulk Update Failed: " + err.message);
+        } finally {
+            setIsProcessingBulk(false);
+        }
+    };
 
     const handleSaveManual = async () => {
         if (!newSchool.name) return;
@@ -171,6 +227,15 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                     </div>
                     
                     <div className="flex items-center gap-4">
+                        {selectedIds.size > 0 && (
+                            <button 
+                                onClick={() => setIsBulkUpdating(true)}
+                                className="h-14 px-8 bg-amber-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-3 hover:bg-amber-500 transition-all shadow-xl shadow-amber-500/20 animate-in zoom-in duration-300"
+                            >
+                                <Zap className="w-4 h-4" />
+                                Bulk Update Type ({selectedIds.size})
+                            </button>
+                        )}
                         <button 
                             onClick={() => setIsUploading(true)}
                             className="h-14 px-8 bg-slate-900 border border-slate-800 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-3 hover:bg-slate-800 transition-all cursor-pointer"
@@ -230,16 +295,31 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                     <table className="w-full">
                         <thead>
                             <tr className="bg-slate-50/50 dark:bg-slate-800/50 text-left text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 italic">
+                                <th className="px-6 py-6 w-10">
+                                    <input 
+                                        type="checkbox" 
+                                        className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600"
+                                        onChange={handleSelectAll}
+                                        checked={paginatedSchools.length > 0 && paginatedSchools.every(s => selectedIds.has(s.id))}
+                                    />
+                                </th>
                                 <th className="px-10 py-6">School Identity</th>
                                 <th className="px-10 py-6">Geography</th>
                                 <th className="px-10 py-6">Master Codes</th>
-                                <th className="px-10 py-6">SEO Alumnae Link</th>
                                 <th className="px-10 py-6 text-right">Portfolio Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                             {paginatedSchools.map((s) => (
-                                <tr key={s.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors group">
+                                <tr key={s.id} className={`hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors group ${selectedIds.has(s.id) ? 'bg-indigo-50/30 dark:bg-indigo-900/10' : ''}`}>
+                                    <td className="px-6 py-8">
+                                        <input 
+                                            type="checkbox" 
+                                            className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600"
+                                            checked={selectedIds.has(s.id)}
+                                            onChange={() => toggleSelect(s.id)}
+                                        />
+                                    </td>
                                     <td className="px-10 py-8">
                                         <div className="flex items-center gap-4">
                                             <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center text-indigo-600 font-black text-lg shadow-sm">
@@ -248,6 +328,7 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                             <div>
                                                 <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight group-hover:text-indigo-600 transition-colors italic">{s.name}</h4>
                                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 flex items-center gap-2">
+                                                    <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-indigo-500">{s.institutionType || 'General'}</span>
                                                     <ChevronRight className="w-3 h-3 text-indigo-400" /> {s.cluster || 'National Cluster'}
                                                 </p>
                                             </div>
@@ -276,15 +357,13 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-10 py-8">
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Shareable Portal Link</span>
-                                            <code className="text-[10px] bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg text-slate-500">
-                                                /?school={s.slug || s.id}
-                                            </code>
-                                        </div>
-                                    </td>
-                                    <td className="px-10 py-8 text-right">
+                                    <td className="px-10 py-8 text-right flex justify-end gap-2">
+                                        <button 
+                                            onClick={() => setEditingSchool(s)}
+                                            className="p-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-slate-400 hover:text-indigo-600 rounded-xl transition-all hover:border-indigo-100 shadow-sm"
+                                        >
+                                            <Edit2 className="w-5 h-5" />
+                                        </button>
                                         <button 
                                             onClick={() => handleDelete(s.id)}
                                             className="p-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-slate-400 hover:text-rose-600 rounded-xl transition-all hover:border-rose-100 shadow-sm"
@@ -349,6 +428,54 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                 </div>
             </div>
 
+            {/* Bulk Update Modal */}
+            {isBulkUpdating && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xl z-[4000] flex items-center justify-center p-6">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[3rem] shadow-2xl border border-white/10 overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="p-10 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-amber-500/10">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tighter text-amber-600">Bulk <span className="text-slate-800 dark:text-white italic">Update Type</span></h3>
+                                <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-1">Re-classify {selectedIds.size} institutions</p>
+                            </div>
+                            <button onClick={() => setIsBulkUpdating(false)} className="w-12 h-12 bg-white dark:bg-slate-950 rounded-2xl flex items-center justify-center text-slate-400 hover:text-rose-600 transition-colors shadow-sm">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <div className="p-10 space-y-6">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4 italic">Select New Institution Category</label>
+                            <div className="grid grid-cols-2 gap-3">
+                                {institutionTypes.map(type => (
+                                    <button
+                                        key={type}
+                                        onClick={() => setSelectedType(type)}
+                                        className={`py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all border ${
+                                            selectedType === type 
+                                            ? 'bg-amber-600 text-white border-amber-600 shadow-xl shadow-amber-200/50' 
+                                            : 'bg-slate-50 dark:bg-slate-800 text-slate-400 border-transparent hover:border-amber-200'
+                                        }`}
+                                    >
+                                        {type}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="p-10 bg-slate-50 dark:bg-slate-800/50 flex gap-4">
+                            <button onClick={() => setIsBulkUpdating(false)} className="flex-1 h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest text-slate-400 hover:text-slate-600 transition-colors">Abort</button>
+                            <button 
+                                onClick={handleBulkUpdateType}
+                                disabled={isProcessingBulk}
+                                className="flex-[2] h-16 bg-amber-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-2xl shadow-amber-500/20 hover:bg-amber-500 transition-all active:scale-95 flex items-center justify-center gap-3"
+                            >
+                                {isProcessingBulk ? <Zap className="w-5 h-5 animate-spin" /> : <Database className="w-5 h-5" />}
+                                Commit Bulk Update
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Manual Add Modal */}
             {isAddingManually && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xl z-[3000] flex items-center justify-center p-6">
@@ -373,6 +500,16 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                     onChange={(e) => setNewSchool({...newSchool, name: e.target.value})}
                                     className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
                                 />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4 italic">Institution Category</label>
+                                <select 
+                                    value={newSchool.institutionType}
+                                    onChange={(e) => setNewSchool({...newSchool, institutionType: e.target.value})}
+                                    className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
+                                >
+                                    {institutionTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4 italic">KNEC Center Code</label>
@@ -423,6 +560,107 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                 className="flex-[2] h-16 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-2xl hover:bg-indigo-600 transition-all active:scale-95"
                             >
                                 Integrate Into Registry
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Edit School Modal */}
+            {editingSchool && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xl z-[3000] flex items-center justify-center p-6">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[3rem] shadow-2xl border border-white/10 overflow-hidden animate-fade-in-up">
+                        <div className="p-10 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-indigo-50/50 dark:bg-slate-800/50">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">Edit <span className="text-indigo-600 italic">Institution Details</span></h3>
+                                <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-1">Update global registry record for {editingSchool.name}</p>
+                            </div>
+                            <button onClick={() => setEditingSchool(null)} className="w-12 h-12 bg-white dark:bg-slate-950 rounded-2xl flex items-center justify-center text-slate-400 hover:text-indigo-600 transition-colors shadow-sm">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <div className="p-10 grid grid-cols-2 gap-8">
+                            <div className="col-span-2 space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4 italic">Institution Legal Name</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. Moi Girls High School Eldoret"
+                                    value={editingSchool.name}
+                                    onChange={(e) => setEditingSchool({...editingSchool, name: e.target.value})}
+                                    className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4 italic">Institution Category (Type)</label>
+                                <select 
+                                    value={editingSchool.institutionType}
+                                    onChange={(e) => setEditingSchool({...editingSchool, institutionType: e.target.value})}
+                                    className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
+                                >
+                                    {institutionTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4 italic">KNEC Center Code</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. 1020304"
+                                    value={editingSchool.knecCode}
+                                    onChange={(e) => setEditingSchool({...editingSchool, knecCode: e.target.value})}
+                                    className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4 italic">UIC Registry Code</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. SCH-001"
+                                    value={editingSchool.uic}
+                                    onChange={(e) => setEditingSchool({...editingSchool, uic: e.target.value})}
+                                    className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4 italic">County Location</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. Uasin Gishu"
+                                    value={editingSchool.county}
+                                    onChange={(e) => setEditingSchool({...editingSchool, county: e.target.value})}
+                                    className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4 italic">Regional Admin</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. Rift Valley"
+                                    value={editingSchool.region}
+                                    onChange={(e) => setEditingSchool({...editingSchool, region: e.target.value})}
+                                    className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="p-10 bg-slate-50 dark:bg-slate-800/50 flex gap-4">
+                            <button onClick={() => setEditingSchool(null)} className="flex-1 h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest text-slate-400 hover:text-slate-600 transition-colors">Discard Changes</button>
+                            <button 
+                                onClick={async () => {
+                                    try {
+                                        await apiService.saveModuleRecord('school_registry', {
+                                            ...editingSchool,
+                                            updatedAt: new Date().toISOString()
+                                        });
+                                        setEditingSchool(null);
+                                        onRefresh();
+                                        alert("Institution updated successfully.");
+                                    } catch (e: any) {
+                                        alert("Update failed: " + e.message);
+                                    }
+                                }}
+                                className="flex-[2] h-16 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-2xl hover:bg-indigo-600 transition-all active:scale-95"
+                            >
+                                Commit Updates
                             </button>
                         </div>
                     </div>
