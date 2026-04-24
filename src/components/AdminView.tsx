@@ -44,6 +44,7 @@ const SchoolShowcaseManager = lazy(() => import('./SchoolShowcaseManager').then(
 const CampaignCommandView = lazy(() => import('./CampaignCommandView').then(m => ({ default: m.CampaignCommandView })));
 const AddCarListingModal = lazy(() => import('./modals/AddCarListingModal').then(m => ({ default: m.AddCarListingModal })));
 const AcademicConfigManager = lazy(() => import('./AcademicConfigManager').then(m => ({ default: m.AcademicConfigManager })));
+const BoardingMasterView = lazy(() => import('./BoardingMasterView'));
 
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
@@ -379,7 +380,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station'>('dashboard');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'registry' | 'subjects' | 'calendar'>('wizard');
     const [coursesSubTab, setCoursesSubTab] = useState<'registry' | 'calendar' | 'subjects' | 'settings'>('registry');
@@ -549,6 +550,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'timetable', label: 'Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
             { id: 'users', label: isHeritage ? 'Family Members' : isCommunity ? 'Community Members' : 'Members', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
             { id: 'courses', label: isSchool ? 'Grades' : isChurch ? 'Departments' : 'Courses', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
+            { id: 'boarding', label: 'Boarding System', icon: <BedIcon className="w-5 h-5 mr-2" /> },
             { id: 'leaveout', label: 'Leave Out', icon: <ArchiveBoxIcon className="w-5 h-5 mr-2" /> },
             { id: 'comms', label: isHeritage ? 'Announcements' : isCommunity ? 'Community Updates' : isRetailAgency ? 'Communications' : 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
             { id: 'retail', label: 'Retail & Agency', icon: <StoreIcon className="w-5 h-5 mr-2" /> },
@@ -592,7 +594,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             const roleToUse = props.activeRole || props.currentUser?.role;
 
             // Educational tabs
-            if (['timetable', 'courses', 'leaveout', 'users'].includes(tab.id)) {
+            if (['timetable', 'courses', 'leaveout', 'boarding', 'users'].includes(tab.id)) {
                 if (tab.id === 'users' && (isCoop || isCommunity || institutionType === 'SACCO' || institutionType === 'Agrovet')) return true;
                 return isEdu;
             }
@@ -1424,6 +1426,31 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         departments={props.departments}
                         onLogAction={props.onLogAction!}
                         onDataChange={() => props.onAddUser && props.onAddUser({})} // Dummy trigger for refresh if needed
+                    />
+                )}
+                {activeTab === 'boarding' && (
+                    <BoardingMasterView
+                        currentUser={props.currentUser}
+                        currentInstitution={props.currentInstitution!}
+                        companyDetails={props.companyDetails}
+                        users={props.users}
+                        academicYears={props.academicYears}
+                        semesters={props.semesters}
+                        courses={props.courses}
+                        departments={props.departments}
+                        onLogAction={props.onLogAction!}
+                        onAddUser={props.onAddUser}
+                        onEditUser={props.onEditUser}
+                        onDeleteUser={props.onDeleteUser}
+                        onImportStudents={props.onImportStudents}
+                        smsConfig={props.smsConfig}
+                        subjects={props.subjects}
+                        letterheadConfig={props.letterheadConfig}
+                        logoUrl={props.logoUrl}
+                        footerImageUrl={props.footerImageUrl}
+                        onSendSms={props.onSendSms}
+                        onAddParent={props.onAddParent}
+                        onDeleteParent={props.onDeleteParent}
                     />
                 )}
 

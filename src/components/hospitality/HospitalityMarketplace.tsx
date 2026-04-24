@@ -45,7 +45,7 @@ const CATEGORIES = [
 
 
 export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ institutions, onBack, onViewStore }) => {
-    const [activeTab, setActiveTab] = useState<'All' | 'Safari' | 'Stays' | 'Trips'>('All');
+    const [activeTab, setActiveTab] = useState<'All' | 'Safari' | 'Stays' | 'Trips' | 'Offers' | 'Beach' | 'Urban' | 'Mountain' | 'Experience'>('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [wishlist, setWishlist] = useState<string[]>([]);
     const [featuredItems, setFeaturedItems] = useState<any[]>([]);
@@ -79,12 +79,45 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
 
     const filteredInsts = hospitalityInsts.filter(i => {
         const matchesSearch = i.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const cat = (i.category || '').toLowerCase();
+        
         if (activeTab === 'All') return matchesSearch;
-        if (activeTab === 'Safari') return matchesSearch && i.category?.includes('Safaris');
-        if (activeTab === 'Stays') return matchesSearch && (i.category?.includes('Hotel') || i.category?.includes('Airbnb'));
-        if (activeTab === 'Trips') return matchesSearch && i.category?.includes('Agency');
+        if (activeTab === 'Safari') return matchesSearch && (cat.includes('safari') || cat.includes('guide') || cat.includes('wild') || cat.includes('park') || cat.includes('game'));
+        if (activeTab === 'Stays') return matchesSearch && (cat.includes('hotel') || cat.includes('airbnb') || cat.includes('resort') || cat.includes('stay') || cat.includes('villa') || cat.includes('camp') || cat.includes('lodge'));
+        if (activeTab === 'Trips') return matchesSearch && (cat.includes('agency') || cat.includes('tour') || cat.includes('trip') || cat.includes('travel') || cat.includes('excursion') || cat.includes('adventure'));
+        if (activeTab === 'Offers') return matchesSearch && (cat.includes('discount') || cat.includes('offer') || cat.includes('promo') || cat.includes('deal') || cat.includes('exclusive'));
+        if (activeTab === 'Beach') return matchesSearch && (cat.includes('beach') || cat.includes('ocean') || cat.includes('coast') || cat.includes('sea') || cat.includes('shore'));
+        if (activeTab === 'Urban') return matchesSearch && (cat.includes('city') || cat.includes('urban') || cat.includes('town') || cat.includes('cbd'));
+        if (activeTab === 'Mountain') return matchesSearch && (cat.includes('mountain') || cat.includes('hiking') || cat.includes('climb') || cat.includes('hill') || cat.includes('peak'));
+        if (activeTab === 'Experience') return matchesSearch && (cat.includes('experience') || cat.includes('activity') || cat.includes('culture') || cat.includes('workshop') || cat.includes('event'));
         return matchesSearch;
     });
+
+    const handleNavbarClick = (item: string) => {
+        if (item === 'Destinations') setActiveTab('All');
+        else if (item === 'Safari Guide') setActiveTab('Safari');
+        else if (item === 'Partner Stays') setActiveTab('Stays');
+        else if (item === 'Excursions') setActiveTab('Trips');
+        else if (item === 'Offers') setActiveTab('Offers');
+        setIsMobileMenuOpen(false);
+        
+        // Scroll to results with a slight delay to allow state update
+        setTimeout(() => {
+            const element = document.getElementById('destinations-grid');
+            if (element) {
+                const offset = 120;
+                const bodyRect = document.body.getBoundingClientRect().top;
+                const elementRect = element.getBoundingClientRect().top;
+                const elementPosition = elementRect - bodyRect;
+                const offsetPosition = elementPosition - offset;
+
+                window.scrollTo({
+                    top: offsetPosition,
+                    behavior: 'smooth'
+                });
+            }
+        }, 100);
+    };
 
     const toggleWishlist = (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -100,8 +133,11 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                         <button onClick={onBack} className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-all">
                             <ArrowRight className="w-5 h-5 rotate-180" />
                         </button>
-                        <div className="flex items-center gap-2">
-                            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-xl shadow-indigo-100">
+                        <div 
+                            className="flex items-center gap-2 cursor-pointer group"
+                            onClick={() => { setActiveTab('All'); setSearchQuery(''); }}
+                        >
+                            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-xl shadow-indigo-100 group-hover:scale-110 transition-transform">
                                 <Waves className="w-6 h-6" />
                             </div>
                             <h1 className="text-xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">Travel <span className="text-indigo-600 italic">Hub</span></h1>
@@ -109,8 +145,21 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                     </div>
 
                     <div className="hidden md:flex items-center gap-8">
-                        {['Destinations', 'Safari Guide', 'Partner Stays', 'Offers'].map(item => (
-                            <button key={item} className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-indigo-600 transition-colors">{item}</button>
+                        {['Destinations', 'Safari Guide', 'Partner Stays', 'Excursions', 'Offers'].map(item => (
+                            <button 
+                                key={item} 
+                                onClick={() => handleNavbarClick(item)}
+                                className={`text-[10px] font-black uppercase tracking-widest transition-colors ${
+                                    (item === 'Destinations' && activeTab === 'All') || 
+                                    (item === 'Safari Guide' && activeTab === 'Safari') || 
+                                    (item === 'Partner Stays' && activeTab === 'Stays') || 
+                                    (item === 'Excursions' && activeTab === 'Trips') || 
+                                    (item === 'Offers' && activeTab === 'Offers')
+                                    ? 'text-indigo-600' : 'text-slate-500 hover:text-indigo-600'
+                                }`}
+                            >
+                                {item}
+                            </button>
                         ))}
                     </div>
 
@@ -143,8 +192,21 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                                 />
                             </div>
                             <div className="grid grid-cols-2 gap-3">
-                                {['Destinations', 'Safari Guide', 'Partner Stays', 'Offers'].map(item => (
-                                    <button key={item} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl text-[9px] font-black uppercase tracking-widest text-slate-500 text-left">{item}</button>
+                                {['Destinations', 'Safari Guide', 'Partner Stays', 'Excursions', 'Offers'].map(item => (
+                                    <button 
+                                        key={item} 
+                                        onClick={() => handleNavbarClick(item)}
+                                        className={`p-4 rounded-2xl text-[9px] font-black uppercase tracking-widest text-left transition-all ${
+                                            (item === 'Destinations' && activeTab === 'All') || 
+                                            (item === 'Safari Guide' && activeTab === 'Safari') || 
+                                            (item === 'Partner Stays' && activeTab === 'Stays') || 
+                                            (item === 'Excursions' && activeTab === 'Trips') || 
+                                            (item === 'Offers' && activeTab === 'Offers')
+                                            ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-50 dark:bg-slate-800 text-slate-500'
+                                        }`}
+                                    >
+                                        {item}
+                                    </button>
                                 ))}
                             </div>
                         </div>
@@ -170,7 +232,10 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                                 Your gateway to the most exclusive safaris, luxury stays, and curated travel experiences across the continent.
                             </p>
                             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                                <button className="px-10 py-5 bg-indigo-600 text-white rounded-[2.5rem] font-black uppercase tracking-[0.2em] text-[10px] shadow-2xl shadow-indigo-100 hover:bg-slate-900 transition-all active:scale-95">
+                                <button 
+                                    onClick={() => handleNavbarClick('Destinations')}
+                                    className="px-10 py-5 bg-indigo-600 text-white rounded-[2.5rem] font-black uppercase tracking-[0.2em] text-[10px] shadow-2xl shadow-indigo-100 hover:bg-slate-900 transition-all active:scale-95"
+                                >
                                     Browse All Packages
                                 </button>
                                 <button className="px-10 py-5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2.5rem] font-black uppercase tracking-[0.2em] text-[10px] hover:bg-slate-50 transition-all flex items-center justify-center gap-2">
@@ -270,22 +335,37 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                         <h3 className="text-4xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">Live Destinations</h3>
                         <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2 italic">Select your preferred adventure style</p>
                     </div>
-                    <div className="flex bg-white dark:bg-slate-900 p-1.5 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-x-auto max-w-full scrollbar-none">
-                        <div className="flex gap-1 min-w-max">
-                        {['All', 'Safari', 'Stays', 'Trips'].map(tab => (
-                            <button 
-                                key={tab}
-                                onClick={() => setActiveTab(tab as any)}
-                                className={`px-8 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}
-                            >
-                                {tab}
-                            </button>
-                        ))}
+                    <div className="flex bg-white dark:bg-slate-900 p-2 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-x-auto max-w-full scrollbar-none">
+                        <div className="flex gap-2 min-w-max">
+                            {['All', 'Beach', 'Safari', 'Stays', 'Trips', 'Urban', 'Mountain', 'Experience', 'Offers'].map(tab => {
+                                const category = CATEGORIES.find(c => c.name === tab) || 
+                                               (tab === 'Stays' ? { icon: Hotel } : 
+                                                tab === 'Trips' ? { icon: Plane } : 
+                                                tab === 'Offers' ? { icon: Sparkles } : 
+                                                tab === 'All' ? { icon: Compass } : null);
+                                const Icon = category?.icon || Compass;
+                                
+                                return (
+                                    <button 
+                                        key={tab}
+                                        onClick={() => setActiveTab(tab as any)}
+                                        className={`px-8 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 group/tab ${
+                                            activeTab === tab 
+                                            ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 scale-105' 
+                                            : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/50'
+                                        }`}
+                                    >
+                                        <Icon className={`w-4 h-4 transition-transform group-hover/tab:scale-110 ${activeTab === tab ? 'text-white' : 'text-indigo-500'}`} />
+                                        {tab}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
 
                 {/* Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                <div id="destinations-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 scroll-mt-32">
                     {filteredInsts.length > 0 ? filteredInsts.map((inst, idx) => (
                         <div 
                             key={inst.id}
