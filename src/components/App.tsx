@@ -5033,6 +5033,10 @@ export const App: React.FC = () => {
                                     setShowAlumnaeLogin(false);
                                     setShowAlumnaeRegister(true);
                                 }}
+                                onBack={() => {
+                                    setShowAlumnaeLogin(false);
+                                    setShowMarketing(true);
+                                }}
                             />
                         ) : showAlumnaePortal ? (
                             <AlumnaePortalView 

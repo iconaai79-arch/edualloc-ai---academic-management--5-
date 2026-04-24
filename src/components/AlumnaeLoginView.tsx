@@ -8,17 +8,20 @@ import {
     Loader2, 
     ArrowRight, 
     Sparkles, 
-    ShieldCheck,
-    Users
+    Users,
+    ChevronLeft,
+    Globe,
+    ShieldCheck
 } from 'lucide-react';
 import { apiService } from '../services/apiService';
 
 interface AlumnaeLoginViewProps {
     onLoginSuccess: (alumna: any) => void;
     onSwitchToRegister: () => void;
+    onBack?: () => void;
 }
 
-export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSuccess, onSwitchToRegister }) => {
+export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSuccess, onSwitchToRegister, onBack }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -28,7 +31,7 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!email || !password) {
-            setError('Please enter both email and password');
+            setError('Verification credentials required');
             return;
         }
 
@@ -36,7 +39,6 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
         setError('');
 
         try {
-            // Find the alumna by email
             const results = await apiService.fetchModuleRecords('alumnae_members', {
                 email: email.toLowerCase().trim()
             });
@@ -46,103 +48,167 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
                 (a.user_email?.toLowerCase() === email.toLowerCase().trim())
             );
 
-            if (!alumna) {
-                throw new Error('No account found with this email.');
-            }
+            if (!alumna) throw new Error('Network Identity not recognized.');
+            if (alumna.password !== password) throw new Error('Secure access denied. Check password.');
 
-            // Verify password (in a real app, this would be a secure backend verify)
-            // For now, we follow the platform's existing pattern
-            if (alumna.password !== password) {
-                throw new Error('Incorrect password. Please try again.');
-            }
-
-            // Success
             onLoginSuccess(alumna);
         } catch (e: any) {
-            setError(e.message || 'Login failed');
+            setError(e.message || 'Identity verification failed');
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-6">
-            <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                <div className="p-12">
-                    <div className="flex flex-col items-center text-center mb-10">
-                        <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center text-white shadow-2xl shadow-indigo-200 dark:shadow-none mb-6 rotate-3 hover:rotate-0 transition-transform duration-500">
-                            <Users className="w-10 h-10" />
+        <div className="min-h-screen w-full flex bg-[#020617] overflow-hidden font-sans selection:bg-indigo-500/30">
+            {/* Background Decorative Elements */}
+            <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/20 rounded-full blur-[120px] animate-pulse"></div>
+                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-violet-600/20 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
+            </div>
+
+            {/* Cinematic Left Side (3D Branding) */}
+            <div className="hidden lg:flex lg:w-1/2 flex-col justify-center items-center p-20 relative border-r border-white/5 bg-gradient-to-br from-slate-950 to-indigo-950/30">
+                <div className="relative group cursor-default">
+                    {/* Glow effect behind logo */}
+                    <div className="absolute inset-0 bg-indigo-500/20 rounded-full blur-3xl group-hover:bg-indigo-500/30 transition-all duration-700"></div>
+                    <img 
+                        src="/alumnae_3d_logo_1777006727646.png" 
+                        alt="Alumnae 3D Emblem"
+                        className="w-[450px] h-auto relative z-10 drop-shadow-[0_35px_35px_rgba(0,0,0,0.5)] animate-float"
+                    />
+                </div>
+                
+                <div className="mt-12 text-center max-w-lg relative z-10">
+                    <h1 className="text-5xl font-black text-white uppercase tracking-tighter leading-tight mb-6">
+                        The Alumnae <br /> <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-violet-400 italic">Prestige Circle</span>
+                    </h1>
+                    <p className="text-slate-400 text-lg font-medium leading-relaxed mb-8">
+                        Connect with excellence. Access the official alumni social infrastructure of elite academic institutions.
+                    </p>
+                    <div className="flex gap-8 justify-center opacity-40">
+                        <div className="flex items-center gap-2">
+                            <ShieldCheck className="w-4 h-4 text-indigo-400" />
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Verified</span>
                         </div>
-                        <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Alumnae <span className="text-indigo-600 italic">Circle</span></h2>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-3">Welcome Back to the Legacy</p>
-                    </div>
-
-                    <form onSubmit={handleLogin} className="space-y-6">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Email Address</label>
-                            <div className="relative group">
-                                <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
-                                <input 
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="Enter your email"
-                                    className="w-full h-16 pl-14 pr-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all"
-                                />
-                            </div>
+                        <div className="flex items-center gap-2">
+                            <Globe className="w-4 h-4 text-indigo-400" />
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Global</span>
                         </div>
-
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Password</label>
-                            <div className="relative group">
-                                <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
-                                <input 
-                                    type={showPassword ? 'text' : 'password'}
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="Enter your password"
-                                    className="w-full h-16 pl-14 pr-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all"
-                                />
-                                <button 
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors"
-                                >
-                                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                </button>
-                            </div>
-                        </div>
-
-                        {error && (
-                            <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-2xl text-red-500 text-[10px] font-bold uppercase tracking-tight flex items-center gap-3 animate-in shake duration-500">
-                                <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></div>
-                                {error}
-                            </div>
-                        )}
-
-                        <button 
-                            type="submit"
-                            disabled={isLoading}
-                            className="w-full h-16 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl shadow-slate-200 dark:shadow-none"
-                        >
-                            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                            Sign In
-                            <ArrowRight className="w-4 h-4" />
-                        </button>
-                    </form>
-
-                    <div className="mt-10 pt-8 border-t border-slate-50 dark:border-slate-800 text-center">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">New to the Circle?</p>
-                        <button 
-                            onClick={onSwitchToRegister}
-                            className="text-xs font-black text-indigo-600 uppercase tracking-widest hover:text-indigo-700 transition-colors flex items-center justify-center gap-2 mx-auto"
-                        >
-                            Create Alumnae Account
-                            <ArrowRight className="w-3 h-3" />
-                        </button>
                     </div>
                 </div>
             </div>
+
+            {/* Modern Glassmorphic Right Side (Login Form) */}
+            <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 relative z-10">
+                <div className="w-full max-w-md animate-in fade-in slide-in-from-right-12 duration-1000">
+                    {/* Mobile Branding (only visible on small screens) */}
+                    <div className="lg:hidden flex flex-col items-center mb-12 text-center">
+                        <img src="/alumnae_3d_logo_1777006727646.png" className="w-40 h-auto mb-6 drop-shadow-2xl" />
+                        <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Alumnae <span className="text-indigo-500">Circle</span></h2>
+                    </div>
+
+                    <div className="bg-white/5 backdrop-blur-2xl p-10 sm:p-14 rounded-[3.5rem] border border-white/10 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.5)] relative overflow-hidden group">
+                        {/* Decorative internal glow */}
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16 transition-all duration-700 group-hover:scale-150"></div>
+                        
+                        <div className="mb-10">
+                            <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none mb-3">Welcome <br /> <span className="italic text-indigo-400">Back Member</span></h2>
+                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Identity Verification Gateway</p>
+                        </div>
+
+                        <form onSubmit={handleLogin} className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Registry Email</label>
+                                <div className="relative group">
+                                    <Mail className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
+                                    <input 
+                                        type="email"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        placeholder="your@email.com"
+                                        className="w-full h-16 pl-14 pr-6 bg-white/5 border border-white/10 rounded-2xl text-sm font-bold text-white placeholder:text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Access Password</label>
+                                <div className="relative group">
+                                    <Lock className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
+                                    <input 
+                                        type={showPassword ? 'text' : 'password'}
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        placeholder="••••••••"
+                                        className="w-full h-16 pl-14 pr-14 bg-white/5 border border-white/10 rounded-2xl text-sm font-bold text-white placeholder:text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all"
+                                    />
+                                    <button 
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                                    >
+                                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {error && (
+                                <div className="p-5 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-[10px] font-black uppercase tracking-tight flex items-center gap-4 animate-in shake duration-300">
+                                    <div className="w-2 h-2 rounded-full bg-red-500 animate-ping"></div>
+                                    {error}
+                                </div>
+                            )}
+
+                            <button 
+                                type="submit"
+                                disabled={isLoading}
+                                className="w-full h-16 bg-white text-slate-950 rounded-2xl font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-indigo-400 hover:text-white transition-all duration-500 disabled:opacity-50 group/btn shadow-[0_20px_40px_-10px_rgba(255,255,255,0.1)] active:scale-[0.98]"
+                            >
+                                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                                Authenticate
+                                <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
+                            </button>
+                        </form>
+
+                        <div className="mt-12 pt-8 border-t border-white/5 text-center">
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Not a member yet?</p>
+                            <button 
+                                onClick={onSwitchToRegister}
+                                className="text-xs font-black text-indigo-400 uppercase tracking-widest hover:text-white transition-all flex items-center justify-center gap-3 mx-auto"
+                            >
+                                Apply for Access <ArrowRight className="w-3 h-3" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="mt-8 flex justify-between items-center px-4">
+                        <button onClick={onBack} className="text-slate-500 hover:text-white flex items-center gap-2 transition-colors">
+                            <ChevronLeft className="w-4 h-4" />
+                            <span className="text-[9px] font-black uppercase tracking-widest">Return Home</span>
+                        </button>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-700">EduAI Secure Auth v2.0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <style>{`
+                @keyframes float {
+                    0%, 100% { transform: translateY(0px); }
+                    50% { transform: translateY(-20px); }
+                }
+                .animate-float {
+                    animation: float 6s ease-in-out infinite;
+                }
+                @keyframes shake {
+                    0%, 100% { transform: translateX(0); }
+                    25% { transform: translateX(-5px); }
+                    75% { transform: translateX(5px); }
+                }
+                .animate-shake {
+                    animation: shake 0.4s ease-in-out infinite;
+                }
+            `}</style>
         </div>
     );
 };
