@@ -14,7 +14,7 @@ const getSupabase = () => {
 // Simplified Auth check to avoid external lib crashes
 async function getAuthUser(supabase: any, authHeader?: string) {
   if (!authHeader) return null;
-  const token = authHeader.replace('Bearer ', '');
+  const token = authHeader.replace(/bearer /i, '').trim();
   if (!token || token === 'undefined' || token === 'null') return null;
 
   console.log(`[getAuthUser] Debug: token length ${token.length}, startsWith ${token.substring(0, 10)}...`);
@@ -66,12 +66,17 @@ async function getAuthUser(supabase: any, authHeader?: string) {
     
     // 3. Try Alumnae discovery if token looks like an alumna ID
     if (token && token.startsWith('alumna_')) {
-      const { data: alumna } = await supabase.from('alumnae_members')
-        .select('id, institutionId, fullName')
+      const { data: alumna, error: alumError } = await supabase.from('alumnae_members')
+        .select('id, institutionId, institution_id, fullName, full_name')
         .eq('id', token)
-        .single();
+        .maybeSingle();
       
-      if (alumna) return { id: alumna.id, institutionId: alumna.institutionId || 'GLOBAL', role: 'alumna' };
+      if (alumError) console.error('[Auth Alumna Error]', alumError.message);
+      if (alumna) {
+          const instId = alumna.institutionId || alumna.institution_id || 'GLOBAL';
+          console.log(`[getAuthUser] Alumna authenticated: ${alumna.fullName || alumna.full_name} (${instId})`);
+          return { id: alumna.id, institutionId: instId, role: 'alumna' };
+      }
     }
 
     // 4. Try Temp Admin bypass (Development / Maintenance Mode)
