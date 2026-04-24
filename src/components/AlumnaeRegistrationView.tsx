@@ -33,11 +33,12 @@ interface AlumnaeRegistrationViewProps {
     onBackToPortal: () => void;
     onCheckAdmission?: (admNo: string, schoolId: string) => Promise<{ exists: boolean; message?: string }>;
     onInitiatePayment?: (amount: number, phone: string, reference: string, schoolId?: string) => Promise<{ success: boolean; transactionId?: string; checkoutRequestId?: string; message?: string }>;
+    onCheckPaymentStatus?: (checkoutRequestId: string) => Promise<any>;
     joiningFee?: number;
     feeEnabled?: boolean;
 }
 
-export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = ({ registry, initialSchool, onComplete, onBackToPortal, onCheckAdmission, onInitiatePayment, joiningFee = 0, feeEnabled = true }) => {
+export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = ({ registry, initialSchool, onComplete, onBackToPortal, onCheckAdmission, onInitiatePayment, onCheckPaymentStatus, joiningFee = 0, feeEnabled = true }) => {
     const [step, setStep] = useState(initialSchool ? 2 : 1);
     const [searchTerm, setSearchTerm] = useState(initialSchool?.name || '');
     const [selectedSchool, setSelectedSchool] = useState<SchoolRegistry | null>(initialSchool || null);
@@ -152,16 +153,24 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                 const maxAttempts = 40; // 2 minutes (balanced)
                 const pollTimer = setInterval(async () => {
                     attempts++;
-                    const statusRes = await apiService.checkPaymentStatus('ncba', res.checkoutRequestId, { 
-                        institutionId: 'GLOBAL',
-                        phoneNumber: formData.phoneNumber
-                    });
-                    if (statusRes.status === 'completed') {
+                    
+                    let statusRes: any = { status: 'pending' };
+                    if (onCheckPaymentStatus) {
+                        statusRes = await onCheckPaymentStatus(res.checkoutRequestId);
+                    } else {
+                        statusRes = await apiService.checkPaymentStatus('ncba', res.checkoutRequestId, { institutionId: 'GLOBAL', phoneNumber: formData.phoneNumber });
+                    }
+                    
+                    const statusStr = (statusRes?.status || '').toLowerCase();
+                    const isCompleted = statusStr === 'completed' || statusStr === 'success' || statusStr === 'successful';
+                    const isFailed = statusStr === 'failed' || statusStr === 'error' || statusStr === 'rejected';
+
+                    if (isCompleted) {
                         clearInterval(pollTimer);
                         setPaymentStatus('success');
                         setPaymentMessage('Payment Verified! Finalizing your registration...');
                         setTimeout(() => handleFinalize(), 2000);
-                    } else if (statusRes.status === 'failed' || statusRes.status === 'error' || attempts >= maxAttempts) {
+                    } else if (isFailed || attempts >= maxAttempts) {
                         clearInterval(pollTimer);
                         setPaymentStatus('error');
                         

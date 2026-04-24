@@ -5013,6 +5013,9 @@ export const App: React.FC = () => {
                                         return { success: false, message: e.message };
                                     }
                                 }}
+                                onCheckPaymentStatus={async (checkoutRequestId) => {
+                                    return apiService.checkPaymentStatus('ncba', checkoutRequestId, companyDetails?.ncbaConfig);
+                                }}
                                 onComplete={async (data) => {
                                     try {
                                         const school = schoolRegistry.find(s => s.id === data.schoolId);
