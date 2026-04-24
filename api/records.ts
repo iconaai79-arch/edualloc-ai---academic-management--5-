@@ -60,19 +60,32 @@ async function getAuthUser(supabase: any, authHeader?: string) {
     
     // 3. Try Alumnae discovery if token looks like an alumna ID
     if (token && token.startsWith('alumna_')) {
-      console.log(`[getAuthUser] Checking Alumnae record for: ${token}`);
-      const { data: alumna, error: alumError } = await supabase.from('alumnae_members')
-        .select('id, institutionId, institution_id, fullName, full_name, email')
+      console.log(`[getAuthUser] Attempting Alumnae discovery for token: ${token}`);
+      
+      // Try by ID first
+      let { data: alumna, error: alumError } = await supabase.from('alumnae_members')
+        .select('*')
         .eq('id', token)
         .maybeSingle();
       
-      if (alumError) console.error('[Auth Alumna Error]', alumError.message);
+      if (alumError) {
+          console.error('[Auth Alumna Error - ID Lookup]', alumError.message);
+      }
+
+      // If ID lookup fails, it might be due to a malformed ID in the session vs DB
+      // We can't easily fallback to email here as we don't have it in the token
+      // But we can log a count of all alumnae to verify table access
+      if (!alumna) {
+          const { count } = await supabase.from('alumnae_members').select('*', { count: 'exact', head: true });
+          console.log(`[getAuthUser] Alumna not found by ID. Total records in alumnae_members: ${count || 0}`);
+      }
+
       if (alumna) {
-          const instId = alumna.institutionId || alumna.institution_id || 'GLOBAL';
-          console.log(`[getAuthUser] Alumna authenticated: ${alumna.fullName || alumna.full_name} (${instId})`);
+          const instId = alumna.institution_id || alumna.institutionId || 'GLOBAL';
+          console.log(`[getAuthUser] Alumna verified: ${alumna.full_name || alumna.fullName} (${instId})`);
           return { id: alumna.id, institutionId: instId, role: 'alumna', email: alumna.email };
       } else {
-          console.warn(`[getAuthUser] No Alumna record found for ID: ${token}`);
+          console.warn(`[getAuthUser] No Alumna match found for ID: ${token}`);
       }
     }
 
