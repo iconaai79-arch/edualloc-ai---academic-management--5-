@@ -238,7 +238,8 @@ export const generateTimetable = async (
 
         let allGeneratedEntries: any[] = [];
         const allNotifications: string[] = [];
-        const modelTier = aiModelTier === 'premium' ? 'pro' : 'flash';
+        // Force 'flash' for timetable generation regardless of tier to avoid Vercel 10s/60s timeouts
+        const modelTier = 'flash'; 
 
         // Optimized Global Context (Pre-calculated to reduce repetitive JSON overhead)
         const compactRooms = rooms.map(r => ({ i: r.id.substring(0,6), n: r.name, b: r.buildingId?.substring(0,4) }));
@@ -331,7 +332,7 @@ export const generateTimetable = async (
             const response = await safeGenerateContent(prompt, { 
                 responseMimeType: 'application/json',
                 temperature: 0.1,
-                maxOutputTokens: 16384 // Increased from 8192 to prevent truncation in large cohorts
+                maxOutputTokens: 4096 // Reduced from 16384 to ensure response finishes within cloud execution limits
             }, modelTier);
 
             const shardResult = sanitizeAndParseJson(response.text || "[]");
