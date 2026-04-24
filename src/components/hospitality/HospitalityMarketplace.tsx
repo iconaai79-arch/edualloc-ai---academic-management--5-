@@ -60,20 +60,6 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
         const loadData = async () => {
             setLoadingItems(true);
             try {
-                // Ensure we have at least an anonymous session for public fetching if RLS is strict
-                const token = await apiService.getAuthToken();
-                if (!token && apiService.isConfigured()) {
-                    try {
-                        // Attempt anonymous sign-in to satisfy backend proxy identity requirements
-                        const supabase = (apiService as any)._supabase || (window as any)._supabase;
-                        if (supabase && supabase.auth) {
-                            await supabase.auth.signInAnonymously();
-                        }
-                    } catch (e) {
-                        console.warn("Anonymous auth failed, attempting fetch anyway:", e);
-                    }
-                }
-
                 // Fetch packages from all active hospitality partners
                 const items = await apiService.fetchModuleRecords('hospitality_items');
                 setAllPackages(items);
