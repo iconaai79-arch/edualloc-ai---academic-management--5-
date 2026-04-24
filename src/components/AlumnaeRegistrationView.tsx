@@ -120,10 +120,13 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                 
                 // Polling logic
                 let attempts = 0;
-                const maxAttempts = 60; // 3 minutes (up from 1.5m)
+                const maxAttempts = 40; // 2 minutes (balanced)
                 const pollTimer = setInterval(async () => {
                     attempts++;
-                    const statusRes = await apiService.checkPaymentStatus('ncba', res.checkoutRequestId, { institutionId: selectedSchool?.institutionId || 'GLOBAL' });
+                    const statusRes = await apiService.checkPaymentStatus('ncba', res.checkoutRequestId, { 
+                        institutionId: selectedSchool?.institutionId || 'GLOBAL',
+                        phoneNumber: formData.phoneNumber
+                    });
                     if (statusRes.status === 'completed') {
                         clearInterval(pollTimer);
                         setPaymentStatus('success');
