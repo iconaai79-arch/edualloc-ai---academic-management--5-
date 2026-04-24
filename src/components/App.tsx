@@ -580,7 +580,7 @@ export const App: React.FC = () => {
             const isMarketingSubdomain = window.location.hostname === 'showcase.eduai.co.ke' || window.location.hostname.includes('showcase') || window.location.hostname.includes('marketing');
             if (isMarketingSubdomain || params.get('view') === 'showcase') return true;
             
-            const isAlumnaeDeepLink = params.get('school') || params.get('alumnae') || params.get('view') === 'alumnae_register';
+            const isAlumnaeDeepLink = params.get('school') || params.get('alumnae') || params.get('view') === 'alumnae_register' || params.get('view') === 'alumnae_social' || params.get('view') === 'alumnae_portal';
             return !currentUser && !showMarketplace && !showCommunityHub && !showGuestPortal && !showGuestFeedback && !showTenantStore && !isAlumnaeDeepLink;
         } catch (e) {
             return !currentUser;
@@ -590,7 +590,8 @@ export const App: React.FC = () => {
     const [showAlumnaeRegister, setShowAlumnaeRegister] = useState(() => {
         try {
             const params = new URLSearchParams(window.location.search);
-            return params.get('view') === 'alumnae_register';
+            const view = params.get('view');
+            return view === 'alumnae_register' || view === 'alumnae_social' || view === 'alumnae_portal';
         } catch (e) { return false; }
     });
 
@@ -644,7 +645,7 @@ export const App: React.FC = () => {
                 // Redirect to portal if on registration view or community view
                 const params = new URLSearchParams(window.location.search);
                 const view = params.get('view');
-                if (view === 'community' || view === 'alumnae_register' || view === 'alumnae_portal') {
+                if (view === 'community' || view === 'alumnae_register' || view === 'alumnae_portal' || view === 'alumnae_social') {
                     setShowAlumnaePortal(true);
                 }
             } catch (e) {}
