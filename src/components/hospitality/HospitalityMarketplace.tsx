@@ -60,6 +60,20 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
         const loadData = async () => {
             setLoadingItems(true);
             try {
+                // Ensure we have at least an anonymous session for public fetching if RLS is strict
+                const token = await apiService.getAuthToken();
+                if (!token && apiService.isConfigured()) {
+                    try {
+                        // Attempt anonymous sign-in to satisfy backend proxy identity requirements
+                        const supabase = (apiService as any)._supabase || (window as any)._supabase;
+                        if (supabase && supabase.auth) {
+                            await supabase.auth.signInAnonymously();
+                        }
+                    } catch (e) {
+                        console.warn("Anonymous auth failed, attempting fetch anyway:", e);
+                    }
+                }
+
                 // Fetch packages from all active hospitality partners
                 const items = await apiService.fetchModuleRecords('hospitality_items');
                 setAllPackages(items);
@@ -111,20 +125,24 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
     // Map of institutionId to its first available package image
     const institutionPackageImages = useMemo(() => {
         const map: Record<string, string> = {};
-        allPackages.forEach(pkg => {
-            if (!map[pkg.institutionId]) {
-                const img = getFirstImage(pkg.images);
-                if (img) map[pkg.institutionId] = img;
-            }
-        });
+        if (allPackages && Array.isArray(allPackages)) {
+            allPackages.forEach(pkg => {
+                if (pkg && pkg.institutionId && !map[pkg.institutionId]) {
+                    const img = getFirstImage(pkg.images);
+                    if (img) {
+                        map[pkg.institutionId] = img;
+                    }
+                }
+            });
+        }
         return map;
     }, [allPackages]);
 
     const handleNavbarClick = (item: string) => {
-        if (item === 'Destinations') setActiveTab('All');
+        if (item === 'Destinations' || item === 'All') setActiveTab('All');
         else if (item === 'Safari Guide') setActiveTab('Safari');
-        else if (item === 'Partner Stays') setActiveTab('Stays');
-        else if (item === 'Excursions') setActiveTab('Trips');
+        else if (item === 'Partner Stays' || item === 'Stays') setActiveTab('Stays');
+        else if (item === 'Excursions' || item === 'Trips') setActiveTab('Trips');
         else if (item === 'Offers') setActiveTab('Offers');
         setIsMobileMenuOpen(false);
         
@@ -375,7 +393,14 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                                 return (
                                     <button 
                                         key={tab}
-                                        onClick={() => setActiveTab(tab as any)}
+                                        onClick={() => {
+                                            setActiveTab(tab as any);
+                                            // Scroll to results
+                                            const element = document.getElementById('destinations-grid');
+                                            if (element) {
+                                                element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                            }
+                                        }}
                                         className={`px-8 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 group/tab ${
                                             activeTab === tab 
                                             ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 scale-105' 
@@ -414,19 +439,24 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                                 </button>
                                 
                                 <div className="w-full h-full flex items-center justify-center text-slate-200 group-hover:scale-110 transition-transform duration-1000">
-                                    {(inst.footerImageUrl || inst.logoUrl || institutionPackageImages[inst.id]) ? (
-                                        <img 
-                                            src={getGoogleDriveDirectUrl(inst.footerImageUrl || inst.logoUrl || institutionPackageImages[inst.id])} 
-                                            className="w-full h-full object-cover" 
-                                            alt={inst.name} 
-                                            onError={(e) => {
-                                                (e.target as HTMLImageElement).style.display = 'none';
-                                                (e.target as HTMLImageElement).parentElement?.classList.add('flex', 'items-center', 'justify-center', 'text-slate-200');
-                                            }}
-                                        />
-                                    ) : (
-                                        (inst.category?.includes('Safari') || inst.category?.includes('Tours')) ? <Compass className="w-20 h-20" /> : <Hotel className="w-20 h-20" />
-                                    )}
+                                    {(() => {
+                                        const displayUrl = inst.footerImageUrl || inst.logoUrl || institutionPackageImages[inst.id];
+                                        if (displayUrl && displayUrl !== 'null' && displayUrl !== 'undefined') {
+                                            return (
+                                                <img 
+                                                    src={getGoogleDriveDirectUrl(displayUrl)} 
+                                                    className="w-full h-full object-cover" 
+                                                    alt={inst.name} 
+                                                    onError={(e) => {
+                                                        (e.target as HTMLImageElement).style.display = 'none';
+                                                        (e.target as HTMLImageElement).parentElement?.classList.add('flex', 'items-center', 'justify-center', 'text-slate-200');
+                                                    }}
+                                                />
+                                            );
+                                        }
+                                        return (inst.category?.includes('Safari') || inst.category?.includes('Tours')) ? 
+                                            <Compass className="w-20 h-20" /> : <Hotel className="w-20 h-20" />;
+                                    })()}
                                 </div>
                                 
                                 <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-slate-950/80 to-transparent"></div>
