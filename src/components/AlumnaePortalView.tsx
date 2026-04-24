@@ -134,16 +134,23 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
     const loadMessages = async () => {
         try {
+            // Only load messages where current alumna is sender or recipient
             const data = await apiService.fetchModuleRecords('alumni_messages', undefined, undefined, {
                 order: 'created_at.asc'
             });
-            setMessages(data || []);
+            // Frontend filter as complex OR filters might be limited in standard fetch
+            const filtered = (data || []).filter((m: any) => 
+                m.sender_id === currentAlumna.id || m.recipient_id === currentAlumna.id
+            );
+            setMessages(filtered);
         } catch (e) {}
     };
 
     const loadAlumnaeMembers = async () => {
         try {
-            const data = await apiService.fetchModuleRecords('alumnae_members');
+            const data = await apiService.fetchModuleRecords('alumnae_members', undefined, undefined, {
+                filter: { institution_id: currentAlumna.institutionId || currentAlumna.schoolId }
+            });
             setAlumnaeMembers(data || []);
             setFeaturedMembers((data || []).filter((m: any) => m.isFeatured));
         } catch (e) {}
