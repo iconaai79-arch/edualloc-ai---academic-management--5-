@@ -1607,6 +1607,7 @@ Please change it after login.`;
     const tabs = [
         { key: 'dashboard', label: 'Dashboard', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
         { key: 'institutions', label: 'Institutions', icon: <BuildingOfficeIcon className="w-5 h-5 mr-2" /> },
+        { key: 'academics', label: 'Academics', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
         { key: 'hospitality', label: 'Hospitality Hub', icon: <Palmtree className="w-5 h-5 mr-2" /> },
         { key: 'auto_marketplace', label: 'Auto Marketplace', icon: <CarIcon className="w-5 h-5 mr-2" /> },
         { key: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
@@ -1669,6 +1670,7 @@ Please change it after login.`;
 
     const perspectiveOptions = [
         { role: 'admin', label: 'Timetable', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
+        { role: 'academics_officer', label: 'Academics Module', icon: <AcademicCapIcon className="w-6 h-6" />, color: 'bg-violet-50 text-violet-600' },
         { role: 'security', label: 'Security Module', icon: <ShieldIcon className="w-6 h-6" />, color: 'bg-red-50 text-red-600' },
         { role: 'store', label: 'Inventory Module', icon: <ArchiveBoxIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600' },
         { role: 'transport_admin', label: 'Transport Module', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600' },
@@ -2042,6 +2044,54 @@ Please change it after login.`;
                                 {(!props.activityLog || props.activityLog.length === 0) && (
                                     <p className="text-center py-10 text-slate-400 text-sm font-bold uppercase tracking-widest">No activity recorded</p>
                                 )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'academics' && (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Global Subjects</h3>
+                                <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">{(props.subjects || []).length}</p>
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Curriculum Blocks</h3>
+                                <p className="text-4xl font-black text-indigo-600 tracking-tighter">{(props.courses || []).length}</p>
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Teaching Assets</h3>
+                                <p className="text-4xl font-black text-emerald-600 tracking-tighter">{(props.users || []).filter(u => u.role === 'lecturer' || u.role === 'teacher').length}</p>
+                            </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                            <div className="flex justify-between items-center mb-8">
+                                <div>
+                                    <h3 className="text-xl font-black tracking-tighter uppercase">Academic Registry Management</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Global oversight of subjects and curriculum distribution</p>
+                                </div>
+                            </div>
+                            
+                            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] p-10 border border-slate-100 dark:border-slate-800 flex flex-col items-center text-center">
+                                <div className="p-4 bg-white dark:bg-slate-800 rounded-3xl shadow-sm mb-6">
+                                    <AcademicCapIcon className="w-12 h-12 text-indigo-600" />
+                                </div>
+                                <h4 className="text-lg font-black uppercase tracking-tight mb-2">Centralized Academic Control</h4>
+                                <p className="text-sm text-slate-500 max-w-md mb-8">
+                                    Use the Simulation Mode to manage academic year settings, subject registries, and exam timetables for specific institutional tenants.
+                                </p>
+                                <button 
+                                    onClick={() => {
+                                        const demoInst = institutions.find(i => i.institutionCode === 'INST001') || institutions[0];
+                                        setSelectedTenantForPerspective(demoInst);
+                                        setIsPerspectiveModalOpen(true);
+                                    }}
+                                    className="px-10 py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-100 transition-all hover:scale-105"
+                                >
+                                    Open Academics Simulator
+                                </button>
                             </div>
                         </div>
                     </div>
