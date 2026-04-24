@@ -80,7 +80,10 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 ...currentAlumna,
                 ...profileData,
                 email: profileData.email || currentAlumna.email,
-                profilePhoto: photoUrl,
+                full_name: profileData.fullName || currentAlumna.fullName || currentAlumna.full_name,
+                institution_id: currentAlumna.institution_id || currentAlumna.institutionId,
+                profile_photo: photoUrl, // Ensure snake_case mapping
+                profilePhoto: photoUrl,  // Keep for legacy frontend
                 id: currentAlumna.id
             });
             // Update local session
