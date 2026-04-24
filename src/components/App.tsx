@@ -4994,14 +4994,13 @@ export const App: React.FC = () => {
                                         const school = schoolRegistry.find(s => s.id === schoolId);
                                         const instId = 'GLOBAL';
 
-                                        const res = await apiService.triggerNcbaPayment({
+                                        const res = await apiService.initiateNcbaPayment(
                                             amount,
-                                            phoneNumber: phone,
-                                            reference: reference,
-                                            description: 'Alumnae Network Activation',
-                                            institutionId: instId
-                                        });
-                                        return { success: res.success, message: res.message, checkoutRequestId: res.checkoutRequestId || res.checkoutRequestID || res.checkout_request_id || res.id };
+                                            phone,
+                                            { type: 'alumnae_registration', reference, schoolId },
+                                            companyDetails?.ncbaConfig
+                                        );
+                                        return { success: res.success, message: res.message, checkoutRequestId: res.checkoutRequestId || res.checkoutRequestID || res.checkout_request_id || res.id || res.requestId };
                                     } catch (e: any) {
                                         return { success: false, message: e.message };
                                     }
