@@ -16,22 +16,14 @@ import {
     Sparkles
 } from 'lucide-react';
 import { apiService } from '../../services/apiService';
+import { getGoogleDriveDirectUrl } from '../../utils/googleDriveUtils';
 import type { Institution, HospitalityMenuItem, HospitalityOrder } from '../../types';
 
 interface DiningManagerProps {
     currentInstitution: Institution;
 }
 
-const getDirectUrl = (url: string) => {
-    if (!url) return '';
-    if (url.includes('drive.google.com')) {
-        const idMatch = url.match(/\/d\/([^\/]+)/) || url.match(/id=([^\/&]+)/);
-        if (idMatch && idMatch[1]) {
-            return `https://lh3.googleusercontent.com/d/${idMatch[1]}`;
-        }
-    }
-    return url;
-};
+// Centralized utility used instead
 
 export const DiningManager: React.FC<DiningManagerProps> = ({ currentInstitution }) => {
     const [activeSubTab, setActiveSubTab] = useState<'menu' | 'orders'>('menu');
@@ -135,7 +127,7 @@ export const DiningManager: React.FC<DiningManagerProps> = ({ currentInstitution
                     <div key={item.id} className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm group hover:shadow-xl transition-all">
                         <div className="aspect-video bg-slate-50 dark:bg-slate-900 relative">
                             {item.imageUrl ? (
-                                <img src={getDirectUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                <img src={getGoogleDriveDirectUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center text-slate-200">
                                     <Utensils className="w-10 h-10" />
@@ -307,7 +299,7 @@ export const DiningManager: React.FC<DiningManagerProps> = ({ currentInstitution
                                     <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Item Image</label>
                                     <div className="flex items-center gap-4">
                                         {newItem.imageUrl && (
-                                            <img src={getDirectUrl(newItem.imageUrl)} className="w-16 h-16 rounded-2xl object-cover" alt="Preview" />
+                                            <img src={getGoogleDriveDirectUrl(newItem.imageUrl)} className="w-16 h-16 rounded-2xl object-cover" alt="Preview" />
                                         )}
                                         <label className="flex-1 cursor-pointer group">
                                             <div className="w-full py-4 bg-slate-50 dark:bg-slate-800 border-2 border-dashed border-slate-100 dark:border-slate-700 rounded-2xl flex items-center justify-center gap-2 text-[10px] font-black uppercase text-slate-400 group-hover:border-indigo-600 group-hover:text-indigo-600 transition-all">

@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { supabase as sharedSupabase, initSupabase } from '../lib/supabase';
 import { generateAlphanumericCode, formatPhoneNumber } from '../utils/stringUtils';
+import { getGoogleDriveDirectUrl } from '../utils/googleDriveUtils';
 import type {
     AllocationRequest, RequestStatus, User, Institution,
     Priority, Department, Subject, Course, CompanyDetails, Room,
@@ -1589,18 +1590,7 @@ export const apiService = {
             const data = await response.json();
             if (!data.success) throw new Error(data.message || 'Upload failed');
             
-            const getDirectUrl = (url: string) => {
-                if (!url) return '';
-                if (url.includes('drive.google.com')) {
-                    const idMatch = url.match(/\/d\/([^\/]+)/) || url.match(/id=([^\/&]+)/);
-                    if (idMatch && idMatch[1]) {
-                        return `https://lh3.googleusercontent.com/d/${idMatch[1]}`;
-                    }
-                }
-                return url;
-            };
-
-            const directUrl = getDirectUrl(data.url);
+            const directUrl = getGoogleDriveDirectUrl(data.url);
 
             return {
                 success: true,

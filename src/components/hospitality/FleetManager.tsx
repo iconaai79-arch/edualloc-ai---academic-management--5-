@@ -17,21 +17,13 @@ import {
 } from 'lucide-react';
 import { HospitalityVehicle, HospitalityDriver, HospitalityDriveBooking, Institution } from '../../types';
 import { apiService } from '../../services/apiService';
+import { getGoogleDriveDirectUrl } from '../../utils/googleDriveUtils';
 
 interface FleetManagerProps {
     institution: Institution;
 }
 
-const getDirectUrl = (url: string) => {
-    if (!url) return '';
-    if (url.includes('drive.google.com')) {
-        const idMatch = url.match(/\/d\/([^\/]+)/) || url.match(/id=([^\/&]+)/);
-        if (idMatch && idMatch[1]) {
-            return `https://lh3.googleusercontent.com/d/${idMatch[1]}`;
-        }
-    }
-    return url;
-};
+// Centralized utility used instead
 
 export const FleetManager: React.FC<FleetManagerProps> = ({ institution }) => {
     const [vehicles, setVehicles] = useState<HospitalityVehicle[]>([]);
@@ -235,7 +227,7 @@ export const FleetManager: React.FC<FleetManagerProps> = ({ institution }) => {
                                     <div className="flex justify-between items-start mb-6">
                                         <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm group-hover:scale-110 transition-transform overflow-hidden">
                                             {vehicle.imageUrl ? (
-                                                <img src={getDirectUrl(vehicle.imageUrl)} className="w-full h-full object-cover" alt={vehicle.type} />
+                                                <img src={getGoogleDriveDirectUrl(vehicle.imageUrl)} className="w-full h-full object-cover" alt={vehicle.type} />
                                             ) : (
                                                 <Car className="w-6 h-6" />
                                             )}
@@ -334,7 +326,7 @@ export const FleetManager: React.FC<FleetManagerProps> = ({ institution }) => {
                                 <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Vehicle Image</label>
                                 <label className="flex items-center gap-4 cursor-pointer group p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-dashed border-slate-100 dark:border-slate-700 hover:border-indigo-600 transition-all">
                                     {newVehicle.imageUrl ? (
-                                        <img src={getDirectUrl(newVehicle.imageUrl)} className="w-12 h-12 rounded-xl object-cover" alt="Vehicle" />
+                                        <img src={getGoogleDriveDirectUrl(newVehicle.imageUrl)} className="w-12 h-12 rounded-xl object-cover" alt="Vehicle" />
                                     ) : (
                                         <div className="w-12 h-12 bg-white dark:bg-slate-900 rounded-xl flex items-center justify-center text-slate-300">
                                             <Car className="w-6 h-6" />

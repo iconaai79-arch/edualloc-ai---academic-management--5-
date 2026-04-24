@@ -4,12 +4,11 @@ import {
     Palmtree, 
     Hotel, 
     Plane, 
-    MapPixels, 
+    Map, 
     Calendar, 
     Users, 
     CreditCard, 
     Compass, 
-    Map, 
     Bed, 
     Image as ImageIcon,
     History,
@@ -35,6 +34,8 @@ import {
 import { apiService } from '../services/apiService';
 import { DiningManager } from './hospitality/DiningManager';
 import { FleetManager } from './hospitality/FleetManager';
+import { HospitalitySettings } from './hospitality/HospitalitySettings';
+import { getGoogleDriveDirectUrl } from '../utils/googleDriveUtils';
 import type { Institution, User } from '../types';
 
 interface HospitalityManagerProps {
@@ -42,16 +43,7 @@ interface HospitalityManagerProps {
     users: User[];
 }
 
-const getDirectUrl = (url: string) => {
-    if (!url) return '';
-    if (url.includes('drive.google.com')) {
-        const idMatch = url.match(/\/d\/([^\/]+)/) || url.match(/id=([^\/&]+)/);
-        if (idMatch && idMatch[1]) {
-            return `https://lh3.googleusercontent.com/d/${idMatch[1]}`;
-        }
-    }
-    return url;
-};
+// Centralized utility used instead
 
 export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentInstitution, users }) => {
     const category = currentInstitution.category || 'Travel Agency';
@@ -142,10 +134,9 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
 
         return (
             <div className="space-y-8 animate-fade-in">
-                {/* Industry-specific KPIs */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     {stats.map((s, i) => (
-                        <div key={i} className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all group">
+                        <div key={i} className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm group hover:shadow-xl transition-all">
                             <div className="flex items-center gap-4">
                                 <div className={`p-4 ${s.bg} ${s.color} rounded-2xl group-hover:scale-110 transition-transform`}>
                                     <s.icon className="w-6 h-6" />
@@ -345,9 +336,17 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                     <div key={item.id} className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden group hover:shadow-2xl transition-all">
                         <div className="aspect-video bg-slate-100 dark:bg-slate-900 relative">
                             {item.images && item.images.length > 0 ? (
-                                <img src={getDirectUrl(item.images[0])} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                <img 
+                                    src={getGoogleDriveDirectUrl(item.images[0])} 
+                                    alt={item.name} 
+                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                        (e.target as HTMLImageElement).parentElement?.classList.add('flex', 'items-center', 'justify-center', 'text-slate-200');
+                                    }}
+                                />
                             ) : (
-                                <div className="w-full h-full flex items-center justify-center text-slate-200">
+                                <div className="w-full h-full flex items-center justify-center text-slate-200 group-hover:scale-110 transition-transform duration-700">
                                     {isAgency ? <Plane className="w-12 h-12" /> : <Bed className="w-12 h-12" />}
                                 </div>
                             )}
@@ -435,7 +434,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                                 <div className="grid grid-cols-4 gap-4">
                                     {newItem.images.map((img, idx) => (
                                         <div key={idx} className="aspect-square bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 relative group">
-                                            <img src={getDirectUrl(img)} alt="Preview" className="w-full h-full object-cover" />
+                                            <img src={getGoogleDriveDirectUrl(img)} alt="Preview" className="w-full h-full object-cover" />
                                             <button 
                                                 onClick={() => setNewItem(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }))}
                                                 className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
@@ -490,39 +489,54 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                     </div>
                 </div>
 
-                <div className="flex bg-white dark:bg-slate-800 p-1.5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700">
-                    {[
-                        { id: 'overview', label: 'Dashboard', icon: Sparkles },
-                        { id: 'bookings', label: 'Bookings', icon: Calendar },
-                        { id: 'inventory', label: isAgency ? 'Packages' : 'Inventory', icon: isAgency ? Map : Bed },
-                        { id: 'dining', label: 'Dining', icon: ChefHat },
-                        { id: 'fleet', label: 'Fleet', icon: Truck },
-                        { id: 'settings', label: 'Settings', icon: Settings },
-                    ].map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
-                            className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                            <tab.icon className="w-4 h-4" />
-                            <span className="hidden sm:inline">{tab.label}</span>
-                        </button>
-                    ))}
+                <div className="flex bg-white dark:bg-slate-800 p-1.5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-x-auto scrollbar-none max-w-full">
+                    <div className="flex gap-1 min-w-max">
+                        {[
+                            { id: 'overview', label: 'Dashboard', icon: Sparkles },
+                            { id: 'bookings', label: 'Bookings', icon: Calendar },
+                            { id: 'itineraries', label: 'Itineraries', icon: Map },
+                            { id: 'inventory', label: isAgency ? 'Packages' : 'Inventory', icon: isAgency ? Map : Bed },
+                            { id: 'customers', label: 'Guests', icon: Users },
+                            { id: 'dining', label: 'Dining', icon: ChefHat },
+                            { id: 'fleet', label: 'Fleet', icon: Truck },
+                            { id: 'settings', label: 'Settings', icon: Settings },
+                        ].map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id as any)}
+                                className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                <tab.icon className="w-4 h-4" />
+                                <span className="sm:inline">{tab.label}</span>
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
             <div className="transition-all duration-300">
                 {activeTab === 'overview' && renderOverview()}
                 {activeTab === 'bookings' && renderBookings()}
-                {activeTab === 'inventory' && renderInventory()}
-                {activeTab === 'dining' && <DiningManager currentInstitution={currentInstitution} />}
-                {activeTab === 'fleet' && <FleetManager institution={currentInstitution} />}
-                {activeTab === 'settings' && (
-                    <div className="bg-white dark:bg-slate-800 p-12 rounded-[3rem] border-2 border-dashed border-slate-100 dark:border-slate-700 text-center text-slate-400">
-                        <Users className="w-16 h-16 mx-auto mb-4 opacity-20" />
-                        <p className="font-black uppercase tracking-widest text-sm">Settings Module Loading...</p>
+                {activeTab === 'itineraries' && (
+                    <div className="bg-white dark:bg-slate-800 p-20 rounded-[3rem] border border-slate-100 dark:border-slate-700 text-center space-y-4 animate-fade-in">
+                        <Map className="w-16 h-16 mx-auto text-indigo-500 opacity-20" />
+                        <h4 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white">Trip Itineraries</h4>
+                        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest max-w-sm mx-auto">Build complex day-by-day schedules for your safari packages.</p>
+                        <button className="px-8 py-3 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-indigo-100">Coming Soon</button>
                     </div>
                 )}
+                {activeTab === 'inventory' && renderInventory()}
+                {activeTab === 'customers' && (
+                    <div className="bg-white dark:bg-slate-800 p-20 rounded-[3rem] border border-slate-100 dark:border-slate-700 text-center space-y-4 animate-fade-in">
+                        <Users className="w-16 h-16 mx-auto text-indigo-500 opacity-20" />
+                        <h4 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white">Guest Relationship CRM</h4>
+                        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest max-w-sm mx-auto">Manage guest profiles, preferences, and loyalty history.</p>
+                        <button className="px-8 py-3 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-indigo-100">Coming Soon</button>
+                    </div>
+                )}
+                {activeTab === 'dining' && <DiningManager currentInstitution={currentInstitution} />}
+                {activeTab === 'fleet' && <FleetManager institution={currentInstitution} />}
+                {activeTab === 'settings' && <HospitalitySettings institution={currentInstitution} onUpdate={loadItems} />}
             </div>
         </div>
     );

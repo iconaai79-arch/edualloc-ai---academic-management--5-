@@ -20,9 +20,12 @@ import {
     Mountain,
     Anchor,
     X,
-    Menu
+    Menu,
+    Building2 as BuildingIcon
 } from 'lucide-react';
-import type { Institution } from '../types';
+import type { Institution } from '../../types';
+import { apiService } from '../../services/apiService';
+import { getGoogleDriveDirectUrl } from '../../utils/googleDriveUtils';
 
 interface HospitalityMarketplaceProps {
     institutions: Institution[];
@@ -33,55 +36,37 @@ interface HospitalityMarketplaceProps {
 const CATEGORIES = [
     { name: 'Beach', icon: Waves, color: 'bg-blue-500' },
     { name: 'Safari', icon: Compass, color: 'bg-orange-500' },
-    { name: 'Urban', icon: Building, color: 'bg-slate-500' },
+    { name: 'Urban', icon: BuildingIcon, color: 'bg-slate-500' },
     { name: 'Mountain', icon: Mountain, color: 'bg-emerald-500' },
     { name: 'Experience', icon: Sparkles, color: 'bg-purple-500' },
 ];
 
-const getDirectUrl = (url: string | null | undefined) => {
-    if (!url) return '';
-    if (url.includes('drive.google.com')) {
-        const idMatch = url.match(/\/d\/([^\/]+)/) || url.match(/id=([^\/&]+)/);
-        if (idMatch && idMatch[1]) {
-            return `https://lh3.googleusercontent.com/d/${idMatch[1]}`;
-        }
-    }
-    return url;
-};
+// Removed local getDirectUrl as it is now centralized
 
-function Building(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect width="16" height="20" x="4" y="2" rx="2" ry="2" />
-      <path d="M9 22v-4h6v4" />
-      <path d="M8 6h.01" />
-      <path d="M16 6h.01" />
-      <path d="M12 6h.01" />
-      <path d="M12 10h.01" />
-      <path d="M12 14h.01" />
-      <path d="M16 10h.01" />
-      <path d="M16 14h.01" />
-      <path d="M8 10h.01" />
-      <path d="M8 14h.01" />
-    </svg>
-  );
-}
 
 export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ institutions, onBack, onViewStore }) => {
     const [activeTab, setActiveTab] = useState<'All' | 'Safari' | 'Stays' | 'Trips'>('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [wishlist, setWishlist] = useState<string[]>([]);
+    const [featuredItems, setFeaturedItems] = useState<any[]>([]);
+    const [loadingItems, setLoadingItems] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    React.useEffect(() => {
+        const loadFeatured = async () => {
+            setLoadingItems(true);
+            try {
+                // Fetch packages from multiple active hospitality partners
+                const items = await apiService.fetchModuleRecords('hospitality_items');
+                setFeaturedItems(items.sort((a,b) => (b.rating || 0) - (a.rating || 0)).slice(0, 6));
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoadingItems(false);
+            }
+        };
+        loadFeatured();
+    }, []);
 
     const hospitalityInsts = useMemo(() => {
         return institutions.filter(i => 
@@ -129,23 +114,42 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                         ))}
                     </div>
 
-                    <div className="flex items-center gap-3">
-                        <div className="relative group hidden lg:block">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
-                            <input 
-                                type="text" 
-                                placeholder="Search destinations..."
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                                className="pl-12 pr-6 py-3 bg-[#f5f5f5] dark:bg-slate-800 border-none rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 ring-indigo-600/20 w-64 transition-all"
-                            />
-                        </div>
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                            className="md:hidden p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-400"
+                        >
+                            {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                        </button>
                         <button className="p-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-slate-400 relative">
                             <Heart className={`w-5 h-5 ${wishlist.length > 0 ? 'text-rose-500 fill-rose-500' : ''}`} />
                             {wishlist.length > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full"></span>}
                         </button>
                     </div>
                 </div>
+
+                {/* Mobile Menu */}
+                {isMobileMenuOpen && (
+                    <div className="md:hidden bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 animate-in slide-in-from-top duration-300">
+                        <div className="p-6 space-y-4">
+                            <div className="relative">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search destinations..."
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                    className="w-full pl-12 pr-6 py-3 bg-[#f5f5f5] dark:bg-slate-800 border-none rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                {['Destinations', 'Safari Guide', 'Partner Stays', 'Offers'].map(item => (
+                                    <button key={item} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl text-[9px] font-black uppercase tracking-widest text-slate-500 text-left">{item}</button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </nav>
 
             {/* Hero Section */}
@@ -156,30 +160,30 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                         <Sparkles className="w-4 h-4" /> Discover The Extraordinary
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-                        <div>
-                            <h2 className="text-7xl md:text-8xl font-black uppercase tracking-tighter text-slate-800 dark:text-white leading-[0.9] mb-8 drop-shadow-sm">
+                        <div className="text-center lg:text-left">
+                            <h2 className="text-5xl md:text-7xl lg:text-8xl font-black uppercase tracking-tighter text-slate-800 dark:text-white leading-[0.9] mb-8 drop-shadow-sm">
                                 Explore <br /> 
                                 <span className="text-indigo-600 italic">Unlimited</span> <br /> 
                                 Horizons
                             </h2>
-                            <p className="text-slate-500 text-lg font-bold leading-relaxed max-w-lg mb-10">
+                            <p className="text-slate-500 text-sm md:text-lg font-bold leading-relaxed max-w-lg mb-10 mx-auto lg:mx-0">
                                 Your gateway to the most exclusive safaris, luxury stays, and curated travel experiences across the continent.
                             </p>
-                            <div className="flex gap-4">
+                            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                                 <button className="px-10 py-5 bg-indigo-600 text-white rounded-[2.5rem] font-black uppercase tracking-[0.2em] text-[10px] shadow-2xl shadow-indigo-100 hover:bg-slate-900 transition-all active:scale-95">
                                     Browse All Packages
                                 </button>
-                                <button className="px-10 py-5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2.5rem] font-black uppercase tracking-[0.2em] text-[10px] hover:bg-slate-50 transition-all flex items-center gap-2">
+                                <button className="px-10 py-5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2.5rem] font-black uppercase tracking-[0.2em] text-[10px] hover:bg-slate-50 transition-all flex items-center justify-center gap-2">
                                     Watch Film <Waves className="w-4 h-4" />
                                 </button>
                             </div>
                         </div>
 
                         {/* Interactive Hero Cards */}
-                        <div className="relative group lg:block hidden">
+                        <div className="relative group md:block hidden">
                             <div className="grid grid-cols-2 gap-6 rotate-3 group-hover:rotate-0 transition-transform duration-1000">
                                 <div className="space-y-6 translate-y-12">
-                                    <div className="h-64 bg-slate-200 dark:bg-slate-800 rounded-[3rem] shadow-2xl overflow-hidden relative">
+                                    <div className="h-48 lg:h-64 bg-slate-200 dark:bg-slate-800 rounded-[3rem] shadow-2xl overflow-hidden relative">
                                         <img src="https://images.unsplash.com/photo-1516426122078-c23e76319801?auto=format&fit=crop&q=80&w=800" className="w-full h-full object-cover opacity-80" alt="Safari" />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
                                         <p className="absolute bottom-8 left-8 text-white font-black uppercase tracking-widest text-[10px]">Maasai Mara</p>
@@ -204,15 +208,70 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                 </div>
             </div>
 
-            {/* Main Marketplace Area */}
             <div className="max-w-7xl mx-auto px-6 py-24">
+                
+                {/* Featured Packages Section */}
+                {featuredItems.length > 0 && (
+                    <div className="max-w-7xl mx-auto px-6 mb-24 animate-fade-in">
+                        <div className="flex justify-between items-end mb-10">
+                            <div>
+                                <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">Trending Experiences</h3>
+                                <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2">The most sought-after packages this season</p>
+                            </div>
+                            <div className="flex gap-2">
+                                 <div className="h-1 w-20 bg-indigo-100 rounded-full overflow-hidden">
+                                     <div className="h-full bg-indigo-600 w-1/3"></div>
+                                 </div>
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                            {featuredItems.map((item) => (
+                                <div key={item.id} className="group bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-2xl transition-all cursor-pointer" onClick={() => onViewStore(item.institutionId)}>
+                                    <div className="h-56 bg-slate-100 dark:bg-slate-800 relative overflow-hidden">
+                                        {item.images && item.images.length > 0 ? (
+                                            <img 
+                                                src={getGoogleDriveDirectUrl(item.images[0])} 
+                                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                                                alt={item.name} 
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).style.display = 'none';
+                                                    (e.target as HTMLImageElement).parentElement?.classList.add('flex', 'items-center', 'justify-center', 'text-slate-200');
+                                                }}
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-slate-200">
+                                                <Compass className="w-12 h-12" />
+                                            </div>
+                                        )}
+                                        <div className="absolute top-6 left-6 z-10">
+                                            <span className="bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest text-white">{item.category}</span>
+                                        </div>
+                                    </div>
+                                    <div className="p-8">
+                                        <h4 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white mb-2 leading-none">{item.name}</h4>
+                                        <div className="flex justify-between items-center mt-6 pt-6 border-t border-slate-50 dark:border-slate-800">
+                                            <div className="flex items-center gap-1">
+                                                <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                                                <span className="text-[10px] font-black text-slate-400">{item.rating || '4.9'}</span>
+                                            </div>
+                                            <p className="text-sm font-black text-indigo-600">KES {item.price ? item.price.toLocaleString() : '0'}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Category Carousel */}
-                <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
-                    <div>
+                <div className="flex flex-col lg:flex-row justify-between items-center lg:items-end mb-16 gap-8">
+                    <div className="text-center lg:text-left">
                         <h3 className="text-4xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">Live Destinations</h3>
                         <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2 italic">Select your preferred adventure style</p>
                     </div>
-                    <div className="flex bg-white dark:bg-slate-900 p-1.5 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                    <div className="flex bg-white dark:bg-slate-900 p-1.5 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-x-auto max-w-full scrollbar-none">
+                        <div className="flex gap-1 min-w-max">
                         {['All', 'Safari', 'Stays', 'Trips'].map(tab => (
                             <button 
                                 key={tab}
@@ -249,7 +308,15 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                                 
                                 <div className="w-full h-full flex items-center justify-center text-slate-200 group-hover:scale-110 transition-transform duration-1000">
                                     {inst.footerImageUrl ? (
-                                        <img src={getDirectUrl(inst.footerImageUrl)} className="w-full h-full object-cover" alt={inst.name} />
+                                        <img 
+                                            src={getGoogleDriveDirectUrl(inst.footerImageUrl)} 
+                                            className="w-full h-full object-cover" 
+                                            alt={inst.name} 
+                                            onError={(e) => {
+                                                (e.target as HTMLImageElement).style.display = 'none';
+                                                (e.target as HTMLImageElement).parentElement?.classList.add('flex', 'items-center', 'justify-center', 'text-slate-200');
+                                            }}
+                                        />
                                     ) : (
                                         (inst.category?.includes('Safari') || inst.category?.includes('Tours')) ? <Compass className="w-20 h-20" /> : <Hotel className="w-20 h-20" />
                                     )}
