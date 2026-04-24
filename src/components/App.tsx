@@ -738,8 +738,27 @@ export const App: React.FC = () => {
 
     const activeInstitution = useMemo(() => {
         if (!currentUser || !Array.isArray(institutions)) return null;
-        return institutions.find(i => i && i.id === currentUser.institutionId) || null;
-    }, [currentUser, institutions]);
+        const found = institutions.find(i => i && i.id === currentUser.institutionId);
+        if (found) return found;
+
+        // Support impersonation of non-onboarded schools from the registry
+        if (currentUser.isImpersonated) {
+            const registryEntry = schoolRegistry.find(s => s.id === currentUser.institutionId || s.institutionId === currentUser.institutionId);
+            if (registryEntry) {
+                return {
+                    id: currentUser.institutionId,
+                    name: registryEntry.name,
+                    institutionType: registryEntry.institutionType || 'School',
+                    status: 'active',
+                    isMock: true,
+                    portalSettings: {
+                        alumnaeRegistrationFeeEnabled: true
+                    }
+                } as any;
+            }
+        }
+        return null;
+    }, [currentUser, institutions, schoolRegistry]);
 
     const activeAcademicYear = useMemo(() =>
         (Array.isArray(academicYears) ? academicYears : []).find(y => y && y.status === 'active') || null
@@ -3033,7 +3052,7 @@ export const App: React.FC = () => {
     // Safety guard: ensure activeInstitution is loaded for institution-dependent roles
     const isInstitutionRole = currentUser && !['super_admin', 'county_admin'].includes(activeRole || '') && !activeRole?.startsWith('county_');
 
-    if (isInstitutionRole && !activeInstitution && institutions.length > 0) {
+    if (isInstitutionRole && !activeInstitution && institutions.length > 0 && !currentUser?.isImpersonated) {
         // We have data but didn't find the institution. This might be a tenancy sync issue or a deleted institution.
         return (
             <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center">
