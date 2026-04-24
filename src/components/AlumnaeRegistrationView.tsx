@@ -138,7 +138,6 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                         timestamp: new Date().toISOString(),
                         status: 'pending',
                         provider: 'ncba',
-                        paymentMethod: 'stk_push',
                         checkoutRequestId: res.checkoutRequestId,
                         description: `Alumnae Activation: ${selectedSchool?.name}`
                     });

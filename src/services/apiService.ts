@@ -1349,7 +1349,6 @@ export const apiService = {
                     description: `Payment for Invoice ${metadata.invoiceId}`,
                     status: 'pending',
                     provider,
-                    paymentMethod: 'stk_push',
                     metadata: { ...metadata, checkoutRequestId: result.checkoutRequestId }
                 });
             }

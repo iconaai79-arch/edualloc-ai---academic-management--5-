@@ -5087,7 +5087,6 @@ export const App: React.FC = () => {
                                                 payerName: registrationPayload.fullName,
                                                 status: 'completed',
                                                 provider: 'ncba',
-                                                paymentMethod: 'stk_push',
                                                 timestamp: new Date().toISOString(),
                                                 description: 'Alumnae Network Activation Service Fee',
                                                 referenceId: `ALUMNA_${registrationPayload.admissionNumber}`
