@@ -20,7 +20,8 @@ import {
     Star,
     Camera,
     Hash,
-    Loader2
+    Loader2,
+    AlertCircle
 } from 'lucide-react';
 import type { SchoolRegistry } from '../types';
 import { apiService } from '../services/apiService';
@@ -132,10 +133,16 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                         setPaymentStatus('success');
                         setPaymentMessage('Payment Verified! Finalizing your registration...');
                         setTimeout(() => handleFinalize(), 2000);
-                    } else if (statusRes.status === 'failed' || attempts >= maxAttempts) {
+                    } else if (statusRes.status === 'failed' || statusRes.status === 'error' || attempts >= maxAttempts) {
                         clearInterval(pollTimer);
                         setPaymentStatus('error');
-                        setPaymentMessage(statusRes.message || 'Payment failed or timed out. Please try again.');
+                        
+                        // Detailed error resolution
+                        let detailedMsg = statusRes.message || 'Payment verification failed.';
+                        if (attempts >= maxAttempts) detailedMsg = 'Verification timed out. If you have paid, please contact support.';
+                        if (statusRes.description) detailedMsg += ` (${statusRes.description})`;
+                        
+                        setPaymentMessage(detailedMsg);
                     }
                 }, 3000);
             } else if (res.success) {
@@ -534,9 +541,23 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                             )}
 
                             {paymentStatus === 'error' && (
-                                <div className="space-y-4 text-center">
-                                    <p className="text-xs font-black text-red-500 uppercase">{paymentMessage}</p>
-                                    <button onClick={() => setPaymentStatus('idle')} className="text-[10px] font-black uppercase text-indigo-600 underline">Try Again</button>
+                                <div className="space-y-6 text-center py-6 animate-shake">
+                                    <div className="w-20 h-20 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto text-red-600 shadow-lg">
+                                        <AlertCircle className="w-10 h-10" />
+                                    </div>
+                                    <div className="px-4">
+                                        <h4 className="text-[10px] font-black uppercase text-red-500 tracking-widest mb-2">Transaction Failed</h4>
+                                        <p className="text-xs font-bold text-slate-600 dark:text-slate-400 leading-relaxed italic">{paymentMessage}</p>
+                                    </div>
+                                    <div className="flex flex-col gap-3">
+                                        <button 
+                                            onClick={() => setPaymentStatus('idle')} 
+                                            className="w-full py-4 bg-slate-900 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl active:scale-95 transition-all"
+                                        >
+                                            Retry Activation
+                                        </button>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Verify your phone has enough balance</p>
+                                    </div>
                                 </div>
                             )}
                         </div>
