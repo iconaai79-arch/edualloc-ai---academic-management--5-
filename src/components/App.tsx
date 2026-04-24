@@ -5000,7 +5000,15 @@ export const App: React.FC = () => {
                                             { type: 'alumnae_registration', reference, schoolId },
                                             companyDetails?.ncbaConfig
                                         );
-                                        return { success: res.success, message: res.message, checkoutRequestId: res.checkoutRequestId || res.checkoutRequestID || res.checkout_request_id || res.id || res.requestId };
+                                        
+                                        // Robustly extract the checkout ID regardless of gateway or backend wrapping
+                                        const extractedId = res.checkoutRequestId || res.checkoutRequestID || res.checkout_request_id || res.id || res.requestId || res.data?.CheckoutRequestID || res.data?.checkoutRequestId || res.CheckoutRequestID;
+                                        
+                                        return { 
+                                            success: res.success !== false && !!extractedId, 
+                                            message: res.message || res.CustomerMessage || res.ResponseDescription || 'Prompt initiated', 
+                                            checkoutRequestId: extractedId 
+                                        };
                                     } catch (e: any) {
                                         return { success: false, message: e.message };
                                     }
