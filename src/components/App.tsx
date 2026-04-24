@@ -24,6 +24,7 @@ import { AlumnaeRegistrationView } from './AlumnaeRegistrationView';
 import { AlumnaeActivationView } from './AlumnaeActivationView';
 import { AlumnaePortalView } from './AlumnaePortalView';
 import { AlumnaeSecureAccountView } from './AlumnaeSecureAccountView';
+import { AlumnaeLoginView } from './AlumnaeLoginView';
 import { ConstructionManager } from './ConstructionManager';
 import { ConstructionProjectView } from './ConstructionProjectView';
 const PrivacyPolicy = lazy(() => import('../pages/PrivacyPolicy'));
@@ -591,7 +592,16 @@ export const App: React.FC = () => {
         try {
             const params = new URLSearchParams(window.location.search);
             const view = params.get('view');
-            return view === 'alumnae_register' || view === 'alumnae_social' || view === 'alumnae_portal';
+            return view === 'alumnae_register';
+        } catch (e) { return false; }
+    });
+
+    const [showAlumnaeLogin, setShowAlumnaeLogin] = useState(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const view = params.get('view');
+            // If they have a session, this will be overridden by the useEffect
+            return view === 'alumnae_social' || view === 'alumnae_portal';
         } catch (e) { return false; }
     });
 
@@ -647,6 +657,8 @@ export const App: React.FC = () => {
                 const view = params.get('view');
                 if (view === 'community' || view === 'alumnae_register' || view === 'alumnae_portal' || view === 'alumnae_social') {
                     setShowAlumnaePortal(true);
+                    setShowAlumnaeLogin(false);
+                    setShowAlumnaeRegister(false);
                 }
             } catch (e) {}
         }
@@ -5004,6 +5016,19 @@ export const App: React.FC = () => {
                                 onComplete={() => {
                                     setShowAlumnaeSecureAccount(false);
                                     setShowAlumnaePortal(true);
+                                }}
+                            />
+                        ) : showAlumnaeLogin ? (
+                            <AlumnaeLoginView 
+                                onLoginSuccess={(alumna) => {
+                                    setActiveAlumna(alumna);
+                                    localStorage.setItem('eduai_alumna_session', JSON.stringify(alumna));
+                                    setShowAlumnaeLogin(false);
+                                    setShowAlumnaePortal(true);
+                                }}
+                                onSwitchToRegister={() => {
+                                    setShowAlumnaeLogin(false);
+                                    setShowAlumnaeRegister(true);
                                 }}
                             />
                         ) : showAlumnaePortal ? (
