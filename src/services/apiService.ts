@@ -2233,6 +2233,24 @@ export const apiService = {
             throw error;
         }
     },
+    async sendAlumnaWelcomeEmail(params: { recipient: string; alumnaName: string; loginLink?: string }): Promise<any> {
+        try {
+            const config = apiService.getActiveConfig();
+            const response = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': config.key },
+                body: JSON.stringify({ action: 'sendAlumnaWelcome', ...params })
+            });
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.message || 'Failed to send welcome email');
+            }
+            return response.json();
+        } catch (e: any) {
+            console.error("Welcome Email Error:", e);
+            throw e;
+        }
+    },
     async checkMpesaPaymentStatus(checkoutRequestId: string): Promise<any> {
         try {
             const token = await apiService.getAuthToken();

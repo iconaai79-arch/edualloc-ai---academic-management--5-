@@ -23,6 +23,7 @@ import { BookDemoModal } from './public/BookDemoModal';
 import { AlumnaeRegistrationView } from './AlumnaeRegistrationView';
 import { AlumnaeActivationView } from './AlumnaeActivationView';
 import { AlumnaePortalView } from './AlumnaePortalView';
+import { AlumnaeSecureAccountView } from './AlumnaeSecureAccountView';
 import { ConstructionManager } from './ConstructionManager';
 import { ConstructionProjectView } from './ConstructionProjectView';
 const PrivacyPolicy = lazy(() => import('../pages/PrivacyPolicy'));
@@ -632,6 +633,7 @@ export const App: React.FC = () => {
     const [showBookDemo, setShowBookDemo] = useState(false);
     const [activeAlumna, setActiveAlumna] = useState<any>(null);
     const [showAlumnaePortal, setShowAlumnaePortal] = useState(false);
+    const [showAlumnaeSecureAccount, setShowAlumnaeSecureAccount] = useState(false);
 
     useEffect(() => {
         const saved = localStorage.getItem('eduai_alumna_session');
@@ -639,9 +641,10 @@ export const App: React.FC = () => {
             try {
                 const parsed = JSON.parse(saved);
                 setActiveAlumna(parsed);
-                // If on community view, show portal
+                // Redirect to portal if on registration view or community view
                 const params = new URLSearchParams(window.location.search);
-                if (params.get('view') === 'community') {
+                const view = params.get('view');
+                if (view === 'community' || view === 'alumnae_register' || view === 'alumnae_portal') {
                     setShowAlumnaePortal(true);
                 }
             } catch (e) {}
@@ -4918,6 +4921,7 @@ export const App: React.FC = () => {
 
                                         const registrationPayload = {
                                             ...data,
+                                            email: data.email || data.user_email || '', // Explicit mapping for NOT NULL constraint
                                             id: `alumna_${Date.now()}`,
                                             institutionId: school?.institutionId || null,
                                             status: 'verified', // Auto-approve
@@ -4980,10 +4984,25 @@ export const App: React.FC = () => {
                                         localStorage.setItem('eduai_alumna_session', JSON.stringify(registrationPayload));
                                         setActiveAlumna(registrationPayload);
                                         setShowAlumnaeRegister(false);
-                                        setShowAlumnaePortal(true);
+                                        setShowAlumnaeSecureAccount(true); // Redirect to securing form
+
+                                        // Send welcome email in background
+                                        apiService.sendAlumnaWelcomeEmail({
+                                            recipient: registrationPayload.email,
+                                            alumnaName: registrationPayload.fullName,
+                                            loginLink: `${window.location.origin}/?view=alumnae_register`
+                                        }).catch(console.error);
                                     } catch (e: any) {
                                         alert("Registration Sync Error: " + e.message);
                                     }
+                                }}
+                            />
+                        ) : showAlumnaeSecureAccount ? (
+                            <AlumnaeSecureAccountView 
+                                alumna={activeAlumna}
+                                onComplete={() => {
+                                    setShowAlumnaeSecureAccount(false);
+                                    setShowAlumnaePortal(true);
                                 }}
                             />
                         ) : showAlumnaePortal ? (

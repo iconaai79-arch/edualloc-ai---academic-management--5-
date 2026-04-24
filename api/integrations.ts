@@ -143,7 +143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     // Priority 1: Mandatory Global Bypass for Test Handshakes & Configuration (Super Admin setup)
-    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'updateInstitutionConfig' || action === 'googleDriveUpload' || action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush' || action === 'queryPaymentStatus';
+    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'updateInstitutionConfig' || action === 'googleDriveUpload' || action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush' || action === 'queryPaymentStatus' || action === 'sendAlumnaWelcome';
     
     // Logic restored.
 
@@ -222,13 +222,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Priority 3: Special bypass for Unauthenticated Actions (Callbacks, Payments & Recovery)
-        const isPublicAction = ['forgotPassword', 'verifyResetOtp', 'resetPasswordWithToken', 'sendEmail', 'sendSms', 'mpesa-callback', 'ncbaWebhook', 'ncbaInitiateStk', 'initiateStkPush', 'queryPaymentStatus'].includes(action);
+        const isPublicAction = ['forgotPassword', 'verifyResetOtp', 'resetPasswordWithToken', 'sendEmail', 'sendSms', 'mpesa-callback', 'ncbaWebhook', 'ncbaInitiateStk', 'initiateStkPush', 'queryPaymentStatus', 'sendAlumnaWelcome'].includes(action);
 
         if (!user && isPublicAction) {
             console.log(`[Auth Bridge] Checking unauthenticated bypass for ${action}`);
 
             // For callbacks and payment initiation, we allow the bypass directly
-            if (action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush' || action === 'queryPaymentStatus') {
+            if (action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush' || action === 'queryPaymentStatus' || action === 'sendAlumnaWelcome') {
                 user = { id: 'system', role: 'super_admin', user_metadata: { institutionId: 'GLOBAL' } };
                 authError = null;
             } else if (action === 'forgotPassword' || action === 'sendEmail' || action === 'sendSms') {
@@ -339,6 +339,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
 
             return res.status(200).json({ success: true, message: 'Email sent successfully.', messageId: info.messageId });
+        }
+
+        if (action === 'sendAlumnaWelcome') {
+            const emailConfig = bodyConfig || settings.email_config || settings.emailConfig;
+            if (!emailConfig) return res.status(400).json({ success: false, message: 'Email configuration is missing.' });
+
+            const alumnaName = getParam('alumnaName');
+            const loginLink = getParam('loginLink') || `https://${req.headers.host}/?view=alumnae_portal`;
+
+            const transporter = nodemailer.createTransport({
+                host: emailConfig.host,
+                port: Number(emailConfig.port || 587),
+                secure: Number(emailConfig.port) === 465,
+                auth: { user: emailConfig.username, pass: emailConfig.password },
+                tls: { rejectUnauthorized: false }
+            });
+
+            const welcomeHtml = `
+                <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+                    <h2 style="color: #4f46e5;">Welcome to the Alumnae Circle!</h2>
+                    <p>Hello <strong>${alumnaName}</strong>,</p>
+                    <p>Congratulations! Your registration for the Alumnae Network is successful. We are thrilled to have you as part of our professional community.</p>
+                    <p>You can now access the portal to connect with classmates, share your legacy, and explore opportunities.</p>
+                    <div style="margin: 30px 0; text-align: center;">
+                        <a href="${loginLink}" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Access Alumnae Portal</a>
+                    </div>
+                    <p style="font-size: 12px; color: #666;">If the button above doesn't work, copy and paste this link into your browser: <br>${loginLink}</p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                    <p style="font-size: 10px; color: #999;">EduAI Alumnae Network &copy; ${new Date().getFullYear()}</p>
+                </div>
+            `;
+
+            const info = await transporter.sendMail({
+                from: `"${emailConfig.from_name || 'EduAI Alumnae'}" <${emailConfig.from_email || emailConfig.username}>`,
+                to: recipient,
+                subject: `Welcome to the Alumnae Circle, ${alumnaName}!`,
+                html: welcomeHtml
+            });
+
+            return res.status(200).json({ success: true, message: 'Welcome email sent successfully.', messageId: info.messageId });
         }
 
         if (action === 'sendSms') {
