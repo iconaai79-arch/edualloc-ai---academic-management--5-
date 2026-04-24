@@ -1349,6 +1349,7 @@ export const apiService = {
                         transactionId: result.checkoutRequestId || result.requestId || `PENDING_${Date.now()}`,
                         amount,
                         phoneNumber: formattedPhone,
+                        institutionId: metadata?.institutionId || 'GLOBAL',
                         payerName: 'Pending Payer',
                         description: `Payment for Invoice ${metadata.invoiceId}`,
                         status: 'pending',
@@ -1417,6 +1418,7 @@ export const apiService = {
     async recordPayment(data: Partial<MpesaTransaction>) {
         return apiService.saveModuleRecord('mpesa_transactions', {
             ...data,
+            institution_id: data.institutionId || 'GLOBAL',
             timestamp: data.timestamp || new Date().toISOString(),
             status: data.status || 'pending'
         });

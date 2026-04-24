@@ -928,10 +928,14 @@ export const App: React.FC = () => {
                     const provider = txn.provider;
                     return type === 'subscription' || 
                            type === 'sms' ||
+                           type === 'alumnae_registration' ||
+                           provider === 'ncba' ||
                            desc.includes('license') || 
                            desc.includes('renewal') || 
                            desc.includes('sms top-up') ||
-                           desc.includes('portal subscription');
+                           desc.includes('portal subscription') ||
+                           desc.includes('alumnae') ||
+                           desc.includes('activation');
                 });
             }
             setTransactions(finalTxns);
@@ -4992,12 +4996,18 @@ export const App: React.FC = () => {
                                 onInitiatePayment={async (amount, phone, reference, schoolId) => {
                                     try {
                                         const school = schoolRegistry.find(s => s.id === schoolId);
-                                        const instId = 'GLOBAL';
+                                        const instId = school?.institutionId || 'GLOBAL';
 
                                         const res = await apiService.initiateNcbaPayment(
                                             amount,
                                             phone,
-                                            { type: 'alumnae_registration', reference, schoolId, invoiceId: reference },
+                                            { 
+                                                type: 'alumnae_registration', 
+                                                reference, 
+                                                schoolId, 
+                                                invoiceId: reference,
+                                                institutionId: instId 
+                                            },
                                             companyDetails?.ncbaConfig
                                         );
                                         
@@ -5031,6 +5041,8 @@ export const App: React.FC = () => {
 
                                         const registrationPayload = {
                                             ...data,
+                                            full_name: data.fullName || data.full_name || '', // Map form field to DB field
+                                            admission_number: data.admissionNumber || data.admission_number || '', // Map form field to DB field
                                             email: data.email || data.user_email || '', // Explicit mapping for NOT NULL constraint
                                             id: `alumna_${Date.now()}`,
                                             institutionId: (school?.institutionId && institutions.some(i => i.id === school.institutionId)) ? school.institutionId : (institutions[0]?.id || null),

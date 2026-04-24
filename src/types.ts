@@ -1133,6 +1133,8 @@ export interface MpesaTransaction {
     referenceId?: string;
 }
 
+export type Transaction = MpesaTransaction;
+
 export interface InvoiceItem {
     description: string;
     quantity: number;

@@ -160,7 +160,7 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                 <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         {tenant.logoUrl ? (
-                            <img src={tenant.logoUrl} alt={tenant.name} className="h-10 w-auto object-contain" />
+                            <img src={getDirectUrl(tenant.logoUrl)} alt={tenant.name} className="h-10 w-auto object-contain" />
                         ) : (
                             <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-lg">
                                 {tenant.name.charAt(0)}
@@ -315,7 +315,7 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                                                 <div key={dish.id} className="flex gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-transparent hover:border-indigo-100 transition-all group">
                                                     <div className="w-24 h-24 bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-sm flex-shrink-0">
                                                         {dish.imageUrl ? (
-                                                            <img src={dish.imageUrl} alt={dish.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                            <img src={getDirectUrl(dish.imageUrl)} alt={dish.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                                         ) : (
                                                             <div className="w-full h-full flex items-center justify-center text-slate-200">
                                                                 <ChefHat className="w-8 h-8" />

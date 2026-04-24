@@ -135,7 +135,7 @@ export const DiningManager: React.FC<DiningManagerProps> = ({ currentInstitution
                     <div key={item.id} className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm group hover:shadow-xl transition-all">
                         <div className="aspect-video bg-slate-50 dark:bg-slate-900 relative">
                             {item.imageUrl ? (
-                                <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                <img src={getDirectUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center text-slate-200">
                                     <Utensils className="w-10 h-10" />

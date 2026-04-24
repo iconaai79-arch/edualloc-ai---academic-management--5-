@@ -131,7 +131,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                     // Confirm saving to DB by recording pending attempt
                     await apiService.saveModuleRecord('mpesa_transactions', {
                         id: `txn_reg_${Date.now()}`,
-                        institutionId: 'GLOBAL',
+                        institutionId: selectedSchool?.institutionId || 'GLOBAL',
                         amount: joiningFee,
                         phoneNumber: formData.phoneNumber,
                         payerName: `${formData.fullName} (Registration Pending)`,

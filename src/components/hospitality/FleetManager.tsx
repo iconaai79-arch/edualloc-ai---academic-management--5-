@@ -233,8 +233,12 @@ export const FleetManager: React.FC<FleetManagerProps> = ({ institution }) => {
                             {vehicles.map(vehicle => (
                                 <div key={vehicle.id} className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 group">
                                     <div className="flex justify-between items-start mb-6">
-                                        <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm group-hover:scale-110 transition-transform">
-                                            <Car className="w-6 h-6" />
+                                        <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm group-hover:scale-110 transition-transform overflow-hidden">
+                                            {vehicle.imageUrl ? (
+                                                <img src={getDirectUrl(vehicle.imageUrl)} className="w-full h-full object-cover" alt={vehicle.type} />
+                                            ) : (
+                                                <Car className="w-6 h-6" />
+                                            )}
                                         </div>
                                         <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
                                             vehicle.status === 'available' ? 'bg-emerald-50 text-emerald-600' : 

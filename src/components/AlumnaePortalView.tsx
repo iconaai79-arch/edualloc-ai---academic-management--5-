@@ -66,6 +66,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [otherMemberships, setOtherMemberships] = useState<any[]>([]);
     const [isDetectingMemberships, setIsDetectingMemberships] = useState(false);
     const [showSwitcher, setShowSwitcher] = useState(false);
+    const [postImageFile, setPostImageFile] = useState<File | null>(null);
+    const [postImagePreview, setPostImagePreview] = useState<string | null>(null);
 
     const loadOtherMemberships = async () => {
         setIsDetectingMemberships(true);
@@ -254,25 +256,37 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     };
 
     const handleCreatePost = async () => {
-        if (!newPostContent.trim()) return;
+        if (!newPostContent.trim() && !postImageFile) return;
         setIsPosting(true);
         
-        const post: AlumniPost = {
-            id: `p_${Date.now()}`,
-            authorId: currentAlumna.id,
-            authorName: currentAlumna.fullName || currentAlumna.name,
-            authorPhoto: currentAlumna.profilePhoto,
-            institutionId: currentAlumna.institutionId || currentAlumna.schoolId,
-            content: newPostContent,
-            likes: [],
-            commentsCount: 0,
-            createdAt: new Date().toISOString()
-        };
-
         try {
+            let photoUrl = '';
+            if (postImageFile) {
+                const uploadRes = await apiService.uploadToGoogleDrive(postImageFile, 'Alumnae_Social', {
+                    institutionId: currentAlumna.institutionId,
+                    useGlobalConfig: !currentAlumna.institutionId
+                });
+                if (uploadRes.success) photoUrl = uploadRes.url;
+            }
+
+            const post: AlumniPost = {
+                id: `p_${Date.now()}`,
+                authorId: currentAlumna.id,
+                authorName: currentAlumna.fullName || currentAlumna.name,
+                authorPhoto: currentAlumna.profilePhoto,
+                institutionId: currentAlumna.institutionId || currentAlumna.schoolId,
+                content: newPostContent,
+                photoUrl: photoUrl, // Add photo support
+                likes: [],
+                commentsCount: 0,
+                createdAt: new Date().toISOString()
+            };
+
             await apiService.saveModuleRecord('alumni_posts', post);
             setPosts([post, ...posts]);
             setNewPostContent('');
+            setPostImageFile(null);
+            setPostImagePreview(null);
         } catch (e: any) {
             alert("Post Error: " + e.message);
         } finally {
@@ -449,18 +463,51 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                             
                             <div className="flex items-center justify-between pt-4 border-t border-slate-50 dark:border-slate-900">
                                 <div className="flex gap-2 text-indigo-600">
-                                    <button className="p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all"><ImageIcon className="w-5 h-5" /></button>
+                                    <input 
+                                        type="file" 
+                                        id="post-photo-upload" 
+                                        className="hidden" 
+                                        accept="image/*"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                setPostImageFile(file);
+                                                setPostImagePreview(URL.createObjectURL(file));
+                                            }
+                                        }}
+                                    />
+                                    <button 
+                                        onClick={() => document.getElementById('post-photo-upload')?.click()}
+                                        className={`p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all ${postImageFile ? 'bg-indigo-50 text-indigo-600' : ''}`}
+                                    >
+                                        <ImageIcon className="w-5 h-5" />
+                                    </button>
                                     <button className="p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all"><Smile className="w-5 h-5" /></button>
                                     <button className="p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all"><Calendar className="w-5 h-5" /></button>
                                 </div>
                                 <button 
                                     onClick={handleCreatePost}
-                                    disabled={!newPostContent.trim() || isPosting}
+                                    disabled={(!newPostContent.trim() && !postImageFile) || isPosting}
                                     className="bg-slate-900 dark:bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-slate-200 dark:shadow-indigo-900/20 disabled:opacity-30 transition-all active:scale-95 flex items-center gap-2"
                                 >
                                     {isPosting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Post Topic
                                 </button>
                             </div>
+
+                            {postImagePreview && (
+                                <div className="relative mt-4 w-full aspect-video rounded-3xl overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
+                                    <img src={postImagePreview} className="w-full h-full object-cover" />
+                                    <button 
+                                        onClick={() => {
+                                            setPostImageFile(null);
+                                            setPostImagePreview(null);
+                                        }}
+                                        className="absolute top-4 right-4 p-2 bg-black/50 text-white rounded-full hover:bg-black/70 backdrop-blur-md transition-all"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -490,6 +537,12 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                         <button className="text-slate-400 hover:text-slate-600"><MoreHorizontal className="w-5 h-5" /></button>
                                     </div>
                                     <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-sm mb-4">{post.content}</p>
+                                    
+                                    {post.photoUrl && (
+                                        <div className="mb-4 rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
+                                            <img src={post.photoUrl} className="w-full max-h-96 object-cover" />
+                                        </div>
+                                    )}
                                     
                                     <div className="flex items-center justify-between max-w-sm text-slate-400">
                                         <button 

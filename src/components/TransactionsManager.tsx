@@ -1,15 +1,15 @@
 
 import React, { useMemo, useState } from 'react';
-import type { MpesaTransaction, Institution, TransactionStatus, Receipt, CompanyDetails } from '../types';
+import type { MpesaTransaction, Transaction, Institution, TransactionStatus, Receipt, CompanyDetails } from '../types';
 import { downloadReceiptPdf } from '../services/pdfService';
 
 interface TransactionsManagerProps {
-    transactions: MpesaTransaction[];
+    transactions: Transaction[];
     institutions: Institution[];
     receipts: Receipt[];
     companyDetails: CompanyDetails;
-    onGenerateReceipt: (transaction: MpesaTransaction) => void;
-    onVerifyTransaction?: (transaction: MpesaTransaction) => Promise<void>;
+    onGenerateReceipt: (transaction: Transaction) => void;
+    onVerifyTransaction?: (transaction: Transaction) => Promise<void>;
     logoUrl: string | null;
     title?: string;
 }
@@ -28,7 +28,7 @@ const TransactionStatusBadge: React.FC<{ status: TransactionStatus }> = ({ statu
     }
 };
 
-export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transactions, institutions, receipts, companyDetails, onGenerateReceipt, onVerifyTransaction, logoUrl, title = "M-Pesa Transaction Log" }) => {
+export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transactions, institutions, receipts, companyDetails, onGenerateReceipt, onVerifyTransaction, logoUrl, title = "Transaction Management Log" }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [providerFilter, setProviderFilter] = useState<'all' | 'mpesa' | 'airtel' | 'intasend' | 'ncba'>('all');
     const institutionMap = useMemo(() => new Map(institutions.map(inst => [inst.id, inst])), [institutions]);

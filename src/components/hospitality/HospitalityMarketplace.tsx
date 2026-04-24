@@ -38,6 +38,17 @@ const CATEGORIES = [
     { name: 'Experience', icon: Sparkles, color: 'bg-purple-500' },
 ];
 
+const getDirectUrl = (url: string | null | undefined) => {
+    if (!url) return '';
+    if (url.includes('drive.google.com')) {
+        const idMatch = url.match(/\/d\/([^\/]+)/) || url.match(/id=([^\/&]+)/);
+        if (idMatch && idMatch[1]) {
+            return `https://lh3.googleusercontent.com/d/${idMatch[1]}`;
+        }
+    }
+    return url;
+};
+
 function Building(props: any) {
   return (
     <svg
@@ -169,6 +180,7 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                             <div className="grid grid-cols-2 gap-6 rotate-3 group-hover:rotate-0 transition-transform duration-1000">
                                 <div className="space-y-6 translate-y-12">
                                     <div className="h-64 bg-slate-200 dark:bg-slate-800 rounded-[3rem] shadow-2xl overflow-hidden relative">
+                                        <img src="https://images.unsplash.com/photo-1516426122078-c23e76319801?auto=format&fit=crop&q=80&w=800" className="w-full h-full object-cover opacity-80" alt="Safari" />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
                                         <p className="absolute bottom-8 left-8 text-white font-black uppercase tracking-widest text-[10px]">Maasai Mara</p>
                                     </div>
@@ -181,6 +193,7 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                                         <Plane className="w-16 h-16 text-white opacity-20" />
                                     </div>
                                     <div className="h-64 bg-slate-200 dark:bg-slate-800 rounded-[3rem] shadow-2xl overflow-hidden relative">
+                                        <img src="https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&q=80&w=800" className="w-full h-full object-cover opacity-80" alt="Beach" />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
                                         <p className="absolute bottom-8 left-8 text-white font-black uppercase tracking-widest text-[10px]">Diani Shore</p>
                                     </div>
@@ -235,7 +248,11 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                                 </button>
                                 
                                 <div className="w-full h-full flex items-center justify-center text-slate-200 group-hover:scale-110 transition-transform duration-1000">
-                                    {(inst.category?.includes('Safari') || inst.category?.includes('Tours')) ? <Compass className="w-20 h-20" /> : <Hotel className="w-20 h-20" />}
+                                    {inst.footerImageUrl ? (
+                                        <img src={getDirectUrl(inst.footerImageUrl)} className="w-full h-full object-cover" alt={inst.name} />
+                                    ) : (
+                                        (inst.category?.includes('Safari') || inst.category?.includes('Tours')) ? <Compass className="w-20 h-20" /> : <Hotel className="w-20 h-20" />
+                                    )}
                                 </div>
                                 
                                 <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-slate-950/80 to-transparent"></div>
