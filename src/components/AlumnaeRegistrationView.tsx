@@ -111,11 +111,20 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
             return;
         }
         if (!onInitiatePayment) return;
+        const normalizePhone = (phone: string) => {
+            let p = phone.replace(/\D/g, '');
+            if (p.startsWith('0')) p = '254' + p.substring(1);
+            if (p.startsWith('7') || p.startsWith('1')) p = '254' + p;
+            if (p.length === 9) p = '254' + p;
+            return p;
+        };
+
+        const formattedPhone = normalizePhone(formData.phoneNumber);
         setPaymentStatus('pending');
-        setPaymentMessage('Waiting for NCBA Loop Prompt...');
+        setPaymentMessage('Preparing secure NCBA Loop link...');
         
         try {
-            const res = await onInitiatePayment(joiningFee, formData.phoneNumber, `ALUMNA_${formData.admissionNumber}`, selectedSchool?.id);
+            const res = await onInitiatePayment(joiningFee, formattedPhone, `ALUMNA_${formData.admissionNumber}`, selectedSchool?.id);
             if (res.success && res.checkoutRequestId) {
                 // Confirm saving to DB by recording pending attempt
                 await apiService.saveModuleRecord('mpesa_transactions', {
@@ -626,6 +635,24 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
 
                 <div className="mt-12 text-center">
                      <button onClick={onBackToPortal} className="text-[10px] font-black uppercase text-slate-300 tracking-widest hover:text-indigo-600 transition-colors">Return to Landing Portal</button>
+                </div>
+            </div>
+
+            {/* SEO Directory - Makes all school portals discoverable by Googlebot */}
+            <div className="mt-16 w-full max-w-6xl text-center px-4">
+                <h3 className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+                    Official Alumnae Networks Directory
+                </h3>
+                <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 opacity-60 hover:opacity-100 transition-opacity duration-500 max-h-40 overflow-y-auto custom-scrollbar">
+                    {registry.map(school => (
+                        <a 
+                            key={school.id}
+                            href={`/?alumnae=${school.slug || school.id}`}
+                            className="text-[9px] font-bold text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors uppercase whitespace-nowrap"
+                        >
+                            {school.name}
+                        </a>
+                    ))}
                 </div>
             </div>
 
