@@ -1525,6 +1525,52 @@ CREATE POLICY "Institutional tenancy select: subjects" ON subjects FOR SELECT US
 DROP POLICY IF EXISTS "Institutional tenancy select: courses" ON courses;
 CREATE POLICY "Institutional tenancy select: courses" ON courses FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
 
+-- 13. ALUMNAE NETWORK MODULE --
+CREATE TABLE IF NOT EXISTS alumnae_members (
+    id TEXT PRIMARY KEY,
+    full_name TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    phone_number TEXT,
+    admission_number TEXT,
+    graduation_year TEXT,
+    department TEXT,
+    current_job TEXT,
+    current_company TEXT,
+    linkedin_url TEXT,
+    twitter_url TEXT,
+    bio TEXT,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE SET NULL,
+    status TEXT DEFAULT 'pending',
+    profile_photo TEXT,
+    payment_id TEXT,
+    registration_fee DECIMAL(12, 2) DEFAULT 0,
+    joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    password TEXT,
+    is_secured BOOLEAN DEFAULT FALSE,
+    secured_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_alumnae_email ON alumnae_members(email);
+CREATE INDEX IF NOT EXISTS idx_alumnae_inst ON alumnae_members(institution_id);
+
+ALTER TABLE alumnae_members ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public can register as alumnae" ON alumnae_members;
+CREATE POLICY "Public can register as alumnae" ON alumnae_members FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Alumnae can view and update own profile" ON alumnae_members;
+CREATE POLICY "Alumnae can view and update own profile" ON alumnae_members FOR ALL USING (
+    email = (SELECT email FROM auth.users WHERE id = auth.uid())
+    OR id = auth.uid()::text
+    OR 'u_' || auth.uid()::text = id
+);
+
+DROP POLICY IF EXISTS "Institutional admins can view alumnae" ON alumnae_members;
+CREATE POLICY "Institutional admins can view alumnae" ON alumnae_members FOR SELECT USING (
+    institution_id = public.get_curr_user_inst_id()
+    OR public.get_curr_user_role() = 'super_admin'
+);
+
 -- Standardize RLS for remaining core tables
 DO $core_policy$
 DECLARE
