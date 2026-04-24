@@ -1317,7 +1317,16 @@ export const apiService = {
                     'Authorization': token ? `Bearer ${token}` : '',
                     'Content-Type': 'application/json' 
                 },
-                body: JSON.stringify({ action, recipient: formattedPhone, amount, config, metadata, provider })
+                body: JSON.stringify({ 
+                    action, 
+                    recipient: formattedPhone, 
+                    phone: formattedPhone,
+                    phoneNumber: formattedPhone,
+                    amount, 
+                    config, 
+                    metadata, 
+                    provider 
+                })
             });
 
             const contentType = response.headers.get('content-type');

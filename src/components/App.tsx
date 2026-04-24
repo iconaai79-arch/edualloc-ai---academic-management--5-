@@ -4997,7 +4997,7 @@ export const App: React.FC = () => {
                                         const res = await apiService.initiateNcbaPayment(
                                             amount,
                                             phone,
-                                            { type: 'alumnae_registration', reference, schoolId },
+                                            { type: 'alumnae_registration', reference, schoolId, invoiceId: reference },
                                             companyDetails?.ncbaConfig
                                         );
                                         
