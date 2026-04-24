@@ -852,7 +852,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                             <p className="text-[10px] opacity-80 uppercase mt-1">Guided Generation</p>
                                         </button>
                                     )}
-                                    {isCoreAdmin && (
+                                     {isCoreAdmin && (
                                         <button
                                             onClick={() => setIsPerspectiveModalOpen(true)}
                                             className="flex flex-col items-start p-6 bg-amber-50 dark:bg-amber-900/30 rounded-3xl border border-amber-100 dark:border-amber-800 hover:border-amber-400 transition-all group text-left"
@@ -862,6 +862,18 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                             </div>
                                             <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Switch Perspective</span>
                                             <p className="text-[10px] text-slate-400 uppercase mt-1">View module accounts</p>
+                                        </button>
+                                    )}
+                                    {props.currentUser?.role === 'super_admin' && (
+                                        <button
+                                            onClick={() => window.location.href = '/?view=alumnae_social'}
+                                            className="flex flex-col items-start p-6 bg-indigo-50 dark:bg-indigo-900/30 rounded-3xl border border-indigo-100 dark:border-indigo-800 hover:border-indigo-400 transition-all group text-left shadow-xl shadow-indigo-100/20"
+                                        >
+                                            <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-indigo-600 mb-4 group-hover:scale-110 transition-transform">
+                                                <GlobeAltIcon className="w-6 h-6" />
+                                            </div>
+                                            <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Public Alumnae Portal</span>
+                                            <p className="text-[10px] text-slate-400 uppercase mt-1">Jump to Social Feed</p>
                                         </button>
                                     )}
                                         <button
