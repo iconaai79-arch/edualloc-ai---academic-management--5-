@@ -5033,7 +5033,7 @@ export const App: React.FC = () => {
                                             ...data,
                                             email: data.email || data.user_email || '', // Explicit mapping for NOT NULL constraint
                                             id: `alumna_${Date.now()}`,
-                                            institutionId: school?.institutionId || null,
+                                            institutionId: (school?.institutionId && institutions.some(i => i.id === school.institutionId)) ? school.institutionId : (institutions[0]?.id || null),
                                             status: 'verified', // Auto-approve
                                             profilePhoto: profilePhotoUrl,
                                             payment_id: data.paymentId || null,
@@ -5056,7 +5056,7 @@ export const App: React.FC = () => {
                                             const invoiceData = {
                                                 id: invoiceId,
                                                 invoiceNumber: `AL-INV-${generateAlphanumericCode(6)}`,
-                                                institutionId: school?.institutionId || 'GLOBAL',
+                                                institutionId: (school?.institutionId && institutions.some(i => i.id === school.institutionId)) ? school.institutionId : (institutions[0]?.id || 'GLOBAL'),
                                                 studentId: registrationPayload.id,
                                                 items: [{ description: 'Alumnae Network Lifetime Service Fee', quantity: 1, unitPrice: amount, total: amount }],
                                                 totalAmount: amount,
@@ -5068,7 +5068,7 @@ export const App: React.FC = () => {
                                             const receiptData = {
                                                 id: receiptId,
                                                 receiptNumber: `AL-REC-${generateAlphanumericCode(6)}`,
-                                                institutionId: school?.institutionId || 'GLOBAL',
+                                                institutionId: (school?.institutionId && institutions.some(i => i.id === school.institutionId)) ? school.institutionId : (institutions[0]?.id || 'GLOBAL'),
                                                 invoiceId: invoiceId,
                                                 amountPaid: amount,
                                                 paymentDate: new Date().toISOString(),
@@ -5081,7 +5081,7 @@ export const App: React.FC = () => {
                                             const transactionData = {
                                                 id: internalTransactionId,
                                                 transactionId: data.paymentId,
-                                                institutionId: school?.institutionId || 'GLOBAL',
+                                                institutionId: (school?.institutionId && institutions.some(i => i.id === school.institutionId)) ? school.institutionId : (institutions[0]?.id || 'GLOBAL'),
                                                 amount: amount,
                                                 phoneNumber: registrationPayload.phoneNumber,
                                                 payerName: registrationPayload.fullName,
