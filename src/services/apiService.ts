@@ -1341,16 +1341,23 @@ export const apiService = {
             
             if (response.ok && result.success && metadata?.invoiceId) {
                 // Auto-record a pending transaction
-                await apiService.recordPayment({
-                    transactionId: result.checkoutRequestId || result.requestId || `PENDING_${Date.now()}`,
-                    amount,
-                    phoneNumber: formattedPhone,
-                    payerName: 'Pending Payer',
-                    description: `Payment for Invoice ${metadata.invoiceId}`,
-                    status: 'pending',
-                    provider,
-                    metadata: { ...metadata, checkoutRequestId: result.checkoutRequestId }
-                });
+                // We wrap this in a try-catch because guest users (like Alumnae) might lack 
+                // a valid session token, which causes saveModuleRecord to throw 'Unauthorized'.
+                // This shouldn't block the actual payment initiation handshake.
+                try {
+                    await apiService.recordPayment({
+                        transactionId: result.checkoutRequestId || result.requestId || `PENDING_${Date.now()}`,
+                        amount,
+                        phoneNumber: formattedPhone,
+                        payerName: 'Pending Payer',
+                        description: `Payment for Invoice ${metadata.invoiceId}`,
+                        status: 'pending',
+                        provider,
+                        metadata: { ...metadata, checkoutRequestId: result.checkoutRequestId }
+                    });
+                } catch (recErr) {
+                    console.warn(`[apiService] Non-fatal: Failed to auto-record pending transaction:`, recErr);
+                }
             }
             return result;
         } catch (e: any) {
