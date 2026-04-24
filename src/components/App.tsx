@@ -4991,6 +4991,7 @@ export const App: React.FC = () => {
                                             const amount = companyDetails.alumnaeJoiningFee;
                                             const invoiceId = `INV_AL_${Date.now()}`;
                                             const receiptId = `REC_AL_${Date.now()}`;
+                                            const internalTransactionId = `txn_al_${Date.now()}`;
 
                                             const invoiceData = {
                                                 id: invoiceId,
@@ -5007,18 +5008,35 @@ export const App: React.FC = () => {
                                             const receiptData = {
                                                 id: receiptId,
                                                 receiptNumber: `AL-REC-${generateAlphanumericCode(6)}`,
+                                                institutionId: school?.institutionId || 'GLOBAL',
                                                 invoiceId: invoiceId,
                                                 amountPaid: amount,
                                                 paymentDate: new Date().toISOString(),
                                                 paymentMethod: 'MPESA',
-                                                transactionId: data.paymentId,
+                                                relatedTransactionId: internalTransactionId,
                                                 paidBy: registrationPayload.fullName,
                                                 paidFor: 'Alumnae Activation Service Fee'
                                             };
 
+                                            const transactionData = {
+                                                id: internalTransactionId,
+                                                transactionId: data.paymentId,
+                                                institutionId: school?.institutionId || 'GLOBAL',
+                                                amount: amount,
+                                                phoneNumber: registrationPayload.phoneNumber,
+                                                payerName: registrationPayload.fullName,
+                                                status: 'completed',
+                                                provider: 'ncba',
+                                                paymentMethod: 'stk_push',
+                                                timestamp: new Date().toISOString(),
+                                                description: 'Alumnae Network Activation Service Fee',
+                                                referenceId: `ALUMNA_${registrationPayload.admissionNumber}`
+                                            };
+
                                             await Promise.all([
                                                 apiService.saveModuleRecord('invoices', invoiceData),
-                                                apiService.saveModuleRecord('receipts', receiptData)
+                                                apiService.saveModuleRecord('receipts', receiptData),
+                                                apiService.saveModuleRecord('mpesa_transactions', transactionData)
                                             ]);
 
                                             // Trigger Notifications (Email & SMS)

@@ -183,7 +183,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center py-20 px-4">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center py-10 md:py-20 px-4">
             {/* Branding */}
             <div className="flex items-center gap-3 mb-12 animate-fade-in">
                 <div className="w-14 h-14 bg-indigo-600 rounded-[1.25rem] flex items-center justify-center text-white shadow-2xl shadow-indigo-100">
@@ -193,20 +193,20 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
             </div>
 
             {/* Stepper Progress */}
-            <div className="w-full max-w-2xl mb-12 px-10">
+            <div className="w-full max-w-2xl mb-8 md:mb-12 px-2 md:px-10">
                 <div className="relative flex justify-between items-center">
                     <div className="absolute inset-0 top-1/2 -translate-y-1/2 h-0.5 bg-slate-200 dark:bg-slate-800 -z-10"></div>
                     <div className="absolute inset-0 top-1/2 -translate-y-1/2 h-0.5 bg-indigo-600 -z-10 transition-all duration-500" style={{ width: `${((step - 1) / (joiningFee > 0 ? 4 : 3)) * 100}%` }}></div>
                     
                     {[1, 2, 3, 4, ...(joiningFee > 0 ? [5] : [])].map((s) => (
-                        <div key={s} className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-xs transition-all duration-500 ${
+                        <div key={s} className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-black text-[10px] md:text-xs transition-all duration-500 ${
                             step >= s ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100' : 'bg-slate-100 text-slate-400 dark:bg-slate-800'
                         }`}>
-                            {step > s ? <CheckCircle2 className="w-5 h-5" /> : s}
+                            {step > s ? <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5" /> : s}
                         </div>
                     ))}
                 </div>
-                <div className="flex justify-between mt-4">
+                <div className="hidden sm:flex justify-between mt-4">
                     <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600">Institution</span>
                     <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 2 ? 'text-indigo-600' : 'text-slate-400'}`}>Identity</span>
                     <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 3 ? 'text-indigo-600' : 'text-slate-400'}`}>Career</span>
@@ -216,13 +216,13 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
             </div>
 
             {/* Form Card */}
-            <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-[4rem] shadow-2xl border border-slate-100 dark:border-slate-800 p-12 relative overflow-hidden">
+            <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-[2.5rem] md:rounded-[4rem] shadow-2xl border border-slate-100 dark:border-slate-800 p-6 md:p-12 relative overflow-hidden">
                 
                 {/* Step 1: School Selection */}
                 {step === 1 && (
                     <div className="space-y-8 animate-fade-in-up">
                         <div className="text-center">
-                            <h2 className="text-4xl font-black uppercase tracking-tighter text-slate-800 dark:text-white leading-none">Find Your <br /><span className="text-indigo-600 italic">Alma Mater</span></h2>
+                            <h2 className="text-2xl md:text-4xl font-black uppercase tracking-tighter text-slate-800 dark:text-white leading-none">Find Your <br /><span className="text-indigo-600 italic">Alma Mater</span></h2>
                             {registry.length === 0 ? (
                                 <p className="text-indigo-500 text-xs font-black uppercase tracking-widest mt-4 animate-pulse flex items-center justify-center gap-2">
                                     <Globe className="w-4 h-4 animate-spin" /> Synchronizing National Registry...
@@ -243,9 +243,9 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                                         setSelectedSchool(null);
                                     }
                                 }}
-                                className="w-full h-20 pl-16 pr-8 bg-slate-50 dark:bg-slate-800 rounded-[2rem] text-lg font-bold border-none focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
+                                className="w-full h-16 md:h-20 pl-14 md:pl-16 pr-8 bg-slate-50 dark:bg-slate-800 rounded-2xl md:rounded-[2rem] text-sm md:text-lg font-bold border-none focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
                             />
-                            <Search className="w-7 h-7 absolute left-6 top-6.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
+                            <Search className="w-5 h-5 md:w-7 md:h-7 absolute left-6 top-5.5 md:top-6.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
                             
                             {filteredSchools.length > 0 && !selectedSchool && (
                                 <div className="absolute top-full left-0 right-0 mt-4 bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-800 z-50 overflow-hidden">

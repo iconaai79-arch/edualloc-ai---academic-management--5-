@@ -331,9 +331,9 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     }, [institutions, currentAlumna]);
 
     return (
-        <div className="min-h-screen bg-white dark:bg-slate-950 flex">
-            {/* Left Sidebar - Navigation */}
-            <aside className="w-20 md:w-64 border-r border-slate-100 dark:border-slate-800 flex flex-col p-4 fixed h-screen bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl z-50">
+        <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col md:flex-row">
+            {/* Left Sidebar - Navigation (Hidden on mobile, shown on md+) */}
+            <aside className="hidden md:flex w-64 border-r border-slate-100 dark:border-slate-800 flex-col p-4 fixed h-screen bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl z-50">
                 <div className="mb-8 px-2">
                     <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200">
                         <Sparkles className="w-6 h-6" />
@@ -407,7 +407,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             </aside>
 
             {/* Main Content Area */}
-            <main className="flex-1 ml-20 md:ml-64 max-w-2xl border-r border-slate-100 dark:border-slate-800">
+            <main className="flex-1 md:ml-64 max-w-2xl mx-auto w-full border-x border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950 min-h-screen pb-20 md:pb-0">
                 {activeSection === 'feed' ? (
                     <>
                     {/* Header Tabs */}
@@ -787,6 +787,27 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     </div>
                 )}
             </main>
+
+            {/* Mobile Bottom Navigation */}
+            <nav className="md:hidden fixed bottom-0 inset-x-0 h-16 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-t border-slate-100 dark:border-slate-800 flex items-center justify-around px-2 z-[60] safe-bottom">
+                {[
+                    { icon: Home, label: 'Feed', section: 'feed' },
+                    { icon: Users, label: 'Circle', section: 'classmates' },
+                    { icon: Hash, label: 'Explore', section: 'explore' },
+                    { icon: MessageSquare, label: 'Chats', section: 'messages' },
+                    { icon: User, label: 'Me', onClick: () => setIsEditingProfile(true) }
+                ].map((item, idx) => (
+                    <button 
+                        key={idx} 
+                        onClick={item.onClick || (() => setActiveSection(item.section as any))}
+                        className={`flex flex-col items-center justify-center gap-1 transition-all flex-1 py-1 ${activeSection === item.section ? 'text-indigo-600' : 'text-slate-400'}`}
+                    >
+                        <item.icon className={`w-5 h-5 ${activeSection === item.section ? 'scale-110' : ''} transition-transform`} />
+                        <span className="text-[8px] font-black uppercase tracking-widest">{item.label}</span>
+                        {activeSection === item.section && <div className="w-1 h-1 bg-indigo-600 rounded-full mt-0.5" />}
+                    </button>
+                ))}
+            </nav>
 
             {/* Right Sidebar - Recommendations */}
             <aside className="hidden lg:block w-80 p-6 sticky top-0 h-screen overflow-y-auto">

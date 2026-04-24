@@ -138,8 +138,8 @@ export const CampaignSocialPortal: React.FC<CampaignSocialPortalProps> = ({ curr
 
             <div className="max-w-7xl mx-auto pt-28 px-6 grid grid-cols-1 lg:grid-cols-12 gap-8 pb-20">
                 
-                {/* Tactical Navigation (Sidebar) */}
-                <aside className="lg:col-span-3 space-y-6">
+                {/* Tactical Navigation (Sidebar) - Hidden on mobile */}
+                <aside className="hidden lg:block lg:col-span-3 space-y-6">
                     <div className="bg-slate-900/50 border border-white/5 rounded-[2.5rem] p-4 overflow-hidden">
                         <nav className="space-y-2">
                             {[
@@ -189,7 +189,7 @@ export const CampaignSocialPortal: React.FC<CampaignSocialPortalProps> = ({ curr
                 </aside>
 
                 {/* Main Battleground Feed */}
-                <main className="lg:col-span-6 space-y-8">
+                <main className="lg:col-span-6 space-y-8 pb-20 lg:pb-0">
                     {/* Strategy Broadcast Area */}
                     <div className="bg-white/5 backdrop-blur-xl rounded-[3rem] p-8 border border-white/10 shadow-2xl relative overflow-hidden">
                         <div className="flex items-center gap-4 mb-8">
@@ -337,6 +337,29 @@ export const CampaignSocialPortal: React.FC<CampaignSocialPortalProps> = ({ curr
                     </div>
                 </aside>
             </div>
+
+            {/* Mobile Bottom Tactical Navigation */}
+            <nav className="lg:hidden fixed bottom-0 inset-x-0 h-18 bg-slate-900/95 backdrop-blur-2xl border-t border-white/5 flex items-center justify-around px-2 z-[110] pb-2">
+                {[
+                    { id: 'battleground', label: 'Battle', icon: <Zap /> },
+                    { id: 'strategy', label: 'Strategy', icon: <Target /> },
+                    { id: 'mobilization', label: 'Field', icon: <Users /> },
+                    { id: 'members', label: 'Team', icon: <ShieldCheck /> }
+                ].map((item) => (
+                    <button
+                        key={item.id}
+                        onClick={() => setActiveTab(item.id as any)}
+                        className={`flex flex-col items-center justify-center gap-1 transition-all flex-1 py-3 ${
+                            activeTab === item.id ? 'text-indigo-400' : 'text-slate-500'
+                        }`}
+                    >
+                        {React.cloneElement(item.icon as React.ReactElement, { 
+                            className: `w-5 h-5 ${activeTab === item.id ? 'scale-110' : ''} transition-transform` 
+                        })}
+                        <span className="text-[8px] font-black uppercase tracking-widest">{item.label}</span>
+                    </button>
+                ))}
+            </nav>
         </div>
     );
 };

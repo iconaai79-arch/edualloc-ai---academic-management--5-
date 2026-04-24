@@ -296,8 +296,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
     return (
         <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900 font-sans">
-            <div className="flex-grow flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-                <div className="max-w-md w-full space-y-8 bg-white dark:bg-slate-800 p-8 sm:p-10 rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-700">
+            <div className="flex-grow flex items-center justify-center py-6 md:py-12 px-4 sm:px-6 lg:px-8">
+                <div className="max-w-md w-full space-y-6 md:space-y-8 bg-white dark:bg-slate-800 p-6 md:p-10 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-700">
                     <div className="text-center">
                         {logoUrl ? (
                             <img className="mx-auto h-16 w-auto mb-4" src={logoUrl} alt="Logo" />
@@ -345,22 +345,22 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                     {isSubmitting ? 'Authenticating...' : 'Sign In to Portal'}
                                 </button>
                             </form>
-                            <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700 grid grid-cols-4 gap-2">
-                                <button type="button" onClick={onOpenGuestPortal} title="Guest Portal" className="flex flex-col items-center justify-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-600 transition-all hover:bg-white hover:shadow-md group">
-                                    <CalendarDaysIcon className="w-5 h-5 text-blue-600 group-hover:scale-110 transition-transform" />
-                                    <span className="text-[9px] font-bold uppercase text-slate-500">Visit</span>
+                            <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700 grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <button type="button" onClick={onOpenGuestPortal} title="Guest Portal" className="flex items-center md:flex-col justify-center gap-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600 transition-all hover:bg-white hover:shadow-md group">
+                                    <CalendarDaysIcon className="w-5 h-5 text-blue-600 group-hover:scale-110 transition-transform shrink-0" />
+                                    <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Visit</span>
                                 </button>
-                                <button type="button" onClick={onOpenMarketplace} title="Marketplace" className="flex flex-col items-center justify-center gap-2 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-2xl border border-orange-100 dark:border-orange-900/30 transition-all hover:bg-white hover:shadow-md group">
-                                    <ShoppingCartIcon className="w-5 h-5 text-orange-600 group-hover:scale-110 transition-transform" />
-                                    <span className="text-[9px] font-bold uppercase text-slate-500">Market</span>
+                                <button type="button" onClick={onOpenMarketplace} title="Marketplace" className="flex items-center md:flex-col justify-center gap-3 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl border border-orange-100 dark:border-orange-900/30 transition-all hover:bg-white hover:shadow-md group">
+                                    <ShoppingCartIcon className="w-5 h-5 text-orange-600 group-hover:scale-110 transition-transform shrink-0" />
+                                    <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Market</span>
                                 </button>
-                                <button type="button" onClick={onOpenShowcase} title="Showcase" className="flex flex-col items-center justify-center gap-2 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/30 transition-all hover:bg-white hover:shadow-md group">
-                                    <SparklesIcon className="w-5 h-5 text-indigo-600 group-hover:scale-110 transition-transform" />
-                                    <span className="text-[9px] font-bold uppercase text-slate-500">Showcase</span>
+                                <button type="button" onClick={onOpenShowcase} title="Showcase" className="flex items-center md:flex-col justify-center gap-3 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-900/30 transition-all hover:bg-white hover:shadow-md group">
+                                    <SparklesIcon className="w-5 h-5 text-indigo-600 group-hover:scale-110 transition-transform shrink-0" />
+                                    <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Showcase</span>
                                 </button>
-                                <button type="button" onClick={onOpenGuestFeedback} title="Feedback" className="flex flex-col items-center justify-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-600 transition-all hover:bg-white hover:shadow-md group">
-                                    <StarIcon className="w-5 h-5 text-yellow-500 group-hover:scale-110 transition-transform" />
-                                    <span className="text-[9px] font-bold uppercase text-slate-500">Feedback</span>
+                                <button type="button" onClick={onOpenGuestFeedback} title="Feedback" className="flex items-center md:flex-col justify-center gap-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600 transition-all hover:bg-white hover:shadow-md group">
+                                    <StarIcon className="w-5 h-5 text-yellow-500 group-hover:scale-110 transition-transform shrink-0" />
+                                    <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Feedback</span>
                                 </button>
                             </div>
                             <div className="mt-8 text-center">

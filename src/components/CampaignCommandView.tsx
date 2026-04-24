@@ -292,12 +292,12 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
 
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-930 p-6 space-y-8 animate-fade-in">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-930 p-3 md:p-6 space-y-4 md:space-y-8 animate-fade-in">
             {/* War Room Header */}
-            <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-[2rem] md:rounded-[3rem] p-4 md:p-8 shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-                <div className="flex items-center gap-6 relative z-10">
-                    <div className="w-24 h-24 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-3xl flex items-center justify-center text-white font-black text-4xl shadow-xl shadow-indigo-200 dark:shadow-none">
+                <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6 relative z-10 text-center md:text-left">
+                    <div className="w-20 h-20 md:w-24 md:h-24 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-3xl flex items-center justify-center text-white font-black text-3xl md:text-4xl shadow-xl shadow-indigo-200 dark:shadow-none">
                         {profile.candidateName[0]}
                     </div>
                     <div>
@@ -309,44 +309,46 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                 {profile.partyName}
                             </span>
                         </div>
-                        <h1 className="text-4xl font-black tracking-tighter text-slate-900 dark:text-white uppercase">{profile.candidateName}</h1>
-                        <p className="text-slate-400 font-bold text-xs uppercase flex items-center gap-1 mt-1">
+                        <h1 className="text-2xl md:text-4xl font-black tracking-tighter text-slate-900 dark:text-white uppercase">{profile.candidateName}</h1>
+                        <p className="text-slate-400 font-bold text-[10px] md:text-xs uppercase flex items-center justify-center md:justify-start gap-1 mt-1">
                             <MapPinIcon className="w-4 h-4" /> {profile.constituencyWard}
                         </p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3 relative z-10">
+                <div className="flex flex-col gap-4 w-full md:w-auto relative z-10">
                     <button 
                         onClick={() => setIsSetupModalOpen(true)}
-                        className="px-6 py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-95"
+                        className="w-full md:w-auto px-6 py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-95"
                     >
                         Edit Profile
                     </button>
-                    <div className="flex flex-col gap-2 bg-slate-100 dark:bg-slate-800 p-2 rounded-2xl">
-                    <div className="flex">
-                        {['dashboard', 'voters', 'groups', 'events', 'sms_broadcast'].map(t => (
-                            <button 
-                                key={t}
-                                onClick={() => setActiveTab(t as any)}
-                                className={`flex-1 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap text-center ${activeTab === t ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-                            >
-                                {t.replace('_', ' ')}
-                            </button>
-                        ))}
+                    
+                    {/* Tactical Tabs - Scrollable on mobile */}
+                    <div className="overflow-x-auto no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
+                        <div className="flex flex-nowrap md:flex-wrap gap-2 bg-slate-100 dark:bg-slate-800 p-2 rounded-2xl min-w-max">
+                            {[
+                                {id: 'dashboard', label: 'War Room'},
+                                {id: 'voters', label: 'Voters'},
+                                {id: 'groups', label: 'Groups'},
+                                {id: 'events', label: 'Events'},
+                                {id: 'sms_broadcast', label: 'SMS'},
+                                {id: 'manifesto', label: 'Manifesto'},
+                                {id: 'ai_pulse', label: 'AI Pulse'},
+                                {id: 'team', label: 'Team'},
+                                {id: 'branding', label: 'Media'},
+                                {id: 'settings', label: 'Setup'}
+                            ].map(t => (
+                                <button 
+                                    key={t.id}
+                                    onClick={() => setActiveTab(t.id as any)}
+                                    className={`px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === t.id ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    {t.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                    <div className="flex">
-                        {['manifesto', 'ai_pulse', 'team', 'branding', 'settings'].map(t => (
-                            <button 
-                                key={t}
-                                onClick={() => setActiveTab(t as any)}
-                                className={`flex-1 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap text-center ${activeTab === t ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-                            >
-                                {t.replace('_', ' ')}
-                            </button>
-                        ))}
-                    </div>
-                </div>
                 </div>
             </div>
 

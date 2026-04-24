@@ -30,9 +30,10 @@ import { ExcelSmartImporter } from '../common/ExcelSmartImporter';
 interface SchoolRegistryManagerProps {
     registry: SchoolRegistry[];
     onRefresh: () => void;
+    onAccessPortal?: (institutionId: string) => void;
 }
 
-export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ registry, onRefresh }) => {
+export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ registry, onRefresh, onAccessPortal }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [isUploading, setIsUploading] = useState(false);
     const [isAddingManually, setIsAddingManually] = useState(false);
@@ -357,19 +358,33 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-10 py-8 text-right flex justify-end gap-2">
-                                        <button 
-                                            onClick={() => setEditingSchool(s)}
-                                            className="p-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-slate-400 hover:text-indigo-600 rounded-xl transition-all hover:border-indigo-100 shadow-sm"
-                                        >
-                                            <Edit2 className="w-5 h-5" />
-                                        </button>
-                                        <button 
-                                            onClick={() => handleDelete(s.id)}
-                                            className="p-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-slate-400 hover:text-rose-600 rounded-xl transition-all hover:border-rose-100 shadow-sm"
-                                        >
-                                            <Trash2 className="w-5 h-5" />
-                                        </button>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <div className="flex justify-end gap-2">
+                                            {s.institutionId && onAccessPortal && (
+                                                <button 
+                                                    onClick={() => onAccessPortal(s.institutionId!)}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                                                    title="Access Institution Alumna Portal"
+                                                >
+                                                    <Zap className="w-3.5 h-3.5" />
+                                                    Portal
+                                                </button>
+                                            )}
+                                            <button 
+                                                onClick={() => setEditingSchool(s)}
+                                                className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                                                title="Edit Record"
+                                            >
+                                                <Edit2 className="w-4 h-4" />
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDelete(s.id)}
+                                                className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                                                title="Delete Record"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

@@ -2986,11 +2986,13 @@ Please change it after login.`;
                             </div>
                         )}
 
-                        {institutionsSubTab === 'registry' && (
                             <div className="animate-fade-in-up">
-                                <SchoolRegistryManager registry={schoolRegistry} onRefresh={fetchSchoolRegistry} />
+                                <SchoolRegistryManager 
+                                    registry={schoolRegistry} 
+                                    onRefresh={fetchSchoolRegistry} 
+                                    onAccessPortal={onLoginAsAdmin}
+                                />
                             </div>
-                        )}
                         {institutionsSubTab === 'scouting' && (
                             <div className="animate-fade-in-up">
                                 <LeadScoutManager />
@@ -3126,6 +3128,7 @@ Please change it after login.`;
                             <SchoolRegistryManager 
                                 registry={schoolRegistry}
                                 onRefresh={fetchSchoolRegistry}
+                                onAccessPortal={onLoginAsAdmin}
                             />
                         )}
                     </div>
