@@ -86,9 +86,9 @@ export const LeadScoutManager: React.FC<LeadScoutManagerProps> = ({ defaultNiche
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="md:col-span-2 bg-gradient-to-br from-indigo-600 to-violet-700 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden group">
                     <div className="relative z-10">
-                        <h2 className="text-3xl font-black tracking-tighter uppercase mb-2">AI Lead Scout</h2>
+                        <h2 className="text-3xl font-black tracking-tighter uppercase mb-2">Gemini 1.5 Lead Scout</h2>
                         <p className="text-indigo-100 text-sm font-medium opacity-80 max-w-sm">
-                            Intelligent autonomous prospect discovery. Finding your next high-value customers across the web.
+                            Powered by Gemini 1.5 Pro. Intelligent autonomous prospect discovery across global institutional networks.
                         </p>
                     </div>
                     <SparklesIcon className="absolute -right-4 -bottom-4 w-40 h-40 text-white/10 group-hover:scale-110 transition-transform duration-700" />

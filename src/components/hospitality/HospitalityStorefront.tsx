@@ -144,6 +144,17 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
 
     const themeColor = tenant.themeColor || '#4f46e5';
 
+    // Helper to safely extract first image URL regardless of format (Array or JSON string)
+    const getFirstImage = (images: any): string => {
+        if (!images) return '';
+        try {
+            const parsed = typeof images === 'string' && images.startsWith('[') ? JSON.parse(images) : images;
+            if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+            if (typeof parsed === 'string') return parsed;
+        } catch (e) {}
+        return '';
+    };
+
     return (
         <div className="min-h-screen bg-white dark:bg-slate-950 font-sans selection:bg-indigo-100 selection:text-indigo-900 pb-20">
             {/* Header */}
@@ -251,9 +262,9 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                                         <Star className="w-3 h-3 text-amber-400 fill-amber-400" /> {item.rating}
                                     </div>
                                     
-                                    {item.images && item.images.length > 0 ? (
+                                    {getFirstImage(item.images) ? (
                                         <img 
-                                            src={getGoogleDriveDirectUrl(item.images[0])} 
+                                            src={getGoogleDriveDirectUrl(getFirstImage(item.images))} 
                                             alt={item.name} 
                                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                                             onError={(e) => {

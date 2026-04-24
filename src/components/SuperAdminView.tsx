@@ -1614,7 +1614,7 @@ Please change it after login.`;
         { key: 'communications', label: 'Communications', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
         { key: 'user_activity', label: 'Audit Trail', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
         { key: 'demo_requests', label: 'Demo Leads', icon: <CalendarIcon className="w-5 h-5 mr-2" /> },
-        { key: 'lead_scout', label: 'AI Lead Scout', icon: <SparklesIcon className="w-5 h-5 mr-2 text-indigo-500" /> },
+        { key: 'lead_scout', label: 'Gemini 1.5 Scout', icon: <SparklesIcon className="w-5 h-5 mr-2 text-indigo-500" /> },
         { key: 'settings', label: 'Global Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
         { key: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
         { key: 'portal_links', label: 'Portal Links', icon: <GlobeAltIcon className="w-5 h-5 mr-2 text-emerald-500" /> },

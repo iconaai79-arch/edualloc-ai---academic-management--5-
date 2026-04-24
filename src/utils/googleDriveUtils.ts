@@ -8,6 +8,9 @@ export const getGoogleDriveDirectUrl = (url: string | null | undefined): string 
     // If it's already a direct link, return it
     if (url.includes('lh3.googleusercontent.com/d/')) return url;
     
+    // Extract ID from various patterns
+    let id = '';
+    
     if (url.includes('drive.google.com')) {
         // Extract ID from various URL patterns:
         // 1. https://drive.google.com/file/d/ID/view
@@ -20,8 +23,15 @@ export const getGoogleDriveDirectUrl = (url: string | null | undefined): string 
             url.match(/file\/d\/([^\/&?#]+)/);
             
         if (idMatch && idMatch[1]) {
-            return `https://lh3.googleusercontent.com/d/${idMatch[1]}`;
+            id = idMatch[1];
         }
+    } else if (url.length > 20 && !url.includes('/') && !url.includes('.') && !url.includes(':')) {
+        // Likely a raw Google Drive ID (usually ~33 chars, alphanumeric)
+        id = url;
+    }
+    
+    if (id) {
+        return `https://lh3.googleusercontent.com/d/${id}`;
     }
     
     // Return original if no pattern matched

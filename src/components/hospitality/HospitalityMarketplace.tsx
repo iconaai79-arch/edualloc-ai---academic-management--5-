@@ -48,24 +48,28 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
     const [activeTab, setActiveTab] = useState<'All' | 'Safari' | 'Stays' | 'Trips' | 'Offers' | 'Beach' | 'Urban' | 'Mountain' | 'Experience'>('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [wishlist, setWishlist] = useState<string[]>([]);
-    const [featuredItems, setFeaturedItems] = useState<any[]>([]);
+    const [allPackages, setAllPackages] = useState<any[]>([]);
     const [loadingItems, setLoadingItems] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+    const featuredItems = useMemo(() => {
+        return [...allPackages].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 6);
+    }, [allPackages]);
+
     React.useEffect(() => {
-        const loadFeatured = async () => {
+        const loadData = async () => {
             setLoadingItems(true);
             try {
-                // Fetch packages from multiple active hospitality partners
+                // Fetch packages from all active hospitality partners
                 const items = await apiService.fetchModuleRecords('hospitality_items');
-                setFeaturedItems(items.sort((a,b) => (b.rating || 0) - (a.rating || 0)).slice(0, 6));
+                setAllPackages(items);
             } catch (err) {
-                console.error(err);
+                console.error("Marketplace Data Load Error:", err);
             } finally {
                 setLoadingItems(false);
             }
         };
-        loadFeatured();
+        loadData();
     }, []);
 
     const hospitalityInsts = useMemo(() => {
@@ -92,6 +96,29 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
         if (activeTab === 'Experience') return matchesSearch && (cat.includes('experience') || cat.includes('activity') || cat.includes('culture') || cat.includes('workshop') || cat.includes('event'));
         return matchesSearch;
     });
+
+    // Helper to safely extract first image URL regardless of format (Array or JSON string)
+    const getFirstImage = (images: any): string => {
+        if (!images) return '';
+        try {
+            const parsed = typeof images === 'string' && images.startsWith('[') ? JSON.parse(images) : images;
+            if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+            if (typeof parsed === 'string') return parsed;
+        } catch (e) {}
+        return '';
+    };
+
+    // Map of institutionId to its first available package image
+    const institutionPackageImages = useMemo(() => {
+        const map: Record<string, string> = {};
+        allPackages.forEach(pkg => {
+            if (!map[pkg.institutionId]) {
+                const img = getFirstImage(pkg.images);
+                if (img) map[pkg.institutionId] = img;
+            }
+        });
+        return map;
+    }, [allPackages]);
 
     const handleNavbarClick = (item: string) => {
         if (item === 'Destinations') setActiveTab('All');
@@ -294,9 +321,9 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                             {featuredItems.map((item) => (
                                 <div key={item.id} className="group bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-2xl transition-all cursor-pointer" onClick={() => onViewStore(item.institutionId)}>
                                     <div className="h-56 bg-slate-100 dark:bg-slate-800 relative overflow-hidden">
-                                        {item.images && item.images.length > 0 ? (
+                                        {getFirstImage(item.images) ? (
                                             <img 
-                                                src={getGoogleDriveDirectUrl(item.images[0])} 
+                                                src={getGoogleDriveDirectUrl(getFirstImage(item.images))} 
                                                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
                                                 alt={item.name} 
                                                 onError={(e) => {
@@ -387,9 +414,9 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                                 </button>
                                 
                                 <div className="w-full h-full flex items-center justify-center text-slate-200 group-hover:scale-110 transition-transform duration-1000">
-                                    {inst.footerImageUrl ? (
+                                    {(inst.footerImageUrl || inst.logoUrl || institutionPackageImages[inst.id]) ? (
                                         <img 
-                                            src={getGoogleDriveDirectUrl(inst.footerImageUrl)} 
+                                            src={getGoogleDriveDirectUrl(inst.footerImageUrl || inst.logoUrl || institutionPackageImages[inst.id])} 
                                             className="w-full h-full object-cover" 
                                             alt={inst.name} 
                                             onError={(e) => {
