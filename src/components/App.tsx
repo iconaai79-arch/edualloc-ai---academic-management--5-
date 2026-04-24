@@ -4973,7 +4973,7 @@ export const App: React.FC = () => {
                                 onInitiatePayment={async (amount, phone, reference, schoolId) => {
                                     try {
                                         const school = schoolRegistry.find(s => s.id === schoolId);
-                                        const instId = school?.institutionId || 'GLOBAL';
+                                        const instId = 'GLOBAL';
 
                                         const res = await apiService.triggerNcbaPayment({
                                             amount,

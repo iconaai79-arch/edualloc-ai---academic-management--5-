@@ -124,7 +124,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                 const pollTimer = setInterval(async () => {
                     attempts++;
                     const statusRes = await apiService.checkPaymentStatus('ncba', res.checkoutRequestId, { 
-                        institutionId: selectedSchool?.institutionId || 'GLOBAL',
+                        institutionId: 'GLOBAL',
                         phoneNumber: formData.phoneNumber
                     });
                     if (statusRes.status === 'completed') {
