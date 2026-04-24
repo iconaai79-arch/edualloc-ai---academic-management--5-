@@ -188,11 +188,18 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center py-10 md:py-20 px-4">
             {/* Branding */}
-            <div className="flex items-center gap-3 mb-12 animate-fade-in">
-                <div className="w-14 h-14 bg-indigo-600 rounded-[1.25rem] flex items-center justify-center text-white shadow-2xl shadow-indigo-100">
-                    <GraduationCap className="w-8 h-8" />
+            <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6 mb-10 md:mb-16 animate-fade-in text-center md:text-left">
+                <div className="w-20 h-20 md:w-24 md:h-24 bg-white dark:bg-slate-900 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-indigo-100 dark:shadow-none border border-slate-100 dark:border-slate-800 p-2 group overflow-hidden">
+                    <img 
+                        src="file:///C:/Users/hp/.gemini/antigravity/brain/5b2152d9-6f9d-40a2-9d54-d1bf55e3f469/alumnae_3d_logo_1777006727646.png" 
+                        alt="Alumnae Logo" 
+                        className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700" 
+                    />
                 </div>
-                <h1 className="text-3xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Alumnae <span className="text-indigo-600 italic">Network</span></h1>
+                <div>
+                    <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tighter text-slate-900 dark:text-white leading-none">Alumnae <br /><span className="text-indigo-600 italic">Network</span></h1>
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mt-2 ml-1">Official Registration Portal</p>
+                </div>
             </div>
 
             {/* Stepper Progress */}
@@ -248,7 +255,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                                 }}
                                 className="w-full h-16 md:h-20 pl-14 md:pl-16 pr-8 bg-slate-50 dark:bg-slate-800 rounded-2xl md:rounded-[2rem] text-sm md:text-lg font-bold border-none focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
                             />
-                            <Search className="w-5 h-5 md:w-7 md:h-7 absolute left-6 top-5.5 md:top-6.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
+                            <Search className="w-5 h-5 md:w-7 md:h-7 absolute left-5 md:left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
                             
                             {filteredSchools.length > 0 && !selectedSchool && (
                                 <div className="absolute top-full left-0 right-0 mt-4 bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-800 z-50 overflow-hidden">
@@ -417,7 +424,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                             <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2 italic">Connect your history with your future</p>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                             <div className="relative col-span-1">
                                 <label className="block text-[9px] font-black uppercase text-slate-400 mb-2 ml-4">Graduation Year</label>
                                 <input 
@@ -427,7 +434,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                                     onChange={(e) => setFormData({...formData, graduationYear: e.target.value})}
                                     className="w-full h-16 pl-14 pr-6 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600" 
                                 />
-                                <Calendar className="w-5 h-5 absolute left-5 top-11 text-slate-400" />
+                                <Calendar className="w-5 h-5 absolute left-5 top-[3.25rem] text-slate-400" />
                             </div>
                             <div className="relative col-span-1">
                                 <label className="block text-[9px] font-black uppercase text-slate-400 mb-2 ml-4">Current Profession</label>
@@ -438,7 +445,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                                     onChange={(e) => setFormData({...formData, currentJob: e.target.value})}
                                     className="w-full h-16 pl-14 pr-6 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600" 
                                 />
-                                <Briefcase className="w-5 h-5 absolute left-5 top-11 text-slate-400" />
+                                <Briefcase className="w-5 h-5 absolute left-5 top-[3.25rem] text-slate-400" />
                             </div>
                         </div>
 
