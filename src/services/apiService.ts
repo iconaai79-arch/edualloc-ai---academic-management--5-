@@ -1381,6 +1381,9 @@ export const apiService = {
             let result: any;
             if (contentType && contentType.includes('application/json')) {
                 result = await response.json();
+                if (provider === 'ncba') {
+                    console.log(`[NCBA Status Query] RequestId: ${checkoutRequestId}`, result);
+                }
             } else {
                 const text = await response.text();
                 console.error(`[apiService] Non-JSON response in checkPaymentStatus [${provider}]:`, text.substring(0, 200));

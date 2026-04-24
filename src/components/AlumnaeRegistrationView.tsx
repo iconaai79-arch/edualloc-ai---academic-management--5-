@@ -117,6 +117,21 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
         try {
             const res = await onInitiatePayment(joiningFee, formData.phoneNumber, `ALUMNA_${formData.admissionNumber}`, selectedSchool?.id);
             if (res.success && res.checkoutRequestId) {
+                // Confirm saving to DB by recording pending attempt
+                await apiService.saveModuleRecord('mpesa_transactions', {
+                    id: `txn_reg_${Date.now()}`,
+                    institutionId: 'GLOBAL',
+                    amount: joiningFee,
+                    phoneNumber: formData.phoneNumber,
+                    payerName: `${formData.fullName} (Registration Pending)`,
+                    timestamp: new Date().toISOString(),
+                    status: 'pending',
+                    provider: 'ncba',
+                    paymentMethod: 'stk_push',
+                    checkoutRequestId: res.checkoutRequestId,
+                    description: `Alumnae Activation: ${selectedSchool?.name}`
+                });
+
                 setPaymentMessage('Prompt sent! Waiting for your pin... Do not close this page.');
                 
                 // Polling logic
