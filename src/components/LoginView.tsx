@@ -39,15 +39,14 @@ interface LoginViewProps {
     onParentRequestOtp: (phone: string) => { success: boolean; message: string };
     onParentVerifyOtp: (phone: string, code: string) => { success: boolean; message: string };
     companyDetails: CompanyDetails;
-    onForgotPassword: (identifier: string, method: 'email' | 'phone') => Promise<{ success: boolean; message: string }>;
-    onVerifyResetOtp?: (phone: string, code: string) => Promise<{ success: boolean; message: string; resetToken?: string }>;
     onResetPassword?: (token: string, pass: string) => Promise<{ success: boolean; message: string }>;
+    schoolRegistry?: SchoolRegistry[];
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({
     onLogin, onInstitutionRegister, onCountyRegister, logoUrl, applicationTitle,
     onOpenGuestPortal, onOpenGuestFeedback, onOpenMarketplace, onOpenShowcase, companyDetails, onForgotPassword, onResetPassword,
-    onVerifyOtp, onResendOtp, onVerifyResetOtp
+    onVerifyOtp, onResendOtp, onVerifyResetOtp, schoolRegistry = []
 }) => {
     const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'recovery_otp' | 'reg_success' | 'reset_sent' | 'reset_password' | 'otp'>('login');
     const [identifier, setIdentifier] = useState('');
@@ -101,7 +100,21 @@ export const LoginView: React.FC<LoginViewProps> = ({
             setRegData(prev => ({ ...prev, resellerId }));
             setView('register');
         }
-    }, []);
+
+        const claimSchoolId = urlParams.get('claimSchoolId');
+        if (claimSchoolId && schoolRegistry.length > 0) {
+            const school = schoolRegistry.find(s => s.id === claimSchoolId);
+            if (school) {
+                setRegData(prev => ({ 
+                    ...prev, 
+                    institutionName: school.name,
+                    institutionType: 'Education',
+                    category: 'Alumni Network'
+                }));
+                setView('register');
+            }
+        }
+    }, [schoolRegistry]);
 
     const handleLoginSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

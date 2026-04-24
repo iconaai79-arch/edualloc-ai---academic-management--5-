@@ -269,16 +269,38 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                         </div>
 
                         {selectedSchool && (
-                            <div className="bg-indigo-600 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden group">
-                                <Star className="absolute top-4 right-4 text-white/20 w-12 h-12 animate-pulse" />
-                                <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-2">Selected Institution</p>
-                                <h3 className="text-2xl font-black uppercase tracking-tighter leading-tight italic">{selectedSchool.name}</h3>
-                                <div className="flex gap-4 mt-6">
-                                    <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest bg-white/10 px-4 py-2 rounded-full">
-                                        <MapPin className="w-3.5 h-3.5" /> {selectedSchool.county}
+                            <div className="space-y-4 animate-fade-in">
+                                <div className="bg-indigo-600 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden group">
+                                    <Star className="absolute top-4 right-4 text-white/20 w-12 h-12 animate-pulse" />
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-2">Selected Institution</p>
+                                    <h3 className="text-2xl font-black uppercase tracking-tighter leading-tight italic">{selectedSchool.name}</h3>
+                                    <div className="flex gap-4 mt-6">
+                                        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest bg-white/10 px-4 py-2 rounded-full">
+                                            <MapPin className="w-3.5 h-3.5" /> {selectedSchool.county}
+                                        </div>
+                                        <button onClick={() => setSelectedSchool(null)} className="text-[10px] font-black uppercase tracking-widest text-white/50 hover:text-white underline underline-offset-4 decoration-white/20">Change School</button>
                                     </div>
-                                    <button onClick={() => setSelectedSchool(null)} className="text-[10px] font-black uppercase tracking-widest text-white/50 hover:text-white underline underline-offset-4 decoration-white/20">Change School</button>
                                 </div>
+
+                                {!selectedSchool.institutionId && (
+                                    <div className="p-6 bg-amber-50 dark:bg-amber-900/20 rounded-3xl border border-amber-200 dark:border-amber-900/30 flex items-center justify-between group">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white shadow-lg">
+                                                <ShieldCheck className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-[10px] font-black uppercase tracking-tight text-amber-800 dark:text-amber-400">School Admin?</h4>
+                                                <p className="text-[9px] font-bold text-amber-600/70 uppercase tracking-widest">Activate your official portal today</p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => window.location.href = `/?view=register&claimSchoolId=${selectedSchool.id}`}
+                                            className="px-6 py-3 bg-amber-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg hover:bg-amber-700 transition-all active:scale-95"
+                                        >
+                                            Claim Portal
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         )}
 

@@ -2785,6 +2785,7 @@ export const App: React.FC = () => {
         onBookDemo: () => setShowBookDemo(true),
         themeColor: companyDetails.themeColor || "#4f46e5",
         onParentRequestOtp: () => ({ success: true, message: '' }), onParentVerifyOtp: () => ({ success: true, message: '' }), companyDetails: companyDetails,
+        schoolRegistry: schoolRegistry,
         onCountyRegister: async (data: CountyRegistrationData) => {
             try {
                 const countyId = `county_${Date.now()}`;

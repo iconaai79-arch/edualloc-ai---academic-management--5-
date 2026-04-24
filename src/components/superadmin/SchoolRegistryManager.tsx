@@ -496,7 +496,7 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                 <input 
                                     type="text" 
                                     placeholder="e.g. Moi Girls High School Eldoret"
-                                    value={newSchool.name}
+                                    value={newSchool.name || ''}
                                     onChange={(e) => setNewSchool({...newSchool, name: e.target.value})}
                                     className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
                                 />
@@ -504,7 +504,7 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4 italic">Institution Category</label>
                                 <select 
-                                    value={newSchool.institutionType}
+                                    value={newSchool.institutionType || 'Secondary'}
                                     onChange={(e) => setNewSchool({...newSchool, institutionType: e.target.value})}
                                     className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
                                 >
@@ -516,7 +516,7 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                 <input 
                                     type="text" 
                                     placeholder="e.g. 1020304"
-                                    value={newSchool.knecCode}
+                                    value={newSchool.knecCode || ''}
                                     onChange={(e) => setNewSchool({...newSchool, knecCode: e.target.value})}
                                     className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
                                 />
@@ -526,7 +526,7 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                 <input 
                                     type="text" 
                                     placeholder="e.g. SCH-001"
-                                    value={newSchool.uic}
+                                    value={newSchool.uic || ''}
                                     onChange={(e) => setNewSchool({...newSchool, uic: e.target.value})}
                                     className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
                                 />
@@ -536,7 +536,7 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                 <input 
                                     type="text" 
                                     placeholder="e.g. Uasin Gishu"
-                                    value={newSchool.county}
+                                    value={newSchool.county || ''}
                                     onChange={(e) => setNewSchool({...newSchool, county: e.target.value})}
                                     className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
                                 />
@@ -546,7 +546,7 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                 <input 
                                     type="text" 
                                     placeholder="e.g. Rift Valley"
-                                    value={newSchool.region}
+                                    value={newSchool.region || ''}
                                     onChange={(e) => setNewSchool({...newSchool, region: e.target.value})}
                                     className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
                                 />
@@ -585,7 +585,7 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                 <input 
                                     type="text" 
                                     placeholder="e.g. Moi Girls High School Eldoret"
-                                    value={editingSchool.name}
+                                    value={editingSchool.name || ''}
                                     onChange={(e) => setEditingSchool({...editingSchool, name: e.target.value})}
                                     className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
                                 />
@@ -593,10 +593,11 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4 italic">Institution Category (Type)</label>
                                 <select 
-                                    value={editingSchool.institutionType}
+                                    value={editingSchool.institutionType || ''}
                                     onChange={(e) => setEditingSchool({...editingSchool, institutionType: e.target.value})}
                                     className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
                                 >
+                                    <option value="">Select Type...</option>
                                     {institutionTypes.map(t => <option key={t} value={t}>{t}</option>)}
                                 </select>
                             </div>
@@ -605,7 +606,7 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                 <input 
                                     type="text" 
                                     placeholder="e.g. 1020304"
-                                    value={editingSchool.knecCode}
+                                    value={editingSchool.knecCode || ''}
                                     onChange={(e) => setEditingSchool({...editingSchool, knecCode: e.target.value})}
                                     className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
                                 />
@@ -615,7 +616,7 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                 <input 
                                     type="text" 
                                     placeholder="e.g. SCH-001"
-                                    value={editingSchool.uic}
+                                    value={editingSchool.uic || ''}
                                     onChange={(e) => setEditingSchool({...editingSchool, uic: e.target.value})}
                                     className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
                                 />
@@ -625,7 +626,7 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                 <input 
                                     type="text" 
                                     placeholder="e.g. Uasin Gishu"
-                                    value={editingSchool.county}
+                                    value={editingSchool.county || ''}
                                     onChange={(e) => setEditingSchool({...editingSchool, county: e.target.value})}
                                     className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
                                 />
@@ -635,7 +636,7 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                 <input 
                                     type="text" 
                                     placeholder="e.g. Rift Valley"
-                                    value={editingSchool.region}
+                                    value={editingSchool.region || ''}
                                     onChange={(e) => setEditingSchool({...editingSchool, region: e.target.value})}
                                     className="w-full h-16 px-8 bg-slate-50 dark:bg-slate-800 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-indigo-600"
                                 />

@@ -3755,6 +3755,7 @@ export interface SchoolRegistry {
     disabilityType?: string;
     accommodationType?: 'Boarding' | 'Day' | 'Mixed';
     genderType?: 'Boys' | 'Girls' | 'Mixed';
+    institutionType?: string;
     slug?: string;
     institutionId?: string; // Links to registered tenant if claimed
     createdAt: string;
