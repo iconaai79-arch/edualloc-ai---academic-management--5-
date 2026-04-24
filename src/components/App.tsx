@@ -4847,7 +4847,10 @@ export const App: React.FC = () => {
                                 onBack={() => setShowCommunityHub(false)}
                                 onBookDemo={() => setShowBookDemo(true)}
                                 hasActiveAlumnaSession={!!activeAlumna}
-                                onEnterCircle={() => setShowAlumnaePortal(true)}
+                                onEnterCircle={() => {
+                                    setShowAlumnaePortal(true);
+                                    setShowCommunityHub(false);
+                                }}
                             />
                          ) : showTransportHub ? (
                             <TransportHubView 
