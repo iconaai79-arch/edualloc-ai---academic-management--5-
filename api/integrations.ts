@@ -72,7 +72,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Connection verified. Handshake logic follows.
     console.log(`[Integrations] Handling Action: ${action || 'StatusCheck'} Method: ${req.method}`);
-    const recipient = getParam('recipient');
+    const recipient = getParam('recipient') || getParam('phone') || getParam('phoneNumber') || getParam('phone_number') || getParam('to');
     const message = getParam('message');
     const subject = getParam('subject');
     const amountStr = getParam('amount');
@@ -143,7 +143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     // Priority 1: Mandatory Global Bypass for Test Handshakes & Configuration (Super Admin setup)
-    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'updateInstitutionConfig' || action === 'googleDriveUpload' || action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush';
+    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'updateInstitutionConfig' || action === 'googleDriveUpload' || action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush' || action === 'queryPaymentStatus';
     
     // Logic restored.
 
@@ -221,13 +221,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
-        // Priority 3: Special bypass for Unauthenticated Actions (Callbacks & Recovery)
-        if (!user && (action === 'forgotPassword' || action === 'verifyResetOtp' || action === 'resetPasswordWithToken' || action === 'sendEmail' || action === 'sendSms' || action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'queryPaymentStatus')) {
+        // Priority 3: Special bypass for Unauthenticated Actions (Callbacks, Payments & Recovery)
+        const isPublicAction = ['forgotPassword', 'verifyResetOtp', 'resetPasswordWithToken', 'sendEmail', 'sendSms', 'mpesa-callback', 'ncbaWebhook', 'ncbaInitiateStk', 'initiateStkPush', 'queryPaymentStatus'].includes(action);
+
+        if (!user && isPublicAction) {
             console.log(`[Auth Bridge] Checking unauthenticated bypass for ${action}`);
 
-            // For callbacks, we allow the bypass directly
-            if (action === 'mpesa-callback' || action === 'ncbaWebhook') {
-                // Verified below in specialized handlers
+            // For callbacks and payment initiation, we allow the bypass directly
+            if (action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush' || action === 'queryPaymentStatus') {
+                user = { id: 'system', role: 'super_admin', user_metadata: { institutionId: 'GLOBAL' } };
+                authError = null;
             } else if (action === 'forgotPassword' || action === 'sendEmail' || action === 'sendSms') {
                 let query = supabase.from('users').select('*');
 
@@ -2163,8 +2166,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'ncbaInitiateStk') {
-            const institutionId = paramsMap.institutionId || paramsMap.metadata?.institutionId;
-            const phone = paramsMap.phone || paramsMap.recipient || paramsMap.metadata?.payerPhoneNumber;
+            const institutionId = paramsMap.institutionId || paramsMap.institution_id || paramsMap.metadata?.institutionId || 'GLOBAL';
+            const phone = paramsMap.phone || paramsMap.phoneNumber || paramsMap.phone_number || paramsMap.recipient || paramsMap.metadata?.payerPhoneNumber;
+            const targetAmount = paramsMap.amount || paramsMap.metadata?.amount || amount || 0;
             const isPlatformService = ['sms', 'subscription', 'one-off'].includes(paramsMap.metadata?.type);
             
             // Prioritize config from request body (for testing unsaved changes)
@@ -2196,7 +2200,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             try {
-                const result = await initiateNcbaPayment(ncbaConfig, amount, phone || recipient);
+                const result = await initiateNcbaPayment(ncbaConfig, targetAmount, phone || recipient);
                 const resData = result as any;
                 // Extreme ID extraction - search every possible key variant
                 const txnId = resData.TransactionID || resData.transactionId || 
@@ -2213,7 +2217,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         checkout_request_id: txnId,
                         reference_id: txnId,
                         institution_id: targetInstId || 'SYSTEM',
-                        amount: amount,
+                        amount: targetAmount,
                         phone_number: phone || recipient,
                         payer_name: paramsMap.payerName || phone || recipient,
                         status: 'pending',

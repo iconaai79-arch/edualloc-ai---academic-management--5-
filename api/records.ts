@@ -113,7 +113,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const isPublicGet = req.method === 'GET' && isPublicModule;
         
         // Allow POST for registration and social interactions
-        const isPublicPost = req.method === 'POST' && (['users', 'institutions', 'counties', 'demo_requests', 'pm_inquiries', 'retail_wishlist', 'app_notifications', 'voter_outreach', 'alumnae_members'].includes(moduleName));
+        const isPublicPost = req.method === 'POST' && (['users', 'institutions', 'counties', 'demo_requests', 'pm_inquiries', 'retail_wishlist', 'app_notifications', 'voter_outreach', 'alumnae_members', 'invoices', 'receipts'].includes(moduleName));
         const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments', 'alumni_messages'].includes(moduleName)) && user?.role === 'alumna';
         
         if (!user && !isPublicGet && !isPublicPost && !isSocialInteraction) {
