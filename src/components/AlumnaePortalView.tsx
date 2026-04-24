@@ -53,6 +53,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [profileData, setProfileData] = useState({
         fullName: currentAlumna.fullName || '',
+        email: currentAlumna.email || '',
         currentJob: currentAlumna.currentJob || '',
         currentCompany: currentAlumna.currentCompany || '',
         bio: currentAlumna.bio || '',
@@ -68,13 +69,19 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         try {
             let photoUrl = profileData.profilePhoto;
             if (profilePhotoFile) {
-                photoUrl = await apiService.uploadFile(profilePhotoFile, 'alumnae_profiles');
+                const uploadRes = await apiService.uploadToGoogleDrive(profilePhotoFile, 'Alumnae_Profiles', {
+                    institutionId: currentAlumna.institutionId,
+                    useGlobalConfig: !currentAlumna.institutionId
+                });
+                if (uploadRes.success) photoUrl = uploadRes.url;
             }
 
             await apiService.saveModuleRecord('alumnae_members', {
-                id: currentAlumna.id,
+                ...currentAlumna,
                 ...profileData,
-                profilePhoto: photoUrl
+                email: profileData.email || currentAlumna.email,
+                profilePhoto: photoUrl,
+                id: currentAlumna.id
             });
             // Update local session
             const updated = { ...currentAlumna, ...profileData, profilePhoto: photoUrl };
