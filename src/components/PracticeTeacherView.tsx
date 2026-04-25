@@ -3,6 +3,8 @@ import React, { useState } from 'react';
 import type { User, TimetableEntry, Subject, Room, TimetableSettings, ObservationNote, Course } from '../types';
 import { TimetableGrid } from './TimetableGrid';
 import { JoinedLessonsManager } from './JoinedLessonsManager';
+import { DigitalCatalog } from './Library/DigitalCatalog';
+import { BookOpenIcon } from './icons/BookOpenIcon';
 
 interface PracticeTeacherViewProps {
   user: User;
@@ -16,6 +18,7 @@ interface PracticeTeacherViewProps {
   timetableSettings: TimetableSettings;
   observationNotes: ObservationNote[];
   onSaveObservationNote: (noteData: Omit<ObservationNote, 'id' | 'timestamp' | 'institutionId'>) => void;
+  books: Book[];
 }
 
 export const PracticeTeacherView: React.FC<PracticeTeacherViewProps> = ({
@@ -30,6 +33,7 @@ export const PracticeTeacherView: React.FC<PracticeTeacherViewProps> = ({
   timetableSettings,
   observationNotes,
   onSaveObservationNote,
+  books,
 }) => {
   const [activeTab, setActiveTab] = useState('timetable');
 
@@ -70,6 +74,15 @@ export const PracticeTeacherView: React.FC<PracticeTeacherViewProps> = ({
           >
             Joined Lessons Manager
           </button>
+          <button
+            onClick={() => setActiveTab('library')}
+            className={`${activeTab === 'library'
+              ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Digital Library
+          </button>
         </nav>
       </div>
 
@@ -103,6 +116,23 @@ export const PracticeTeacherView: React.FC<PracticeTeacherViewProps> = ({
           observationNotes={observationNotes}
           onSaveObservationNote={onSaveObservationNote}
         />
+      )}
+
+      {activeTab === 'library' && (
+        <div className="animate-fade-in bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700">
+           <div className="flex justify-between items-end mb-8">
+                <div>
+                    <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Academic Resources</h3>
+                    <p className="text-slate-500 font-medium text-sm">Browse the institutional repository for teaching aids and research materials.</p>
+                </div>
+            </div>
+            <DigitalCatalog 
+                books={books} 
+                onReserve={async (id) => {
+                    alert(`Reservation for asset ${id} queued for approval.`);
+                }} 
+            />
+        </div>
       )}
     </div>
   );

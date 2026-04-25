@@ -886,14 +886,16 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     </div>
                                 </div>
 
-                                <DatabaseSettings
-                                    dbConfig={props.companyDetails!.databaseConfig}
-                                    onSave={async (newDbConfig: any) => {
-                                        if (props.onUpdateCompanyDetails) {
-                                            await props.onUpdateCompanyDetails({ ...props.companyDetails!, databaseConfig: newDbConfig });
-                                        }
-                                    }}
-                                />
+                                {props.companyDetails && (
+                                    <DatabaseSettings
+                                        dbConfig={props.companyDetails.databaseConfig}
+                                        onSave={async (newDbConfig: any) => {
+                                            if (props.onUpdateCompanyDetails && props.companyDetails) {
+                                                await props.onUpdateCompanyDetails({ ...props.companyDetails, databaseConfig: newDbConfig });
+                                            }
+                                        }}
+                                    />
+                                )}
 
                                 {/* Data Management Section */}
                                 {(props.onGenerateDemoData || props.onClearDemoData) && (
@@ -960,8 +962,14 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <SparklesIcon className="w-5 h-5 text-indigo-500" />
                                             Visual Brand Identity
                                         </h4>
-                                        <button onClick={() => setShowPaperPreview(!showPaperPreview)} className="text-[10px] font-black uppercase text-indigo-600 hover:underline flex items-center gap-2">
-                                            <EyeIcon className="w-4 h-4" /> {showPaperPreview ? 'Hide Preview' : 'Show Document Map'}
+                                        <button onClick={() => {
+                                                if (props.companyDetails) {
+                                                    setShowPaperPreview(true);
+                                                }
+                                            }}
+                                            className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest hover:underline"
+                                        >
+                                            View Preview
                                         </button>
                                     </div>
 
@@ -981,18 +989,29 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             </div>
                                         </div>
                                     </div>
-                                    {showPaperPreview && (
-                                        <div className="mt-12 border-4 border-dashed border-slate-100 rounded-[3.5rem] p-6 bg-slate-50 animate-scale-in origin-top">
-                                            <BrandedPaper
-                                                institution={null}
-                                                letterheadConfig={localCompanyInfo.letterheadConfig}
-                                                footerImageUrl={localCompanyInfo.footerImageUrl}
-                                            >
-                                                <div className="h-96 flex flex-col items-center justify-center opacity-10 py-32">
-                                                    <ClipboardListIcon className="w-24 h-24 text-slate-900 mb-6" />
-                                                    <p className="text-2xl font-black text-slate-900 uppercase tracking-[0.2em]">Live Document Preview</p>
+                                    
+                                    {showPaperPreview && props.companyDetails && (
+                                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-8 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+                                            <div className="relative w-full max-w-4xl max-h-[90vh] overflow-auto bg-white rounded-[2.5rem] shadow-2xl p-12">
+                                                <button 
+                                                    onClick={() => setShowPaperPreview(false)}
+                                                    className="absolute top-6 right-6 p-2 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors"
+                                                >
+                                                    <XIcon className="w-6 h-6 text-slate-500" />
+                                                </button>
+                                                <div className="mt-4">
+                                                    <BrandedPaper
+                                                        institution={props.currentInstitution!}
+                                                        letterheadConfig={props.companyDetails.letterheadConfig}
+                                                        footerImageUrl={props.footerImageUrl}
+                                                    >
+                                                        <div className="py-20 text-center">
+                                                            <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-300">Preview Content Area</h2>
+                                                            <p className="text-slate-400 mt-2">This is where your letters and reports will be generated.</p>
+                                                        </div>
+                                                    </BrandedPaper>
                                                 </div>
-                                            </BrandedPaper>
+                                            </div>
                                         </div>
                                     )}
 
@@ -2573,7 +2592,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <div className="flex items-start gap-3">
                                             <InformationCircleIcon className="w-5 h-5 text-amber-600 mt-0.5" />
                                             <div>
-                                                <p className="text-[11px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-widest mb-1">Billing Policy Note</p>
+                                                <p className="text-[11px] font-bold text-amber-700 dark:bg-amber-400 uppercase tracking-widest mb-1">Billing Policy Note</p>
                                                 <p className="text-[11px] text-amber-600 dark:text-amber-500/80 leading-relaxed italic">
                                                     When enabled, farmers will be automatically billed for SMS notifications sent to them throughout the month. This balance will be deducted from their payouts or added to their monthly statement.
                                                 </p>

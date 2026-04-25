@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import type { Institution } from '../../types';
 import { apiService } from '../../services/apiService';
-import { getGoogleDriveDirectUrl } from '../../utils/googleDriveUtils';
+import { getGoogleDriveDirectUrl, getFirstImage } from '../../utils/googleDriveUtils';
 
 interface HospitalityMarketplaceProps {
     institutions: Institution[];
@@ -98,15 +98,6 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
     });
 
     // Helper to safely extract first image URL regardless of format (Array or JSON string)
-    const getFirstImage = (images: any): string => {
-        if (!images) return '';
-        try {
-            const parsed = typeof images === 'string' && images.startsWith('[') ? JSON.parse(images) : images;
-            if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
-            if (typeof parsed === 'string') return parsed;
-        } catch (e) {}
-        return '';
-    };
 
     // Map of institutionId to its first available package image
     const institutionPackageImages = useMemo(() => {
@@ -325,21 +316,19 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                             {featuredItems.map((item) => (
                                 <div key={item.id} className="group bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-2xl transition-all cursor-pointer" onClick={() => onViewStore(item.institutionId)}>
                                     <div className="h-56 bg-slate-100 dark:bg-slate-800 relative overflow-hidden">
-                                        {getFirstImage(item.images) ? (
+                                    <div className="w-full h-full flex items-center justify-center text-slate-200">
+                                        <Compass className="w-12 h-12" />
+                                        {getFirstImage(item.images) && (
                                             <img 
                                                 src={getGoogleDriveDirectUrl(getFirstImage(item.images))} 
-                                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                                                className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
                                                 alt={item.name} 
                                                 onError={(e) => {
                                                     (e.target as HTMLImageElement).style.display = 'none';
-                                                    (e.target as HTMLImageElement).parentElement?.classList.add('flex', 'items-center', 'justify-center', 'text-slate-200');
                                                 }}
                                             />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-slate-200">
-                                                <Compass className="w-12 h-12" />
-                                            </div>
                                         )}
+                                    </div>
                                         <div className="absolute top-6 left-6 z-10">
                                             <span className="bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest text-white">{item.category}</span>
                                         </div>
@@ -426,22 +415,28 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                                 
                                 <div className="w-full h-full flex items-center justify-center text-slate-200 group-hover:scale-110 transition-transform duration-1000">
                                     {(() => {
-                                        const displayUrl = inst.footerImageUrl || inst.logoUrl || institutionPackageImages[inst.id];
-                                        if (displayUrl && displayUrl !== 'null' && displayUrl !== 'undefined') {
-                                            return (
-                                                <img 
-                                                    src={getGoogleDriveDirectUrl(displayUrl)} 
-                                                    className="w-full h-full object-cover" 
-                                                    alt={inst.name} 
-                                                    onError={(e) => {
-                                                        (e.target as HTMLImageElement).style.display = 'none';
-                                                        (e.target as HTMLImageElement).parentElement?.classList.add('flex', 'items-center', 'justify-center', 'text-slate-200');
-                                                    }}
-                                                />
-                                            );
-                                        }
-                                        return (inst.category?.includes('Safari') || inst.category?.includes('Tours')) ? 
-                                            <Compass className="w-20 h-20" /> : <Hotel className="w-20 h-20" />;
+                                        const isSafari = inst.category?.includes('Safari') || inst.category?.includes('Tours');
+                                        return (
+                                            <>
+                                                {isSafari ? <Compass className="w-20 h-20" /> : <Hotel className="w-20 h-20" />}
+                                                {(() => {
+                                                    const displayUrl = inst.footerImageUrl || inst.logoUrl || institutionPackageImages[inst.id];
+                                                    if (displayUrl && displayUrl !== 'null' && displayUrl !== 'undefined') {
+                                                        return (
+                                                            <img 
+                                                                src={getGoogleDriveDirectUrl(displayUrl)} 
+                                                                className="absolute inset-0 w-full h-full object-cover" 
+                                                                alt={inst.name} 
+                                                                onError={(e) => {
+                                                                    (e.target as HTMLImageElement).style.display = 'none';
+                                                                }}
+                                                            />
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
+                                            </>
+                                        );
                                     })()}
                                 </div>
                                 

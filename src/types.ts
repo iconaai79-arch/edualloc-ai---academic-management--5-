@@ -1,5 +1,5 @@
 /** HIS Nexus Type Definitions **/
-export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'pharmacy_admin' | 'pharmacist' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'legal_admin' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor' | 'driving_instructor' | 'construction_admin' | 'community_admin' | 'family_admin' | 'hospitality_admin' | 'alumni_admin' | 'campaign_admin' | 'campaign_agent' | 'fuel_admin' | 'attendant';
+export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'pharmacy_admin' | 'pharmacist' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'legal_admin' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor' | 'driving_instructor' | 'construction_admin' | 'community_admin' | 'family_admin' | 'hospitality_admin' | 'alumni_admin' | 'campaign_admin' | 'campaign_agent' | 'fuel_admin' | 'attendant' | 'finance_officer' | 'hr_officer';
 
 export type RankingCriteria = 'points' | 'mean_points' | 'total_marks';
 
@@ -100,6 +100,55 @@ export interface CampaignVillage {
     wardName: string;
     villageName: string;
     createdAt: string;
+}
+
+export interface DisciplineIncident {
+    id: string;
+    institutionId: string;
+    studentId: string;
+    studentName: string;
+    type: string;
+    description: string;
+    actionTaken?: string;
+    status: 'pending' | 'resolved' | 'escalated';
+    timestamp: string;
+    recordedBy: string;
+}
+
+export interface Expense {
+    id: string;
+    institutionId: string;
+    category: string;
+    amount: number;
+    description: string;
+    date: string;
+    recordedBy?: string;
+    status?: 'pending' | 'approved' | 'paid';
+}
+
+export interface FinancialGoal {
+    id: string;
+    institutionId: string;
+    title: string;
+    targetAmount: number;
+    currentAmount: number;
+    deadline: string;
+    status: 'on_track' | 'behind' | 'achieved';
+}
+
+export interface PayrollRecord {
+    id: string;
+    institutionId: string;
+    staffId: string;
+    staffName: string;
+    month: string;
+    year: number;
+    basicPay: number;
+    allowances: number;
+    deductions: number;
+    netPay: number;
+    status: 'pending' | 'processed' | 'paid';
+    processedAt?: string;
 }
 
 export interface CampaignGroup {
@@ -905,13 +954,30 @@ export interface Assessment {
     lecturerId: string;
     subjectId: string;
     title: string;
-    type: string;
+    type: string; // 'Mid Term', 'End Term', 'CAT', 'CBC'
     description: string;
     maxMarks: number;
+    weighting?: number; // e.g. 30 for 30%, 70 for 70%
     assessmentDate: string;
-    status: 'Draft' | 'Published' | 'Graded';
+    status: 'Draft' | 'In Progress' | 'Published' | 'Graded';
+    year?: number;
+    term?: number;
+    curriculumType?: 'Standard' | 'CBC';
+    isInternal?: boolean; // If true, only visible to teachers/admins
     institutionId: string;
     createdAt: string;
+}
+
+export interface ActivityLog {
+    id: string;
+    institutionId: string;
+    userId: string;
+    userName: string;
+    action: string;
+    module: 'Academics' | 'Finance' | 'Admissions' | 'Transport' | 'Settings';
+    details: string;
+    ipAddress?: string;
+    timestamp: string;
 }
 
 export interface TransportVehicle {
@@ -924,6 +990,20 @@ export interface TransportVehicle {
     driverId?: string;
     assistantId?: string;
     status: 'active' | 'maintenance' | 'out_of_service';
+}
+
+export interface DisciplineIncident {
+    id: string;
+    institutionId: string;
+    studentId: string;
+    studentName: string;
+    incidentType: string;
+    severity: 'Low' | 'Medium' | 'High' | 'Critical';
+    description: string;
+    actionTaken: string;
+    recordedBy: string;
+    timestamp: string;
+    status: 'Pending' | 'Resolved' | 'Escalated';
 }
 
 export interface TransportOnboarding {
@@ -957,6 +1037,8 @@ export interface AssessmentMark {
     comments?: string;
     gradedBy: string;
     timestamp: string;
+    rubricGrade?: 'EE' | 'ME' | 'AE' | 'BE'; // For CBC
+    competencies?: Record<string, 'EE' | 'ME' | 'AE' | 'BE'>; // e.g. {"Creativity": "EE"}
     institutionId?: string;
 }
 
@@ -1028,11 +1110,36 @@ export interface LecturerContract {
         totalHours: number;
         subjectsTaught: string[];
     };
-    status: 'pending' | 'accepted' | 'rejected';
-    issueDate: string;
-    acceptanceTimestamp?: string;
-    rejectionReason?: string;
-    signatureUrl?: string | null;
+    status: 'pending' | 'signed' | 'expired';
+    signedAt?: string;
+}
+
+export interface PayrollRecord {
+    id: string;
+    institutionId: string;
+    staffId: string;
+    month: string; // e.g. "January 2026"
+    basicSalary: number;
+    allowances: { name: string; amount: number }[];
+    deductions: { name: string; amount: number }[];
+    netSalary: number;
+    status: 'draft' | 'approved' | 'paid';
+    paymentDate?: string;
+    paymentMethod?: string;
+    recordedBy: string;
+}
+
+export interface LeaveRequest {
+    id: string;
+    institutionId: string;
+    staffId: string;
+    type: 'Sick' | 'Annual' | 'Maternity' | 'Paternity' | 'Other';
+    startDate: string;
+    endDate: string;
+    reason: string;
+    status: 'pending' | 'approved' | 'rejected';
+    approvedBy?: string;
+    appliedAt: string;
 }
 
 export interface ExamTimetableEntry {
@@ -1417,6 +1524,29 @@ export interface FinancialPeriod {
     status: 'active' | 'inactive' | 'closed';
     institutionId: string;
     createdAt: string;
+}
+
+export interface Expense {
+    id: string;
+    institutionId: string;
+    category: 'Salaries' | 'Utilities' | 'Maintenance' | 'Supplies' | 'Marketing' | 'Taxes' | 'Other';
+    amount: number;
+    description: string;
+    date: string;
+    recordedBy: string;
+    paymentMethod: string;
+    attachmentUrl?: string;
+    referenceNumber?: string;
+}
+
+export interface FinancialGoal {
+    id: string;
+    institutionId: string;
+    targetAmount: number;
+    period: string; // e.g. "Term 1 2026"
+    category: 'Fees' | 'Donations' | 'Grants' | 'Other';
+    startDate: string;
+    endDate: string;
 }
 
 export interface ProfileUpdateData {
@@ -4215,6 +4345,7 @@ export interface AlumniPost {
     likes: string[];
     commentsCount: number;
     createdAt: string;
+    photoUrl?: string;
     hashtags?: string[];
 }
 

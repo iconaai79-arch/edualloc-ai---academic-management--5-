@@ -6,10 +6,12 @@ CREATE TABLE IF NOT EXISTS alumni_posts (
     author_photo TEXT,
     institution_id TEXT NOT NULL,
     content TEXT NOT NULL,
+    photo_url TEXT,
     media_urls TEXT[], 
     likes TEXT[] DEFAULT '{}',
     comments_count INTEGER DEFAULT 0,
     hashtags TEXT[] DEFAULT '{}',
+    author_role TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -405,6 +405,8 @@ export interface SuperAdminViewProps {
     onAddDSLesson: (data: any) => Promise<void>;
     onAddDSMastery: (data: any) => Promise<void>;
     onUpdateDSSettings: (data: any) => Promise<void>;
+    incidents: DisciplineIncident[];
+    onAddIncident: (data: any) => Promise<void>;
 }
 
 const PoliticalMetadataManager: React.FC = () => {
@@ -1745,7 +1747,7 @@ Please change it after login.`;
     if (activeRole === 'academics_officer') {
         return (
             <React.Suspense fallback={<div className="flex h-screen items-center justify-center bg-white dark:bg-slate-900"><div className="w-12 h-12 border-4 border-indigo-50 border-t-transparent rounded-full animate-spin"></div></div>}>
-                <AcademicsOfficerView currentUser={currentUser} subjects={subjects} onUpdateSubject={props.onUpdateSubject as any} courses={courses} onUpdateCourse={props.onUpdateCourse} users={users} rooms={rooms} onUpdateRoom={props.onUpdateRoom} onDeleteRoom={props.onDeleteRoom} onAddRoom={props.onAddRoom} departments={departments} onAddDepartment={props.onAddDepartment} onUpdateDepartment={props.onUpdateDepartment} onDeleteDepartment={props.onDeleteDepartment} onImportDepartments={props.onImportDepartments} activeAcademicYear={activeAcademicYear} activeSemester={activeSemester} onExamTimetableGenerated={async (entries: any, ay: any, sem: any) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id: string) => undefined)} getLecturerById={props.getLecturerById || ((id: string) => undefined)} getRoomById={props.getRoomById || ((id: string) => undefined)} courseSizes={courseSizes} academicYears={academicYears} semesters={semesters} timetableSettings={timetableSettings!} buildings={buildings} onUpdateBuilding={props.onUpdateBuilding} onDeleteBuilding={props.onDeleteBuilding} onAddBuilding={props.onAddBuilding} academicLevels={academicLevels} letterheadConfig={letterheadConfig} logoUrl={logoUrl} footerImageUrl={footerImageUrl} emailConfig={emailConfig} onSaveEmailConfig={props.onSaveEmailConfig as any} onSendTestEmail={props.onSendTestEmail as any} currentInstitution={currentInstitution} examTimetableSettings={examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS} onSaveExamTimetableSettings={props.onSaveExamTimetableSettings as any} onAddAcademicYear={props.onAddAcademicYear} onUpdateAcademicYear={props.onUpdateAcademicYear} onDeleteAcademicYear={props.onDeleteAcademicYear} onAddSemester={props.onAddSemester} onUpdateSemester={props.onUpdateSemester} onDeleteSemester={props.onDeleteSemester} onSaveTimetableSettings={props.onSaveTimetableSettings} onImportRooms={props.onImportRooms} smsConfig={smsConfig} themeColor={themeColor} allocations={allocations} timeOffRequests={timeOffRequests} lessonRatings={lessonRatings} />
+                <AcademicsOfficerView currentUser={currentUser} subjects={subjects} onUpdateSubject={props.onUpdateSubject as any} courses={courses} onUpdateCourse={props.onUpdateCourse} users={users} rooms={rooms} onUpdateRoom={props.onUpdateRoom} onDeleteRoom={props.onDeleteRoom} onAddRoom={props.onAddRoom} departments={departments} onAddDepartment={props.onAddDepartment} onUpdateDepartment={props.onUpdateDepartment} onDeleteDepartment={props.onDeleteDepartment} onImportDepartments={props.onImportDepartments} activeAcademicYear={activeAcademicYear} activeSemester={activeSemester} onExamTimetableGenerated={async (entries: any, ay: any, sem: any) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id: string) => undefined)} getLecturerById={props.getLecturerById || ((id: string) => undefined)} getRoomById={props.getRoomById || ((id: string) => undefined)} courseSizes={courseSizes} academicYears={academicYears} semesters={semesters} timetableSettings={timetableSettings!} buildings={buildings} onUpdateBuilding={props.onUpdateBuilding} onDeleteBuilding={props.onDeleteBuilding} onAddBuilding={props.onAddBuilding} academicLevels={academicLevels} letterheadConfig={letterheadConfig} logoUrl={logoUrl} footerImageUrl={footerImageUrl} emailConfig={emailConfig} onSaveEmailConfig={props.onSaveEmailConfig as any} onSendTestEmail={props.onSendTestEmail as any} currentInstitution={currentInstitution} examTimetableSettings={examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS} onSaveExamTimetableSettings={props.onSaveExamTimetableSettings as any} onAddAcademicYear={props.onAddAcademicYear} onUpdateAcademicYear={props.onUpdateAcademicYear} onDeleteAcademicYear={props.onDeleteAcademicYear} onAddSemester={props.onAddSemester} onUpdateSemester={props.onUpdateSemester} onDeleteSemester={props.onDeleteSemester} onSaveTimetableSettings={props.onSaveTimetableSettings} onImportRooms={props.onImportRooms} smsConfig={smsConfig} themeColor={themeColor} allocations={allocations} timeOffRequests={timeOffRequests} lessonRatings={lessonRatings} assessments={props.assessments} marks={props.marks} activityLog={props.activityLog} incidents={props.incidents} onAddIncident={props.onAddIncident} />
             </React.Suspense>
         );
     }
@@ -3676,21 +3678,22 @@ Please change it after login.`;
                                         <div className="mt-6 flex justify-end">
                                             <button onClick={handleSaveGlobalConfigs} disabled={isSavingConfigs} className="btn-primary px-8 h-10 shadow-indigo-100 uppercase tracking-widest text-[10px]">{isSavingConfigs ? 'Saving...' : 'Save Security Settings'}</button>
                                         </div>
+                                        {companyDetails && (
+                                            <DatabaseSettings
+                                                dbConfig={companyDetails.databaseConfig}
+                                                onSave={async (newDbConfig) => {
+                                                    if (props.onUpdateCompanyDetails) {
+                                                        await props.onUpdateCompanyDetails({ ...props.companyDetails!, databaseConfig: newDbConfig });
+                                                    }
+                                                }}
+                                                onGenerateDemoData={props.onGenerateDemoData}
+                                                onClearDemoData={props.onClearDemoData}
+                                                isGeneratingDemoData={props.isGeneratingDemoData}
+                                                demoDataGenerationProgress={props.demoDataGenerationProgress}
+                                                demoDataGenerationMessage={props.demoDataGenerationMessage}
+                                            />
+                                        )}
                                     </div>
-
-                                    <DatabaseSettings
-                                        dbConfig={companyDetails.databaseConfig}
-                                        onSave={async (newDbConfig) => {
-                                            if (props.onUpdateCompanyDetails) {
-                                                await props.onUpdateCompanyDetails({ ...props.companyDetails!, databaseConfig: newDbConfig });
-                                            }
-                                        }}
-                                        onGenerateDemoData={props.onGenerateDemoData}
-                                        onClearDemoData={props.onClearDemoData}
-                                        isGeneratingDemoData={props.isGeneratingDemoData}
-                                        demoDataGenerationProgress={props.demoDataGenerationProgress}
-                                        demoDataGenerationMessage={props.demoDataGenerationMessage}
-                                    />
                                 </div>
                             )}
 

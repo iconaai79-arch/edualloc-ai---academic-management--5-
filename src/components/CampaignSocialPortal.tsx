@@ -74,7 +74,7 @@ export const CampaignSocialPortal: React.FC<CampaignSocialPortalProps> = ({ curr
                 author_id: currentMember.id,
                 author_name: currentMember.fullName || currentMember.full_name,
                 author_role: currentMember.campaignRole || 'Campaign Member',
-                author_photo: currentMember.profilePhoto || currentMember.profile_photo,
+                author_photo: currentMember.profilePhotoUrl || currentMember.profile_photo,
                 content: newPostContent,
                 category: activeTab === 'strategy' ? 'Strategy' : 'Battleground',
                 created_at: new Date().toISOString()
@@ -126,8 +126,8 @@ export const CampaignSocialPortal: React.FC<CampaignSocialPortalProps> = ({ curr
                             <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400">{currentMember.campaignRole || 'Strategic Advisor'}</p>
                         </div>
                         <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 overflow-hidden shadow-xl">
-                            {currentMember.profilePhoto || currentMember.profile_photo ? (
-                                <img src={currentMember.profilePhoto || currentMember.profile_photo} className="w-full h-full object-cover" />
+                            {currentMember.profilePhotoUrl || currentMember.profile_photo ? (
+                                <img src={currentMember.profilePhotoUrl || currentMember.profile_photo} className="w-full h-full object-cover" />
                             ) : (
                                 <User className="w-full h-full p-2 text-indigo-400" />
                             )}
@@ -194,8 +194,8 @@ export const CampaignSocialPortal: React.FC<CampaignSocialPortalProps> = ({ curr
                     <div className="bg-white/5 backdrop-blur-xl rounded-[3rem] p-8 border border-white/10 shadow-2xl relative overflow-hidden">
                         <div className="flex items-center gap-4 mb-8">
                             <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 overflow-hidden flex items-center justify-center">
-                                {currentMember.profilePhoto || currentMember.profile_photo ? (
-                                    <img src={currentMember.profilePhoto || currentMember.profile_photo} className="w-full h-full object-cover" />
+                                {currentMember.profilePhotoUrl || currentMember.profile_photo ? (
+                                    <img src={currentMember.profilePhotoUrl || currentMember.profile_photo} className="w-full h-full object-cover" />
                                 ) : (
                                     <User className="w-6 h-6 text-indigo-400" />
                                 )}

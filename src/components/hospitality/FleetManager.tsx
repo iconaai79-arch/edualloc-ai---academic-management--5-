@@ -34,11 +34,12 @@ export const FleetManager: React.FC<FleetManagerProps> = ({ institution }) => {
     const [isAddingDriver, setIsAddingDriver] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
 
-    const [newVehicle, setNewVehicle] = useState<Partial<HospitalityVehicle>>({
+    const [newVehicle, setNewVehicle] = useState<Partial<HospitalityVehicle> & { featuresString?: string }>({
         type: '',
         plateNumber: '',
         capacity: 4,
         features: [],
+        featuresString: '',
         status: 'available'
     });
 
@@ -86,11 +87,12 @@ export const FleetManager: React.FC<FleetManagerProps> = ({ institution }) => {
             ...newVehicle,
             id: `veh_${Date.now()}`,
             institutionId: institution.id,
-            features: typeof newVehicle.features === 'string' ? (newVehicle.features as string).split(',').map(f => f.trim()) : newVehicle.features
+            features: newVehicle.featuresString ? newVehicle.featuresString.split(',').map(f => f.trim()) : []
         };
+        delete payload.featuresString;
         await apiService.saveModuleRecord('hospitality_vehicles', payload);
         setIsAddingVehicle(false);
-        setNewVehicle({ type: '', plateNumber: '', capacity: 4, features: [], status: 'available' });
+        setNewVehicle({ type: '', plateNumber: '', capacity: 4, features: [], featuresString: '', status: 'available' });
         loadData();
     };
 
@@ -319,7 +321,7 @@ export const FleetManager: React.FC<FleetManagerProps> = ({ institution }) => {
                                 </div>
                                 <div>
                                     <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Features (csv)</label>
-                                    <input value={newVehicle.features} onChange={e => setNewVehicle({...newVehicle, features: e.target.value as any})} placeholder="Open roof, Fridge..." className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-black text-sm outline-none focus:ring-2 ring-indigo-500/50" />
+                                    <input value={newVehicle.featuresString} onChange={e => setNewVehicle({...newVehicle, featuresString: e.target.value})} placeholder="Open roof, Fridge..." className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-black text-sm outline-none focus:ring-2 ring-indigo-500/50" />
                                 </div>
                             </div>
                             <div>

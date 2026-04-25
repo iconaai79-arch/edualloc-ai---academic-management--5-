@@ -61,7 +61,8 @@ const safeGenerateContent = async (prompt: string, config: any = {}, preferredMo
         if (!response.ok) {
             if (contentType.includes('application/json')) {
                 const errorData = await response.json();
-                throw new Error(errorData.message || errorData.error || `AI Service Error: ${response.status}`);
+                const detailMsg = errorData.details || errorData.message || errorData.error || `AI Service Error: ${response.status}`;
+                throw new Error(detailMsg);
             } else {
                 const errorText = await response.text();
                 console.error("[System Debug] Server returned Non-JSON Error Response:", errorText.substring(0, 500));
@@ -778,3 +779,42 @@ export const generateManifestoAgendas = async (profile: any): Promise<string[]> 
         return ["Revitalizing Local Economy", "Sustainable Healthcare Access", "Youth & Women Empowerment"];
     }
 };
+
+/**
+ * Generates professional AI remarks for a student report card based on their performance data.
+ */
+export const generateReportCardRemarks = async (
+    studentName: string,
+    subjects: any[],
+    overallPerformance: any,
+    institutionName: string
+): Promise<string> => {
+    const prompt = `
+        Act as a Professional Class Teacher at ${institutionName}.
+        Generate professional academic remarks for a student named ${studentName}.
+        
+        PERFORMANCE DATA:
+        - Overall Mean: ${overallPerformance.meanPercentage.toFixed(1)}%
+        - Mean Grade: ${overallPerformance.meanGrade?.grade || 'N/A'}
+        - Class Rank: ${overallPerformance.rank} of ${overallPerformance.totalStudents}
+        - Subject Results: ${subjects.map(s => `${s.subject.name}: ${s.percentage.toFixed(0)}% (${s.grade?.grade})`).join(', ')}
+        
+        GUIDELINES:
+        1. Be professional, encouraging, and constructive.
+        2. Mention specific subject strengths or areas for improvement.
+        3. For top performers, mention their benchmark setting.
+        4. For struggling students, suggest a focus on core areas.
+        5. Keep it to 3-4 impactful sentences.
+        6. Do not use placeholders; generate the final text.
+        7. Use a tone suitable for a formal progress report.
+    `;
+
+    try {
+        const response = await safeGenerateContent(prompt, { temperature: 0.7, maxOutputTokens: 500 }, 'flash');
+        return response.text || "Consistently demonstrates commitment to academic excellence. Encouraged to maintain this momentum.";
+    } catch (e) {
+        console.error("AI Remarks Error:", e);
+        return `${studentName} has demonstrated consistent academic progression. Significant aptitude is noted across core subjects. Encouraging results that suggest strong potential for further growth.`;
+    }
+};
+

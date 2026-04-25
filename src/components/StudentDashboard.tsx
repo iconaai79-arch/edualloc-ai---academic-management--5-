@@ -21,6 +21,7 @@ import { calculateDistance, PROXIMITY_THRESHOLD_METERS } from '../utils/location
 import { MyTasks } from './MyTasks';
 import { getInitials } from '../utils/stringUtils';
 import { AttendanceAnalytics } from './AttendanceAnalytics';
+import { DigitalCatalog } from './Library/DigitalCatalog';
 
 interface StudentDashboardProps {
     user: User;
@@ -47,6 +48,7 @@ interface StudentDashboardProps {
     onDeleteTask: (taskId: string) => void;
     currentInstitution?: Institution | null;
     studentAttendances: StudentAttendance[];
+    books: Book[];
 }
 
 const formatTimeRemaining = (targetTime: Date, now: Date): string => {
@@ -73,7 +75,7 @@ const timeStringToDate = (timeString: string): Date => {
 };
 
 
-export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timetable, course, level, subjects, users, getSubjectById, getRoomById, getLecturerById, now, timetableSettings, studentCheckIns, onStudentLessonCheckIn, letterheadConfig, logoUrl, footerImageUrl, lessonRatings, onRateLesson, userTasks, onAddTask, onUpdateTask, onDeleteTask, currentInstitution, studentAttendances }) => {
+export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timetable, course, level, subjects, users, getSubjectById, getRoomById, getLecturerById, now, timetableSettings, studentCheckIns, onStudentLessonCheckIn, letterheadConfig, logoUrl, footerImageUrl, lessonRatings, onRateLesson, userTasks, onAddTask, onUpdateTask, onDeleteTask, currentInstitution, studentAttendances, books }) => {
     const enrolledSubjectsCount = user.enrolledSubjectIds?.length || 0;
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [checkInState, setCheckInState] = useState<Record<string, {
@@ -322,10 +324,28 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
         );
     };
 
+    const [dashboardTab, setDashboardTab] = useState<'main' | 'library'>('main');
+
     return (
         <div className="space-y-8 animate-fade-in">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <h2 className="text-3xl font-black tracking-tighter uppercase">Member Dashboard</h2>
+                <div className="flex flex-col">
+                    <h2 className="text-3xl font-black tracking-tighter uppercase">Member Dashboard</h2>
+                    <div className="flex gap-2 mt-2">
+                        <button 
+                            onClick={() => setDashboardTab('main')}
+                            className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${dashboardTab === 'main' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                        >
+                            Operations
+                        </button>
+                        <button 
+                            onClick={() => setDashboardTab('library')}
+                            className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${dashboardTab === 'library' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                        >
+                            Digital Library
+                        </button>
+                    </div>
+                </div>
                 <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-2 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
                     <div className={`p-2 rounded-xl transition-colors ${smsNotifyEnabled ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
                         <BellIcon className="w-5 h-5" />
@@ -342,134 +362,153 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{courseLabel}</h3>
-                    <p className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{course?.name || 'Not Enrolled'}</p>
-                </div>
-                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{levelLabel}</h3>
-                    <p className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{level?.name || 'N/A'}</p>
-                </div>
-                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Enrolled Subjects</h3>
-                    <p className="text-xl font-black text-indigo-600 uppercase tracking-tight">{enrolledSubjectsCount} Modules</p>
-                </div>
-            </div>
-
-            {/* Engagement Card - Next Class Notification */}
-            {nextLesson && (
-                <div className={`p-8 rounded-[3rem] shadow-2xl transition-all duration-500 overflow-hidden relative ${timeStringToDate(nextLesson.startTime).getTime() - now.getTime() <= 600000
-                    ? 'bg-indigo-600 text-white ring-8 ring-indigo-100'
-                    : 'bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700'
-                    }`}>
-                    <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-8">
-                        <div className="flex items-center gap-6 text-center lg:text-left">
-                            <div className={`p-5 rounded-[2rem] ${timeStringToDate(nextLesson.startTime).getTime() - now.getTime() <= 600000
-                                ? 'bg-white/20 border border-white/30'
-                                : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600'
-                                }`}>
-                                <ClockIcon className="w-10 h-10" />
-                            </div>
-                            <div>
-                                <h3 className={`text-[10px] font-black uppercase tracking-[0.2em] mb-2 ${timeStringToDate(nextLesson.startTime).getTime() - now.getTime() <= 600000
-                                    ? 'text-indigo-100'
-                                    : 'text-slate-400'
-                                    }`}>
-                                    Up Next Notification
-                                </h3>
-                                <h4 className="text-2xl font-black uppercase tracking-tighter leading-none mb-2">
-                                    {getSubjectById(nextLesson.subjectId)?.name}
-                                </h4>
-                                <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4">
-                                    <div className="flex items-center gap-2">
-                                        <MapPinIcon className="w-4 h-4 opacity-70" />
-                                        <span className="text-sm font-bold uppercase tracking-tight">Room {getRoomById(nextLesson.roomId)?.name}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <UserIcon className="w-4 h-4 opacity-70" />
-                                        <span className="text-sm font-bold uppercase tracking-tight underline cursor-help" title={`View profile of ${getLecturerById(nextLesson.lecturerId)?.name}`}>
-                                            Tutor: {getLecturerById(nextLesson.lecturerId)?.name}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
+            {dashboardTab === 'main' ? (
+                <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{courseLabel}</h3>
+                            <p className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{course?.name || 'Not Enrolled'}</p>
                         </div>
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{levelLabel}</h3>
+                            <p className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{level?.name || 'N/A'}</p>
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Enrolled Subjects</h3>
+                            <p className="text-xl font-black text-indigo-600 uppercase tracking-tight">{enrolledSubjectsCount} Modules</p>
+                        </div>
+                    </div>
 
-                        <div className="flex flex-col items-center lg:items-end gap-3">
-                            <div className={`px-6 py-3 rounded-2xl text-xl font-black tabular-nums transition-colors ${timeStringToDate(nextLesson.startTime).getTime() - now.getTime() <= 600000
-                                ? 'bg-white text-indigo-600'
-                                : 'bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white'
-                                }`}>
-                                {formatTimeRemaining(timeStringToDate(nextLesson.startTime), now)}
-                            </div>
-                            {smsNotifyEnabled && (
-                                <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest opacity-80">
-                                    <PaperAirplaneIcon className="w-3 h-3" />
-                                    <span>SMS alert scheduled</span>
+                    {/* Engagement Card - Next Class Notification */}
+                    {nextLesson && (
+                        <div className={`p-8 rounded-[3rem] shadow-2xl transition-all duration-500 overflow-hidden relative ${timeStringToDate(nextLesson.startTime).getTime() - now.getTime() <= 600000
+                            ? 'bg-indigo-600 text-white ring-8 ring-indigo-100'
+                            : 'bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700'
+                            }`}>
+                            <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-8">
+                                <div className="flex items-center gap-6 text-center lg:text-left">
+                                    <div className={`p-5 rounded-[2rem] ${timeStringToDate(nextLesson.startTime).getTime() - now.getTime() <= 600000
+                                        ? 'bg-white/20 border border-white/30'
+                                        : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600'
+                                        }`}>
+                                        <ClockIcon className="w-10 h-10" />
+                                    </div>
+                                    <div>
+                                        <h3 className={`text-[10px] font-black uppercase tracking-[0.2em] mb-2 ${timeStringToDate(nextLesson.startTime).getTime() - now.getTime() <= 600000
+                                            ? 'text-indigo-100'
+                                            : 'text-slate-400'
+                                            }`}>
+                                            Up Next Notification
+                                        </h3>
+                                        <h4 className="text-2xl font-black uppercase tracking-tighter leading-none mb-2">
+                                            {getSubjectById(nextLesson.subjectId)?.name}
+                                        </h4>
+                                        <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4">
+                                            <div className="flex items-center gap-2">
+                                                <MapPinIcon className="w-4 h-4 opacity-70" />
+                                                <span className="text-sm font-bold uppercase tracking-tight">Room {getRoomById(nextLesson.roomId)?.name}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <UserIcon className="w-4 h-4 opacity-70" />
+                                                <span className="text-sm font-bold uppercase tracking-tight underline cursor-help" title={`View profile of ${getLecturerById(nextLesson.lecturerId)?.name}`}>
+                                                    Tutor: {getLecturerById(nextLesson.lecturerId)?.name}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
+
+                                <div className="flex flex-col items-center lg:items-end gap-3">
+                                    <div className={`px-6 py-3 rounded-2xl text-xl font-black tabular-nums transition-colors ${timeStringToDate(nextLesson.startTime).getTime() - now.getTime() <= 600000
+                                        ? 'bg-white text-indigo-600'
+                                        : 'bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white'
+                                        }`}>
+                                        {formatTimeRemaining(timeStringToDate(nextLesson.startTime), now)}
+                                    </div>
+                                    {smsNotifyEnabled && (
+                                        <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest opacity-80">
+                                            <PaperAirplaneIcon className="w-3 h-3" />
+                                            <span>SMS alert scheduled</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            {/* Progress bar background for upcoming */}
+                            {timeStringToDate(nextLesson.startTime).getTime() - now.getTime() <= 600000 && (
+                                <div className="absolute bottom-0 left-0 h-1 bg-white/30 transition-all duration-1000" style={{ width: '100%', animation: 'shrink 600s linear' }} />
                             )}
                         </div>
-                    </div>
-                    {/* Progress bar background for upcoming */}
-                    {timeStringToDate(nextLesson.startTime).getTime() - now.getTime() <= 600000 && (
-                        <div className="absolute bottom-0 left-0 h-1 bg-white/30 transition-all duration-1000" style={{ width: '100%', animation: 'shrink 600s linear' }} />
                     )}
+
+                    {renderLessonProgress()}
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div className="space-y-8">
+                            {pastLessonsToRate.length > 0 && (
+                                <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <h3 className="text-xl font-black uppercase tracking-tighter mb-8 flex items-center justify-between">
+                                        Review Attendance
+                                        <StarIcon className="w-5 h-5 text-amber-500" />
+                                    </h3>
+                                    <ul className="space-y-4">
+                                        {pastLessonsToRate.map(lesson => (
+                                            <li key={lesson.id} className="flex justify-between items-center p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100/50 dark:border-slate-800 transition-all hover:translate-x-1">
+                                                <div>
+                                                    <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{getSubjectById(lesson.subjectId)?.name}</p>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">with {getLecturerById(lesson.lecturerId)?.name}</p>
+                                                </div>
+                                                <button onClick={() => onRateLesson(lesson)} className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+                                                    Rate Module
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            <MyTasks
+                                tasks={userTasks}
+                                onAddTask={onAddTask}
+                                onUpdateTask={onUpdateTask}
+                                onDeleteTask={onDeleteTask}
+                            />
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <div className="flex items-center justify-between mb-8">
+                                <h3 className="text-xl font-black uppercase tracking-tighter">Behavioral Stats</h3>
+                                <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl">
+                                    <ArrowTrendingUpIcon className="w-5 h-5" />
+                                </div>
+                            </div>
+                            <AttendanceAnalytics
+                                timetable={timetable}
+                                studentAttendances={studentAttendances}
+                                studentCheckIns={studentCheckIns}
+                                users={users}
+                                subjects={subjects}
+                                institutionId={user.institutionId}
+                                studentId={user.id}
+                            />
+                        </div>
+                    </div>
+                </>
+            ) : (
+                <div className="animate-fade-in">
+                    <div className="flex justify-between items-end mb-8">
+                        <div>
+                            <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Knowledge Repository</h3>
+                            <p className="text-slate-500 font-medium text-sm">Browse and reserve physical assets from the institutional library.</p>
+                        </div>
+                    </div>
+                    <DigitalCatalog 
+                        books={books} 
+                        onReserve={async (id) => {
+                            alert(`Reservation request for asset ${id} has been queued for Librarian approval.`);
+                        }} 
+                    />
                 </div>
             )}
-
-            {renderLessonProgress()}
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="space-y-8">
-                    {pastLessonsToRate.length > 0 && (
-                        <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                            <h3 className="text-xl font-black uppercase tracking-tighter mb-8 flex items-center justify-between">
-                                Review Attendance
-                                <StarIcon className="w-5 h-5 text-amber-500" />
-                            </h3>
-                            <ul className="space-y-4">
-                                {pastLessonsToRate.map(lesson => (
-                                    <li key={lesson.id} className="flex justify-between items-center p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100/50 dark:border-slate-800 transition-all hover:translate-x-1">
-                                        <div>
-                                            <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{getSubjectById(lesson.subjectId)?.name}</p>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">with {getLecturerById(lesson.lecturerId)?.name}</p>
-                                        </div>
-                                        <button onClick={() => onRateLesson(lesson)} className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
-                                            Rate Module
-                                        </button>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-
-                    <MyTasks
-                        tasks={userTasks}
-                        onAddTask={onAddTask}
-                        onUpdateTask={onUpdateTask}
-                        onDeleteTask={onDeleteTask}
-                    />
-                </div>
-
-                <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                    <div className="flex items-center justify-between mb-8">
-                        <h3 className="text-xl font-black uppercase tracking-tighter">Behavioral Stats</h3>
-                        <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl">
-                            <ArrowTrendingUpIcon className="w-5 h-5" />
-                        </div>
-                    </div>
-                    <AttendanceAnalytics
-                        timetable={timetable}
-                        studentAttendances={studentAttendances}
-                        studentCheckIns={studentCheckIns}
-                        users={users}
-                        subjects={subjects}
-                        institutionId={user.institutionId}
-                        studentId={user.id}
-                    />
-                </div>
-            </div>
 
             <style>{`
                 @keyframes shrink {

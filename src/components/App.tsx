@@ -40,6 +40,9 @@ const LandlordPortalView = lazy(() => import('./LandlordPortalView').then(m => (
 const PropertyManagementView = lazy(() => import('./PropertyManagementView').then(m => ({ default: m.PropertyManagementView })));
 const LibraryMasterView = lazy(() => import('./LibraryMasterView').then(m => ({ default: m.LibraryMasterView })));
 const AcademicsOfficerView = lazy(() => import('./AcademicsOfficerView').then(m => ({ default: m.AcademicsOfficerView })));
+const FinanceOfficerView = lazy(() => import('./Finance/FinanceOfficerView').then(m => ({ default: m.FinanceOfficerView })));
+const HROfficerView = lazy(() => import('./HR/HROfficerView').then(m => ({ default: m.HROfficerView })));
+const LibraryWarRoom = lazy(() => import('./Library/LibraryWarRoom').then(m => ({ default: m.LibraryWarRoom })));
 const CountyAdminView = lazy(() => import('./CountyAdminView').then(m => ({ default: m.CountyAdminView })));
 const ParentView = lazy(() => import('./ParentView').then(m => ({ default: m.ParentView })));
 const PracticeTeacherView = lazy(() => import('./PracticeTeacherView').then(m => ({ default: m.PracticeTeacherView })));
@@ -93,7 +96,8 @@ import type {
     InstitutionModuleState,
     LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction, LawAgreementTemplate, LawAgreement,
     DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
-    CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry
+    CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry,
+    DisciplineIncident, Expense, FinancialGoal, PayrollRecord, CampaignProfile
 } from '../types';
 import { XIcon } from './icons/XIcon';
 import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
@@ -451,6 +455,10 @@ export const App: React.FC = () => {
     const [assessmentMarks, setAssessmentMarks] = useState<AssessmentMark[]>([]);
     const [taAssignments, setTaAssignments] = useState<TaAssignment[]>([]);
     const [lessonRatings, setLessonRatings] = useState<LessonRating[]>([]);
+    const [expenses, setExpenses] = useState<Expense[]>([]);
+    const [financialGoals, setFinancialGoals] = useState<FinancialGoal[]>([]);
+    const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
+    const [incidents, setIncidents] = useState<DisciplineIncident[]>([]);
 
     // Support Staff Specific State
     const [books, setBooks] = useState<Book[]>([]);
@@ -819,18 +827,46 @@ export const App: React.FC = () => {
             setIsApiOnline(health.status !== 'offline');
             setIsSchemaInitializationRequired(false);
 
-            setLoadStatus("Loading your workspace...");
-            const instId = currentUser && (currentUser.role === 'super_admin' || currentUser.role.startsWith('county_')) ? undefined : currentUser?.institutionId;
-            const cntId = currentUser && currentUser.role.startsWith('county_') ? currentUser.countyId : undefined;
-
-            // Fire identity-critical fetches in parallel
+            setLoadStatus("Synchronizing Identity...");
+            
+            // Critical identity fetch - needed for Phase 2 logic
             const [insts, cnts, sett, u, reg] = await Promise.all([
-                apiService.fetchInstitutions(instId).catch(() => []),
+                apiService.fetchInstitutions().catch(() => []),
                 apiService.fetchModuleRecords<County>('counties').catch(() => []),
                 apiService.fetchCompanySettings().catch(() => null),
-                apiService.fetchUsers(instId).catch(() => []),
+                apiService.fetchUsers().catch(() => []),
                 apiService.fetchFullRegistry().catch(() => []),
             ]);
+
+            // Sync identity state immediately so we can use activeInstitution in Phase 2
+            setUsers(u || []);
+            setInstitutions(insts || []);
+            if (cnts) setCounties(cnts);
+            if (reg) setSchoolRegistry(reg);
+            if (sett) setCompanyDetails(sett);
+
+            const activeInst = insts?.find(i => i.id === currentUser?.institutionId);
+            const instType = activeInst?.institutionType || 'General';
+            const instId = currentUser && (currentUser.role === 'super_admin' || currentUser.role.startsWith('county_')) ? undefined : currentUser?.institutionId;
+            const cntId = currentUser && currentUser.role.startsWith('county_') ? currentUser.countyId : undefined;
+            const effectiveInstId = currentUser?.role === 'super_admin' ? undefined : (activeInst?.id || currentUser?.institutionId || instId || '');
+            const isSuper = currentUser?.role === 'super_admin';
+
+            // Sector Detection
+            const isAcademic = isSuper || ['Education', 'Primary', 'Secondary', 'College', 'University', 'Institute', 'TVET', 'Polytechnic'].includes(instType);
+            const isHealth = isSuper || ['HIS', 'Pharmacy'].includes(instType);
+            const isLaw = isSuper || instType === 'Law Firm';
+            const isCoop = isSuper || ['Cooperative', 'SACCO'].includes(instType);
+            const isBusiness = isSuper || ['Business', 'Business Ecosystem', 'Retail', 'Agrovet', 'Car Wash', 'Automotive Marketplace', 'Hardware', 'Pharmacy'].includes(instType);
+            const isLogistics = isSuper || ['Logistics', 'Transport'].includes(instType);
+            const isHospitality = isSuper || instType === 'Hospitality';
+            const isDrivingSchool = isSuper || instType === 'Driving School';
+            const isPolitical = isSuper || instType === 'Political Campaign';
+            const isCommunity = isSuper || instType === 'Community';
+            const isCounty = isSuper || (currentUser?.role || '').startsWith('county_');
+
+            setLoadStatus("Building Workspace...");
+
 
             // Also fire core module data in parallel with identity (don't await these yet)
             let d: any[] = [], s: any[] = [], c: any[] = [], a: any[] = [], ay: any[] = [], sem: any[] = [], r: any[] = [], b: any[] = [], al: any[] = [], tasks: any[] = [], txns: any[] = [], recs: any[] = [], logs: any[] = [], notifs: any[] = [];
@@ -838,15 +874,15 @@ export const App: React.FC = () => {
             let coreModulePromise: Promise<any[]> = Promise.resolve([]);
             if (currentUser) {
                 coreModulePromise = Promise.all([
-                    apiService.fetchDepartments(instId).catch(() => []),
-                    apiService.fetchSubjects(instId).catch(() => []),
-                    apiService.fetchCourses(instId).catch(() => []),
-                    apiService.fetchAllocations(instId).catch(() => []),
-                    apiService.fetchAcademicYears(instId).catch(() => []),
-                    apiService.fetchSemesters(instId).catch(() => []),
-                    apiService.fetchRooms(instId).catch(() => []),
-                    apiService.fetchModuleRecords<Building>('buildings', instId).catch(() => []),
-                    apiService.fetchAcademicLevels(instId).catch(() => []),
+                    (isAcademic || isSuper) ? apiService.fetchDepartments(instId).catch(() => []) : Promise.resolve([]),
+                    (isAcademic || isSuper) ? apiService.fetchSubjects(instId).catch(() => []) : Promise.resolve([]),
+                    (isAcademic || isSuper) ? apiService.fetchCourses(instId).catch(() => []) : Promise.resolve([]),
+                    (isAcademic || isSuper) ? apiService.fetchAllocations(instId).catch(() => []) : Promise.resolve([]),
+                    (isAcademic || isSuper) ? apiService.fetchAcademicYears(instId).catch(() => []) : Promise.resolve([]),
+                    (isAcademic || isSuper) ? apiService.fetchSemesters(instId).catch(() => []) : Promise.resolve([]),
+                    (isAcademic || isSuper) ? apiService.fetchRooms(instId).catch(() => []) : Promise.resolve([]),
+                    (isAcademic || isSuper) ? apiService.fetchModuleRecords<Building>('buildings', instId).catch(() => []) : Promise.resolve([]),
+                    (isAcademic || isSuper) ? apiService.fetchAcademicLevels(instId).catch(() => []) : Promise.resolve([]),
                     apiService.fetchModuleRecords<UserTask>('tasks', instId).catch(() => []),
                     apiService.fetchTransactions(instId).catch(() => []),
                     apiService.fetchModuleRecords<Receipt>('receipts', instId).catch(() => []),
@@ -880,7 +916,7 @@ export const App: React.FC = () => {
                 }
             }
 
-            let finalUsers = u || [];
+            let finalUsers: User[] = u || [];
             const systemSuperAdmin = INITIAL_USERS.find(iu => iu.role === 'super_admin');
             if (systemSuperAdmin && !finalUsers.some((existing: User) => existing.email === systemSuperAdmin.email)) {
                 finalUsers = [...finalUsers, systemSuperAdmin];
@@ -888,14 +924,14 @@ export const App: React.FC = () => {
             setUsers(finalUsers);
 
             if (currentUser) {
-                const refreshedSelf = finalUsers.find(u => u.id === currentUser.id);
+                const refreshedSelf = finalUsers.find((u: User) => u.id === currentUser.id);
                 if (refreshedSelf) {
                     const hasChanges = JSON.stringify(refreshedSelf) !== JSON.stringify(currentUser);
                     if (hasChanges) {
-                        setCurrentUser(prev => ({ ...prev, ...refreshedSelf }));
-                        apiService.storeSession({ ...currentUser, ...refreshedSelf });
+                        setCurrentUser(prev => ({ ...prev, ...refreshedSelf } as User));
+                        apiService.storeSession({ ...currentUser, ...refreshedSelf } as User);
                     }
-                } else if (!finalUsers.some(u => u.id === currentUser.id)) {
+                } else if (!finalUsers.some((u: User) => u.id === currentUser.id)) {
                     apiService.saveUser(currentUser).catch(err => console.error("Failed to auto-persist current user:", err));
                 }
             }
@@ -946,6 +982,9 @@ export const App: React.FC = () => {
             let ims: any[] = [];
             let demoLeads: any[] = [];
             let csList: any[] = [], csTest: any[] = [], csAppr: any[] = [];
+            let disc: any[] = [];
+            let fExps: any[] = [], fGoals: any[] = [];
+            let fPayroll: any[] = [];
 
             
             if (currentUser) {
@@ -958,89 +997,94 @@ export const App: React.FC = () => {
                     ? apiService.fetchDemoRequests().catch(() => []) 
                     : Promise.resolve([]);
 
-                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements, dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, csList, csTest, csAppr, ims, demoLeads] = await Promise.all([
+                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements, dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, csList, csTest, csAppr, ims, disc, fExps, fGoals, fPayroll, demoLeads] = await Promise.all([
 
                     apiService.fetchInvoices(effectiveInstId).catch(() => []),
-                    apiService.fetchExtensionRequests(currentUser?.role === 'super_admin' ? 'ALL' : effectiveInstId).catch(() => []),
+                    apiService.fetchExtensionRequests(isSuper ? 'ALL' : effectiveInstId).catch(() => []),
                     apiService.fetchVoteHeads(effectiveInstId).catch(() => []),
                     apiService.fetchFeeStructures(effectiveInstId).catch(() => []),
                     apiService.fetchFinancialPeriods(effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<FeedbackSubmission>('feedback_submissions', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<StudentAbsenceRequest>('student_absence_requests', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<EnrollmentRequest>('enrollment_requests', effectiveInstId).catch(() => []),
-                    apiService.fetchAbsenceRequests(effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<LecturerContract>('contracts', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<StudentAttendance>('student_attendances', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<InventoryItem>('inventory', effectiveInstId).catch(() => []),
-                    apiService.fetchTimetable(effectiveInstId || '').catch(() => []),
-                    apiService.fetchExamTimetable(effectiveInstId || '').catch(() => []),
-                    apiService.fetchModuleRecords<Assignment>('assignments', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<Submission>('submissions', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<LessonRating>('lesson_ratings', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<TaAssignment>('ta_assignments', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<Assessment>('assessments', effectiveInstId).catch(() => []),
-                    apiService.fetchAssessmentMarks(effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<Book>('books', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<Appointment>('appointments', effectiveInstId).catch(() => []),
+                    isAcademic ? apiService.fetchModuleRecords<StudentAbsenceRequest>('student_absence_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<EnrollmentRequest>('enrollment_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchAbsenceRequests(effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<LecturerContract>('contracts', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<StudentAttendance>('student_attendances', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic || isBusiness ? apiService.fetchModuleRecords<InventoryItem>('inventory', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchTimetable(effectiveInstId || '').catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchExamTimetable(effectiveInstId || '').catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<Assignment>('assignments', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<Submission>('submissions', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<LessonRating>('lesson_ratings', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<TaAssignment>('ta_assignments', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<Assessment>('assessments', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchAssessmentMarks(effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<Book>('books', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isHealth || isAcademic ? apiService.fetchModuleRecords<Appointment>('appointments', effectiveInstId).catch(() => []) : Promise.resolve([]),
                     apiService.fetchModuleRecords<Supplier>('suppliers', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<StockTransaction>('stock_transactions', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory', effectiveInstId, cntId).catch(() => []),
-                    apiService.fetchModuleRecords<CountyInventoryCategory>('county_inventory_categories', undefined, cntId).catch(() => []),
-                    apiService.fetchModuleRecords<CountyStore>('county_stores', undefined, cntId).catch(() => []),
-                    apiService.fetchModuleRecords<BursaryApplication>('bursary_applications', effectiveInstId, cntId).catch(() => []),
-                    apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds', undefined, cntId).catch(() => []),
-                    apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<ObservationNote>('observation_notes', effectiveInstId).catch(() => []),
+                    isCounty ? apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory', effectiveInstId, cntId).catch(() => []) : Promise.resolve([]),
+                    isCounty ? apiService.fetchModuleRecords<CountyInventoryCategory>('county_inventory_categories', undefined, cntId).catch(() => []) : Promise.resolve([]),
+                    isCounty ? apiService.fetchModuleRecords<CountyStore>('county_stores', undefined, cntId).catch(() => []) : Promise.resolve([]),
+                    isCounty ? apiService.fetchModuleRecords<BursaryApplication>('bursary_applications', effectiveInstId, cntId).catch(() => []) : Promise.resolve([]),
+                    isCounty ? apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds', undefined, cntId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<ObservationNote>('observation_notes', effectiveInstId).catch(() => []) : Promise.resolve([]),
                     apiService.fetchModuleRecords<Visitor>('visitors', effectiveInstId).catch(() => []),
                     apiService.fetchSecurityAlerts(effectiveInstId || '').catch(() => []),
                     apiService.fetchModuleRecords<Requisition>('requisitions', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<RetailExpense>('retail_expenses', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<RetailStore>('retail_stores', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', effectiveInstId).catch(() => []),
+                    isBusiness ? apiService.fetchModuleRecords<RetailExpense>('retail_expenses', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchModuleRecords<RetailStore>('retail_stores', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', effectiveInstId).catch(() => []) : Promise.resolve([]),
                     apiService.fetchModuleRecords<TimeOffRequest>('time_off_requests', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<BulletinItem>('bulletin_items', effectiveInstId).catch(() => []),
+                    isAcademic || isCommunity ? apiService.fetchModuleRecords<BulletinItem>('bulletin_items', effectiveInstId).catch(() => []) : Promise.resolve([]),
                     apiService.fetchModuleRecords<DocumentCollection>('document_collections', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<WatchlistRecord>('watchlist_records', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins', effectiveInstId).catch(() => []),
-                    apiService.fetchVehicles(effectiveInstId).catch(() => []),
-                    apiService.fetchTransportOnboarding(effectiveInstId).catch(() => []),
-                    apiService.fetchVehicleLogs(effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<CafeOrder>('cafe_orders', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<RetailSale>('retail_sales', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<CarWashJob>('carwash_jobs', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<CoopFarmer>('coop_farmers', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<CoopCollection>('coop_collections', effectiveInstId, undefined, { limit: 50000 }).catch(() => []),
-                    apiService.fetchModuleRecords<CoopRider>('coop_riders', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<CoopAgrovetInventory>('coop_agrovet_inventory', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<CoopAgrovetSales>('coop_agrovet_sales', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<SaccoAccount>('sacco_accounts', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<SaccoTransaction>('sacco_transactions', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<CoopMonthlyPayout>('coop_monthly_payouts', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<CoopExpense>('coop_expenses', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<CoopIncome>('coop_income', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<LawClient>('law_clients', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<LawMatter>('law_matters', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<LawDocument>('law_documents', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<LawTimeEntry>('law_time_entries', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<LawInvoice>('law_invoices', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<LawTrustTransaction>('law_trust_transactions', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<LawAgreementTemplate>('law_agreement_templates', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<LawAgreement>('law_agreements', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<DSInstructor>('ds_instructors', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<DSVehicle>('ds_vehicles', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<DSStudent>('ds_students', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<DSLesson>('ds_lessons', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<DSSkillMastery>('ds_skill_mastery', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<DSSettings>('ds_settings', effectiveInstId).catch(() => []),
-                    apiService.fetchCarListings(effectiveInstId, 'all').catch(() => []),
-                    apiService.fetchCarTestDrives(effectiveInstId).catch(() => []),
-                    apiService.fetchCarAppraisals(effectiveInstId).catch(() => []),
+                    isAcademic || isBusiness ? apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLogistics ? apiService.fetchVehicles(effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLogistics ? apiService.fetchTransportOnboarding(effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLogistics ? apiService.fetchVehicleLogs(effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchModuleRecords<CafeOrder>('cafe_orders', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchModuleRecords<RetailSale>('retail_sales', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchModuleRecords<CarWashJob>('carwash_jobs', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isCoop ? apiService.fetchModuleRecords<CoopFarmer>('coop_farmers', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isCoop ? apiService.fetchModuleRecords<CoopCollection>('coop_collections', effectiveInstId, undefined, { limit: 1000 }).catch(() => []) : Promise.resolve([]),
+                    isCoop ? apiService.fetchModuleRecords<CoopRider>('coop_riders', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isCoop || isBusiness ? apiService.fetchModuleRecords<CoopAgrovetInventory>('coop_agrovet_inventory', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isCoop || isBusiness ? apiService.fetchModuleRecords<CoopAgrovetSales>('coop_agrovet_sales', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isCoop ? apiService.fetchModuleRecords<SaccoAccount>('sacco_accounts', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isCoop ? apiService.fetchModuleRecords<SaccoTransaction>('sacco_transactions', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isCoop ? apiService.fetchModuleRecords<CoopMonthlyPayout>('coop_monthly_payouts', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isCoop ? apiService.fetchModuleRecords<CoopExpense>('coop_expenses', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isCoop ? apiService.fetchModuleRecords<CoopIncome>('coop_income', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLaw ? apiService.fetchModuleRecords<LawClient>('law_clients', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLaw ? apiService.fetchModuleRecords<LawMatter>('law_matters', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLaw ? apiService.fetchModuleRecords<LawDocument>('law_documents', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLaw ? apiService.fetchModuleRecords<LawTimeEntry>('law_time_entries', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLaw ? apiService.fetchModuleRecords<LawInvoice>('law_invoices', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLaw ? apiService.fetchModuleRecords<LawTrustTransaction>('law_trust_transactions', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLaw ? apiService.fetchModuleRecords<LawAgreementTemplate>('law_agreement_templates', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLaw ? apiService.fetchModuleRecords<LawAgreement>('law_agreements', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isDrivingSchool ? apiService.fetchModuleRecords<DSInstructor>('ds_instructors', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isDrivingSchool ? apiService.fetchModuleRecords<DSVehicle>('ds_vehicles', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isDrivingSchool ? apiService.fetchModuleRecords<DSStudent>('ds_students', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isDrivingSchool ? apiService.fetchModuleRecords<DSLesson>('ds_lessons', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isDrivingSchool ? apiService.fetchModuleRecords<DSSkillMastery>('ds_skill_mastery', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isDrivingSchool ? apiService.fetchModuleRecords<DSSettings>('ds_settings', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchCarListings(effectiveInstId, 'all').catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchCarTestDrives(effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchCarAppraisals(effectiveInstId).catch(() => []) : Promise.resolve([]),
                     apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', effectiveInstId).catch(() => []),
+                    isAcademic ? apiService.fetchModuleRecords<DisciplineIncident>('discipline_incidents', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    apiService.fetchModuleRecords<Expense>('expenses', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<FinancialGoal>('financial_goals', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<PayrollRecord>('payroll_records', effectiveInstId).catch(() => []),
                     demoLeadsPromise
                 ]);
+
 
                 console.log("[Data Refresh] Hub Optimized");
 
@@ -1093,6 +1137,10 @@ export const App: React.FC = () => {
             setSecurityAlerts(sec || []);
             setRequisitions(reqRecords || []);
             
+            setIncidents(disc || []);
+            setExpenses(fExps || []);
+            setFinancialGoals(fGoals || []);
+            setPayrollRecords(fPayroll || []);
             // Driving School State Setters
             setDsInstructors(dsInst || []);
             setDsVehicles(dsVeh || []);
@@ -1630,12 +1678,12 @@ export const App: React.FC = () => {
                 schoolId: school.id,
                 schoolName: school.name,
                 isSuperAdmin: true,
-                profilePhoto: currentUser?.profilePhoto || currentUser?.profile_photo
+                profilePhotoUrl: currentUser?.profilePhotoUrl
             };
             
-            setAlumnaSession(mockAlumna);
+            setActiveAlumna(mockAlumna);
             localStorage.setItem('eduai_alumna_session', JSON.stringify(mockAlumna));
-            setView('alumnae_portal');
+            setShowAlumnaePortal(true);
             setIsTransitioning(false);
         }, 600);
     };
@@ -2356,20 +2404,25 @@ export const App: React.FC = () => {
     }, [activeInstitution, currentUser, loadData, activeAcademicYear, activeSemester]);
 
     const onGenerateReceipt = useCallback(async (txn: MpesaTransaction) => {
-        const id = `rec_${Date.now()}`;
-        const receipt: Receipt = {
-            id,
-            receiptNumber: `REC-${Date.now()}`,
-            institutionId: txn.institutionId,
-            paymentDate: new Date().toISOString(),
-            amountPaid: txn.amount,
-            paidFor: 'Institutional License',
-            paymentMethod: 'M-Pesa',
-            relatedTransactionId: txn.id
-        };
-        await apiService.saveModuleRecord('receipts', receipt);
-        loadData();
+        try {
+            const receipt: Receipt = {
+                id: `rcpt_${Date.now()}`,
+                transactionId: txn.id,
+                institutionId: txn.institutionId,
+                amount: txn.amount,
+                date: new Date().toISOString(),
+                studentId: txn.metadata?.studentId,
+                description: txn.description || 'Payment Receipt'
+            };
+            await apiService.saveModuleRecord('receipts', receipt);
+            loadData();
+            return receipt;
+        } catch (e) {
+            console.error("Failed to generate receipt", e);
+        }
     }, [loadData]);
+
+    const handleGenerateReceipt = onGenerateReceipt;
 
     const onMarkInventoryReceived = useCallback(async (id: string) => {
         const item = countyInventory.find(i => i.id === id);
@@ -2969,7 +3022,7 @@ export const App: React.FC = () => {
 
     const [selectedRole, setSelectedRole] = useState<Role | null>(null);
 
-    const activeRole = useMemo(() => {
+    const activeRole = useMemo<Role | null>(() => {
         if (impersonatedRole) return impersonatedRole;
         if (!currentUser) return null;
 
@@ -3729,6 +3782,18 @@ export const App: React.FC = () => {
                                         }
                                     }}
                                     onAddAcademicYear={async (data) => { await apiService.saveModuleRecord('academic_years', { ...data, id: generateId('ay'), institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); }} onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: generateId('sem'), institutionId: currentUser!.institutionId }); loadData(); }} onAddDepartment={handleAddDepartment} onUpdateDepartment={handleUpdateDepartment} onDeleteDepartment={handleDeleteDepartment} onImportDepartments={handleImportDepartments} onAddBuilding={handleAddBuilding} onUpdateBuilding={handleUpdateBuilding} onDeleteBuilding={handleDeleteBuilding} onAddRoom={handleAddRoom} onUpdateRoom={handleUpdateRoom} onDeleteRoom={handleDeleteRoom} onImportRooms={handleImportRooms} onAddAcademicLevel={handleAddAcademicLevel} onUpdateAcademicLevel={handleUpdateAcademicLevel} onDeleteAcademicLevel={handleDeleteAcademicLevel} onUpdateRequest={(id: string, data: any) => apiService.saveModuleRecord('allocation_requests', { id, ...data })} onWithdrawRequest={(id: string) => apiService.deleteModuleRecord('allocation_requests', id)}
+                                    incidents={incidents}
+                                    onAddIncident={async (data) => {
+                                        await apiService.saveModuleRecord('discipline_incidents', {
+                                            ...data,
+                                            id: `disc_${Date.now()}`,
+                                            institutionId: currentUser!.institutionId,
+                                            timestamp: new Date().toISOString(),
+                                            recordedBy: currentUser!.name
+                                        });
+                                        await handleLogAction(`[SA] Recorded incident for ${data.studentName}`);
+                                        loadData();
+                                    }}
                                     logoUrl={activeBranding.logoUrl}
                                     leaveOutRequests={leaveOutRequests}
                                     finalTimetableUrl={null}
@@ -3966,6 +4031,7 @@ export const App: React.FC = () => {
                                     assessments={assessments}
                                     assessmentMarks={assessmentMarks}
                                     studentAttendances={studentAttendances}
+                                    books={books}
                                 />
                             ) : activeRole === 'reseller' ? (
                                 <ResellerDashboard
@@ -4025,6 +4091,16 @@ export const App: React.FC = () => {
                                         await apiService.deleteModuleRecord('county_inventory_categories', id);
                                         loadData();
                                     }}
+                                    onRunMigration={async () => {
+                                        const sql = `
+                                            ALTER TABLE alumni_posts ADD COLUMN IF NOT EXISTS photo_url TEXT;
+                                            ALTER TABLE alumni_posts ADD COLUMN IF NOT EXISTS media_urls TEXT[];
+                                            ALTER TABLE alumni_posts ADD COLUMN IF NOT EXISTS likes TEXT[] DEFAULT '{}';
+                                            ALTER TABLE alumni_posts ADD COLUMN IF NOT EXISTS comments_count INTEGER DEFAULT 0;
+                                        `;
+                                        await apiService.runMigration(sql);
+                                        alert("Migration completed successfully.");
+                                    }}
                                     stores={countyStores}
                                     onAddStore={async (data) => {
                                         const id = data.id || `store_${Date.now()}`;
@@ -4040,8 +4116,8 @@ export const App: React.FC = () => {
                                         loadData();
                                     }}
                                     onAddStockTransaction={async (data) => {
-                                        const countyId = currentUser.role.startsWith('county_') ? currentUser.countyId : undefined;
-                                        await apiService.saveModuleRecord('stock_transactions', { ...data, id: `stxn_${Date.now()}`, countyId, recordedBy: currentUser.id });
+                                        const countyId = currentUser?.role?.startsWith('county_') ? currentUser?.countyId : undefined;
+                                        await apiService.saveModuleRecord('stock_transactions', { ...data, id: `stxn_${Date.now()}`, countyId, recordedBy: currentUser?.id });
                                         loadData();
                                     }}
                                     stockTransactions={stockTransactions}
@@ -4053,6 +4129,69 @@ export const App: React.FC = () => {
                                     onDeleteBursaryFund={async (id) => { await apiService.deleteModuleRecord('county_bursary_funds', id); await loadData(); }}
                                     activityLog={activityLog}
                                     onLogAction={handleLogAction}
+                                    countyAgrovetInventory={coopAgrovetInventory}
+                                    countyAgrovetSales={coopAgrovetSales}
+                                    saccoAccounts={saccoAccounts}
+                                    saccoTransactions={saccoTransactions}
+                                    coopPayouts={coopPayouts}
+                                    coopExpenses={coopExpenses}
+                                    coopIncome={coopIncome}
+                                    lawClients={lawClients}
+                                    lawMatters={lawMatters}
+                                    lawDocuments={lawDocuments}
+                                    lawTimeEntries={lawTimeEntries}
+                                    lawInvoices={lawInvoices}
+                                    lawTrustTransactions={lawTrustTransactions}
+                                    onAddLawClient={handleAddLawClient}
+                                    onAddLawMatter={handleAddLawMatter}
+                                    onAddLawTimeEntry={handleAddLawTimeEntry}
+                                    onAddLawTrustTransaction={handleAddLawTrustTransaction}
+                                    onAddLawInvoice={handleAddLawInvoice}
+                                    onUpdateLawMatter={handleUpdateLawMatter}
+                                    lawAgreementTemplates={lawAgreementTemplates}
+                                    lawAgreements={lawAgreements}
+                                    onAddLawAgreementTemplate={handleAddLawAgreementTemplate}
+                                    onGenerateLawAgreement={handleGenerateLawAgreement}
+                                    onApproveLawAgreement={handleApproveLawAgreement}
+                                    dsInstructors={dsInstructors}
+                                    dsVehicles={dsVehicles}
+                                    dsStudents={dsStudents}
+                                    dsLessons={dsLessons}
+                                    dsMastery={dsMastery}
+                                    dsSettings={dsSettings}
+                                    onAddDSInstructor={handleAddDSInstructor}
+                                    onAddDSVehicle={handleAddDSVehicle}
+                                    onAddDSStudent={handleAddDSStudent}
+                                    onAddDSLesson={handleAddDSLesson}
+                                    onAddDSMastery={handleAddDSMastery}
+                                    onUpdateDSSettings={handleUpdateDSSettings}
+                                    onAddFarmer={handleAddFarmer}
+                                    onUpdateFarmer={handleUpdateFarmer}
+                                    onImportFarmers={handleImportFarmers}
+                                    onLogCollection={handleLogCollection}
+                                    onImportCollections={handleImportCollections}
+                                    onBulkConfirmCollections={handleBulkConfirmCollections}
+                                    onAddRider={handleAddRider}
+                                    onConfirmCollection={handleConfirmCollection}
+                                    onApproveCollection={handleApproveCollection}
+                                    onAddCoopExpense={handleAddCoopExpense}
+                                    onAddCoopIncome={handleAddCoopIncome}
+                                    onInitiatePayouts={handleInitiatePayouts}
+                                    onApprovePayouts={handleApprovePayouts}
+                                    onDisbursePayouts={handleDisbursePayouts}
+                                    incidents={incidents}
+                                    onAddIncident={async (data) => {
+                                        await apiService.saveModuleRecord('discipline_incidents', {
+                                            ...data,
+                                            id: `disc_${Date.now()}`,
+                                            institutionId: data.institutionId || 'GLOBAL',
+                                            timestamp: new Date().toISOString(),
+                                            recordedBy: currentUser!.name
+                                        });
+                                        await handleLogAction(`Recorded disciplinary incident for ${data.studentName}`);
+                                        loadData();
+                                    }}
+                                    onAddPayouts={handleAddPayouts}
                                 />
                             ) : activeRole === 'academics_officer' ? (
                                 <AcademicsOfficerView
@@ -4118,6 +4257,22 @@ export const App: React.FC = () => {
                                     onWithdrawRequest={async (id) => { await apiService.deleteModuleRecord('allocation_requests', id); await handleLogAction("Withdrew allocation request"); loadData(); }}
                                     onAddExtensionRequest={handleAddExtensionRequest}
                                     onLogAction={handleLogAction}
+                                    companyDetails={companyDetails}
+                                    assessments={assessments}
+                                    marks={assessmentMarks}
+                                    activityLog={activityLog}
+                                    incidents={incidents}
+                                    onAddIncident={async (data) => {
+                                        await apiService.saveModuleRecord('discipline_incidents', {
+                                            ...data,
+                                            id: `disc_${Date.now()}`,
+                                            institutionId: currentUser!.institutionId,
+                                            timestamp: new Date().toISOString(),
+                                            recordedBy: currentUser!.name
+                                        });
+                                        await handleLogAction(`Recorded disciplinary incident for ${data.studentName}`);
+                                        loadData();
+                                    }}
                                 />
                             ) : activeRole === 'security' ? (
                                 <SecurityView
@@ -4174,6 +4329,58 @@ export const App: React.FC = () => {
                                     onSwitchPerspective={setImpersonatedRole}
                                 />
 
+                            ) : activeRole === 'finance_officer' ? (
+                                <FinanceOfficerView
+                                    currentUser={currentUser}
+                                    currentInstitution={activeInstitution!}
+                                    invoices={invoices}
+                                    receipts={receipts}
+                                    expenses={expenses}
+                                    goals={[]} // Placeholder for goals
+                                    feeStructures={feeStructures}
+                                    students={users.filter(u => u.role === 'student')}
+                                    academicYears={academicYears}
+                                    semesters={semesters}
+                                    onGenerateInvoices={async (invs) => {
+                                        await apiService.saveModuleRecords('invoices', invs);
+                                        loadData();
+                                    }}
+                                    onAddExpense={async (exp) => {
+                                         await apiService.saveModuleRecord('expenses', { ...exp, id: `exp_${Date.now()}`, institutionId: currentUser.institutionId });
+                                         loadData();
+                                     }}
+                                 />
+                            ) : activeRole === 'hr_officer' ? (
+                                <HROfficerView
+                                    currentUser={currentUser}
+                                    currentInstitution={activeInstitution!}
+                                    staff={users.filter(u => u.role !== 'student' && u.role !== 'parent')}
+                                    payrollRecords={payrollRecords}
+                                    leaveRequests={timeOffRequests.map(t => ({ ...t, staffId: t.lecturerId, type: t.category as any, status: t.status as any, appliedAt: t.timestamp || new Date().toISOString() }))}
+                                    onProcessPayroll={async (recs) => {
+                                        await apiService.saveModuleRecords('payroll_records', recs);
+                                        loadData();
+                                    }}
+                                    onUpdateLeaveStatus={async (id, status) => {
+                                        const req = timeOffRequests.find(r => r.id === id);
+                                        if (req) {
+                                            await apiService.saveModuleRecord('time_off_requests', { ...req, status });
+                                            loadData();
+                                        }
+                                    }}
+                                />
+                            ) : activeRole === 'librarian' ? (
+                                <LibraryWarRoom
+                                    currentUser={currentUser}
+                                    currentInstitution={activeInstitution!}
+                                    companyDetails={companyDetails}
+                                    users={users}
+                                    academicYears={academicYears}
+                                    semesters={semesters}
+                                    courses={courses}
+                                    departments={departments}
+                                    onLogAction={handleLogAction}
+                                />
                             ) : activeRole === 'info_desk' ? (
                                 <InfoDeskView
                                     user={currentUser}
@@ -5047,7 +5254,7 @@ export const App: React.FC = () => {
                                             id: `alumna_${Date.now()}`,
                                             institutionId: (school?.institutionId && institutions.some(i => i.id === school.institutionId)) ? school.institutionId : (institutions[0]?.id || null),
                                             status: 'verified', // Auto-approve
-                                            profilePhoto: profilePhotoUrl,
+                                            profilePhotoUrl: profilePhotoUrl,
                                             payment_id: data.paymentId || null,
                                             registration_fee: companyDetails?.alumnaeJoiningFee || 0,
                                             joinedAt: new Date().toISOString()

@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { Institution, HospitalityMenuItem, HospitalityOrder, HospitalityVehicle, HospitalityDriveBooking } from '../../types';
 import { apiService } from '../../services/apiService';
-import { getGoogleDriveDirectUrl } from '../../utils/googleDriveUtils';
+import { getGoogleDriveDirectUrl, getFirstImage } from '../../utils/googleDriveUtils';
 
 interface HospitalityStorefrontProps {
     institutionId: string;
@@ -144,16 +144,6 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
 
     const themeColor = tenant.themeColor || '#4f46e5';
 
-    // Helper to safely extract first image URL regardless of format (Array or JSON string)
-    const getFirstImage = (images: any): string => {
-        if (!images) return '';
-        try {
-            const parsed = typeof images === 'string' && images.startsWith('[') ? JSON.parse(images) : images;
-            if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
-            if (typeof parsed === 'string') return parsed;
-        } catch (e) {}
-        return '';
-    };
 
     return (
         <div className="min-h-screen bg-white dark:bg-slate-950 font-sans selection:bg-indigo-100 selection:text-indigo-900 pb-20">
@@ -262,21 +252,19 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                                         <Star className="w-3 h-3 text-amber-400 fill-amber-400" /> {item.rating}
                                     </div>
                                     
-                                    {getFirstImage(item.images) ? (
-                                        <img 
-                                            src={getGoogleDriveDirectUrl(getFirstImage(item.images))} 
-                                            alt={item.name} 
-                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                                            onError={(e) => {
-                                                (e.target as HTMLImageElement).style.display = 'none';
-                                                (e.target as HTMLImageElement).parentElement?.classList.add('flex', 'items-center', 'justify-center', 'text-slate-200');
-                                            }}
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-slate-200 group-hover:scale-110 transition-transform duration-700">
-                                            {item.category === 'Safari' ? <Compass className="w-16 h-16" /> : <Hotel className="w-16 h-16" />}
-                                        </div>
-                                    )}
+                                    <div className="w-full h-full flex items-center justify-center text-slate-200 group-hover:scale-110 transition-transform duration-700">
+                                        {item.category === 'Safari' ? <Compass className="w-16 h-16" /> : <Hotel className="w-16 h-16" />}
+                                        {getFirstImage(item.images) && (
+                                            <img 
+                                                src={getGoogleDriveDirectUrl(getFirstImage(item.images))} 
+                                                alt={item.name} 
+                                                className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).style.display = 'none';
+                                                }}
+                                            />
+                                        )}
+                                    </div>
                                     <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between text-white z-10 opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300">
                                         <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest">
                                             <MapPin className="w-4 h-4" /> {item.location.split(',')[0]}
@@ -542,13 +530,19 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                         {/* Summary Side */}
                         <div className="w-full md:w-2/5 bg-slate-50 dark:bg-slate-800 flex flex-col justify-between border-r border-slate-100 dark:border-slate-700">
                             <div className="relative h-48 md:h-64 bg-slate-200 dark:bg-slate-900 overflow-hidden">
-                                {selectedItem.images && selectedItem.images.length > 0 ? (
-                                    <img src={getGoogleDriveDirectUrl(selectedItem.images[0])} className="w-full h-full object-cover" alt={selectedItem.name} />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-slate-300">
-                                        {selectedItem.category === 'Safari' ? <Compass className="w-16 h-16" /> : <Hotel className="w-16 h-16" />}
-                                    </div>
-                                )}
+                                <div className="w-full h-full flex items-center justify-center text-slate-300">
+                                    {selectedItem.category === 'Safari' ? <Compass className="w-16 h-16" /> : <Hotel className="w-16 h-16" />}
+                                    {selectedItem.images && selectedItem.images.length > 0 && (
+                                        <img 
+                                            src={getGoogleDriveDirectUrl(getFirstImage(selectedItem.images))} 
+                                            className="absolute inset-0 w-full h-full object-cover" 
+                                            alt={selectedItem.name} 
+                                            onError={(e) => {
+                                                (e.target as HTMLImageElement).style.display = 'none';
+                                            }}
+                                        />
+                                    )}
+                                </div>
                                 <div className="absolute inset-0 bg-gradient-to-t from-slate-50 dark:from-slate-800 to-transparent"></div>
                             </div>
                             <div className="p-6 md:p-10 flex-1">

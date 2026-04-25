@@ -2,7 +2,7 @@
 
 
 import React, { useState, useMemo } from 'react';
-import type { User, Subject, Course, Room, Department, AcademicYear, Semester, ExamTimetableEntry, TimetableSettings, Building, AcademicLevel, LetterheadConfig, EmailConfig, Institution, SmsConfig, ExamTimetableSettings, AllocationRequest, TimeOffRequest, TimetableEntry } from '../types';
+import type { User, Subject, Course, Room, Department, AcademicYear, Semester, ExamTimetableEntry, TimetableSettings, Building, AcademicLevel, LetterheadConfig, EmailConfig, Institution, SmsConfig, ExamTimetableSettings, AllocationRequest, TimeOffRequest, TimetableEntry, Assessment, AssessmentMark, ActivityLog, DisciplineIncident } from '../types';
 import { generateExamTimetable } from '../services/geminiService';
 import { generateExamTimetablePdf } from '../services/pdfService';
 import { ExamTimetableGrid } from './ExamTimetableGrid';
@@ -17,9 +17,17 @@ import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { CommandLineIcon } from './icons/CommandLineIcon';
 import { BeakerIcon } from './icons/BeakerIcon';
+import { ChartBarIcon } from './icons/ChartBarIcon';
+import { PresentationChartLineIcon } from './icons/PresentationChartLineIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
+import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
 
 import { generateStandardExamTimetable } from '../utils/examUtils';
 import { TimetableWizard } from './TimetableWizard';
+import { ExamInsights } from './Academics/ExamInsights';
+import { AcademicReportsHub } from './Academics/AcademicReportsHub';
+import { BulkImportWizard } from './BulkImportWizard';
+import { DisciplineManager } from './Academics/DisciplineManager';
 
 interface AcademicsOfficerViewProps {
     currentUser: User;
@@ -29,6 +37,11 @@ interface AcademicsOfficerViewProps {
     onUpdateCourse?: (courseId: string, updatedData: Partial<Omit<Course, 'id' | 'institutionId'>>) => void;
     users: User[];
     rooms: Room[];
+    assessments?: Assessment[];
+    marks?: AssessmentMark[];
+    activityLog?: ActivityLog[];
+    incidents?: DisciplineIncident[];
+    onAddIncident?: (incident: any) => Promise<void>;
     // Added add/delete/update room
     onAddRoom?: (roomData: Omit<Room, 'id' | 'institutionId'>) => void;
     onUpdateRoom?: (roomId: string, data: Partial<Omit<Room, 'id' | 'institutionId'>>) => void;
@@ -83,6 +96,7 @@ interface AcademicsOfficerViewProps {
     themeColor: string;
     examTimetableSettings: ExamTimetableSettings;
     onSaveExamTimetableSettings: (config: ExamTimetableSettings) => void;
+    companyDetails: any; // Using any here for simplicity or can import CompanyDetails if available
     // Added for Wizard
     onTimetableGenerated?: (timetable: Omit<TimetableEntry, 'id' | 'institutionId' | 'academicYearId' | 'semesterId'>[], academicYearId: string, semesterId: string) => Promise<void>;
     allocations?: AllocationRequest[];
@@ -100,10 +114,14 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         getSubjectById, getLecturerById, getRoomById, courseSizes, letterheadConfig,
         logoUrl, footerImageUrl, currentInstitution, timetableSettings,
         onUpdateSubject, examTimetableSettings, buildings = [], academicYears = [],
-        onLogAction, onAssociateSubjectToCourseLevel, onDisassociateSubjectFromCourseLevel
+        onLogAction, onAssociateSubjectToCourseLevel, onDisassociateSubjectFromCourseLevel,
+        companyDetails, assessments = [], marks = [], activityLog = [],
+        incidents = [], onAddIncident
     } = props;
 
-    const [activeTab, setActiveTab] = useState('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'exam_units' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline'>('dashboard');
+    const [isBulkWizardOpen, setIsBulkWizardOpen] = useState(false);
+    const [bulkType, setBulkType] = useState<'students' | 'teachers'>('students');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [departmentFilter, setDepartmentFilter] = useState('all');
@@ -204,6 +222,10 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                 <nav className="-mb-px flex space-x-8" aria-label="Tabs">
                     <button onClick={() => setActiveTab('dashboard')} className={`${activeTab === 'dashboard' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><ClipboardListIcon className="w-5 h-5 mr-2" /> Dashboard</button>
                     <button onClick={() => setActiveTab('exam_units')} className={`${activeTab === 'exam_units' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><BookOpenIcon className="w-5 h-5 mr-2" /> Exam Units</button>
+                    <button onClick={() => setActiveTab('exam_insights')} className={`${activeTab === 'exam_insights' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><PresentationChartLineIcon className="w-5 h-5 mr-2" /> Exam Insights</button>
+                    <button onClick={() => setActiveTab('reports')} className={`${activeTab === 'reports' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><ChartBarIcon className="w-5 h-5 mr-2" /> Intelligence Hub</button>
+                    <button onClick={() => setActiveTab('people')} className={`${activeTab === 'people' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><UserGroupIcon className="w-5 h-5 mr-2" /> People Management</button>
+                    <button onClick={() => setActiveTab('discipline')} className={`${activeTab === 'discipline' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><ShieldExclamationIcon className="w-5 h-5 mr-2" /> Discipline</button>
                     <button onClick={() => setActiveTab('settings')} className={`${activeTab === 'settings' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><Cog8ToothIcon className="w-5 h-5 mr-2" /> Settings</button>
                 </nav>
             </div>
@@ -358,6 +380,88 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             </table>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {activeTab === 'exam_insights' && (
+                <div className="space-y-6">
+                    <h3 className="text-xl font-black tracking-tighter uppercase mb-2 text-slate-900 dark:text-white">Exam Performance Monitor</h3>
+                    {assessments.length > 0 ? (
+                        <ExamInsights 
+                            assessment={assessments[0]} 
+                            marks={marks} 
+                            students={users.filter(u => u.role === 'student')} 
+                            teachers={users.filter(u => u.role !== 'student' && u.role !== 'super_admin')} 
+                            subjects={subjects} 
+                        />
+                    ) : (
+                        <div className="p-12 bg-white rounded-[2.5rem] text-center border-2 border-dashed border-slate-100">
+                            <SparklesIcon className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                            <p className="text-slate-400 font-bold uppercase tracking-widest">No active assessments found to track.</p>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {activeTab === 'reports' && (
+                <div className="space-y-6">
+                    <AcademicReportsHub 
+                        assessments={assessments} 
+                        marks={marks} 
+                        students={users.filter(u => u.role === 'student')} 
+                        subjects={subjects} 
+                        activityLogs={activityLog} 
+                    />
+                </div>
+            )}
+
+            {activeTab === 'people' && (
+                <div className="space-y-6">
+                    <section className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700">
+                        <div className="flex justify-between items-center mb-8">
+                            <div>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white">Directory Management</h3>
+                                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Bulk Operations & Enrollment</p>
+                            </div>
+                            <div className="flex gap-4">
+                                <button 
+                                    onClick={() => { setBulkType('students'); setIsBulkWizardOpen(true); }}
+                                    className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all"
+                                >
+                                    Bulk Admit Students
+                                </button>
+                                <button 
+                                    onClick={() => { setBulkType('teachers'); setIsBulkWizardOpen(true); }}
+                                    className="px-6 py-3 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-slate-200 hover:bg-slate-800 transition-all"
+                                >
+                                    Bulk Add Teachers
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+                                <h4 className="font-black text-slate-900 mb-2 uppercase tracking-tighter">Student Population</h4>
+                                <p className="text-3xl font-black text-indigo-600">{users.filter(u => u.role === 'student').length}</p>
+                                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Total Enrolled</p>
+                            </div>
+                            <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+                                <h4 className="font-black text-slate-900 mb-2 uppercase tracking-tighter">Teaching Staff</h4>
+                                <p className="text-3xl font-black text-slate-900">{users.filter(u => u.role === 'lecturer' || u.role === 'teacher').length}</p>
+                                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Active Faculty</p>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            )}
+
+            {activeTab === 'discipline' && (
+                <div className="space-y-6">
+                    <DisciplineManager 
+                        incidents={incidents} 
+                        students={users.filter(u => u.role === 'student')} 
+                        onAddIncident={onAddIncident || (async () => {})} 
+                    />
                 </div>
             )}
 

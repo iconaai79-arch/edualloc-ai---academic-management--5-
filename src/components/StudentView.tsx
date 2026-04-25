@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import type { User, Course, CourseLevel, TimetableEntry, Subject, Room, TimetableSettings, EnrollmentRequest, Department, LetterheadConfig, Assignment, Submission, LessonRating, FeedbackSubmission, StudentAbsenceRequest, ExamTimetableEntry, Building, Semester, TaAssignment, UserTask, Institution, Assessment, AssessmentMark } from '../types';
+import type { User, Course, CourseLevel, TimetableEntry, Subject, Room, TimetableSettings, EnrollmentRequest, Department, LetterheadConfig, Assignment, Submission, LessonRating, FeedbackSubmission, StudentAbsenceRequest, ExamTimetableEntry, Building, Semester, TaAssignment, UserTask, Institution, Assessment, AssessmentMark, Book } from '../types';
 import { TimetableGrid } from './TimetableGrid';
 import { SubjectCard } from './SubjectCard';
 import { ClockIcon } from './icons/ClockIcon';
@@ -196,6 +196,7 @@ interface StudentViewProps {
     // Fix: Changed return type to Promise to match App.tsx implementation.
     onAddParent: (studentId: string, parentData: { name: string, email: string, phone: string }) => Promise<{ success: boolean, message: string, credentials?: { email: string, password: string } }>;
     onDeleteParent: (studentId: string, parentId: string) => void;
+    books: Book[];
 }
 
 const EnrollmentStatusBadge: React.FC<{ status: EnrollmentRequest['status'] }> = ({ status }) => {
@@ -220,7 +221,7 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
     const {
         user, users, courses, subjects, rooms, departments, enrollmentRequests, onSubmitEnrollmentRequest,
         generatedTimetable, examTimetable, getSubjectById, getRoomById, getLecturerById,
-        timetableSettings, studentCheckIns, onStudentLessonCheckIn, letterheadConfig, logoUrl, footerImageUrl, assignments, submissions, onAddSubmission, lessonRatings, onAddLessonRating, onRateLesson, onAddFeedback, feedbackSubmissions, studentAbsenceRequests, onSubmitStudentAbsenceRequest, buildings, finalTimetableUrl, activeSemester, taAssignments, userTasks, onAddTask, onUpdateTask, onDeleteTask, currentInstitution } = props;
+        timetableSettings, studentCheckIns, onStudentLessonCheckIn, letterheadConfig, logoUrl, footerImageUrl, assignments, submissions, onAddSubmission, lessonRatings, onAddLessonRating, onRateLesson, onAddFeedback, feedbackSubmissions, studentAbsenceRequests, onSubmitStudentAbsenceRequest, buildings, finalTimetableUrl, activeSemester, taAssignments, userTasks, onAddTask, onUpdateTask, onDeleteTask, currentInstitution, studentAttendances, books } = props;
     const [activeTab, setActiveTab] = useState('dashboard');
     const [subTab, setSubTab] = useState<'weekly' | 'exams' | 'enrollment' | 'requests'>('weekly');
     const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
@@ -370,6 +371,36 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
                     ))}
                 </nav>
             </div>
+
+            {activeTab === 'dashboard' && (
+                <StudentDashboard
+                    user={user}
+                    timetable={studentTimetable}
+                    course={course}
+                    level={level}
+                    subjects={subjects}
+                    users={users}
+                    getSubjectById={getSubjectById}
+                    getRoomById={getRoomById}
+                    getLecturerById={getLecturerById}
+                    now={now}
+                    timetableSettings={timetableSettings}
+                    studentCheckIns={studentCheckIns}
+                    onStudentLessonCheckIn={onStudentLessonCheckIn}
+                    letterheadConfig={letterheadConfig}
+                    logoUrl={logoUrl}
+                    footerImageUrl={footerImageUrl}
+                    lessonRatings={lessonRatings}
+                    onRateLesson={onRateLesson}
+                    userTasks={userTasks}
+                    onAddTask={onAddTask}
+                    onUpdateTask={onUpdateTask}
+                    onDeleteTask={onDeleteTask}
+                    currentInstitution={currentInstitution}
+                    studentAttendances={studentAttendances}
+                    books={books}
+                />
+            )}
 
             {activeTab === 'my_timetable' && (
                 <div className="space-y-6">

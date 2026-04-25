@@ -35,7 +35,7 @@ import { apiService } from '../services/apiService';
 import { DiningManager } from './hospitality/DiningManager';
 import { FleetManager } from './hospitality/FleetManager';
 import { HospitalitySettings } from './hospitality/HospitalitySettings';
-import { getGoogleDriveDirectUrl } from '../utils/googleDriveUtils';
+import { getGoogleDriveDirectUrl, getFirstImage } from '../utils/googleDriveUtils';
 import type { Institution, User } from '../types';
 
 interface HospitalityManagerProps {
@@ -65,7 +65,8 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
         features: '',
         location: '',
         duration: '',
-        images: [] as string[]
+        images: [] as string[],
+        featuresString: ''
     });
     const [editingId, setEditingId] = useState<string | null>(null);
     const [orders, setOrders] = useState<any[]>([]);
@@ -109,15 +110,16 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
             id: editingId || `hosp_${Date.now()}`,
             institutionId: currentInstitution.id,
             price: Number(newItem.price),
-            features: typeof newItem.features === 'string' ? newItem.features.split(',').map(f => f.trim()) : newItem.features,
+            features: newItem.featuresString ? newItem.featuresString.split(',').map(f => f.trim()) : [],
             rating: 5.0,
             isAvailable: true
         };
+        delete (payload as any).featuresString;
 
         await apiService.saveModuleRecord('hospitality_items', payload);
         setIsAddingItem(false);
         setEditingId(null);
-        setNewItem({ name: '', description: '', price: '', category: isAgency ? 'Safari' : 'Room', features: '', location: '', duration: '', images: [] });
+        setNewItem({ name: '', description: '', price: '', category: isAgency ? 'Safari' : 'Room', features: '', location: '', duration: '', images: [], featuresString: '' });
         loadItems();
     };
 
@@ -334,23 +336,19 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                     </div>
                 ) : items.map((item) => (
                     <div key={item.id} className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden group hover:shadow-2xl transition-all">
-                        <div className="aspect-video bg-slate-100 dark:bg-slate-900 relative">
-                            {item.images && item.images.length > 0 ? (
+                        <div className="aspect-video bg-slate-100 dark:bg-slate-900 relative flex items-center justify-center text-slate-200 overflow-hidden">
+                            {isAgency ? <Plane className="w-12 h-12" /> : <Bed className="w-12 h-12" />}
+                            {getFirstImage(item.images) && (
                                 <img 
-                                    src={getGoogleDriveDirectUrl(item.images[0])} 
+                                    src={getGoogleDriveDirectUrl(getFirstImage(item.images))} 
                                     alt={item.name} 
-                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                                     onError={(e) => {
                                         (e.target as HTMLImageElement).style.display = 'none';
-                                        (e.target as HTMLImageElement).parentElement?.classList.add('flex', 'items-center', 'justify-center', 'text-slate-200');
                                     }}
                                 />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center text-slate-200 group-hover:scale-110 transition-transform duration-700">
-                                    {isAgency ? <Plane className="w-12 h-12" /> : <Bed className="w-12 h-12" />}
-                                </div>
                             )}
-                            <div className="absolute top-4 left-4">
+                            <div className="absolute top-4 left-4 z-10">
                                 <span className="text-[8px] font-black bg-white/90 text-indigo-600 px-3 py-1 rounded-full uppercase tracking-widest shadow-sm">
                                     {item.category}
                                 </span>
@@ -376,6 +374,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                                         price: item.price.toString(),
                                         category: item.category,
                                         features: Array.isArray(item.features) ? item.features.join(', ') : item.features,
+                                        featuresString: Array.isArray(item.features) ? item.features.join(', ') : (item.features || ''),
                                         location: item.location || '',
                                         duration: item.duration || '',
                                         images: item.images || []
@@ -425,6 +424,10 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                                 <div>
                                     <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Duration / Type</label>
                                     <input type="text" value={newItem.duration} onChange={e => setNewItem({...newItem, duration: e.target.value})} placeholder="e.g. 7 Days" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 ring-indigo-500/50" />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-2 block">Features / Highlights (Comma Separated)</label>
+                                    <input type="text" value={newItem.featuresString} onChange={e => setNewItem({...newItem, featuresString: e.target.value})} placeholder="e.g. Full Board, 4x4 Jeep, Wi-Fi, Beachfront" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold text-sm outline-none focus:ring-2 ring-indigo-500/50" />
                                 </div>
                             </div>
 

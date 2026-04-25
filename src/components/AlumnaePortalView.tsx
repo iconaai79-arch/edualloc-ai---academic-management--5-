@@ -59,9 +59,9 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         bio: currentAlumna.bio || '',
         linkedinUrl: currentAlumna.linkedinUrl || '',
         twitterUrl: currentAlumna.twitterUrl || '',
-        profilePhoto: currentAlumna.profilePhoto || ''
+        profilePhotoUrl: currentAlumna.profilePhotoUrl || ''
     });
-    const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
+    const [profilePhotoUrlFile, setProfilePhotoFile] = useState<File | null>(null);
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [otherMemberships, setOtherMemberships] = useState<any[]>([]);
     const [isDetectingMemberships, setIsDetectingMemberships] = useState(false);
@@ -96,9 +96,9 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const handleUpdateProfile = async () => {
         setIsSavingProfile(true);
         try {
-            let photoUrl = profileData.profilePhoto;
-            if (profilePhotoFile) {
-                const uploadRes = await apiService.uploadToGoogleDrive(profilePhotoFile, 'Alumnae_Profiles', {
+            let photoUrl = profileData.profilePhotoUrl;
+            if (profilePhotoUrlFile) {
+                const uploadRes = await apiService.uploadToGoogleDrive(profilePhotoUrlFile, 'Alumnae_Profiles', {
                     institutionId: currentAlumna.institutionId,
                     useGlobalConfig: !currentAlumna.institutionId
                 });
@@ -112,11 +112,11 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 full_name: profileData.fullName || currentAlumna.fullName || currentAlumna.full_name,
                 institution_id: currentAlumna.institution_id || currentAlumna.institutionId,
                 profile_photo: photoUrl, // Ensure snake_case mapping
-                profilePhoto: photoUrl,  // Keep for legacy frontend
+                profilePhotoUrl: photoUrl,  // Keep for legacy frontend
                 id: currentAlumna.id
             });
             // Update local session
-            const updated = { ...currentAlumna, ...profileData, profilePhoto: photoUrl };
+            const updated = { ...currentAlumna, ...profileData, profilePhotoUrl: photoUrl };
             localStorage.setItem('eduai_alumna_session', JSON.stringify(updated));
             setIsEditingProfile(false);
             window.location.reload(); // Refresh to propagate changes
@@ -273,7 +273,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 id: `p_${Date.now()}`,
                 authorId: currentAlumna.id,
                 authorName: currentAlumna.fullName || currentAlumna.name,
-                authorPhoto: currentAlumna.profilePhoto,
+                authorPhoto: currentAlumna.profilePhotoUrl,
                 institutionId: currentAlumna.institutionId || currentAlumna.schoolId,
                 content: newPostContent,
                 photoUrl: photoUrl, // Add photo support
@@ -288,7 +288,12 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             setPostImageFile(null);
             setPostImagePreview(null);
         } catch (e: any) {
-            alert("Post Error: " + e.message);
+            console.error(e);
+            if (e.message?.includes('photo_url')) {
+                alert("Database update required. Please contact a County Administrator to run the 'Alumni Schema Migration' in the Settings tab.");
+            } else {
+                alert("Post Error: " + e.message);
+            }
         } finally {
             setIsPosting(false);
         }
@@ -318,7 +323,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             postId,
             authorId: currentAlumna.id,
             authorName: currentAlumna.fullName || currentAlumna.name,
-            authorPhoto: currentAlumna.profilePhoto,
+            authorPhoto: currentAlumna.profilePhotoUrl,
             content,
             createdAt: new Date().toISOString()
         };
@@ -451,7 +456,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 <div className="p-6 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex gap-4">
                         <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
-                            {currentAlumna.profilePhoto ? <img src={currentAlumna.profilePhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-300" />}
+                            {currentAlumna.profilePhotoUrl ? <img src={currentAlumna.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-300" />}
                         </div>
                         <div className="flex-1 space-y-4">
                             <textarea 
@@ -601,7 +606,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                              
                                              <div className="flex gap-3 pt-2">
                                                  <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
-                                                     {currentAlumna.profilePhoto ? <img src={currentAlumna.profilePhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-1.5 text-slate-300" />}
+                                                     {currentAlumna.profilePhotoUrl ? <img src={currentAlumna.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-1.5 text-slate-300" />}
                                                  </div>
                                                  <div className="flex-1 relative">
                                                      <input 
@@ -652,7 +657,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                             {alumnaeMembers.filter(m => m.graduationYear === currentAlumna.graduationYear && m.id !== currentAlumna.id).map(member => (
                                 <div key={member.id} className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 flex items-center gap-6 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group">
                                     <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
-                                        {member.profilePhoto ? <img src={member.profilePhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
+                                        {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
@@ -695,7 +700,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                 <div key={member.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-100/50 dark:shadow-none hover:scale-[1.02] transition-all group">
                                     <div className="flex items-center gap-4 mb-6">
                                         <div className="w-16 h-16 rounded-[1.5rem] bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 ring-4 ring-slate-50 dark:ring-slate-800">
-                                            {member.profilePhoto ? <img src={member.profilePhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
+                                            {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1">
@@ -775,7 +780,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 className={`w-full p-4 rounded-2xl flex items-center gap-3 transition-all ${activeConversationPartner?.id === member.id ? 'bg-indigo-50 dark:bg-indigo-900/20 ring-1 ring-indigo-100' : 'hover:bg-slate-50 dark:hover:bg-slate-900'}`}
                                             >
                                                 <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
-                                                    {member.profilePhoto ? <img src={member.profilePhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-300" />}
+                                                    {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-300" />}
                                                 </div>
                                                 <div className="text-left flex-1 min-w-0">
                                                     <p className="text-xs font-black text-slate-900 dark:text-white uppercase truncate">{member.fullName || 'Alumna'}</p>
@@ -936,7 +941,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                     <div key={member.id} className="group flex items-center gap-4 p-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all cursor-pointer">
                                         <div className="relative">
                                             <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-900">
-                                                {member.profilePhoto ? <img src={member.profilePhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-300" />}
+                                                {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-300" />}
                                             </div>
                                             <div className="absolute -top-1 -right-1 bg-indigo-600 text-white p-1 rounded-lg">
                                                 <CheckCircle2 className="w-2 h-2" />
@@ -979,10 +984,10 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                             <div className="flex flex-col items-center gap-4 mb-8">
                                 <div className="relative group">
                                     <div className="w-24 h-24 rounded-[2rem] bg-slate-100 dark:bg-slate-800 overflow-hidden ring-4 ring-indigo-50 dark:ring-indigo-900/20 shadow-xl">
-                                        {profilePhotoFile ? (
-                                            <img src={URL.createObjectURL(profilePhotoFile)} className="w-full h-full object-cover" />
-                                        ) : profileData.profilePhoto ? (
-                                            <img src={profileData.profilePhoto} className="w-full h-full object-cover" />
+                                        {profilePhotoUrlFile ? (
+                                            <img src={URL.createObjectURL(profilePhotoUrlFile)} className="w-full h-full object-cover" />
+                                        ) : profileData.profilePhotoUrl ? (
+                                            <img src={profileData.profilePhotoUrl} className="w-full h-full object-cover" />
                                         ) : (
                                             <User className="w-full h-full p-6 text-slate-300" />
                                         )}

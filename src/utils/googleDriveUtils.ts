@@ -54,3 +54,49 @@ export const isGoogleDriveUrl = (url: string | null | undefined): boolean => {
     if (!url) return false;
     return url.includes('drive.google.com') || url.includes('googleusercontent.com');
 };
+/**
+ * Safely extracts the first image URL from a collection.
+ * Handles:
+ * - Arrays of strings: ["url1", "url2"]
+ * - JSON stringified arrays: '["url1", "url2"]'
+ * - Single strings: "url1"
+ * - Objects with image properties (recursive)
+ */
+export const getFirstImage = (images: any): string => {
+    if (!images) return '';
+    try {
+        // 1. Handle JSON stringified arrays
+        let parsed = images;
+        if (typeof images === 'string' && (images.startsWith('[') || images.startsWith('{'))) {
+            try {
+                parsed = JSON.parse(images);
+            } catch (e) {
+                // If parsing fails, treat as a plain string
+                return images;
+            }
+        }
+
+        // 2. Handle Arrays
+        if (Array.isArray(parsed) && parsed.length > 0) {
+            return getFirstImage(parsed[0]); // Recursive to handle nested arrays/objects
+        }
+
+        // 3. Handle Objects (common in some API responses)
+        if (typeof parsed === 'object' && parsed !== null) {
+            const url = parsed.url || parsed.imageUrl || parsed.src || parsed.link;
+            if (url) return url;
+            
+            // Fallback: search for any string that looks like a URL in the object values
+            const values = Object.values(parsed);
+            const firstUrl = values.find(v => typeof v === 'string' && (v.startsWith('http') || v.includes('google')));
+            if (firstUrl) return firstUrl as string;
+        }
+
+        // 4. Handle plain strings
+        if (typeof parsed === 'string') return parsed;
+
+    } catch (e) {
+        console.warn("[getFirstImage] Resolution failure:", e);
+    }
+    return typeof images === 'string' ? images : '';
+};
