@@ -33,9 +33,10 @@ interface AlumnaePortalViewProps {
     institutions: Institution[];
     featureFee: number;
     onBack: () => void;
+    onJoinAnother?: () => void;
 }
 
-export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlumna, institutions, featureFee, onBack }) => {
+export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlumna, institutions, featureFee, onBack, onJoinAnother }) => {
     const [posts, setPosts] = useState<AlumniPost[]>([]);
     const [newPostContent, setNewPostContent] = useState('');
     const [isPosting, setIsPosting] = useState(false);
@@ -241,6 +242,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             id: `msg_${Date.now()}`,
             senderId: currentAlumna.id,
             receiverId: activeConversationPartner.id,
+            institutionId: currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id,
             content: newMessage,
             isRead: false,
             createdAt: new Date().toISOString()
@@ -897,7 +899,10 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     <div className="bg-slate-50 dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800">
                         <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center justify-between">
                             My Institutions
-                            <Plus className="w-4 h-4 cursor-pointer hover:text-indigo-600" />
+                            <Plus 
+                                className="w-4 h-4 cursor-pointer hover:text-indigo-600 transition-colors" 
+                                onClick={() => setShowSwitcher(true)}
+                            />
                         </h3>
                         <div className="space-y-4">
                             {myInstitutions.map(inst => {
@@ -1161,6 +1166,22 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                     <ArrowLeft className="w-5 h-5 text-slate-300 group-hover:text-indigo-600 group-hover:-translate-x-1 transition-all rotate-180" />
                                 </button>
                             ))}
+
+                            {/* Add New Option */}
+                            {onJoinAnother && (
+                                <button
+                                    onClick={onJoinAnother}
+                                    className="w-full flex items-center gap-4 p-6 bg-indigo-50/50 dark:bg-indigo-900/10 border border-dashed border-indigo-200 dark:border-indigo-800 rounded-[2rem] hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all text-left group"
+                                >
+                                    <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center text-indigo-600 shadow-sm group-hover:scale-110 transition-transform">
+                                        <Plus className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-black text-indigo-600 uppercase tracking-tight">Join another Circle</h4>
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1">Register for a different school or chapter</p>
+                                    </div>
+                                </button>
+                            )}
                         </div>
 
                         <div className="p-8 bg-slate-50 dark:bg-slate-800/50 flex justify-center border-t border-slate-100 dark:border-slate-800">

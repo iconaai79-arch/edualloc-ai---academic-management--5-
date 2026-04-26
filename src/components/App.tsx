@@ -3747,6 +3747,7 @@ export const App: React.FC = () => {
                                                 post_id TEXT REFERENCES alumni_posts(id) ON DELETE CASCADE,
                                                 author_id TEXT NOT NULL,
                                                 author_name TEXT NOT NULL,
+                                                institution_id TEXT,
                                                 content TEXT NOT NULL,
                                                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                                             );
@@ -3755,6 +3756,7 @@ export const App: React.FC = () => {
                                                 id TEXT PRIMARY KEY,
                                                 sender_id TEXT NOT NULL,
                                                 receiver_id TEXT NOT NULL,
+                                                institution_id TEXT,
                                                 content TEXT NOT NULL,
                                                 is_read BOOLEAN DEFAULT false,
                                                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -3772,6 +3774,18 @@ export const App: React.FC = () => {
                                                     END IF;
                                                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'school_id') THEN
                                                         ALTER TABLE alumnae_members ADD COLUMN school_id TEXT;
+                                                    END IF;
+                                                END IF;
+
+                                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumni_messages') THEN
+                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_messages' AND column_name = 'institution_id') THEN
+                                                        ALTER TABLE alumni_messages ADD COLUMN institution_id TEXT;
+                                                    END IF;
+                                                END IF;
+
+                                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumni_comments') THEN
+                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_comments' AND column_name = 'institution_id') THEN
+                                                        ALTER TABLE alumni_comments ADD COLUMN institution_id TEXT;
                                                     END IF;
                                                 END IF;
                                             END $$;
@@ -5505,6 +5519,7 @@ export const App: React.FC = () => {
                                     setShowAlumnaePortal(false);
                                     window.location.href = '/?view=community';
                                 }}
+                                onJoinAnother={() => setShowAlumnaeRegister(true)}
                             />
                         ) : showCampaignLogin ? (
                             <CampaignLoginView 
