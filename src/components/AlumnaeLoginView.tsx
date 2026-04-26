@@ -13,7 +13,8 @@ import {
     Globe,
     ShieldCheck,
     Send,
-    KeyRound
+    KeyRound,
+    Building2
 } from 'lucide-react';
 import { apiService } from '../services/apiService';
 
@@ -21,9 +22,10 @@ interface AlumnaeLoginViewProps {
     onLoginSuccess: (alumna: any) => void;
     onSwitchToRegister: () => void;
     onBack?: () => void;
+    onClaimOwnership: () => void;
 }
 
-export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSuccess, onSwitchToRegister, onBack }) => {
+export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSuccess, onSwitchToRegister, onBack, onClaimOwnership }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -482,14 +484,27 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
                             </div>
                         </form>
 
-                        <div className="mt-12 pt-8 border-t border-white/5 text-center">
-                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Not a member yet?</p>
-                            <button 
-                                onClick={onSwitchToRegister}
-                                className="text-xs font-black text-indigo-400 uppercase tracking-widest hover:text-white transition-all flex items-center justify-center gap-3 mx-auto"
-                            >
-                                Apply for Access <ArrowRight className="w-3 h-3" />
-                            </button>
+                        <div className="mt-12 pt-8 border-t border-white/5 text-center space-y-6">
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Not a member yet?</p>
+                                <button 
+                                    onClick={onSwitchToRegister}
+                                    className="text-xs font-black text-indigo-400 uppercase tracking-widest hover:text-white transition-all flex items-center justify-center gap-3 mx-auto group"
+                                >
+                                    Apply for Access <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                                </button>
+                            </div>
+
+                            <div className="bg-white/5 p-6 rounded-3xl border border-white/5 hover:border-indigo-500/30 transition-all group">
+                                <p className="text-[9px] font-bold text-slate-600 uppercase tracking-[0.2em] mb-4">Institution Representative?</p>
+                                <button 
+                                    onClick={onClaimOwnership}
+                                    className="text-[10px] font-black text-white uppercase tracking-[0.2em] hover:text-indigo-400 transition-all flex items-center justify-center gap-3 mx-auto"
+                                >
+                                    <Building2 className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity" />
+                                    Claim School Ownership
+                                </button>
+                            </div>
                         </div>
                     </div>
 

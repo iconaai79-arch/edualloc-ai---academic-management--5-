@@ -3208,6 +3208,7 @@ Please change it after login.`;
                                 registry={schoolRegistry}
                                 onRefresh={fetchSchoolRegistry}
                                 onAccessPortal={onLoginAsAdmin}
+                                onAccessAlumnaPortal={onAccessAlumnaPortal}
                             />
                         )}
 

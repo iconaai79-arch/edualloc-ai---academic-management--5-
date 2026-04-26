@@ -108,9 +108,11 @@ export interface DisciplineIncident {
     studentId: string;
     studentName: string;
     type: string;
+    incidentType?: string;
+    severity?: 'Low' | 'Medium' | 'High' | 'Critical';
     description: string;
     actionTaken?: string;
-    status: 'pending' | 'resolved' | 'escalated';
+    status: 'pending' | 'resolved' | 'escalated' | 'Pending' | 'Resolved' | 'Escalated';
     timestamp: string;
     recordedBy: string;
 }
@@ -118,36 +120,48 @@ export interface DisciplineIncident {
 export interface Expense {
     id: string;
     institutionId: string;
-    category: string;
+    category: string | 'Salaries' | 'Utilities' | 'Maintenance' | 'Supplies' | 'Marketing' | 'Taxes' | 'Other';
     amount: number;
     description: string;
     date: string;
     recordedBy?: string;
-    status?: 'pending' | 'approved' | 'paid';
+    status?: 'pending' | 'approved' | 'paid' | 'draft';
+    paymentMethod?: string;
+    attachmentUrl?: string;
+    referenceNumber?: string;
 }
 
 export interface FinancialGoal {
     id: string;
     institutionId: string;
-    title: string;
+    title?: string;
     targetAmount: number;
-    currentAmount: number;
-    deadline: string;
-    status: 'on_track' | 'behind' | 'achieved';
+    currentAmount?: number;
+    deadline?: string;
+    status?: 'on_track' | 'behind' | 'achieved';
+    period?: string;
+    category?: 'Fees' | 'Donations' | 'Grants' | 'Other';
+    startDate?: string;
+    endDate?: string;
 }
 
 export interface PayrollRecord {
     id: string;
     institutionId: string;
     staffId: string;
-    staffName: string;
+    staffName?: string;
     month: string;
-    year: number;
-    basicPay: number;
-    allowances: number;
-    deductions: number;
-    netPay: number;
-    status: 'pending' | 'processed' | 'paid';
+    year?: number;
+    basicPay?: number;
+    basicSalary?: number;
+    allowances: number | { name: string; amount: number }[];
+    deductions: number | { name: string; amount: number }[];
+    netPay?: number;
+    netSalary?: number;
+    status: 'pending' | 'processed' | 'paid' | 'draft' | 'approved';
+    paymentDate?: string;
+    paymentMethod?: string;
+    recordedBy?: string;
     processedAt?: string;
 }
 
@@ -891,6 +905,8 @@ export interface ActivityLog {
     ipAddress?: string;
     macAddress?: string;
     imei?: string;
+    module?: 'Academics' | 'Finance' | 'Admissions' | 'Transport' | 'Settings';
+    details?: string;
 }
 
 export interface AppNotification {
@@ -968,17 +984,6 @@ export interface Assessment {
     createdAt: string;
 }
 
-export interface ActivityLog {
-    id: string;
-    institutionId: string;
-    userId: string;
-    userName: string;
-    action: string;
-    module: 'Academics' | 'Finance' | 'Admissions' | 'Transport' | 'Settings';
-    details: string;
-    ipAddress?: string;
-    timestamp: string;
-}
 
 export interface TransportVehicle {
     id: string;
@@ -992,19 +997,6 @@ export interface TransportVehicle {
     status: 'active' | 'maintenance' | 'out_of_service';
 }
 
-export interface DisciplineIncident {
-    id: string;
-    institutionId: string;
-    studentId: string;
-    studentName: string;
-    incidentType: string;
-    severity: 'Low' | 'Medium' | 'High' | 'Critical';
-    description: string;
-    actionTaken: string;
-    recordedBy: string;
-    timestamp: string;
-    status: 'Pending' | 'Resolved' | 'Escalated';
-}
 
 export interface TransportOnboarding {
     id: string;
@@ -1114,20 +1106,6 @@ export interface LecturerContract {
     signedAt?: string;
 }
 
-export interface PayrollRecord {
-    id: string;
-    institutionId: string;
-    staffId: string;
-    month: string; // e.g. "January 2026"
-    basicSalary: number;
-    allowances: { name: string; amount: number }[];
-    deductions: { name: string; amount: number }[];
-    netSalary: number;
-    status: 'draft' | 'approved' | 'paid';
-    paymentDate?: string;
-    paymentMethod?: string;
-    recordedBy: string;
-}
 
 export interface LeaveRequest {
     id: string;
@@ -1526,28 +1504,7 @@ export interface FinancialPeriod {
     createdAt: string;
 }
 
-export interface Expense {
-    id: string;
-    institutionId: string;
-    category: 'Salaries' | 'Utilities' | 'Maintenance' | 'Supplies' | 'Marketing' | 'Taxes' | 'Other';
-    amount: number;
-    description: string;
-    date: string;
-    recordedBy: string;
-    paymentMethod: string;
-    attachmentUrl?: string;
-    referenceNumber?: string;
-}
 
-export interface FinancialGoal {
-    id: string;
-    institutionId: string;
-    targetAmount: number;
-    period: string; // e.g. "Term 1 2026"
-    category: 'Fees' | 'Donations' | 'Grants' | 'Other';
-    startDate: string;
-    endDate: string;
-}
 
 export interface ProfileUpdateData {
     name?: string;
@@ -4347,6 +4304,7 @@ export interface AlumniPost {
     createdAt: string;
     photoUrl?: string;
     hashtags?: string[];
+    schoolId?: string;
 }
 
 export interface AlumniComment {

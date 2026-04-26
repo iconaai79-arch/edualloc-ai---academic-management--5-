@@ -25,6 +25,7 @@ import { AlumnaeActivationView } from './AlumnaeActivationView';
 import { AlumnaePortalView } from './AlumnaePortalView';
 import { AlumnaeSecureAccountView } from './AlumnaeSecureAccountView';
 import { AlumnaeLoginView } from './AlumnaeLoginView';
+import { InstitutionClaimView } from './InstitutionClaimView';
 import { ConstructionManager } from './ConstructionManager';
 import { ConstructionProjectView } from './ConstructionProjectView';
 const PrivacyPolicy = lazy(() => import('../pages/PrivacyPolicy'));
@@ -624,6 +625,8 @@ export const App: React.FC = () => {
             return view === 'alumnae_social' || view === 'alumnae_portal' || isAlumnaeSubdomain;
         } catch (e) { return false; }
     });
+
+    const [showInstitutionClaim, setShowInstitutionClaim] = useState(false);
 
     const isAlumnaeMode = useMemo(() => {
         const hostname = window.location.hostname;
@@ -4036,8 +4039,9 @@ export const App: React.FC = () => {
                                         transactions={transactions}
                                         invoices={invoices}
                                     />
-                                ) : (
-                                    onUpdateBursaryApplication={async (id, data) => { await apiService.saveModuleRecord('bursary_applications', { ...data, id }); await loadData(); }}
+                                ) : activeRole === 'county_admin' ? (
+                                    <CountyAdminView
+                                        onUpdateBursaryApplication={async (id, data) => { await apiService.saveModuleRecord('bursary_applications', { ...data, id }); await loadData(); }}
                                     onAddBursaryFund={async (data) => { await apiService.saveModuleRecord('county_bursary_funds', data); await loadData(); }}
                                     onUpdateBursaryFund={async (id, data) => { await apiService.saveModuleRecord('county_bursary_funds', { ...data, id }); await loadData(); }}
                                     onDeleteBursaryFund={async (id) => { await apiService.deleteModuleRecord('county_bursary_funds', id); await loadData(); }}
@@ -6285,6 +6289,23 @@ export const App: React.FC = () => {
                                 onBack={() => {
                                     setShowAlumnaeLogin(false);
                                     setShowCommunityHub(true);
+                                }}
+                                onClaimOwnership={() => {
+                                    setShowAlumnaeLogin(false);
+                                    setShowInstitutionClaim(true);
+                                }}
+                            />
+                        ) : showInstitutionClaim ? (
+                            <InstitutionClaimView 
+                                registry={schoolRegistry}
+                                onBack={() => {
+                                    setShowInstitutionClaim(false);
+                                    setShowAlumnaeLogin(true);
+                                }}
+                                onClaimSuccess={() => {
+                                    setShowInstitutionClaim(false);
+                                    setShowAlumnaeLogin(true);
+                                    alert("Claim request submitted successfully! Our team will verify your credentials and contact you via email.");
                                 }}
                             />
                         ) : (showAlumnaePortal && activeAlumna) ? (

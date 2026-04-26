@@ -145,15 +145,35 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         setLoadingPosts(true);
         try {
             const filters: any = {};
+            const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
+            const schoolRegId = currentAlumna.schoolId || currentAlumna.school_id;
+
             if (activeTab === 'my-schools') {
-                filters.institution_id = currentAlumna.institutionId || currentAlumna.schoolId;
+                // If Super Admin, they should see everything for this school/institution
+                // Note: fetchModuleRecords filter is usually equality. 
+                // We'll fetch and then filter in frontend if needed, but let's try to be efficient.
+                if (instId && instId !== 'GLOBAL') {
+                    filters.institution_id = instId;
+                } else if (schoolRegId) {
+                    filters.school_id = schoolRegId;
+                }
             }
             
             const data = await apiService.fetchModuleRecords('alumni_posts', undefined, undefined, { 
                 filter: filters,
                 order: 'created_at.desc'
             });
-            setPosts(data || []);
+
+            // Frontend Post-Filter for Edge Cases
+            let processedPosts = data || [];
+            if (activeTab === 'my-schools') {
+                processedPosts = (data || []).filter((p: any) => {
+                    if (currentAlumna.isSuperAdmin) return true; // Super admin sees all for this context
+                    return (p.institution_id === instId) || (p.school_id === schoolRegId);
+                });
+            }
+
+            setPosts(processedPosts);
             
             // Prefetch comments for these posts
             if (data && data.length > 0) {
@@ -219,8 +239,9 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
             setAllInstitutionMembers(institutionMembers);
 
-            // Scoped classmates: Same Institution + Same Year
+            // Scoped classmates: Same Institution + Same Year (OR All for Super Admin)
             const classmates = institutionMembers.filter((m: any) => 
+                currentAlumna.isSuperAdmin || 
                 (String(m.graduationYear) === String(gradYear) || String(m.graduation_year) === String(gradYear))
             );
             
@@ -320,7 +341,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 authorId: currentAlumna.id,
                 authorName: currentAlumna.fullName || currentAlumna.name,
                 authorPhoto: currentAlumna.profilePhotoUrl,
-                institutionId: currentAlumna.institutionId || currentAlumna.schoolId,
+                institutionId: currentAlumna.institutionId || 'GLOBAL',
+                schoolId: currentAlumna.schoolId || currentAlumna.registryId || currentAlumna.school_id,
                 content: newPostContent,
                 photoUrl: photoUrl, // Add photo support
                 likes: [],
