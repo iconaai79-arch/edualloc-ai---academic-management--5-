@@ -5364,22 +5364,32 @@ export const App: React.FC = () => {
                                             if (uploadRes.success) profilePhotoUrl = uploadRes.url;
                                         }
 
-                                        const registrationPayload = {
+                                        const registrationPayload: any = {
                                             ...data,
-                                            full_name: data.fullName || data.full_name || '', // Map form field to DB field
-                                            admission_number: data.admissionNumber || data.admission_number || '', // Map form field to DB field
-                                            email: data.email || data.user_email || '', // Explicit mapping for NOT NULL constraint
+                                            full_name: (data.fullName || data.full_name || '').trim(),
+                                            admission_number: (data.admissionNumber || data.admission_number || '').trim(),
+                                            email: (data.email || data.user_email || '').toLowerCase().trim(),
                                             id: `alumna_${Date.now()}`,
-                                            institutionId: (school?.institutionId && institutions.some(i => i.id === school.institutionId)) ? school.institutionId : (institutions[0]?.id || null),
+                                            institution_id: (school?.institutionId && institutions.some(i => i.id === school.institutionId)) ? school.institutionId : (institutions[0]?.id || null),
+                                            school_id: data.schoolId || null,
                                             status: 'verified', // Auto-approve
-                                            profilePhotoUrl: profilePhotoUrl,
+                                            profile_photo_url: profilePhotoUrl,
                                             payment_id: data.paymentId || null,
                                             registration_fee: companyDetails?.alumnaeJoiningFee || 0,
-                                            joinedAt: new Date().toISOString()
+                                            joined_at: new Date().toISOString()
                                         };
                                         
-                                        // Clean up internal file reference before saving
-                                        delete (registrationPayload as any).profilePictureFile;
+                                        // Clean up internal file reference and conflicting camelCase keys before saving
+                                        delete registrationPayload.profilePictureFile;
+                                        delete registrationPayload.fullName;
+                                        delete registrationPayload.admissionNumber;
+                                        delete registrationPayload.profilePhotoUrl;
+                                        delete registrationPayload.joinedAt;
+                                        delete registrationPayload.linkedinUrl;
+                                        delete registrationPayload.twitterUrl;
+                                        delete registrationPayload.currentJob;
+                                        delete registrationPayload.currentCompany;
+                                        delete registrationPayload.graduationYear;
 
                                         await apiService.saveModuleRecord('alumnae_members', registrationPayload);
                                         
