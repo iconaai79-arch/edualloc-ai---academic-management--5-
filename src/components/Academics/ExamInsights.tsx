@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import type { Assessment, AssessmentMark, User, Subject } from '../../types';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { ChartBarIcon } from '../icons/ChartBarIcon';
-import { ExclamationCircleIcon } from '../icons/ExclamationCircleIcon';
+import { ExclamationTriangleIcon } from '../icons/ExclamationTriangleIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 
 interface ExamInsightsProps {
@@ -67,7 +67,7 @@ export const ExamInsights: React.FC<ExamInsightsProps> = ({
                     <div className="absolute top-0 right-0 w-32 h-32 bg-rose-50 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110 duration-500" />
                     <div className="relative">
                         <div className="w-12 h-12 bg-rose-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-rose-100 text-white">
-                            <ExclamationCircleIcon className="w-6 h-6" />
+                            <ExclamationTriangleIcon className="w-6 h-6" />
                         </div>
                         <h3 className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Missing Entries</h3>
                         <p className="text-3xl font-black text-slate-900 tracking-tight">{stats.missing}</p>

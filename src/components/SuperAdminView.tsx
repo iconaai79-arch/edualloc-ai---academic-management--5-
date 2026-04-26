@@ -111,6 +111,9 @@ import { PropertyMarketplaceView } from './PropertyMarketplaceView';
 import { ExternalModuleView } from './ExternalModuleView';
 import { SchoolRegistryManager } from './superadmin/SchoolRegistryManager';
 import { AddCarListingModal } from './modals/AddCarListingModal';
+const DisciplineManager = React.lazy(() => import('./Academics/DisciplineManager').then(m => ({ default: m.DisciplineManager })));
+const ExamInsights = React.lazy(() => import('./Academics/ExamInsights').then(m => ({ default: m.ExamInsights })));
+const AcademicReportsHub = React.lazy(() => import('./Academics/AcademicReportsHub').then(m => ({ default: m.AcademicReportsHub })));
 
 import { MarketingLandingPage } from './public/MarketingLandingPage';
 import { DemoRequestManager } from './DemoRequestManager';
@@ -986,7 +989,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'portal_links' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout' | 'campaigns' | 'financials' | 'integrations'>('dashboard');
     const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry' | 'scouting' | 'branding' | 'political' | 'medical' | 'business_profile'>('list');
-    const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses' | 'registry' | 'calendar' | 'timetable'>('subjects');
+    const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses' | 'registry' | 'calendar' | 'timetable' | 'discipline' | 'insights' | 'reports'>('subjects');
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
 
     const [healthStatus, setHealthStatus] = useState<any>(null);
@@ -3122,6 +3125,24 @@ Please change it after login.`;
                                 >
                                     Global School Registry
                                 </button>
+                                <button
+                                    onClick={() => setAcademicsSubTab('discipline')}
+                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${academicsSubTab === 'discipline' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}
+                                >
+                                    Discipline
+                                </button>
+                                <button
+                                    onClick={() => setAcademicsSubTab('insights')}
+                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${academicsSubTab === 'insights' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}
+                                >
+                                    Exam Insights
+                                </button>
+                                <button
+                                    onClick={() => setAcademicsSubTab('reports')}
+                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${academicsSubTab === 'reports' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}
+                                >
+                                    Intelligence Hub
+                                </button>
                             </nav>
                         </div>
 
@@ -3187,6 +3208,40 @@ Please change it after login.`;
                                 onRefresh={fetchSchoolRegistry}
                                 onAccessPortal={onLoginAsAdmin}
                             />
+                        )}
+
+                        {academicsSubTab === 'discipline' && (
+                            <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
+                                <DisciplineManager
+                                    incidents={props.incidents || []}
+                                    students={users.filter(u => u.role === 'student')}
+                                    onAddIncident={props.onAddIncident || (async () => {})}
+                                />
+                            </Suspense>
+                        )}
+
+                        {academicsSubTab === 'insights' && (
+                            <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
+                                <ExamInsights
+                                    assessments={assessments}
+                                    marks={assessmentMarks}
+                                    subjects={subjects}
+                                    students={users.filter(u => u.role === 'student')}
+                                />
+                            </Suspense>
+                        )}
+
+                        {academicsSubTab === 'reports' && (
+                            <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
+                                <AcademicReportsHub
+                                    students={users.filter(u => u.role === 'student')}
+                                    assessments={assessments}
+                                    marks={assessmentMarks}
+                                    subjects={subjects}
+                                    institution={currentInstitution || institutions[0]}
+                                    gradingSystem={currentInstitution?.academicConfig?.gradingSystem || null}
+                                />
+                            </Suspense>
                         )}
                     </div>
                 )}

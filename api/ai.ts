@@ -82,14 +82,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: "Invalid Request", message: "Missing 'contents' or 'history/message' in body." });
 
     } catch (error: any) {
-        console.error("AI Generation Error Full:", error);
+        console.error("AI Generation Exception:", error);
 
-        // Detailed error for server logs, sanitized for client
-        const msg = error.message || "Unknown error";
+        // Extract detailed error message from Gemini SDK if possible
+        const errorMessage = error?.response?.promptFeedback?.blockReason 
+            ? `Blocked by Safety: ${error.response.promptFeedback.blockReason}`
+            : (error.message || "Unknown Engine Error");
+
         return res.status(500).json({
-            error: "AI Processing Failed",
-            details: msg,
-            message: "The AI engine encountered a problem."
+            error: "AI_PROCESSING_FAILED",
+            details: errorMessage,
+            message: "The Gemini engine encountered a problem or blocked the content.",
+            type: error.name || 'Error'
         });
     }
 }

@@ -4382,6 +4382,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                     <SettingsManager
                         currentUser={currentUser}
                         currentInstitution={currentInstitution}
+                        isInstitutionalView={true}
                         onUpdateInstitution={onUpdateInstitution}
                         onUpdateLogo={onUpdateLogo}
                         onUpdateFooterImage={onUpdateFooterImage}

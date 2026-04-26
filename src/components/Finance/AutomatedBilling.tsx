@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import type { FeeStructure, User, AcademicYear, Semester, Institution } from '../../types';
-import { RocketLaunchIcon } from '../icons/RocketLaunchIcon';
+import { ZapIcon } from '../icons/ZapIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 
 interface AutomatedBillingProps {
@@ -57,7 +57,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         <div className="max-w-3xl mx-auto space-y-8 py-10 animate-in fade-in zoom-in-95 duration-500">
             <div className="text-center space-y-4">
                 <div className="inline-flex items-center justify-center w-20 h-20 bg-indigo-600 text-white rounded-[2rem] shadow-xl shadow-indigo-100 mb-4 animate-bounce">
-                    <RocketLaunchIcon className="w-10 h-10" />
+                    <ZapIcon className="w-10 h-10" />
                 </div>
                 <h2 className="text-4xl font-black text-slate-900 tracking-tight">Institutional Billing Wizard</h2>
                 <p className="text-slate-500 font-medium max-w-lg mx-auto">
@@ -94,7 +94,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
                     <div className="bg-amber-50/50 border border-amber-100 p-6 rounded-3xl space-y-3">
                         <div className="flex items-center gap-2 text-amber-700">
-                            <RocketLaunchIcon className="w-5 h-5" />
+                            <ZapIcon className="w-5 h-5" />
                             <span className="text-[10px] font-black uppercase tracking-widest">Impact Analysis</span>
                         </div>
                         <p className="text-sm font-bold text-amber-800/80 leading-relaxed">

@@ -3271,6 +3271,39 @@ export const App: React.FC = () => {
                                     activeSemester={activeSemester}
                                     timetableSettings={timetableSettings}
                                     examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
+                                    assessments={assessments}
+                                    marks={assessmentMarks}
+                                    incidents={incidents}
+                                    onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
+                                    onDeleteAssessment={async (id: string) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
+                                    onSaveAssessmentMarks={async (id: string, marks: any[]) => {
+                                        const promises = marks.map(m => {
+                                            const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
+                                            const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()}`;
+                                            return apiService.saveModuleRecord('assessment_marks', {
+                                                id: recordId,
+                                                assessmentId: id,
+                                                studentId: m.studentId,
+                                                marks: m.marks,
+                                                comments: m.comments,
+                                                gradedBy: currentUser.id,
+                                                timestamp: new Date().toISOString(),
+                                                institutionId: currentUser.institutionId
+                                            });
+                                        });
+                                        await Promise.all(promises);
+                                        loadData();
+                                    }}
+                                    onAddIncident={async (data) => {
+                                        await apiService.saveModuleRecord('discipline_incidents', {
+                                            ...data,
+                                             id: `disc_${Date.now()}`,
+                                             institutionId: currentUser!.institutionId,
+                                             timestamp: new Date().toISOString(),
+                                             recordedBy: currentUser!.name
+                                         });
+                                         loadData();
+                                     }}
                                     logoUrl={activeBranding.logoUrl}
                                     footerImageUrl={activeFooterImageUrl}
                                     themeColor={activeBranding.primaryColor}
@@ -3449,30 +3482,7 @@ export const App: React.FC = () => {
                                     feedbackSubmissions={feedbackSubmissions}
                                     onUpdateFeedbackStatus={() => { }}
                                     courseSizes={courseSizes}
-                                    assessments={assessments}
-                                    assessmentMarks={assessmentMarks}
-                                    onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()} `, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
-                                    onDeleteAssessment={async (id: string) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
-                                    onUpdateAssessmentStatus={() => { }}
-                                    onSaveAssessmentMarks={async (id: string, marks: any[]) => {
-                                        const promises = marks.map((m: any) => {
-                                            const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
-                                            const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()} `;
-                                            const record: AssessmentMark = {
-                                                id: recordId,
-                                                assessmentId: id,
-                                                studentId: m.studentId,
-                                                marks: m.marks,
-                                                comments: m.comments,
-                                                gradedBy: currentUser.id,
-                                                timestamp: new Date().toISOString(),
-                                                institutionId: currentUser.institutionId
-                                            };
-                                            return apiService.saveModuleRecord('assessment_marks', record);
-                                        });
-                                        await Promise.all(promises);
-                                        loadData();
-                                    }}
+
                                     contracts={contracts}
                                     onGenerateDemoData={handleGenerateDemoData}
                                     onClearDemoData={handleClearDemoData}
@@ -3757,6 +3767,30 @@ export const App: React.FC = () => {
                                     activeSemester={activeSemester}
                                     timetableSettings={timetableSettings}
                                     examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
+                                    assessments={assessments}
+                                    marks={assessmentMarks}
+                                    incidents={incidents}
+                                    onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
+                                    onDeleteAssessment={async (id: string) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
+                                    onSaveAssessmentMarks={async (id: string, marks: any[]) => {
+                                        const promises = marks.map(m => {
+                                            const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
+                                            const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()}`;
+                                            return apiService.saveModuleRecord('assessment_marks', {
+                                                id: recordId,
+                                                assessmentId: id,
+                                                studentId: m.studentId,
+                                                marks: m.marks,
+                                                comments: m.comments,
+                                                gradedBy: currentUser.id,
+                                                timestamp: new Date().toISOString(),
+                                                institutionId: currentUser.institutionId
+                                            });
+                                        });
+                                        await Promise.all(promises);
+                                        loadData();
+                                    }}
+
                                     onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries)}
                                     onExamTimetableGenerated={async (entries, ay, sem) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)}
                                     onAddSubject={handleAddSubject}
@@ -3782,7 +3816,7 @@ export const App: React.FC = () => {
                                         }
                                     }}
                                     onAddAcademicYear={async (data) => { await apiService.saveModuleRecord('academic_years', { ...data, id: generateId('ay'), institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); }} onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: generateId('sem'), institutionId: currentUser!.institutionId }); loadData(); }} onAddDepartment={handleAddDepartment} onUpdateDepartment={handleUpdateDepartment} onDeleteDepartment={handleDeleteDepartment} onImportDepartments={handleImportDepartments} onAddBuilding={handleAddBuilding} onUpdateBuilding={handleUpdateBuilding} onDeleteBuilding={handleDeleteBuilding} onAddRoom={handleAddRoom} onUpdateRoom={handleUpdateRoom} onDeleteRoom={handleDeleteRoom} onImportRooms={handleImportRooms} onAddAcademicLevel={handleAddAcademicLevel} onUpdateAcademicLevel={handleUpdateAcademicLevel} onDeleteAcademicLevel={handleDeleteAcademicLevel} onUpdateRequest={(id: string, data: any) => apiService.saveModuleRecord('allocation_requests', { id, ...data })} onWithdrawRequest={(id: string) => apiService.deleteModuleRecord('allocation_requests', id)}
-                                    incidents={incidents}
+
                                     onAddIncident={async (data) => {
                                         await apiService.saveModuleRecord('discipline_incidents', {
                                             ...data,
@@ -3831,8 +3865,7 @@ export const App: React.FC = () => {
                                     lessonRatings={lessonRatings}
                                     feedbackSubmissions={feedbackSubmissions}
                                     courseSizes={courseSizes}
-                                    assessments={assessments}
-                                    assessmentMarks={assessmentMarks}
+
                                     contracts={contracts}
                                     isGeneratingDemoData={isGeneratingDemoData}
                                     demoDataGenerationProgress={demoDataGenerationProgress}
@@ -3871,28 +3904,7 @@ export const App: React.FC = () => {
                                             loadData();
                                         }
                                     }}
-                                    onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
-                                    onDeleteAssessment={async (id: string) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
-                                    onSaveAssessmentMarks={async (id: string, marks: any[]) => {
-                                        const promises = marks.map(m => {
-                                            const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
-                                            const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()}`;
 
-                                            const record: AssessmentMark = {
-                                                id: recordId,
-                                                assessmentId: id,
-                                                studentId: m.studentId,
-                                                marks: m.marks,
-                                                comments: m.comments,
-                                                gradedBy: currentUser.id,
-                                                timestamp: new Date().toISOString(),
-                                                institutionId: currentUser.institutionId
-                                            };
-                                            return apiService.saveModuleRecord('assessment_marks', record);
-                                        });
-                                        await Promise.all(promises);
-                                        loadData();
-                                    }}
                                     isImpersonating={!!impersonatedRole}
                                     coopFarmers={coopFarmers}
                                     coopCollections={coopCollections}
@@ -4247,6 +4259,39 @@ export const App: React.FC = () => {
                                     smsConfig={companyDetails.smsConfig}
                                     themeColor={activeBranding.primaryColor}
                                     examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
+                                    assessments={assessments}
+                                    marks={assessmentMarks}
+                                    incidents={incidents}
+                                    onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
+                                    onDeleteAssessment={async (id: string) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
+                                    onSaveAssessmentMarks={async (id: string, marks: any[]) => {
+                                        const promises = marks.map(m => {
+                                            const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
+                                            const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()}`;
+                                            return apiService.saveModuleRecord('assessment_marks', {
+                                                id: recordId,
+                                                assessmentId: id,
+                                                studentId: m.studentId,
+                                                marks: m.marks,
+                                                comments: m.comments,
+                                                gradedBy: currentUser.id,
+                                                timestamp: new Date().toISOString(),
+                                                institutionId: currentUser.institutionId
+                                            });
+                                        });
+                                        await Promise.all(promises);
+                                        loadData();
+                                    }}
+                                    onAddIncident={async (data) => {
+                                        await apiService.saveModuleRecord('discipline_incidents', {
+                                            ...data,
+                                             id: `disc_${Date.now()}`,
+                                             institutionId: currentUser!.institutionId,
+                                             timestamp: new Date().toISOString(),
+                                             recordedBy: currentUser!.name
+                                         });
+                                         loadData();
+                                     }}
                                     onSaveExamTimetableSettings={(config) => onUpdateInstitution(activeInstitution!.id, { examTimetableSettings: config })}
                                     onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[])}
                                     allocations={allocations}
@@ -4258,21 +4303,11 @@ export const App: React.FC = () => {
                                     onAddExtensionRequest={handleAddExtensionRequest}
                                     onLogAction={handleLogAction}
                                     companyDetails={companyDetails}
-                                    assessments={assessments}
-                                    marks={assessmentMarks}
-                                    activityLog={activityLog}
-                                    incidents={incidents}
-                                    onAddIncident={async (data) => {
-                                        await apiService.saveModuleRecord('discipline_incidents', {
-                                            ...data,
-                                            id: `disc_${Date.now()}`,
-                                            institutionId: currentUser!.institutionId,
-                                            timestamp: new Date().toISOString(),
-                                            recordedBy: currentUser!.name
-                                        });
-                                        await handleLogAction(`Recorded disciplinary incident for ${data.studentName}`);
-                                        loadData();
-                                    }}
+
+
+
+
+
                                 />
                             ) : activeRole === 'security' ? (
                                 <SecurityView
@@ -4723,6 +4758,39 @@ export const App: React.FC = () => {
                                     activeSemester={activeSemester}
                                     timetableSettings={timetableSettings}
                                     examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
+                                    assessments={assessments}
+                                    marks={assessmentMarks}
+                                    incidents={incidents}
+                                    onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
+                                    onDeleteAssessment={async (id: string) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
+                                    onSaveAssessmentMarks={async (id: string, marks: any[]) => {
+                                        const promises = marks.map(m => {
+                                            const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
+                                            const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()}`;
+                                            return apiService.saveModuleRecord('assessment_marks', {
+                                                id: recordId,
+                                                assessmentId: id,
+                                                studentId: m.studentId,
+                                                marks: m.marks,
+                                                comments: m.comments,
+                                                gradedBy: currentUser.id,
+                                                timestamp: new Date().toISOString(),
+                                                institutionId: currentUser.institutionId
+                                            });
+                                        });
+                                        await Promise.all(promises);
+                                        loadData();
+                                    }}
+                                    onAddIncident={async (data) => {
+                                        await apiService.saveModuleRecord('discipline_incidents', {
+                                            ...data,
+                                             id: `disc_${Date.now()}`,
+                                             institutionId: currentUser!.institutionId,
+                                             timestamp: new Date().toISOString(),
+                                             recordedBy: currentUser!.name
+                                         });
+                                         loadData();
+                                     }}
                                     logoUrl={activeBranding.logoUrl}
                                     footerImageUrl={activeFooterImageUrl}
                                     themeColor={activeBranding.primaryColor}
@@ -4871,31 +4939,12 @@ export const App: React.FC = () => {
                                     feedbackSubmissions={feedbackSubmissions}
                                     onUpdateFeedbackStatus={() => { }}
                                     courseSizes={courseSizes}
-                                    assessments={assessments}
-                                    assessmentMarks={assessmentMarks}
-                                    onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()} `, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
-                                    onDeleteAssessment={async (id: string) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
-                                    onUpdateAssessmentStatus={() => { }}
-                                    onSaveAssessmentMarks={async (id: string, marks: any[]) => {
-                                        const promises = marks.map((m: any) => {
-                                            const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
-                                            const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()} `;
 
-                                            const record: AssessmentMark = {
-                                                id: recordId,
-                                                assessmentId: id,
-                                                studentId: m.studentId,
-                                                marks: m.marks,
-                                                comments: m.comments,
-                                                gradedBy: currentUser.id,
-                                                timestamp: new Date().toISOString(),
-                                                institutionId: currentUser.institutionId
-                                            };
-                                            return apiService.saveModuleRecord('assessment_marks', record);
-                                        });
-                                        await Promise.all(promises);
-                                        loadData();
-                                    }}
+
+
+
+                                    onUpdateAssessmentStatus={() => { }}
+
                                     contracts={contracts}
                                     onGenerateDemoData={handleGenerateDemoData}
                                     onClearDemoData={handleClearDemoData}

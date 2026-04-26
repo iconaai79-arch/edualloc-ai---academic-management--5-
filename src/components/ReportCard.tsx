@@ -6,7 +6,7 @@ import { generateReportCardRemarks } from '../services/geminiService';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { CBCReportCard } from './Academics/CBCReportCard';
-import { ClipboardDocumentCheckIcon } from './icons/ClipboardDocumentCheckIcon';
+import { CheckBadgeIcon } from './icons/CheckBadgeIcon';
 
 interface ReportCardProps {
     student: User;

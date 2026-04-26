@@ -1,9 +1,9 @@
 
 import React, { useMemo } from 'react';
 import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution } from '../../types';
-import { CurrencyDollarIcon } from '../icons/CurrencyDollarIcon';
+import { CurrencyIcon } from '../icons/CurrencyIcon';
 import { ArrowTrendingUpIcon } from '../icons/ArrowTrendingUpIcon';
-import { ArrowTrendingDownIcon } from '../icons/ArrowTrendingDownIcon';
+import { ArrowDownRightIcon } from '../icons/ArrowDownRightIcon';
 import { ChartBarIcon } from '../icons/ChartBarIcon';
 
 interface RevenueWarRoomProps {
@@ -45,9 +45,9 @@ export const RevenueWarRoom: React.FC<RevenueWarRoomProps> = ({
             {/* Header / Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 {[
-                    { label: 'Total Revenue', value: stats.totalCollected, icon: CurrencyDollarIcon, color: 'text-emerald-600', bg: 'bg-emerald-50', trend: '+12%' },
+                    { label: 'Total Revenue', value: stats.totalCollected, icon: CurrencyIcon, color: 'text-emerald-600', bg: 'bg-emerald-50', trend: '+12%' },
                     { label: 'Outstanding Debt', value: stats.outstanding, icon: ArrowTrendingUpIcon, color: 'text-rose-600', bg: 'bg-rose-50', trend: '-5%' },
-                    { label: 'Total Expenses', value: stats.totalExpenses, icon: ArrowTrendingDownIcon, color: 'text-amber-600', bg: 'bg-amber-50', trend: '+8%' },
+                    { label: 'Total Expenses', value: stats.totalExpenses, icon: ArrowDownRightIcon, color: 'text-amber-600', bg: 'bg-amber-50', trend: '+8%' },
                     { label: 'Net Cash Flow', value: stats.netCashFlow, icon: ChartBarIcon, color: 'text-indigo-600', bg: 'bg-indigo-50', trend: 'Stable' },
                 ].map((stat, i) => (
                     <div key={i} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all group overflow-hidden relative">

@@ -3,10 +3,10 @@ import React, { useState } from 'react';
 import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeStructure, AcademicYear, Semester } from '../../types';
 import { RevenueWarRoom } from './RevenueWarRoom';
 import { AutomatedBilling } from './AutomatedBilling';
-import { CurrencyDollarIcon } from '../icons/CurrencyDollarIcon';
-import { RocketLaunchIcon } from '../icons/RocketLaunchIcon';
-import { ClipboardDocumentCheckIcon } from '../icons/ClipboardDocumentCheckIcon';
-import { PresentationChartLineIcon } from '../icons/PresentationChartLineIcon';
+import { BanknotesIcon } from '../icons/BanknotesIcon';
+import { ZapIcon } from '../icons/ZapIcon';
+import { CheckBadgeIcon } from '../icons/CheckBadgeIcon';
+import { BarChart3Icon } from '../icons/BarChart3Icon';
 
 interface FinanceManagerProps {
     invoices: Invoice[];
@@ -26,10 +26,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'expenses' | 'audit'>('overview');
 
     const tabs = [
-        { id: 'overview', label: 'Revenue War Room', icon: PresentationChartLineIcon },
-        { id: 'billing', label: 'Billing Engine', icon: RocketLaunchIcon },
-        { id: 'expenses', label: 'Expense Governance', icon: CurrencyDollarIcon },
-        { id: 'audit', label: 'Fiscal Audit', icon: ClipboardDocumentCheckIcon },
+        { id: 'overview', label: 'Revenue War Room', icon: BarChart3Icon },
+        { id: 'billing', label: 'Billing Engine', icon: ZapIcon },
+        { id: 'expenses', label: 'Expense Governance', icon: BanknotesIcon },
+        { id: 'audit', label: 'Fiscal Audit', icon: CheckBadgeIcon },
     ] as const;
 
     return (
@@ -119,7 +119,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <div key={i} className="flex justify-between items-center p-6 bg-slate-50/50 rounded-3xl border border-slate-100 hover:bg-white hover:shadow-xl hover:shadow-slate-100/50 transition-all group">
                                             <div className="flex gap-4 items-center">
                                                 <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm">
-                                                    <CurrencyDollarIcon className="w-6 h-6" />
+                                                    <BanknotesIcon className="w-6 h-6" />
                                                 </div>
                                                 <div>
                                                     <p className="text-sm font-black text-slate-900">{exp.description}</p>
@@ -141,7 +141,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 {activeTab === 'audit' && (
                     <div className="bg-white p-12 rounded-[3.5rem] border border-slate-100 shadow-sm text-center space-y-8">
                         <div className="w-24 h-24 bg-slate-50 text-slate-300 rounded-[2rem] flex items-center justify-center mx-auto">
-                            <ClipboardDocumentCheckIcon className="w-12 h-12" />
+                            <CheckBadgeIcon className="w-12 h-12" />
                         </div>
                         <div className="space-y-2">
                             <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Financial Audit Trail</h3>

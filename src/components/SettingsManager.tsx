@@ -120,6 +120,7 @@ interface SettingsManagerProps {
     allocations: AllocationRequest[];
     isExamCalendarOnly?: boolean;
     isAcademicsOfficer?: boolean;
+    isInstitutionalView?: boolean;
     onSaveSmsConfig?: (config: SmsConfig) => void;
     onSaveEmailConfig?: (config: EmailConfig) => void;
     onSaveLetterheadConfig?: (config: LetterheadConfig) => void;
@@ -183,7 +184,7 @@ const TEACHER_RULE_TYPE_LABELS: Record<TeacherRuleType, string> = {
 type SettingsTab = 'global_config' | 'general' | 'timetable' | 'calendar' | 'subjects' | 'courses' | 'facilities' | 'levels' | 'database' | 'custom_fields' | 'notifications' | 'financial' | 'staff';
 
 export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
-    const isSuperAdmin = props.currentUser.role === 'super_admin';
+    const isSuperAdmin = props.currentUser.role === 'super_admin' && !props.isAcademicsOfficer && !props.isCoop && !props.isInstitutionalView;
     const isRetailAgency = useMemo(() => RETAIL_SUBTYPES.includes(props.currentInstitution?.businessSubType || ''), [props.currentInstitution]);
 
     const isSchool = (props.currentInstitution?.institutionType === 'Education' && (props.currentInstitution?.category === 'Primary' || props.currentInstitution?.category === 'Secondary')) || (props.currentInstitution as any)?.institutionType === 'Primary' || (props.currentInstitution as any)?.institutionType === 'Secondary';
@@ -729,7 +730,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const mainTabs = useMemo(() => {
         const tabs = [];
 
-        if (isSuperAdmin && !isCoop) {
+        if (isSuperAdmin && !isCoop && !props.isAcademicsOfficer) {
             tabs.push({ id: 'global_config', label: 'Global Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> });
         } else {
             tabs.push({ id: 'general', label: 'General', icon: <InformationCircleIcon className="w-5 h-5 mr-2" /> });

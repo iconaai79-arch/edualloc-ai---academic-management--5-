@@ -2,10 +2,10 @@
 import React, { useState } from 'react';
 import type { Assessment, AssessmentMark, User, Subject, ActivityLog } from '../../types';
 import { ChartPieIcon } from '../icons/ChartPieIcon';
-import { TableCellsIcon } from '../icons/TableCellsIcon';
-import { ClipboardDocumentCheckIcon } from '../icons/ClipboardDocumentCheckIcon';
+import { GridIcon } from '../icons/GridIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { FingerPrintIcon } from '../icons/FingerPrintIcon';
-import { ExclamationCircleIcon } from '../icons/ExclamationCircleIcon';
+import { ExclamationTriangleIcon } from '../icons/ExclamationTriangleIcon';
 
 interface AcademicReportsHubProps {
     assessments: Assessment[];
@@ -42,8 +42,8 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
                     </div>
                     <div className="flex flex-wrap gap-2 p-1.5 bg-slate-50 rounded-2xl">
                         {[
-                            { id: 'missing_marks', label: 'Missing Marks', icon: ExclamationCircleIcon },
-                            { id: 'broadsheet', label: 'Broadsheet', icon: TableCellsIcon },
+                            { id: 'missing_marks', label: 'Missing Marks', icon: ExclamationTriangleIcon },
+                            { id: 'broadsheet', label: 'Broadsheet', icon: GridIcon },
                             { id: 'analysis', label: 'Grade Analysis', icon: ChartPieIcon },
                             { id: 'audit', label: 'Audit Logs', icon: FingerPrintIcon }
                         ].map(tab => (
@@ -70,7 +70,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
                         {missingMarksData.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-20 text-center">
                                 <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-6">
-                                    <ClipboardDocumentCheckIcon className="w-10 h-10 text-emerald-500" />
+                                    <CheckCircleIcon className="w-10 h-10 text-emerald-500" />
                                 </div>
                                 <h4 className="text-xl font-black text-slate-900">Data Integrity 100%</h4>
                                 <p className="text-slate-400 text-sm font-medium mt-2">All marks for active assessments have been submitted.</p>

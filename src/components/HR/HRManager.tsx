@@ -4,8 +4,8 @@ import type { User, PayrollRecord, LeaveRequest, Institution } from '../../types
 import { PayrollEngine } from './PayrollEngine';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
-import { CalendarIcon } from '../icons/CalendarIcon';
-import { PresentationChartLineIcon } from '../icons/PresentationChartLineIcon';
+import { CalendarDaysIcon } from '../icons/CalendarDaysIcon';
+import { BarChart3Icon } from '../icons/BarChart3Icon';
 
 interface HRManagerProps {
     staff: User[];
@@ -29,8 +29,8 @@ export const HRManager: React.FC<HRManagerProps> = ({
     const tabs = [
         { id: 'roster', label: 'Staff Roster', icon: UserGroupIcon },
         { id: 'payroll', label: 'Payroll Hub', icon: BanknotesIcon },
-        { id: 'leave', label: 'Leave Governance', icon: CalendarIcon },
-        { id: 'analytics', label: 'Workforce Intel', icon: PresentationChartLineIcon },
+        { id: 'leave', label: 'Leave Governance', icon: CalendarDaysIcon },
+        { id: 'analytics', label: 'Workforce Intel', icon: BarChart3Icon },
     ] as const;
 
     return (

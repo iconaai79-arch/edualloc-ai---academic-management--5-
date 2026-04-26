@@ -18,7 +18,7 @@ import { SparklesIcon } from './icons/SparklesIcon';
 import { CommandLineIcon } from './icons/CommandLineIcon';
 import { BeakerIcon } from './icons/BeakerIcon';
 import { ChartBarIcon } from './icons/ChartBarIcon';
-import { PresentationChartLineIcon } from './icons/PresentationChartLineIcon';
+import { BarChart3Icon } from './icons/BarChart3Icon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
 import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
 
@@ -222,7 +222,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                 <nav className="-mb-px flex space-x-8" aria-label="Tabs">
                     <button onClick={() => setActiveTab('dashboard')} className={`${activeTab === 'dashboard' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><ClipboardListIcon className="w-5 h-5 mr-2" /> Dashboard</button>
                     <button onClick={() => setActiveTab('exam_units')} className={`${activeTab === 'exam_units' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><BookOpenIcon className="w-5 h-5 mr-2" /> Exam Units</button>
-                    <button onClick={() => setActiveTab('exam_insights')} className={`${activeTab === 'exam_insights' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><PresentationChartLineIcon className="w-5 h-5 mr-2" /> Exam Insights</button>
+                    <button onClick={() => setActiveTab('exam_insights')} className={`${activeTab === 'exam_insights' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><BarChart3Icon className="w-5 h-5 mr-2" /> Exam Insights</button>
                     <button onClick={() => setActiveTab('reports')} className={`${activeTab === 'reports' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><ChartBarIcon className="w-5 h-5 mr-2" /> Intelligence Hub</button>
                     <button onClick={() => setActiveTab('people')} className={`${activeTab === 'people' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><UserGroupIcon className="w-5 h-5 mr-2" /> People Management</button>
                     <button onClick={() => setActiveTab('discipline')} className={`${activeTab === 'discipline' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><ShieldExclamationIcon className="w-5 h-5 mr-2" /> Discipline</button>
@@ -471,6 +471,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                     onAssociateSubjectToCourseLevel={onAssociateSubjectToCourseLevel}
                     onDisassociateSubjectFromCourseLevel={onDisassociateSubjectFromCourseLevel}
                     isAcademicsOfficer={true}
+                    isInstitutionalView={true}
                     allocations={[]}
                 />
             )}
