@@ -22,7 +22,8 @@ import {
     X,
     Sparkles,
     Users,
-    Share2
+    Share2,
+    Building2
 } from 'lucide-react';
 import type { AlumniPost, AlumniComment, Institution } from '../types';
 import { apiService } from '../services/apiService';
@@ -347,8 +348,19 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     };
 
     const myInstitutions = useMemo(() => {
-        return institutions.filter(inst => inst.id === (currentAlumna.institutionId || currentAlumna.schoolId));
-    }, [institutions, currentAlumna]);
+        // Current active institution
+        const active = institutions.find(inst => inst.id === (currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id));
+        
+        // Other institutions from other memberships
+        const others = otherMemberships.map(m => {
+            return institutions.find(inst => inst.id === (m.institution_id || m.school_id || m.institutionId));
+        }).filter(Boolean);
+
+        // Merge and unique by ID
+        const all = [active, ...others].filter(Boolean);
+        const unique = Array.from(new Map(all.map(item => [item!.id, item])).values());
+        return unique;
+    }, [institutions, currentAlumna, otherMemberships]);
 
     return (
         <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col md:flex-row">
@@ -888,20 +900,32 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                             <Plus className="w-4 h-4 cursor-pointer hover:text-indigo-600" />
                         </h3>
                         <div className="space-y-4">
-                            {myInstitutions.map(inst => (
-                                <div key={inst.id} className="flex items-center justify-between group cursor-pointer">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center text-indigo-600 shadow-sm">
-                                            <Sparkles className="w-5 h-5" />
+                            {myInstitutions.map(inst => {
+                                const isActive = inst!.id === (currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id);
+                                return (
+                                    <div 
+                                        key={inst!.id} 
+                                        onClick={() => {
+                                            if (!isActive) {
+                                                const membership = otherMemberships.find(m => (m.institution_id || m.school_id || m.institutionId) === inst!.id);
+                                                if (membership) handleSwitchCircle(membership);
+                                            }
+                                        }}
+                                        className={`flex items-center justify-between group cursor-pointer p-2 rounded-2xl transition-all ${isActive ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-colors ${isActive ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-400 group-hover:text-indigo-600'}`}>
+                                                {isActive ? <Sparkles className="w-5 h-5" /> : <Building2 className="w-5 h-5" />}
+                                            </div>
+                                            <div>
+                                                <p className={`text-[10px] font-black uppercase truncate max-w-[120px] ${isActive ? 'text-indigo-600' : 'text-slate-900 dark:text-white'}`}>{inst!.name}</p>
+                                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{isActive ? 'Active Member' : 'Switch Circle'}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-[10px] font-black uppercase text-slate-900 dark:text-white truncate max-w-[120px]">{inst.name}</p>
-                                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Active Member</p>
-                                        </div>
+                                        {isActive && <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>}
                                     </div>
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
 
