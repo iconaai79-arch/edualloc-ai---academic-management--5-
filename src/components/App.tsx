@@ -6336,6 +6336,7 @@ export const App: React.FC = () => {
                                 currentAlumna={activeAlumna}
                                 institutions={institutions}
                                 featureFee={companyDetails?.alumnaeFeatureFee || 0}
+                                ncbaConfig={companyDetails?.ncbaConfig}
                                 onBack={() => {
                                     setShowAlumnaePortal(false);
                                     setActiveAlumna(null);

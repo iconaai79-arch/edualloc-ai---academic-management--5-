@@ -32,11 +32,12 @@ interface AlumnaePortalViewProps {
     currentAlumna: any;
     institutions: Institution[];
     featureFee: number;
+    ncbaConfig?: any;
     onBack: () => void;
     onJoinAnother?: () => void;
 }
 
-export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlumna, institutions, featureFee, onBack, onJoinAnother }) => {
+export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlumna, institutions, featureFee, ncbaConfig, onBack, onJoinAnother }) => {
     const [posts, setPosts] = useState<AlumniPost[]>([]);
     const [newPostContent, setNewPostContent] = useState('');
     const [isPosting, setIsPosting] = useState(false);
@@ -259,13 +260,24 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         setIsProcessingFeature(true);
         
         try {
-            const res = await apiService.triggerMpesaStkPush({
-                amount: featureFee,
-                phoneNumber: currentAlumna.phoneNumber,
-                reference: `FEAT_${currentAlumna.id}`,
-                description: 'Featured Alumna Promotion',
-                institutionId: currentAlumna.institutionId || 'GLOBAL'
-            });
+            let res;
+            if (ncbaConfig && ncbaConfig.clientId && ncbaConfig.clientSecret) {
+                res = await apiService.triggerNcbaPayment({
+                    amount: featureFee,
+                    phoneNumber: currentAlumna.phoneNumber,
+                    reference: `FEAT_${currentAlumna.id}`,
+                    description: 'Featured Alumna Promotion',
+                    institutionId: currentAlumna.institutionId || 'GLOBAL'
+                });
+            } else {
+                res = await apiService.triggerMpesaStkPush({
+                    amount: featureFee,
+                    phoneNumber: currentAlumna.phoneNumber,
+                    reference: `FEAT_${currentAlumna.id}`,
+                    description: 'Featured Alumna Promotion',
+                    institutionId: currentAlumna.institutionId || 'GLOBAL'
+                });
+            }
 
             if (res.success) {
                 // Success - Update record
