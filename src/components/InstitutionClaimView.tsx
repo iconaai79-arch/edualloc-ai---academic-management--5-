@@ -146,6 +146,12 @@ export const InstitutionClaimView: React.FC<InstitutionClaimViewProps> = ({ regi
                                 className="w-full h-20 pl-16 pr-6 bg-white/5 border border-white/10 rounded-[2rem] text-white font-black uppercase text-sm tracking-tight outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all placeholder:text-slate-700"
                             />
                         </div>
+                        {searchTerm && registry.length === 0 && (
+                            <div className="flex flex-col items-center justify-center p-12 text-center animate-pulse">
+                                <Loader2 className="w-10 h-10 text-indigo-400 animate-spin mb-4" />
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Synchronizing National Registry...</p>
+                            </div>
+                        )}
 
                         {filteredSchools.length > 0 && (
                             <div className="space-y-3 mt-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">

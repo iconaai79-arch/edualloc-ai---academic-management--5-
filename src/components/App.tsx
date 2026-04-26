@@ -713,6 +713,13 @@ export const App: React.FC = () => {
             } catch (e) {}
         }
     }, []);
+    
+    // Ensure school registry is loaded when entering claim flow
+    useEffect(() => {
+        if (showInstitutionClaim && (!schoolRegistry || schoolRegistry.length === 0)) {
+            loadData(false, true);
+        }
+    }, [showInstitutionClaim, schoolRegistry, loadData]);
 
     // 2FA State
     const [otpPendingUser, setOtpPendingUser] = useState<User | null>(null);
@@ -854,7 +861,7 @@ export const App: React.FC = () => {
                 (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchModuleRecords<County>('counties').catch(() => []),
                 apiService.fetchCompanySettings().catch(() => null),
                 (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchUsers().catch(() => []),
-                (isAlumnaeMode && !showAlumnaeRegister) ? Promise.resolve([]) : apiService.fetchFullRegistry().catch(() => []),
+                (isAlumnaeMode && !showAlumnaeRegister && !showInstitutionClaim) ? Promise.resolve([]) : apiService.fetchFullRegistry().catch(() => []),
             ]);
 
             // Sync identity state immediately so we can use activeInstitution in Phase 2
@@ -3341,54 +3348,66 @@ export const App: React.FC = () => {
                                                     institution_id TEXT,
                                                     content TEXT NOT NULL,
                                                     is_read BOOLEAN DEFAULT false,
-                                                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                                                );
+                                                          DO $$ 
+                                                 BEGIN 
+                                                     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumnae_members') THEN
+                                                         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'profile_photo_url') THEN
+                                                             ALTER TABLE alumnae_members ADD COLUMN profile_photo_url TEXT;
+                                                         END IF;
+                                                         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'admission_number') THEN
+                                                             ALTER TABLE alumnae_members ADD COLUMN admission_number TEXT;
+                                                         END IF;
+                                                         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'school_id') THEN
+                                                             ALTER TABLE alumnae_members ADD COLUMN school_id TEXT;
+                                                         END IF;
+                                                         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'institution_id') THEN
+                                                             ALTER TABLE alumnae_members ADD COLUMN institution_id TEXT;
+                                                         END IF;
+                                                         
+                                                         -- Ensure nullable
+                                                         ALTER TABLE alumnae_members ALTER COLUMN institution_id DROP NOT NULL;
+                                                     END IF;
 
-                                                -- Ensure alumnae_members has necessary columns
-                                                DO $$ 
-                                                BEGIN 
-                                                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumnae_members') THEN
-                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'profile_photo_url') THEN
-                                                            ALTER TABLE alumnae_members ADD COLUMN profile_photo_url TEXT;
-                                                        END IF;
-                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'admission_number') THEN
-                                                            ALTER TABLE alumnae_members ADD COLUMN admission_number TEXT;
-                                                        END IF;
-                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'school_id') THEN
-                                                            ALTER TABLE alumnae_members ADD COLUMN school_id TEXT;
-                                                        END IF;
-                                                    END IF;
-                                                END $$;
+                                                     -- Ensure messaging/comments have institution_id and are nullable
+                                                     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumni_messages') THEN
+                                                         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_messages' AND column_name = 'institution_id') THEN
+                                                             ALTER TABLE alumni_messages ADD COLUMN institution_id TEXT;
+                                                         END IF;
+                                                         ALTER TABLE alumni_messages ALTER COLUMN institution_id DROP NOT NULL;
+                                                     END IF;
 
-                                                -- Add institution_id to messaging/comments if missing (Fix for User Request)
-                                                DO $$ 
-                                                BEGIN 
-                                                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumnae_members') THEN
-                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'institution_id') THEN
-                                                            ALTER TABLE alumnae_members ADD COLUMN institution_id TEXT;
+                                                     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumni_comments') THEN
+                                                         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_comments' AND column_name = 'institution_id') THEN
+                                                             ALTER TABLE alumni_comments ADD COLUMN institution_id TEXT;
+                                                         END IF;
+                                                         ALTER TABLE alumni_comments ALTER COLUMN institution_id DROP NOT NULL;
+                                                     END IF;
+                                                     
+                                                     -- Ensure photo_url exists on older posts table and institution_id is nullable
+                                                     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumni_posts') THEN
+                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'photo_url') THEN
+                                                            ALTER TABLE alumni_posts ADD COLUMN photo_url TEXT;
                                                         END IF;
-                                                    END IF;
-
-                                                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumni_messages') THEN
-                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_messages' AND column_name = 'institution_id') THEN
-                                                            ALTER TABLE alumni_messages ADD COLUMN institution_id TEXT;
+                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'institution_id') THEN
+                                                            ALTER TABLE alumni_posts ADD COLUMN institution_id TEXT;
                                                         END IF;
-                                                    END IF;
+                                                        ALTER TABLE alumni_posts ALTER COLUMN institution_id DROP NOT NULL;
+                                                     END IF;
 
-                                                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumni_comments') THEN
-                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_comments' AND column_name = 'institution_id') THEN
-                                                            ALTER TABLE alumni_comments ADD COLUMN institution_id TEXT;
-                                                        END IF;
-                                                    END IF;
-                                                END $$;
-
-                                                -- Ensure photo_url exists on older posts table
-                                                DO $$ 
-                                                BEGIN 
-                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'photo_url') THEN
-                                                        ALTER TABLE alumni_posts ADD COLUMN photo_url TEXT;
-                                                    END IF;
-                                                END $$;
+                                                     -- Fix: Drop Foreign Key constraints that block Unclaimed/Global portals
+                                                     IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'alumnae_members_institution_id_fkey') THEN
+                                                         ALTER TABLE alumnae_members DROP CONSTRAINT alumnae_members_institution_id_fkey;
+                                                     END IF;
+                                                     IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'alumni_posts_institution_id_fkey') THEN
+                                                         ALTER TABLE alumni_posts DROP CONSTRAINT alumni_posts_institution_id_fkey;
+                                                     END IF;
+                                                     IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'alumni_comments_institution_id_fkey') THEN
+                                                         ALTER TABLE alumni_comments DROP CONSTRAINT alumni_comments_institution_id_fkey;
+                                                     END IF;
+                                                     IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'alumni_messages_institution_id_fkey') THEN
+                                                         ALTER TABLE alumni_messages DROP CONSTRAINT alumni_messages_institution_id_fkey;
+                                                     END IF;
+                                                 END $$;
 
                                                 -- Fix permissions
                                                 GRANT ALL ON public.alumni_posts TO anon, authenticated, service_role;
