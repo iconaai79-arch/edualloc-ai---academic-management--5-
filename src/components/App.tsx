@@ -625,6 +625,13 @@ export const App: React.FC = () => {
         } catch (e) { return false; }
     });
 
+    const isAlumnaeMode = useMemo(() => {
+        const hostname = window.location.hostname;
+        const params = new URLSearchParams(window.location.search);
+        const view = params.get('view');
+        return hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.includes('almamater') || hostname.includes('alma_mater') || view?.startsWith('alumnae_');
+    }, []);
+
     const [showAlumnaeActivation, setShowAlumnaeActivation] = useState(false);
 
     const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(() => {
@@ -844,7 +851,7 @@ export const App: React.FC = () => {
                 apiService.fetchModuleRecords<County>('counties').catch(() => []),
                 apiService.fetchCompanySettings().catch(() => null),
                 apiService.fetchUsers().catch(() => []),
-                apiService.fetchFullRegistry().catch(() => []),
+                (isAlumnaeMode && !showAlumnaeRegister) ? Promise.resolve([]) : apiService.fetchFullRegistry().catch(() => []),
             ]);
 
             // Sync identity state immediately so we can use activeInstitution in Phase 2
@@ -1689,7 +1696,6 @@ export const App: React.FC = () => {
                 isSuperAdmin: true,
                 profilePhotoUrl: currentUser?.profilePhotoUrl
             };
-            
             setActiveAlumna(mockAlumna);
             localStorage.setItem('eduai_alumna_session', JSON.stringify(mockAlumna));
             setShowAlumnaePortal(true);
@@ -1697,6 +1703,20 @@ export const App: React.FC = () => {
         }, 600);
     };
 
+    // On-demand Registry Load for Alumnae Registration
+    useEffect(() => {
+        if (showAlumnaeRegister && schoolRegistry.length === 0) {
+            const loadRegistry = async () => {
+                try {
+                    const reg = await apiService.fetchFullRegistry();
+                    setSchoolRegistry(reg);
+                } catch (e) {}
+            };
+            loadRegistry();
+        }
+    }, [showAlumnaeRegister, schoolRegistry.length]);
+
+    // Role-based view logic
     useEffect(() => {
         onLoginAsAdminRef.current = onLoginAsAdmin;
     }, [onLoginAsAdmin]);
