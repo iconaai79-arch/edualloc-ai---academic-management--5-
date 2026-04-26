@@ -152,9 +152,13 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
     const handleSaveManual = async () => {
         if (!newSchool.name) return;
         try {
+            let baseId = `sch_${Date.now()}`;
+            if (newSchool.knecCode) baseId = `sch_knec_${slugify(newSchool.knecCode)}`;
+            else if (newSchool.uic) baseId = `sch_uic_${slugify(newSchool.uic)}`;
+
             const data: any = {
                 ...newSchool,
-                id: `sch_${Date.now()}`,
+                id: baseId,
                 slug: slugify(newSchool.name!),
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
@@ -175,6 +179,15 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                 const batch = data.slice(i, i + batchSize);
                 await Promise.all(batch.map(async (item) => {
                     try {
+                        // Match existing record to allow UPSERT to work even if IDs were generated differently
+                        const existing = registry.find(r => 
+                            (item.knecCode && r.knecCode === item.knecCode) || 
+                            (item.uic && r.uic === item.uic)
+                        );
+                        if (existing) {
+                            item.id = existing.id;
+                        }
+                        
                         await apiService.saveModuleRecord('school_registry', item);
                     } catch (err: any) {
                         console.error(`Failed to ingest school ${item.name}:`, err.message || err);
