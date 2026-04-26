@@ -794,6 +794,74 @@ export const App: React.FC = () => {
         return null;
     }, [currentUser, institutions, schoolRegistry]);
 
+    const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+
+    const activeRole = useMemo<Role | null>(() => {
+        if (impersonatedRole) return impersonatedRole;
+        if (!currentUser) return null;
+
+        const roleToUse = selectedRole || currentUser.role;
+
+        // Redirect school administrators to the County Portal if their school is registered to a county
+        const inst = institutions.find(i => i.id === currentUser.institutionId);
+        if (inst?.countyId && (roleToUse === 'admin' || roleToUse === 'head_teacher')) {
+            return 'county_admin';
+        }
+
+        // Force Reseller role for admins of Reseller institutions
+        if (inst?.institutionType === 'Reseller' && roleToUse === 'admin') {
+            return 'reseller';
+        }
+
+        return roleToUse;
+    }, [impersonatedRole, currentUser, institutions, selectedRole]);
+
+    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin'].includes(activeRole || '');
+
+    const isFullWidthLayout = useMemo(() => {
+        return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
+    }, [activeRole, isAdminCatchAll]);
+
+    const activeCounty = useMemo(() => {
+        if (!currentUser || !Array.isArray(counties)) return null;
+
+        // Match by current user's institutionId (if it's a county ID)
+        const directMatch = counties.find(c => c.id === currentUser.institutionId);
+        if (directMatch) return directMatch;
+
+        // Alternative check: find user's institution and check its countyId
+        const myInst = institutions.find(i => i.id === currentUser.institutionId);
+        if (myInst?.countyId) {
+            return counties.find(c => c.id === myInst.countyId) || null;
+        }
+
+        return null;
+    }, [counties, currentUser, institutions]);
+
+    const activeBranding = useMemo(() => {
+        const isCountyContext = activeRole === 'county_admin' || activeRole?.startsWith('county_');
+
+        if (isCountyContext && activeCounty) {
+            return {
+                primaryColor: activeCounty.primaryColor || '#4f46e5',
+                secondaryColor: activeCounty.secondaryColor || '#0f172a',
+                logoUrl: activeCounty.logoUrl || companyDetails.logoUrl,
+                motto: activeCounty.motto,
+                website: activeCounty.website,
+                displayName: activeCounty.name
+            };
+        }
+
+        return {
+            primaryColor: activeInstitution?.themeColor || companyDetails.themeColor || '#4f46e5',
+            secondaryColor: '#0f172a',
+            logoUrl: activeInstitution?.logoUrl || companyDetails.logoUrl,
+            motto: null,
+            website: null,
+            displayName: activeInstitution?.name
+        };
+    }, [activeRole, activeCounty, activeInstitution, companyDetails]);
+
     const activeAcademicYear = useMemo(() =>
         (Array.isArray(academicYears) ? academicYears : []).find(y => y && y.status === 'active') || null
         , [academicYears]);
@@ -3062,72 +3130,6 @@ export const App: React.FC = () => {
         onResetPassword: async (token: string, pass: string) => apiService.resetPasswordWithToken(token, pass)
     };
 
-    const [selectedRole, setSelectedRole] = useState<Role | null>(null);
-
-    const activeRole = useMemo<Role | null>(() => {
-        if (impersonatedRole) return impersonatedRole;
-        if (!currentUser) return null;
-
-        const roleToUse = selectedRole || currentUser.role;
-
-        // Redirect school administrators to the County Portal if their school is registered to a county
-        const inst = institutions.find(i => i.id === currentUser.institutionId);
-        if (inst?.countyId && (roleToUse === 'admin' || roleToUse === 'head_teacher')) {
-            return 'county_admin';
-        }
-
-        // Force Reseller role for admins of Reseller institutions
-        if (inst?.institutionType === 'Reseller' && roleToUse === 'admin') {
-            return 'reseller';
-        }
-
-        return roleToUse;
-    }, [impersonatedRole, currentUser, institutions, selectedRole]);
-    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin'].includes(activeRole || '');
-
-    const isFullWidthLayout = useMemo(() => {
-        return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
-    }, [activeRole, isAdminCatchAll]);
-
-    const activeCounty = useMemo(() => {
-        if (!currentUser || !Array.isArray(counties)) return null;
-
-        // Match by current user's institutionId (if it's a county ID)
-        const directMatch = counties.find(c => c.id === currentUser.institutionId);
-        if (directMatch) return directMatch;
-
-        // Alternative check: find user's institution and check its countyId
-        const myInst = institutions.find(i => i.id === currentUser.institutionId);
-        if (myInst?.countyId) {
-            return counties.find(c => c.id === myInst.countyId) || null;
-        }
-
-        return null;
-    }, [counties, currentUser, institutions]);
-
-    const activeBranding = useMemo(() => {
-        const isCountyContext = activeRole === 'county_admin' || activeRole?.startsWith('county_');
-
-        if (isCountyContext && activeCounty) {
-            return {
-                primaryColor: activeCounty.primaryColor || '#4f46e5',
-                secondaryColor: activeCounty.secondaryColor || '#0f172a',
-                logoUrl: activeCounty.logoUrl || companyDetails.logoUrl,
-                motto: activeCounty.motto,
-                website: activeCounty.website,
-                displayName: activeCounty.name
-            };
-        }
-
-        return {
-            primaryColor: activeInstitution?.themeColor || companyDetails.themeColor || '#4f46e5',
-            secondaryColor: '#0f172a',
-            logoUrl: activeInstitution?.logoUrl || companyDetails.logoUrl,
-            motto: null,
-            website: null,
-            displayName: activeInstitution?.name
-        };
-    }, [activeRole, activeCounty, activeInstitution, companyDetails]);
 
     // ── EARLY ESCAPE: Public join-campaign URL — skip auth & boot entirely ──
     if (window.location.search.includes('view=join-campaign')) {

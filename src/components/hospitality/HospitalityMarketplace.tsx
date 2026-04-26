@@ -52,6 +52,49 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
     const [loadingItems, setLoadingItems] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+    const hospitalityInsts = useMemo(() => {
+        return institutions.filter(i => 
+            i.institutionId === 'all' || // Support for catch-all filters if any
+            i.institutionType === 'Hospitality' || 
+            i.category?.includes('Agency') || 
+            i.category?.includes('Hotel') || 
+            i.category?.includes('Tours')
+        );
+    }, [institutions]);
+
+    const filteredInsts = useMemo(() => {
+        return hospitalityInsts.filter(i => {
+            const matchesSearch = i.name.toLowerCase().includes(searchQuery.toLowerCase());
+            const cat = (i.category || '').toLowerCase();
+            
+            if (activeTab === 'All') return matchesSearch;
+            if (activeTab === 'Safari') return matchesSearch && (cat.includes('safari') || cat.includes('guide') || cat.includes('wild') || cat.includes('park') || cat.includes('game'));
+            if (activeTab === 'Stays') return matchesSearch && (cat.includes('hotel') || cat.includes('airbnb') || cat.includes('resort') || cat.includes('stay') || cat.includes('villa') || cat.includes('camp') || cat.includes('lodge'));
+            if (activeTab === 'Trips') return matchesSearch && (cat.includes('agency') || cat.includes('tour') || cat.includes('trip') || cat.includes('travel') || cat.includes('excursion') || cat.includes('adventure'));
+            if (activeTab === 'Offers') return matchesSearch && (cat.includes('discount') || cat.includes('offer') || cat.includes('promo') || cat.includes('deal') || cat.includes('exclusive'));
+            if (activeTab === 'Beach') return matchesSearch && (cat.includes('beach') || cat.includes('ocean') || cat.includes('coast') || cat.includes('sea') || cat.includes('shore'));
+            if (activeTab === 'Urban') return matchesSearch && (cat.includes('city') || cat.includes('urban') || cat.includes('town') || cat.includes('cbd'));
+            if (activeTab === 'Mountain') return matchesSearch && (cat.includes('mountain') || cat.includes('hiking') || cat.includes('climb') || cat.includes('hill') || cat.includes('peak'));
+            if (activeTab === 'Experience') return matchesSearch && (cat.includes('experience') || cat.includes('activity') || cat.includes('culture') || cat.includes('workshop') || cat.includes('event'));
+            return matchesSearch;
+        });
+    }, [hospitalityInsts, searchQuery, activeTab]);
+
+    const institutionPackageImages = useMemo(() => {
+        const map: Record<string, string> = {};
+        if (allPackages && Array.isArray(allPackages)) {
+            allPackages.forEach(pkg => {
+                if (pkg && pkg.institutionId && !map[pkg.institutionId]) {
+                    const img = getFirstImage(pkg.images);
+                    if (img) {
+                        map[pkg.institutionId] = img;
+                    }
+                }
+            });
+        }
+        return map;
+    }, [allPackages]);
+
     const featuredItems = useMemo(() => {
         return [...allPackages].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 6);
     }, [allPackages]);
@@ -72,48 +115,6 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
         loadData();
     }, []);
 
-    const hospitalityInsts = useMemo(() => {
-        return institutions.filter(i => 
-            i.institutionType === 'Hospitality' || 
-            i.category?.includes('Agency') || 
-            i.category?.includes('Hotel') || 
-            i.category?.includes('Tours')
-        );
-    }, [institutions]);
-
-    const filteredInsts = hospitalityInsts.filter(i => {
-        const matchesSearch = i.name.toLowerCase().includes(searchQuery.toLowerCase());
-        const cat = (i.category || '').toLowerCase();
-        
-        if (activeTab === 'All') return matchesSearch;
-        if (activeTab === 'Safari') return matchesSearch && (cat.includes('safari') || cat.includes('guide') || cat.includes('wild') || cat.includes('park') || cat.includes('game'));
-        if (activeTab === 'Stays') return matchesSearch && (cat.includes('hotel') || cat.includes('airbnb') || cat.includes('resort') || cat.includes('stay') || cat.includes('villa') || cat.includes('camp') || cat.includes('lodge'));
-        if (activeTab === 'Trips') return matchesSearch && (cat.includes('agency') || cat.includes('tour') || cat.includes('trip') || cat.includes('travel') || cat.includes('excursion') || cat.includes('adventure'));
-        if (activeTab === 'Offers') return matchesSearch && (cat.includes('discount') || cat.includes('offer') || cat.includes('promo') || cat.includes('deal') || cat.includes('exclusive'));
-        if (activeTab === 'Beach') return matchesSearch && (cat.includes('beach') || cat.includes('ocean') || cat.includes('coast') || cat.includes('sea') || cat.includes('shore'));
-        if (activeTab === 'Urban') return matchesSearch && (cat.includes('city') || cat.includes('urban') || cat.includes('town') || cat.includes('cbd'));
-        if (activeTab === 'Mountain') return matchesSearch && (cat.includes('mountain') || cat.includes('hiking') || cat.includes('climb') || cat.includes('hill') || cat.includes('peak'));
-        if (activeTab === 'Experience') return matchesSearch && (cat.includes('experience') || cat.includes('activity') || cat.includes('culture') || cat.includes('workshop') || cat.includes('event'));
-        return matchesSearch;
-    });
-
-    // Helper to safely extract first image URL regardless of format (Array or JSON string)
-
-    // Map of institutionId to its first available package image
-    const institutionPackageImages = useMemo(() => {
-        const map: Record<string, string> = {};
-        if (allPackages && Array.isArray(allPackages)) {
-            allPackages.forEach(pkg => {
-                if (pkg && pkg.institutionId && !map[pkg.institutionId]) {
-                    const img = getFirstImage(pkg.images);
-                    if (img) {
-                        map[pkg.institutionId] = img;
-                    }
-                }
-            });
-        }
-        return map;
-    }, [allPackages]);
 
     const handleNavbarClick = (item: string) => {
         if (item === 'Destinations' || item === 'All') setActiveTab('All');

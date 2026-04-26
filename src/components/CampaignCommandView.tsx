@@ -56,6 +56,53 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
     const [politicalConstituencies, setPoliticalConstituencies] = useState<Constituency[]>([]);
     const [politicalWards, setPoliticalWards] = useState<Ward[]>([]);
 
+    const stats = useMemo(() => {
+        // Calculate total electorate based on position from geographical metadata
+        let totalElectorate = profile?.targetVoterCount || 0;
+        
+        if (profile) {
+            if (profile.position === 'President' || profile.position === 'Deputy') {
+                totalElectorate = politicalWards.reduce((acc, w) => acc + (w.registered_voters || 0), 0);
+            } else if (profile.position === 'Governor' || profile.position === 'Senator' || profile.position === 'Women Rep') {
+                const county = politicalCounties.find(c => c.name === profile.county);
+                if (county) {
+                    // Find constituencies in this county
+                    const cIds = politicalConstituencies.filter(c => c.countyId === county.id).map(c => c.id);
+                    totalElectorate = politicalWards
+                        .filter(w => cIds.includes(w.constituencyId))
+                        .reduce((acc, w) => acc + (w.registered_voters || 0), 0);
+                }
+            } else if (profile.position === 'MP') {
+                const constituency = politicalConstituencies.find(c => c.name === profile.constituency);
+                if (constituency) {
+                    totalElectorate = politicalWards
+                        .filter(w => w.constituencyId === constituency.id)
+                        .reduce((acc, w) => acc + (w.registered_voters || 0), 0);
+                }
+            } else if (profile.position === 'MCA') {
+                const ward = politicalWards.find(w => w.name === profile.ward);
+                totalElectorate = ward?.registered_voters || 0;
+            }
+        }
+
+        // Use profile target if DB metadata is empty
+        if (totalElectorate === 0) totalElectorate = profile?.targetVoterCount || 1000;
+
+        const reached = voters.length;
+        const supporters = voters.filter(v => v.status === 'supporter').length;
+        const undecided = voters.filter(v => v.status === 'undecided').length;
+
+        return {
+            totalReached: reached,
+            supporters,
+            undecided,
+            reachPercent: Math.min(Math.round((reached / totalElectorate) * 100), 100),
+            supportPercent: Math.min(Math.round((supporters / (reached || 1)) * 100), 100),
+            upcomingEvents: events.filter(e => new Date(e.eventTime) > new Date()).length,
+            totalElectorate
+        };
+    }, [voters, events, profile, politicalWards, politicalConstituencies, politicalCounties]);
+
     useEffect(() => {
         const loadMetaData = async () => {
             try {
@@ -211,52 +258,6 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
         }
     };
 
-    const stats = useMemo(() => {
-        // Calculate total electorate based on position from geographical metadata
-        let totalElectorate = profile?.targetVoterCount || 0;
-        
-        if (profile) {
-            if (profile.position === 'President' || profile.position === 'Deputy') {
-                totalElectorate = politicalWards.reduce((acc, w) => acc + (w.registered_voters || 0), 0);
-            } else if (profile.position === 'Governor' || profile.position === 'Senator' || profile.position === 'Women Rep') {
-                const county = politicalCounties.find(c => c.name === profile.county);
-                if (county) {
-                    // Find constituencies in this county
-                    const cIds = politicalConstituencies.filter(c => c.countyId === county.id).map(c => c.id);
-                    totalElectorate = politicalWards
-                        .filter(w => cIds.includes(w.constituencyId))
-                        .reduce((acc, w) => acc + (w.registered_voters || 0), 0);
-                }
-            } else if (profile.position === 'MP') {
-                const constituency = politicalConstituencies.find(c => c.name === profile.constituency);
-                if (constituency) {
-                    totalElectorate = politicalWards
-                        .filter(w => w.constituencyId === constituency.id)
-                        .reduce((acc, w) => acc + (w.registered_voters || 0), 0);
-                }
-            } else if (profile.position === 'MCA') {
-                const ward = politicalWards.find(w => w.name === profile.ward);
-                totalElectorate = ward?.registered_voters || 0;
-            }
-        }
-
-        // Use profile target if DB metadata is empty
-        if (totalElectorate === 0) totalElectorate = profile?.targetVoterCount || 1000;
-
-        const reached = voters.length;
-        const supporters = voters.filter(v => v.status === 'supporter').length;
-        const undecided = voters.filter(v => v.status === 'undecided').length;
-
-        return {
-            totalReached: reached,
-            supporters,
-            undecided,
-            reachPercent: Math.min(Math.round((reached / totalElectorate) * 100), 100),
-            supportPercent: Math.min(Math.round((supporters / (reached || 1)) * 100), 100),
-            upcomingEvents: events.filter(e => new Date(e.eventTime) > new Date()).length,
-            totalElectorate
-        };
-    }, [voters, events, profile, politicalWards, politicalConstituencies, politicalCounties]);
 
     if (loading) return <div className="flex h-screen items-center justify-center"><ArrowPathIcon className="w-10 h-10 animate-spin text-indigo-500" /></div>;
 

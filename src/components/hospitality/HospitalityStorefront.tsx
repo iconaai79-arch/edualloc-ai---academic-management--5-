@@ -81,6 +81,8 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
     const [roomNumber, setRoomNumber] = useState('');
     const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
+    const themeColor = tenant?.themeColor || '#4f46e5';
+
     useEffect(() => {
         const loadStore = async () => {
             setLoading(true);
@@ -141,8 +143,6 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
             </div>
         );
     }
-
-    const themeColor = tenant.themeColor || '#4f46e5';
 
 
     return (
