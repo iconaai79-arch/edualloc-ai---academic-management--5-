@@ -5401,7 +5401,7 @@ export const App: React.FC = () => {
                                     setShowAlumnaePortal(true);
                                 }}
                             />
-                        ) : showAlumnaeLogin ? (
+                        ) : (showAlumnaeLogin || (showAlumnaePortal && !activeAlumna)) ? (
                             <AlumnaeLoginView 
                                 onLoginSuccess={(alumna) => {
                                     setActiveAlumna(alumna);
@@ -5418,7 +5418,7 @@ export const App: React.FC = () => {
                                     setShowCommunityHub(true);
                                 }}
                             />
-                        ) : showAlumnaePortal ? (
+                        ) : (showAlumnaePortal && activeAlumna) ? (
                             <AlumnaePortalView 
                                 currentAlumna={activeAlumna}
                                 institutions={institutions}

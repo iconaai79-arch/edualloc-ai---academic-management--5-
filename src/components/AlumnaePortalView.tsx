@@ -52,14 +52,14 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [alumnaeMembers, setAlumnaeMembers] = useState<any[]>([]);
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [profileData, setProfileData] = useState({
-        fullName: currentAlumna.fullName || '',
-        email: currentAlumna.email || '',
-        currentJob: currentAlumna.currentJob || '',
-        currentCompany: currentAlumna.currentCompany || '',
-        bio: currentAlumna.bio || '',
-        linkedinUrl: currentAlumna.linkedinUrl || '',
-        twitterUrl: currentAlumna.twitterUrl || '',
-        profilePhotoUrl: currentAlumna.profilePhotoUrl || ''
+        fullName: currentAlumna?.fullName || '',
+        email: currentAlumna?.email || '',
+        currentJob: currentAlumna?.currentJob || '',
+        currentCompany: currentAlumna?.currentCompany || '',
+        bio: currentAlumna?.bio || '',
+        linkedinUrl: currentAlumna?.linkedinUrl || '',
+        twitterUrl: currentAlumna?.twitterUrl || '',
+        profilePhotoUrl: currentAlumna?.profilePhotoUrl || ''
     });
     const [profilePhotoUrlFile, setProfilePhotoFile] = useState<File | null>(null);
     const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -72,8 +72,9 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const loadOtherMemberships = async () => {
         setIsDetectingMemberships(true);
         try {
+            if (!currentAlumna?.email) return;
             const results = await apiService.fetchModuleRecords('alumnae_members', {
-                email: currentAlumna.email?.toLowerCase().trim()
+                email: currentAlumna.email.toLowerCase().trim()
             });
             // Filter to ensure same email and valid memberships, excluding current active one
             const others = results.filter((m: any) => 
@@ -567,12 +568,12 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                          </button>
                                          <button 
                                              onClick={() => handleLike(post.id)}
-                                             className={`flex items-center gap-2 transition-all ${post.likes.includes(currentAlumna.id) ? 'text-rose-500' : 'hover:text-rose-500'}`}
+                                             className={`flex items-center gap-2 transition-all ${(post.likes || []).includes(currentAlumna?.id) ? 'text-rose-500' : 'hover:text-rose-500'}`}
                                          >
                                              <div className={`p-2 group-hover/post:bg-rose-50 dark:group-hover/post:bg-rose-900/20 rounded-xl`}>
-                                                 <Heart className={`w-4 h-4 ${post.likes.includes(currentAlumna.id) ? 'fill-current' : ''}`} />
+                                                 <Heart className={`w-4 h-4 ${(post.likes || []).includes(currentAlumna?.id) ? 'fill-current' : ''}`} />
                                              </div>
-                                             <span className="text-[10px] font-black">{post.likes.length}</span>
+                                             <span className="text-[10px] font-black">{(post.likes || []).length}</span>
                                          </button>
                                          <button className="flex items-center gap-2 hover:text-indigo-600 transition-all">
                                              <div className="p-2 group-hover/post:bg-indigo-50 dark:group-hover/post:bg-indigo-900/20 rounded-xl">

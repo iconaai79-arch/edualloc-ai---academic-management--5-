@@ -11,7 +11,9 @@ import {
     Users,
     ChevronLeft,
     Globe,
-    ShieldCheck
+    ShieldCheck,
+    Send,
+    KeyRound
 } from 'lucide-react';
 import { apiService } from '../services/apiService';
 
@@ -29,6 +31,15 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
     const [error, setError] = useState('');
     const [matchingProfiles, setMatchingProfiles] = useState<any[]>([]);
     const [isSelectingProfile, setIsSelectingProfile] = useState(false);
+
+    // Forgot Password Flow
+    const [forgotPasswordStep, setForgotPasswordStep] = useState<'none' | 'email' | 'otp' | 'reset'>('none');
+    const [resetEmail, setResetEmail] = useState('');
+    const [resetOtp, setResetOtp] = useState('');
+    const [generatedOtp, setGeneratedOtp] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [resetTargetProfile, setResetTargetProfile] = useState<any>(null);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -68,6 +79,213 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
             setIsLoading(false);
         }
     };
+
+    const handleRequestReset = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!resetEmail) {
+            setError('Please enter your registered email');
+            return;
+        }
+
+        setIsLoading(true);
+        setError('');
+
+        try {
+            const results = await apiService.fetchModuleRecords('alumnae_members', {
+                email: resetEmail.toLowerCase().trim()
+            });
+
+            if (!results || results.length === 0) {
+                throw new Error('No account found with this email.');
+            }
+
+            const profile = results[0];
+            setResetTargetProfile(profile);
+
+            // Generate OTP
+            const otp = Math.floor(100000 + Math.random() * 900000).toString();
+            setGeneratedOtp(otp);
+
+            // Send OTP
+            await apiService.sendEmail(
+                resetEmail, 
+                'Password Reset Code', 
+                `Your password reset code for Alumnae Prestige Circle is: ${otp}. If you did not request this, please ignore this email.`
+            );
+
+            setForgotPasswordStep('otp');
+        } catch (e: any) {
+            setError(e.message || 'Failed to initiate reset');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleVerifyOtp = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (resetOtp === generatedOtp) {
+            setForgotPasswordStep('reset');
+            setError('');
+        } else {
+            setError('Invalid verification code');
+        }
+    };
+
+    const handleResetPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (newPassword !== confirmPassword) {
+            setError('Passwords do not match');
+            return;
+        }
+        if (newPassword.length < 6) {
+            setError('Password must be at least 6 characters');
+            return;
+        }
+
+        setIsLoading(true);
+        setError('');
+
+        try {
+            await apiService.saveModuleRecord('alumnae_members', {
+                ...resetTargetProfile,
+                password: newPassword
+            });
+            
+            alert('Password reset successful! Please login with your new password.');
+            setForgotPasswordStep('none');
+            setEmail(resetEmail);
+            setResetEmail('');
+            setResetOtp('');
+            setGeneratedOtp('');
+            setNewPassword('');
+            setConfirmPassword('');
+        } catch (e: any) {
+            setError(e.message || 'Failed to update password');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    if (forgotPasswordStep !== 'none') {
+        return (
+            <div className="min-h-screen w-full flex bg-[#020617] items-center justify-center p-6 relative overflow-hidden font-sans">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/20 rounded-full blur-[120px]"></div>
+                <div className="w-full max-w-md bg-white/5 backdrop-blur-3xl p-10 sm:p-14 rounded-[4rem] border border-white/10 shadow-2xl relative z-10">
+                    <div className="text-center mb-10">
+                        <div className="w-20 h-20 bg-indigo-600/20 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-indigo-500/20">
+                            <ShieldCheck className="w-10 h-10 text-indigo-400" />
+                        </div>
+                        <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none mb-3">
+                            {forgotPasswordStep === 'email' ? 'Reset' : forgotPasswordStep === 'otp' ? 'Verify' : 'New'} <br /> 
+                            <span className="italic text-indigo-400">Security Key</span>
+                        </h2>
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">
+                            {forgotPasswordStep === 'email' ? 'Step 1: Account Recovery' : forgotPasswordStep === 'otp' ? 'Step 2: Identity Verification' : 'Step 3: Access Restoration'}
+                        </p>
+                    </div>
+
+                    {forgotPasswordStep === 'email' && (
+                        <form onSubmit={handleRequestReset} className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Registered Email</label>
+                                <div className="relative group">
+                                    <Mail className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
+                                    <input 
+                                        type="email"
+                                        value={resetEmail}
+                                        onChange={(e) => setResetEmail(e.target.value)}
+                                        placeholder="your@email.com"
+                                        className="w-full h-16 pl-14 pr-6 bg-white/5 border border-white/10 rounded-2xl text-sm font-bold text-white outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                                    />
+                                </div>
+                            </div>
+                            <button 
+                                type="submit"
+                                disabled={isLoading}
+                                className="w-full h-16 bg-white text-slate-950 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 hover:bg-indigo-400 hover:text-white transition-all disabled:opacity-50 shadow-xl"
+                            >
+                                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                                Send Reset Code
+                            </button>
+                        </form>
+                    )}
+
+                    {forgotPasswordStep === 'otp' && (
+                        <form onSubmit={handleVerifyOtp} className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Verification Code</label>
+                                <input 
+                                    type="text"
+                                    value={resetOtp}
+                                    onChange={(e) => setResetOtp(e.target.value)}
+                                    placeholder="Enter 6-digit code"
+                                    className="w-full h-16 px-6 bg-white/5 border border-white/10 rounded-2xl text-center text-2xl font-black tracking-[0.5em] text-white outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                                />
+                                <p className="text-[9px] text-center text-slate-500 font-bold uppercase tracking-widest mt-2">Code sent to {resetEmail}</p>
+                            </div>
+                            <button 
+                                type="submit"
+                                className="w-full h-16 bg-white text-slate-950 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 hover:bg-indigo-400 hover:text-white transition-all shadow-xl"
+                            >
+                                Verify Identity
+                            </button>
+                        </form>
+                    )}
+
+                    {forgotPasswordStep === 'reset' && (
+                        <form onSubmit={handleResetPassword} className="space-y-6">
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">New Password</label>
+                                    <input 
+                                        type="password"
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                        className="w-full h-16 px-6 bg-white/5 border border-white/10 rounded-2xl text-sm font-bold text-white outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Confirm Password</label>
+                                    <input 
+                                        type="password"
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        className="w-full h-16 px-6 bg-white/5 border border-white/10 rounded-2xl text-sm font-bold text-white outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                                    />
+                                </div>
+                            </div>
+                            <button 
+                                type="submit"
+                                disabled={isLoading}
+                                className="w-full h-16 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 hover:bg-indigo-500 transition-all shadow-xl"
+                            >
+                                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                                Update Password
+                            </button>
+                        </form>
+                    )}
+
+                    {error && (
+                        <div className="mt-6 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-[10px] font-black uppercase tracking-tight text-center">
+                            {error}
+                        </div>
+                    )}
+
+                    <div className="mt-10 pt-8 border-t border-white/5 flex justify-center">
+                        <button 
+                            onClick={() => {
+                                setForgotPasswordStep('none');
+                                setError('');
+                            }}
+                            className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors flex items-center gap-2"
+                        >
+                            <ChevronLeft className="w-4 h-4" /> Back to Login
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     if (isSelectingProfile) {
         return (
@@ -181,7 +399,9 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
 
                         <form onSubmit={handleLogin} className="space-y-6">
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Registry Email</label>
+                                <div className="flex justify-between items-center px-4">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Registry Email</label>
+                                </div>
                                 <div className="relative group">
                                     <Mail className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
                                     <input 
@@ -195,7 +415,9 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Access Password</label>
+                                <div className="px-4">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Access Password</label>
+                                </div>
                                 <div className="relative group">
                                     <Lock className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
                                     <input 
@@ -231,6 +453,17 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
                                 Authenticate
                                 <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
                             </button>
+
+                            <div className="text-center pt-2">
+                                <button 
+                                    type="button"
+                                    onClick={() => setForgotPasswordStep('email')}
+                                    className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500 hover:text-indigo-400 transition-colors flex items-center justify-center gap-2 mx-auto group"
+                                >
+                                    <KeyRound className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" />
+                                    Forgot Password?
+                                </button>
+                            </div>
                         </form>
 
                         <div className="mt-12 pt-8 border-t border-white/5 text-center">
@@ -272,5 +505,6 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
                 }
             `}</style>
         </div>
+
     );
 };
