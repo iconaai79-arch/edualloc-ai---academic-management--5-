@@ -183,10 +183,23 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
     const loadAlumnaeMembers = async () => {
         try {
+            const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
+            const gradYear = currentAlumna.graduationYear || currentAlumna.graduation_year;
+            
             const data = await apiService.fetchModuleRecords('alumnae_members', undefined, undefined, {
-                filter: { institution_id: currentAlumna.institutionId || currentAlumna.schoolId }
+                filter: { 
+                    institution_id: instId
+                }
             });
-            setAlumnaeMembers(data || []);
+            
+            // Scoped classmates: Same Institution + Same Year
+            const classmates = (data || []).filter((m: any) => 
+                (m.graduationYear === gradYear || m.graduation_year === gradYear)
+            );
+            
+            setAlumnaeMembers(classmates);
+            
+            // Featured members can be from any year in the same institution
             setFeaturedMembers((data || []).filter((m: any) => m.isFeatured));
         } catch (e) {}
     };
