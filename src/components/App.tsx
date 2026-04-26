@@ -71,7 +71,7 @@ const CampaignLoginView = lazy(() => import('./CampaignLoginView').then(m => ({ 
 
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { getAdminRoleForInstitution } from '../utils/roleUtils';
-import { generateAlphanumericCode } from '../utils/stringUtils';
+import { generateAlphanumericCode, slugify } from '../utils/stringUtils';
 import { generateUserId, generateId } from '../utils/idGenerator';
 import { generateFullSqlScript } from '../utils/sqlGenerator';
 import { detectTimetableConflicts } from '../utils/conflictUtils';
@@ -2963,7 +2963,8 @@ export const App: React.FC = () => {
                     institutionCode: generateAlphanumericCode(8),
                     useAllocationRequests: true,
                     resellerId: data.resellerId,
-                    category: data.category
+                    category: data.category,
+                    slug: slugify(data.institutionName)
                 };
                 const adminRole: Role = getAdminRoleForInstitution(newInstitution);
                 const newAdmin: User = { id: adminId, name: data.adminName, email: data.adminEmail, phoneNumber: data.institutionPhone, role: adminRole, institutionId: instId, password: generatedPassword, expertise: ['Administration'], staffId: 'ADMIN-01' };
