@@ -593,7 +593,7 @@ export const App: React.FC = () => {
             const isMarketingSubdomain = hostname === 'showcase.eduai.co.ke' || hostname.includes('showcase') || hostname.includes('marketing');
             
             // Subdomain detection for Alumnae Portal
-            const isAlumnaeSubdomain = hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.includes('alma_mater');
+            const isAlumnaeSubdomain = hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.includes('almamater') || hostname.includes('alma_mater');
             
             if (isMarketingSubdomain || params.get('view') === 'showcase') return true;
             if (isAlumnaeSubdomain) return false; // Don't show marketing if on alumnae subdomain
@@ -618,7 +618,7 @@ export const App: React.FC = () => {
             const params = new URLSearchParams(window.location.search);
             const view = params.get('view');
             const hostname = window.location.hostname;
-            const isAlumnaeSubdomain = hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.includes('alma_mater');
+            const isAlumnaeSubdomain = hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.includes('almamater') || hostname.includes('alma_mater');
             
             // If they have a session, this will be overridden by the useEffect
             return view === 'alumnae_social' || view === 'alumnae_portal' || isAlumnaeSubdomain;
