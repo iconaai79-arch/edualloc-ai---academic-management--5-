@@ -18,6 +18,7 @@ interface DatabaseSettingsProps {
     isGeneratingDemoData?: boolean;
     demoDataGenerationProgress?: number;
     demoDataGenerationMessage?: string;
+    onRunAlumniMigration?: () => Promise<void>;
 }
 
 export const DatabaseSettings: React.FC<DatabaseSettingsProps> = ({ 
@@ -27,7 +28,8 @@ export const DatabaseSettings: React.FC<DatabaseSettingsProps> = ({
     onClearDemoData,
     isGeneratingDemoData,
     demoDataGenerationProgress,
-    demoDataGenerationMessage
+    demoDataGenerationMessage,
+    onRunAlumniMigration
 }) => {
     const [config, setConfig] = useState<DatabaseConfig>(dbConfig);
     const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error' | 'setup_required'>('idle');
@@ -633,6 +635,28 @@ GRANT ALL ON public.counties TO anon, authenticated, service_role;
                     >
                         <SparklesIcon className="w-4 h-4" /> Initialize County Registry
                     </button>
+
+                    {onRunAlumniMigration && (
+                        <button
+                            onClick={async () => {
+                                if (window.confirm('This will update the Alumnae social infrastructure (posts, comments, messages). Continue?')) {
+                                    setIsMigrating(true);
+                                    setMigrationMsg('Migrating alumni schema...');
+                                    try {
+                                        await onRunAlumniMigration();
+                                    } catch (err: any) {
+                                        alert(`Migration error: ${err.message}`);
+                                    } finally {
+                                        setIsMigrating(false);
+                                        setMigrationMsg('');
+                                    }
+                                }
+                            }}
+                            className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
+                        >
+                            <SparklesIcon className="w-4 h-4" /> Run Alumni Schema Migration
+                        </button>
+                    )}
                 </div>
                 <div className="bg-gray-800/50 p-6 rounded-xl border border-gray-700 mt-6">
                     <h3 className="text-xl font-bold text-white mb-4">Diagnostic Tools</h3>

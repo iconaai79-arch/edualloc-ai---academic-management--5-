@@ -1,17 +1,15 @@
-
-const fetch = require('node-fetch');
+const { Client } = require('pg');
+const client = new Client('postgresql://postgres.iconaai79-arch:v-O%7D%3FGp%5B7%40I_v4B@aws-0-eu-central-1.pooler.supabase.com:6543/postgres');
 
 async function checkSchema() {
     try {
-        const r = await fetch('http://localhost:5173/api/system?action=execute_sql', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sql: 'SELECT column_name FROM information_schema.columns WHERE table_name = \'campaign_profiles\'' })
-        });
-        const j = await r.json();
-        console.log(JSON.stringify(j, null, 2));
+        await client.connect();
+        const res = await client.query("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'alumni_posts'");
+        console.log(JSON.stringify(res.rows, null, 2));
     } catch (e) {
         console.error(e);
+    } finally {
+        await client.end();
     }
 }
 

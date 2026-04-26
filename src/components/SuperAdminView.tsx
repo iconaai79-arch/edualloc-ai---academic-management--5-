@@ -410,6 +410,7 @@ export interface SuperAdminViewProps {
     onUpdateDSSettings: (data: any) => Promise<void>;
     incidents: DisciplineIncident[];
     onAddIncident: (data: any) => Promise<void>;
+    onRunAlumniMigration?: () => Promise<void>;
 }
 
 const PoliticalMetadataManager: React.FC = () => {
@@ -3736,6 +3737,7 @@ Please change it after login.`;
                                         {companyDetails && (
                                             <DatabaseSettings
                                                 dbConfig={companyDetails.databaseConfig}
+                                                onRunAlumniMigration={props.onRunAlumniMigration}
                                                 onSave={async (newDbConfig) => {
                                                     if (props.onUpdateCompanyDetails) {
                                                         await props.onUpdateCompanyDetails({ ...props.companyDetails!, databaseConfig: newDbConfig });

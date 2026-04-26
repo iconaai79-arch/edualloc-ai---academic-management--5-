@@ -39,7 +39,6 @@ interface CountyAdminViewProps {
     users: User[];
     onLogout: () => void;
     onUpdateInstitution: (id: string, data: Partial<Institution>) => void;
-    onAccessAlumnaPortal: (school: SchoolRegistry) => void;
     onGenerateReceipt: (data: any) => void;
     onUpdateCounty: (id: string, data: Partial<County>) => void;
     onAddInstitution: (data: any) => void;
@@ -127,13 +126,12 @@ interface CountyAdminViewProps {
     onApprovePayouts: (ids: string[]) => void;
     onDisbursePayouts: (ids: string[]) => void;
     onAddPayouts: (data: any) => void;
-    onRunMigration?: () => Promise<void>;
 }
 
 export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
     const { 
         currentUser, counties, institutions, users, onLogout, onUpdateInstitution, 
-        onAccessAlumnaPortal, onGenerateReceipt, onUpdateCounty, onAddInstitution, 
+        onGenerateReceipt, onUpdateCounty, onAddInstitution, 
         onLoginAsAdmin, onImportInstitutions, onAddUser, onUpdateUser, onDeleteUser, 
         inventoryItems, inventoryCategories, onAddInventoryItem, onUpdateInventoryItem, 
         onDeleteInventoryItem, onAddInventoryCategory, onUpdateInventoryCategory, 
@@ -1151,18 +1149,12 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                 </div>
                             </div>
                         )}
-                                {activeTab === 'settings' && (
+                        {activeTab === 'settings' && (
                             <div className="space-y-6 animate-fade-in-up">
                                 <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm">
-                                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-6">Database Management</h3>
+                                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-6">County Settings</h3>
                                     <div className="space-y-4">
-                                        <p className="text-sm text-slate-500">Update the database schema to support the latest features (e.g. Alumni Post images).</p>
-                                        <button 
-                                            onClick={props.onRunMigration}
-                                            className="px-6 py-3 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center gap-2"
-                                        >
-                                            <SparklesIcon className="w-4 h-4" /> Run Alumni Schema Migration
-                                        </button>
+                                        <p className="text-sm text-slate-500">Manage your county's administrative configuration.</p>
                                     </div>
                                 </div>
                             </div>

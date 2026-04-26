@@ -159,6 +159,7 @@ interface SettingsManagerProps {
     smsConfig?: SmsConfig;
     onWithdrawRequest?: (id: string) => Promise<void>;
     onActivateModuleTrial?: (moduleId: string) => Promise<void>;
+    onRunAlumniMigration?: () => Promise<void>;
 }
 
 const CONSTRAINT_TYPE_LABELS: Record<TimetableConstraintType, string> = {
@@ -890,6 +891,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 {props.companyDetails && (
                                     <DatabaseSettings
                                         dbConfig={props.companyDetails.databaseConfig}
+                                        onRunAlumniMigration={(props as any).onRunAlumniMigration}
                                         onSave={async (newDbConfig: any) => {
                                             if (props.onUpdateCompanyDetails && props.companyDetails) {
                                                 await props.onUpdateCompanyDetails({ ...props.companyDetails, databaseConfig: newDbConfig });

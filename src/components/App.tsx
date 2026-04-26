@@ -588,9 +588,15 @@ export const App: React.FC = () => {
     const [showMarketing, setShowMarketing] = useState(() => {
         try {
             const params = new URLSearchParams(window.location.search);
+            const hostname = window.location.hostname;
             // Show if URL param set, or hostname is showcase/marketing, or no user and not marketplace/guest portals/tenant stores
-            const isMarketingSubdomain = window.location.hostname === 'showcase.eduai.co.ke' || window.location.hostname.includes('showcase') || window.location.hostname.includes('marketing');
+            const isMarketingSubdomain = hostname === 'showcase.eduai.co.ke' || hostname.includes('showcase') || hostname.includes('marketing');
+            
+            // Subdomain detection for Alumnae Portal
+            const isAlumnaeSubdomain = hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.includes('alma_mater');
+            
             if (isMarketingSubdomain || params.get('view') === 'showcase') return true;
+            if (isAlumnaeSubdomain) return false; // Don't show marketing if on alumnae subdomain
             
             const isAlumnaeDeepLink = params.get('school') || params.get('alumnae') || params.get('view') === 'alumnae_register' || params.get('view') === 'alumnae_social' || params.get('view') === 'alumnae_portal';
             return !currentUser && !showMarketplace && !showCommunityHub && !showGuestPortal && !showGuestFeedback && !showTenantStore && !isAlumnaeDeepLink;
@@ -611,8 +617,11 @@ export const App: React.FC = () => {
         try {
             const params = new URLSearchParams(window.location.search);
             const view = params.get('view');
+            const hostname = window.location.hostname;
+            const isAlumnaeSubdomain = hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.includes('alma_mater');
+            
             // If they have a session, this will be overridden by the useEffect
-            return view === 'alumnae_social' || view === 'alumnae_portal';
+            return view === 'alumnae_social' || view === 'alumnae_portal' || isAlumnaeSubdomain;
         } catch (e) { return false; }
     });
 
@@ -3717,6 +3726,56 @@ export const App: React.FC = () => {
                                     onImportStudents={onImportStudents}
                                     onDeleteUser={onDeleteUser}
                                     onEditUser={onEditUser}
+                                    onRunAlumniMigration={async () => {
+                                        const sql = `
+                                            -- Ensure Alumnae Social Infrastructure
+                                            CREATE TABLE IF NOT EXISTS alumni_posts (
+                                                id TEXT PRIMARY KEY,
+                                                author_id TEXT NOT NULL,
+                                                author_name TEXT NOT NULL,
+                                                author_photo TEXT,
+                                                institution_id TEXT NOT NULL,
+                                                content TEXT NOT NULL,
+                                                photo_url TEXT,
+                                                likes TEXT[] DEFAULT '{}',
+                                                comments_count INTEGER DEFAULT 0,
+                                                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                                            );
+
+                                            CREATE TABLE IF NOT EXISTS alumni_comments (
+                                                id TEXT PRIMARY KEY,
+                                                post_id TEXT REFERENCES alumni_posts(id) ON DELETE CASCADE,
+                                                author_id TEXT NOT NULL,
+                                                author_name TEXT NOT NULL,
+                                                content TEXT NOT NULL,
+                                                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                                            );
+
+                                            CREATE TABLE IF NOT EXISTS alumni_messages (
+                                                id TEXT PRIMARY KEY,
+                                                sender_id TEXT NOT NULL,
+                                                receiver_id TEXT NOT NULL,
+                                                content TEXT NOT NULL,
+                                                is_read BOOLEAN DEFAULT false,
+                                                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                                            );
+
+                                            -- Ensure photo_url exists on older tables
+                                            DO $$ 
+                                            BEGIN 
+                                                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'photo_url') THEN
+                                                    ALTER TABLE alumni_posts ADD COLUMN photo_url TEXT;
+                                                END IF;
+                                            END $$;
+
+                                            -- Fix permissions
+                                            GRANT ALL ON public.alumni_posts TO anon, authenticated, service_role;
+                                            GRANT ALL ON public.alumni_comments TO anon, authenticated, service_role;
+                                            GRANT ALL ON public.alumni_messages TO anon, authenticated, service_role;
+                                        `;
+                                        await apiService.runMigration(sql);
+                                        alert("Alumnae infrastructure verified and updated successfully.");
+                                    }}
                                     onAddInstitution={async (d) => { 
                                          const newId = (d as any).id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`; 
                                          const now = new Date().toISOString();
@@ -4103,16 +4162,6 @@ export const App: React.FC = () => {
                                     onDeleteInventoryCategory={async (id) => {
                                         await apiService.deleteModuleRecord('county_inventory_categories', id);
                                         loadData();
-                                    }}
-                                    onRunMigration={async () => {
-                                        const sql = `
-                                            ALTER TABLE alumni_posts ADD COLUMN IF NOT EXISTS photo_url TEXT;
-                                            ALTER TABLE alumni_posts ADD COLUMN IF NOT EXISTS media_urls TEXT[];
-                                            ALTER TABLE alumni_posts ADD COLUMN IF NOT EXISTS likes TEXT[] DEFAULT '{}';
-                                            ALTER TABLE alumni_posts ADD COLUMN IF NOT EXISTS comments_count INTEGER DEFAULT 0;
-                                        `;
-                                        await apiService.runMigration(sql);
-                                        alert("Migration completed successfully.");
                                     }}
                                     stores={countyStores}
                                     onAddStore={async (data) => {
