@@ -3760,7 +3760,17 @@ export const App: React.FC = () => {
                                                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                                             );
 
-                                            -- Ensure photo_url exists on older tables
+                                            -- Ensure alumnae_members has the correct profile photo column
+                                            DO $$ 
+                                            BEGIN 
+                                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumnae_members') THEN
+                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'profile_photo_url') THEN
+                                                        ALTER TABLE alumnae_members ADD COLUMN profile_photo_url TEXT;
+                                                    END IF;
+                                                END IF;
+                                            END $$;
+
+                                            -- Ensure photo_url exists on older posts table
                                             DO $$ 
                                             BEGIN 
                                                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'photo_url') THEN
@@ -3772,6 +3782,10 @@ export const App: React.FC = () => {
                                             GRANT ALL ON public.alumni_posts TO anon, authenticated, service_role;
                                             GRANT ALL ON public.alumni_comments TO anon, authenticated, service_role;
                                             GRANT ALL ON public.alumni_messages TO anon, authenticated, service_role;
+                                            GRANT ALL ON public.alumnae_members TO anon, authenticated, service_role;
+
+                                            -- Notify PostgREST to reload schema cache
+                                            NOTIFY pgrst, 'reload schema';
                                         `;
                                         await apiService.runMigration(sql);
                                         alert("Alumnae infrastructure verified and updated successfully.");
