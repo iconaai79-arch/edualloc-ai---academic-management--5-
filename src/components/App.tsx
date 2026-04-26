@@ -3760,12 +3760,18 @@ export const App: React.FC = () => {
                                                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                                             );
 
-                                            -- Ensure alumnae_members has the correct profile photo column
+                                            -- Ensure alumnae_members has necessary columns
                                             DO $$ 
                                             BEGIN 
                                                 IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumnae_members') THEN
                                                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'profile_photo_url') THEN
                                                         ALTER TABLE alumnae_members ADD COLUMN profile_photo_url TEXT;
+                                                    END IF;
+                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'admission_number') THEN
+                                                        ALTER TABLE alumnae_members ADD COLUMN admission_number TEXT;
+                                                    END IF;
+                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'school_id') THEN
+                                                        ALTER TABLE alumnae_members ADD COLUMN school_id TEXT;
                                                     END IF;
                                                 END IF;
                                             END $$;
@@ -5295,16 +5301,15 @@ export const App: React.FC = () => {
                                 registry={schoolRegistry}
                                 initialSchool={selectedRegistrySchool}
                                 onCheckAdmission={async (admNo, schoolId) => {
-                                    // Discovery check across active alumnae
-                                    const school = schoolRegistry.find(s => s.id === schoolId);
-                                    const instId = school?.institutionId;
-                                    
-                                    const filters: any = { admission_number: admNo };
-                                    if (instId) filters.institution_id = instId;
+                                    // Discovery check scoped to the specific school to allow duplicate IDs across different institutions
+                                    const filters: any = { 
+                                        admission_number: admNo,
+                                        school_id: schoolId
+                                    };
                                     
                                     const existing = await apiService.fetchModuleRecords('alumnae_members', undefined, undefined, { filter: filters });
                                     if (existing && existing.length > 0) {
-                                        return { exists: true, message: 'Admission number already claimed in the Alumnae Network.' };
+                                        return { exists: true, message: 'This admission number is already registered for this school.' };
                                     }
                                     return { exists: false };
                                 }}
