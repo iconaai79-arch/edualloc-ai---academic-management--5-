@@ -75,12 +75,23 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         setIsDetectingMemberships(true);
         try {
             if (!currentAlumna?.email) return;
-            const results = await apiService.fetchModuleRecords('alumnae_members', {
-                email: currentAlumna.email.toLowerCase().trim()
+            const targetEmail = currentAlumna.email.toLowerCase().trim();
+            
+            // Discovery Phase: Search by primary email column
+            let results = await apiService.fetchModuleRecords('alumnae_members', undefined, undefined, {
+                filter: { email: targetEmail }
             });
+
+            // Fallback: Search by legacy user_email column if no results found
+            if (!results || results.length === 0) {
+                results = await apiService.fetchModuleRecords('alumnae_members', undefined, undefined, {
+                    filter: { user_email: targetEmail }
+                });
+            }
+
             // Filter to ensure same email and valid memberships, excluding current active one
-            const others = results.filter((m: any) => 
-                (m.email?.toLowerCase() === currentAlumna.email?.toLowerCase()) && 
+            const others = (results || []).filter((m: any) => 
+                ((m.email?.toLowerCase() === targetEmail) || (m.user_email?.toLowerCase() === targetEmail)) && 
                 m.id !== currentAlumna.id
             );
             setOtherMemberships(others);
@@ -194,8 +205,16 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             
             // STRICT FILTER: Ensure they belong to THIS institution or school registry entry
             const institutionMembers = (data || []).filter((m: any) => {
-                const sameInst = (m.institutionId === instId || m.institution_id === instId || (schoolRegId && (m.schoolId === schoolRegId || m.school_id === schoolRegId)));
-                return sameInst;
+                const memberInstId = m.institutionId || m.institution_id;
+                const memberSchoolRegId = m.schoolId || m.school_id;
+                
+                // Match by Onboarded Institution ID
+                if (instId && memberInstId === instId) return true;
+                
+                // Match by Registry School ID (for schools not yet onboarded)
+                if (schoolRegId && memberSchoolRegId === schoolRegId) return true;
+                
+                return false;
             });
 
             setAllInstitutionMembers(institutionMembers);

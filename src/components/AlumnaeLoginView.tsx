@@ -52,12 +52,20 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
         setError('');
 
         try {
-            const results = await apiService.fetchModuleRecords('alumnae_members', {
-                email: email.toLowerCase().trim()
+            // Discovery Phase: Search by primary email column
+            let results = await apiService.fetchModuleRecords('alumnae_members', undefined, undefined, {
+                filter: { email: email.toLowerCase().trim() }
             });
 
+            // Fallback: Search by legacy user_email column if no results found
+            if (!results || results.length === 0) {
+                results = await apiService.fetchModuleRecords('alumnae_members', undefined, undefined, {
+                    filter: { user_email: email.toLowerCase().trim() }
+                });
+            }
+
             // Filter for exact matches and valid password
-            const validProfiles = results.filter((a: any) => 
+            const validProfiles = (results || []).filter((a: any) => 
                 ((a.email?.toLowerCase() === email.toLowerCase().trim()) || 
                  (a.user_email?.toLowerCase() === email.toLowerCase().trim())) &&
                 a.password === password
@@ -91,9 +99,17 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
         setError('');
 
         try {
-            const results = await apiService.fetchModuleRecords('alumnae_members', {
-                email: resetEmail.toLowerCase().trim()
+            // Discovery Phase: Search by primary email column
+            let results = await apiService.fetchModuleRecords('alumnae_members', undefined, undefined, {
+                filter: { email: resetEmail.toLowerCase().trim() }
             });
+
+            // Fallback: Search by legacy user_email column if no results found
+            if (!results || results.length === 0) {
+                results = await apiService.fetchModuleRecords('alumnae_members', undefined, undefined, {
+                    filter: { user_email: resetEmail.toLowerCase().trim() }
+                });
+            }
 
             if (!results || results.length === 0) {
                 throw new Error('No account found with this email.');

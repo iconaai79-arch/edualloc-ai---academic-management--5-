@@ -24,6 +24,9 @@ interface ParentViewProps {
     transportOnboarding?: TransportOnboarding[];
     vehicles?: TransportVehicle[];
     onConfirmTransport?: (recordId: string) => Promise<void>;
+    assessments?: Assessment[];
+    onAddAssessment?: (data: any) => Promise<void>;
+    onDeleteAssessment?: (id: string) => Promise<void>;
 }
 
 import { AttendanceAnalytics } from './AttendanceAnalytics';

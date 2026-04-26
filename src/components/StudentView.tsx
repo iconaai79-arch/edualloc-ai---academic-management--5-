@@ -192,6 +192,8 @@ interface StudentViewProps {
     currentInstitution?: Institution | null;
     assessments: Assessment[];
     assessmentMarks: AssessmentMark[];
+    onAddAssessment?: (data: any) => Promise<void>;
+    onDeleteAssessment?: (id: string) => Promise<void>;
     studentAttendances: StudentAttendance[];
     // Fix: Changed return type to Promise to match App.tsx implementation.
     onAddParent: (studentId: string, parentData: { name: string, email: string, phone: string }) => Promise<{ success: boolean, message: string, credentials?: { email: string, password: string } }>;
