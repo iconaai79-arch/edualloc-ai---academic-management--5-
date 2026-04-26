@@ -430,9 +430,6 @@ const PoliticalMetadataManager: React.FC = () => {
     const [selectedConstituency, setSelectedConstituency] = useState('');
     const [isImporterOpen, setIsImporterOpen] = useState(false);
 
-    useEffect(() => {
-        loadData();
-    }, []);
 
     const loadData = async () => {
         setLoading(true);
@@ -453,6 +450,10 @@ const PoliticalMetadataManager: React.FC = () => {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        loadData();
+    }, []);
 
     const getConstituencyVoters = (conId: string) => {
         return wards
@@ -723,9 +724,6 @@ const MedicalRegistryManager: React.FC = () => {
     const [newDesc, setNewDesc] = useState('');
     const [newCat, setNewCat] = useState('');
 
-    useEffect(() => {
-        loadData();
-    }, []);
 
     const loadData = async () => {
         setLoading(true);
@@ -738,6 +736,10 @@ const MedicalRegistryManager: React.FC = () => {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        loadData();
+    }, []);
 
     const handleAddManual = async () => {
         if (!newCode || !newDesc) return;

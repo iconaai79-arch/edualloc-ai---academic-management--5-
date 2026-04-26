@@ -637,6 +637,414 @@ export const App: React.FC = () => {
 
     const [showAlumnaeActivation, setShowAlumnaeActivation] = useState(false);
 
+    const loadData = useCallback(async (isFirstLoad = false, force = false) => {
+        // Prevent concurrent refreshes
+        if (isRefreshingRef.current) return;
+        
+        // Prevent too frequent refreshes (debounce to 2 seconds) unless forced
+        const now = Date.now();
+        if (!isFirstLoad && !force && (now - lastRefreshTimeRef.current < 2000)) return;
+
+        isRefreshingRef.current = true;
+        lastRefreshTimeRef.current = now;
+
+        if (isFirstLoad) setAppInitializing(true);
+        setLoadStatus("Initializing...");
+
+        try {
+            if (!apiService.isConfigured()) initSupabaseClient();
+            setIsBootstrapped(true);
+
+            // ── PHASE 1: Health check + identity (blocks UI) ──────────────────
+            setLoadStatus("Connecting...");
+            const health = await apiService.testDatabaseConnection();
+            if (health.status === 'setup_required') {
+                setIsSchemaInitializationRequired(true);
+                setIsApiOnline(true);
+                setAppInitializing(false);
+                return;
+            }
+
+            setIsApiOnline(health.status !== 'offline');
+            setIsSchemaInitializationRequired(false);
+
+            setLoadStatus("Synchronizing Identity...");
+            
+            // Critical identity fetch - needed for Phase 2 logic
+            const [insts, cnts, sett, u, reg] = await Promise.all([
+                apiService.fetchInstitutions().catch(() => []),
+                (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchModuleRecords<County>('counties').catch(() => []),
+                apiService.fetchCompanySettings().catch(() => null),
+                (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchUsers().catch(() => []),
+                (isAlumnaeMode && !showAlumnaeRegister && !showInstitutionClaim) ? Promise.resolve([]) : apiService.fetchFullRegistry().catch(() => []),
+            ]);
+
+            // Sync identity state immediately so we can use activeInstitution in Phase 2
+            setUsers(u || []);
+            setInstitutions(insts || []);
+            if (cnts) setCounties(cnts);
+            if (reg) setSchoolRegistry(reg);
+            if (sett) setCompanyDetails(sett);
+
+            const activeInst = insts?.find(i => i.id === currentUser?.institutionId);
+            const instType = activeInst?.institutionType || 'General';
+            const instId = currentUser && (currentUser.role === 'super_admin' || currentUser.role.startsWith('county_')) ? undefined : currentUser?.institutionId;
+            const cntId = currentUser && currentUser.role.startsWith('county_') ? currentUser.countyId : undefined;
+            const effectiveInstId = currentUser?.role === 'super_admin' ? undefined : (activeInst?.id || currentUser?.institutionId || instId || '');
+            const isSuper = currentUser?.role === 'super_admin';
+
+            // Sector Detection
+            const isAcademic = isSuper || ['Education', 'Primary', 'Secondary', 'College', 'University', 'Institute', 'TVET', 'Polytechnic'].includes(instType);
+            const isHealth = isSuper || ['HIS', 'Pharmacy'].includes(instType);
+            const isLaw = isSuper || instType === 'Law Firm';
+            const isCoop = isSuper || ['Cooperative', 'SACCO'].includes(instType);
+            const isBusiness = isSuper || ['Business', 'Business Ecosystem', 'Retail', 'Agrovet', 'Car Wash', 'Automotive Marketplace', 'Hardware', 'Pharmacy'].includes(instType);
+            const isLogistics = isSuper || ['Logistics', 'Transport'].includes(instType);
+            const isHospitality = isSuper || instType === 'Hospitality';
+            const isDrivingSchool = isSuper || instType === 'Driving School';
+            const isPolitical = isSuper || instType === 'Political Campaign';
+            const isCommunity = isSuper || instType === 'Community';
+            const isCounty = isSuper || (currentUser?.role || '').startsWith('county_');
+
+            setLoadStatus("Building Workspace...");
+
+
+            // Also fire core module data in parallel with identity (don't await these yet)
+            let d: any[] = [], s: any[] = [], c: any[] = [], a: any[] = [], ay: any[] = [], sem: any[] = [], r: any[] = [], b: any[] = [], al: any[] = [], tasks: any[] = [], txns: any[] = [], recs: any[] = [], logs: any[] = [], notifs: any[] = [];
+
+            let coreModulePromise: Promise<any[]> = Promise.resolve([]);
+            if (currentUser) {
+                coreModulePromise = Promise.all([
+                    (isAcademic || isSuper) ? apiService.fetchDepartments(instId).catch(() => []) : Promise.resolve([]),
+                    (isAcademic || isSuper) ? apiService.fetchSubjects(instId).catch(() => []) : Promise.resolve([]),
+                    (isAcademic || isSuper) ? apiService.fetchCourses(instId).catch(() => []) : Promise.resolve([]),
+                    (isAcademic || isSuper) ? apiService.fetchAllocations(instId).catch(() => []) : Promise.resolve([]),
+                    (isAcademic || isSuper) ? apiService.fetchAcademicYears(instId).catch(() => []) : Promise.resolve([]),
+                    (isAcademic || isSuper) ? apiService.fetchSemesters(instId).catch(() => []) : Promise.resolve([]),
+                    (isAcademic || isSuper) ? apiService.fetchRooms(instId).catch(() => []) : Promise.resolve([]),
+                    (isAcademic || isSuper) ? apiService.fetchModuleRecords<Building>('buildings', instId).catch(() => []) : Promise.resolve([]),
+                    (isAcademic || isSuper) ? apiService.fetchAcademicLevels(instId).catch(() => []) : Promise.resolve([]),
+                    apiService.fetchModuleRecords<UserTask>('tasks', instId).catch(() => []),
+                    apiService.fetchTransactions(instId).catch(() => []),
+                    apiService.fetchModuleRecords<Receipt>('receipts', instId).catch(() => []),
+                    apiService.fetchModuleRecords<ActivityLog>('activity_log', instId).catch(() => []),
+                    apiService.fetchNotifications(currentUser.id).catch(() => []),
+                ]);
+            }
+
+            // ── Commit Phase 1 data → unlock UI immediately ──────────────────
+            if (insts && insts.length > 0) {
+                setInstitutions(prev => {
+                    const demoInsts = (prev || []).filter(i => i && i.id?.startsWith('demo_'));
+                    const combined = [...insts];
+                    demoInsts.forEach(di => {
+                        if (!combined.some(i => i.id === di.id)) combined.push(di);
+                    });
+                    return combined;
+                });
+            }
+            if (cnts && cnts.length > 0) setCounties(cnts);
+            if (reg) setSchoolRegistry(reg);
+            if (sett) {
+                setCompanyDetails(sett);
+                if (sett.marketplaceConfig?.customUrl) {
+                    try {
+                        const marketUrl = new URL(sett.marketplaceConfig.customUrl);
+                        if (window.location.hostname === marketUrl.hostname || new URLSearchParams(window.location.search).get('view') === 'marketplace') {
+                            setShowMarketplace(true);
+                        }
+                    } catch (e) { console.warn("Invalid marketplace URL:", e); }
+                }
+            }
+
+            let finalUsers: User[] = u || [];
+            const systemSuperAdmin = INITIAL_USERS.find(iu => iu.role === 'super_admin');
+            if (systemSuperAdmin && !finalUsers.some((existing: User) => existing.email === systemSuperAdmin.email)) {
+                finalUsers = [...finalUsers, systemSuperAdmin];
+            }
+            setUsers(finalUsers);
+
+            if (currentUser) {
+                const refreshedSelf = finalUsers.find((u: User) => u.id === currentUser.id);
+                if (refreshedSelf) {
+                    const hasChanges = JSON.stringify(refreshedSelf) !== JSON.stringify(currentUser);
+                    if (hasChanges) {
+                        setCurrentUser(prev => ({ ...prev, ...refreshedSelf } as User));
+                        apiService.storeSession({ ...currentUser, ...refreshedSelf } as User);
+                    }
+                } else if (!finalUsers.some((u: User) => u.id === currentUser.id)) {
+                    apiService.saveUser(currentUser).catch(err => console.error("Failed to auto-persist current user:", err));
+                }
+            }
+
+            // ── UNLOCK UI: dismiss splash now, core data is ready ─────────────
+            setLoadStatus("");
+            setAppInitializing(false);
+
+            // ── PHASE 2: Resolve core module data (already in-flight) ─────────
+            if (currentUser) {
+                const coreResults = await coreModulePromise;
+                [d, s, c, a, ay, sem, r, b, al, tasks, txns, recs, logs, notifs] = coreResults;
+            }
+
+            setDepartments(d || []);
+            setSubjects(s || []);
+            setCourses(c || []);
+            setRequests(a || []);
+            setAcademicYears(ay || []);
+            setSemesters(sem || []);
+            setRooms(r || []);
+            setBuildings(b || []);
+            setAcademicLevels(al || []);
+            setUserTasks(tasks || []);
+            let finalTxns = txns || [];
+            if (currentUser?.role === 'super_admin' && !instId) {
+                finalTxns = finalTxns.filter(txn => {
+                    const desc = (txn.description || '').toLowerCase();
+                    const type = txn.metadata?.type;
+                    const provider = txn.provider;
+                    return type === 'subscription' || 
+                           type === 'sms' ||
+                           type === 'alumnae_registration' ||
+                           provider === 'ncba' ||
+                           desc.includes('license') || 
+                           desc.includes('renewal') || 
+                           desc.includes('sms top-up') ||
+                           desc.includes('portal subscription') ||
+                           desc.includes('alumnae') ||
+                           desc.includes('activation');
+                });
+            }
+            setTransactions(finalTxns);
+            setReceipts(recs || []);
+            setActivityLog(logs || []);
+            setNotifications(notifs || []);
+            let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [], sar: any[] = [], enr: any[] = [], abs: any[] = [], con: any[] = [], att: any[] = [], item: any[] = [], tt: any[] = [], et: any[] = [], asg: any[] = [], subm: any[] = [], rat: any[] = [], ta: any[] = [], asmt: any[] = [], asmtMarks: any[] = [], bks: any[] = [], ltx: any[] = [], apts: any[] = [], sups: any[] = [], stx: any[] = [], cinv: any[] = [], ccats: any[] = [], cstores: any[] = [], bApps: any[] = [], bFunds: any[] = [], lo: any[] = [], obs: any[] = [], vis: any[] = [], sec: any[] = [], reqRecords: any[] = [], retExp: any[] = [], rStores: any[] = [], rInv: any[] = [], tor: any[] = [], fBulletin: any[] = [], fDocs: any[] = [], fWatch: any[] = [], fMaint: any[] = [], fCheckIn: any[] = [], vhcls: any[] = [], tonb: any[] = [], vlogs: any[] = [], cafe: any[] = [], cOrders: any[] = [], rSales: any[] = [], cwJobs: any[] = [], cFarmers: any[] = [], cColls: any[] = [], cRiders: any[] = [], cAgroInv: any[] = [], cAgroSales: any[] = [], cSaccoAcc: any[] = [], cSaccoTx: any[] = [], cPayouts: any[] = [], cExps: any[] = [], cInc: any[] = [], lClients: any[] = [], lMatters: any[] = [], lDocs: any[] = [], lTime: any[] = [], lInvs: any[] = [], lTrust: any[] = [], lTemplates: any[] = [], lAgreements: any[] = [], dsInst: any[] = [], dsVeh: any[] = [], dsStud: any[] = [], dsLess: any[] = [], dsMast: any[] = [], dsSet: any[] = [];
+            let ims: any[] = [];
+            let demoLeads: any[] = [];
+            let csList: any[] = [], csTest: any[] = [], csAppr: any[] = [];
+            let disc: any[] = [];
+            let fExps: any[] = [], fGoals: any[] = [];
+            let fPayroll: any[] = [];
+
+            
+            if (currentUser) {
+                const activeInst = insts?.find(i => i.id === currentUser.institutionId);
+                const effectiveInstId = currentUser?.role === 'super_admin' ? undefined : (activeInst?.id || currentUser.institutionId || instId || '');
+                
+                console.log("[Data Refresh] [DEBUG-ID-99] Loading institutional data for:", effectiveInstId || "Global");
+            
+                const demoLeadsPromise = currentUser.role === 'super_admin' 
+                    ? apiService.fetchDemoRequests().catch(() => []) 
+                    : Promise.resolve([]);
+
+                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements, dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, csList, csTest, csAppr, ims, disc, fExps, fGoals, fPayroll, demoLeads] = await Promise.all([
+
+                    apiService.fetchInvoices(effectiveInstId).catch(() => []),
+                    apiService.fetchExtensionRequests(isSuper ? 'ALL' : effectiveInstId).catch(() => []),
+                    apiService.fetchVoteHeads(effectiveInstId).catch(() => []),
+                    apiService.fetchFeeStructures(effectiveInstId).catch(() => []),
+                    apiService.fetchFinancialPeriods(effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<FeedbackSubmission>('feedback_submissions', effectiveInstId).catch(() => []),
+                    isAcademic ? apiService.fetchModuleRecords<StudentAbsenceRequest>('student_absence_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<EnrollmentRequest>('enrollment_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchAbsenceRequests(effectiveInstId).catch(() => []),
+                    isAcademic ? apiService.fetchModuleRecords<LecturerContract>('contracts', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchStudentAttendance>('student_attendances', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic || isBusiness ? apiService.fetchModuleRecords<InventoryItem>('inventory', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchTimetable(effectiveInstId || '').catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchExamTimetable(effectiveInstId || '').catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<Assignment>('assignments', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<Submission>('submissions', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<LessonRating>('lesson_ratings', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<TaAssignment>('ta_assignments', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<Assessment>('assessments', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchAssessmentMarks(effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<Book>('books', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isHealth || isAcademic ? apiService.fetchModuleRecords<Appointment>('appointments', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    apiService.fetchModuleRecords<Supplier>('suppliers', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<StockTransaction>('stock_transactions', effectiveInstId).catch(() => []),
+                    isCounty ? apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory', effectiveInstId, cntId).catch(() => []) : Promise.resolve([]),
+                    isCounty ? apiService.fetchModuleRecords<CountyInventoryCategory>('county_inventory_categories', undefined, cntId).catch(() => []) : Promise.resolve([]),
+                    isCounty ? apiService.fetchModuleRecords<CountyStore>('county_stores', undefined, cntId).catch(() => []) : Promise.resolve([]),
+                    isCounty ? apiService.fetchModuleRecords<BursaryApplication>('bursary_applications', effectiveInstId, cntId).catch(() => []) : Promise.resolve([]),
+                    isCounty ? apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds', undefined, cntId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<ObservationNote>('observation_notes', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    apiService.fetchModuleRecords<Visitor>('visitors', effectiveInstId).catch(() => []),
+                    apiService.fetchSecurityAlerts(effectiveInstId || '').catch(() => []),
+                    apiService.fetchModuleRecords<Requisition>('requisitions', effectiveInstId).catch(() => []),
+                    isBusiness ? apiService.fetchModuleRecords<RetailExpense>('retail_expenses', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchModuleRecords<RetailStore>('retail_stores', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    apiService.fetchModuleRecords<TimeOffRequest>('time_off_requests', effectiveInstId).catch(() => []),
+                    isAcademic || isCommunity ? apiService.fetchModuleRecords<BulletinItem>('bulletin_items', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    apiService.fetchModuleRecords<DocumentCollection>('document_collections', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<WatchlistRecord>('watchlist_records', effectiveInstId).catch(() => []),
+                    isAcademic || isBusiness ? apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLogistics ? apiService.fetchVehicles(effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLogistics ? apiService.fetchTransportOnboarding(effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLogistics ? apiService.fetchVehicleLogs(effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchModuleRecords<CafeOrder>('cafe_orders', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchModuleRecords<RetailSale>('retail_sales', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchCarWashJob>('carwash_jobs', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isCoop ? apiService.fetchModuleRecords<CoopFarmer>('coop_farmers', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isCoop ? apiService.fetchModuleRecords<CoopCollection>('coop_collections', effectiveInstId, undefined, { limit: 1000 }).catch(() => []) : Promise.resolve([]),
+                    isCoop ? apiService.fetchModuleRecords<CoopRider>('coop_riders', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isCoop || isBusiness ? apiService.fetchModuleRecords<CoopAgrovetInventory>('coop_agrovet_inventory', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isCoop || isBusiness ? apiService.fetchModuleRecords<CoopAgrovetSales>('coop_agrovet_sales', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isCoop ? apiService.fetchModuleRecords<SaccoAccount>('sacco_accounts', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isCoop ? apiService.fetchModuleRecords<SaccoTransaction>('sacco_transactions', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isCoop ? apiService.fetchModuleRecords<CoopMonthlyPayout>('coop_monthly_payouts', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isCoop ? apiService.fetchModuleRecords<CoopExpense>('coop_expenses', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isCoop ? apiService.fetchModuleRecords<CoopIncome>('coop_income', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLaw ? apiService.fetchModuleRecords<LawClient>('law_clients', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLaw ? apiService.fetchModuleRecords<LawMatter>('law_matters', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLaw ? apiService.fetchModuleRecords<LawDocument>('law_documents', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLaw ? apiService.fetchModuleRecords<LawTimeEntry>('law_time_entries', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLaw ? apiService.fetchModuleRecords<LawInvoice>('law_invoices', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLaw ? apiService.fetchModuleRecords<LawTrustTransaction>('law_trust_transactions', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLaw ? apiService.fetchModuleRecords<LawAgreementTemplate>('law_agreement_templates', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isLaw ? apiService.fetchModuleRecords<LawAgreement>('law_agreements', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isDrivingSchool ? apiService.fetchModuleRecords<DSInstructor>('ds_instructors', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isDrivingSchool ? apiService.fetchModuleRecords<DSVehicle>('ds_vehicles', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isDrivingSchool ? apiService.fetchModuleRecords<DSStudent>('ds_students', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isDrivingSchool ? apiService.fetchModuleRecords<DSLesson>('ds_lessons', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isDrivingSchool ? apiService.fetchModuleRecords<DSSkillMastery>('ds_skill_mastery', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isDrivingSchool ? apiService.fetchModuleRecords<DSSettings>('ds_settings', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchCarListings(effectiveInstId, 'all').catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchCarTestDrives(effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchCarAppraisals(effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', effectiveInstId).catch(() => []),
+                    isAcademic ? apiService.fetchModuleRecords<DisciplineIncident>('discipline_incidents', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    apiService.fetchModuleRecords<Expense>('expenses', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<FinancialGoal>('financial_goals', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<PayrollRecord>('payroll_records', effectiveInstId).catch(() => []),
+                    demoLeadsPromise
+                ]);
+
+
+                console.log("[Data Refresh] Hub Optimized");
+
+                if (insts && insts.length > 0) {
+                    const finalInsts = insts.map(i => ({
+                        ...i,
+                        moduleStates: (ims || []).filter((m: any) => m.institutionId === i.id)
+                    }));
+                    setInstitutions(finalInsts);
+                }
+
+                if (demoLeads) setDemoRequests(demoLeads);
+            }
+
+
+            setInvoices(inv || []);
+            setExtensionRequests(ext || []);
+            setVoteHeads(vh || []);
+            setFeeStructures(fs || []);
+            setFinancialPeriods(fp || []);
+            setFeedbackSubmissions(fb || []);
+            setStudentAbsenceRequests(sar || []);
+            setEnrollmentRequests(enr || []);
+            setAbsenceRequests(abs || []);
+            setContracts(con || []);
+            setStudentAttendances(att || []);
+            setInventory(item || []);
+            setCountyInventory(cinv || []);
+            setCountyInventoryCategories(ccats || []);
+            setCountyStores(cstores || []);
+            setGeneratedTimetable(tt || []);
+            setExamTimetable(et || []);
+            setAssignments(asg || []);
+            setSubmissions(subm || []);
+            setLessonRatings(rat || []);
+            setTaAssignments(ta || []);
+            setAssessments(asmt || []);
+            setAssessmentMarks(asmtMarks || []);
+            setBooks(bks || []);
+            setLibraryTransactions(ltx || []);
+            setAppointments(apts || []);
+            setCafeMenuItems(cafe || []);
+            setSuppliers(sups || []);
+            setStockTransactions(stx || []);
+            setBursaryApplications(bApps || []);
+            setBursaryFunds(bFunds || []);
+            setLeaveOutRequests(lo || []);
+            setObservationNotes(obs || []);
+            setVisitors(vis || []);
+            setSecurityAlerts(sec || []);
+            setRequisitions(reqRecords || []);
+            
+            setIncidents(disc || []);
+            setExpenses(fExps || []);
+            setFinancialGoals(fGoals || []);
+            setPayrollRecords(fPayroll || []);
+            // Driving School State Setters
+            setDsInstructors(dsInst || []);
+            setDsVehicles(dsVeh || []);
+            setDsStudents(dsStud || []);
+            setDsLessons(dsLess || []);
+            setDsMastery(dsMast || []);
+            setDsSettings(dsSet && dsSet.length > 0 ? dsSet[0] : null);
+            setCarListings(csList || []);
+            setCarTestDrives(csTest || []);
+            setCarAppraisals(csAppr || []);
+
+            setRetailExpenses(retExp || []);
+            setRetailStores(rStores || []);
+            setRetailInventory(rInv || []);
+            setTimeOffRequests(tor || []);
+            setBulletinItems(fBulletin || []);
+            setDocumentCollections(fDocs || []);
+            setMaintenanceRequests(fMaint || []);
+            setTeacherCheckIns(fCheckIn || []);
+            setVehicles(vhcls || []);
+            setTransportOnboarding(tonb || []);
+            setVehicleLogs(vlogs || []);
+            setCafeOrders(cOrders || []);
+            setRetailSales(rSales || []);
+            setJobs(cwJobs || []);
+            setNotifications(notifs || []);
+
+            setCoopFarmers(cFarmers || []);
+            setCoopCollections(cColls || []);
+            setCoopRiders(cRiders || []);
+            setCoopAgrovetInventory(cAgroInv || []);
+            setCoopAgrovetSales(cAgroSales || []);
+            setSaccoAccounts(cSaccoAcc || []);
+            setSaccoTransactions(cSaccoTx || []);
+            setCoopPayouts(cPayouts || []);
+            setCoopExpenses(cExps || []);
+            setCoopIncome(cInc || []);
+
+            setLawClients(lClients || []);
+            setLawMatters(lMatters || []);
+            setLawDocuments(lDocs || []);
+            setLawTimeEntries(lTime || []);
+            setLawInvoices(lInvs || []);
+            setLawTrustTransactions(lTrust || []);
+            setLawAgreementTemplates(lTemplates || []);
+            setLawAgreements(lAgreements || []);
+
+            setIsGeneratingDemoData(false);
+            setLoadStatus("");
+            setLoadError("");
+        } catch (error: any) {
+            console.error("Critical Load Error:", error);
+            const msg = error.message || "Unknown connectivity failure";
+            setLoadStatus(`Diagnostic Failure: ${msg}`);
+            setLoadError(msg);
+        } finally {
+            initialLoadDone.current = true;
+            setAppInitializing(false);
+            isRefreshingRef.current = false;
+        }
+    }, [currentUser?.id, currentUser?.role, currentUser?.institutionId, currentUser?.countyId]);
+
+
     const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(() => {
         try {
             const params = new URLSearchParams(window.location.search);
@@ -890,412 +1298,6 @@ export const App: React.FC = () => {
     const activeLetterheadConfig = useMemo(() => activeInstitution?.letterheadConfig || companyDetails.letterheadConfig, [activeInstitution, companyDetails]);
     const activeFooterImageUrl = useMemo(() => activeInstitution?.footerImageUrl || companyDetails.footerImageUrl || null, [activeInstitution, companyDetails]);
 
-    const loadData = useCallback(async (isFirstLoad = false, force = false) => {
-        // Prevent concurrent refreshes
-        if (isRefreshingRef.current) return;
-        
-        // Prevent too frequent refreshes (debounce to 2 seconds) unless forced
-        const now = Date.now();
-        if (!isFirstLoad && !force && (now - lastRefreshTimeRef.current < 2000)) return;
-
-        isRefreshingRef.current = true;
-        lastRefreshTimeRef.current = now;
-
-        if (isFirstLoad) setAppInitializing(true);
-        setLoadStatus("Initializing...");
-
-        try {
-            if (!apiService.isConfigured()) initSupabaseClient();
-            setIsBootstrapped(true);
-
-            // ── PHASE 1: Health check + identity (blocks UI) ──────────────────
-            setLoadStatus("Connecting...");
-            const health = await apiService.testDatabaseConnection();
-            if (health.status === 'setup_required') {
-                setIsSchemaInitializationRequired(true);
-                setIsApiOnline(true);
-                setAppInitializing(false);
-                return;
-            }
-
-            setIsApiOnline(health.status !== 'offline');
-            setIsSchemaInitializationRequired(false);
-
-            setLoadStatus("Synchronizing Identity...");
-            
-            // Critical identity fetch - needed for Phase 2 logic
-            const [insts, cnts, sett, u, reg] = await Promise.all([
-                apiService.fetchInstitutions().catch(() => []),
-                (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchModuleRecords<County>('counties').catch(() => []),
-                apiService.fetchCompanySettings().catch(() => null),
-                (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchUsers().catch(() => []),
-                (isAlumnaeMode && !showAlumnaeRegister && !showInstitutionClaim) ? Promise.resolve([]) : apiService.fetchFullRegistry().catch(() => []),
-            ]);
-
-            // Sync identity state immediately so we can use activeInstitution in Phase 2
-            setUsers(u || []);
-            setInstitutions(insts || []);
-            if (cnts) setCounties(cnts);
-            if (reg) setSchoolRegistry(reg);
-            if (sett) setCompanyDetails(sett);
-
-            const activeInst = insts?.find(i => i.id === currentUser?.institutionId);
-            const instType = activeInst?.institutionType || 'General';
-            const instId = currentUser && (currentUser.role === 'super_admin' || currentUser.role.startsWith('county_')) ? undefined : currentUser?.institutionId;
-            const cntId = currentUser && currentUser.role.startsWith('county_') ? currentUser.countyId : undefined;
-            const effectiveInstId = currentUser?.role === 'super_admin' ? undefined : (activeInst?.id || currentUser?.institutionId || instId || '');
-            const isSuper = currentUser?.role === 'super_admin';
-
-            // Sector Detection
-            const isAcademic = isSuper || ['Education', 'Primary', 'Secondary', 'College', 'University', 'Institute', 'TVET', 'Polytechnic'].includes(instType);
-            const isHealth = isSuper || ['HIS', 'Pharmacy'].includes(instType);
-            const isLaw = isSuper || instType === 'Law Firm';
-            const isCoop = isSuper || ['Cooperative', 'SACCO'].includes(instType);
-            const isBusiness = isSuper || ['Business', 'Business Ecosystem', 'Retail', 'Agrovet', 'Car Wash', 'Automotive Marketplace', 'Hardware', 'Pharmacy'].includes(instType);
-            const isLogistics = isSuper || ['Logistics', 'Transport'].includes(instType);
-            const isHospitality = isSuper || instType === 'Hospitality';
-            const isDrivingSchool = isSuper || instType === 'Driving School';
-            const isPolitical = isSuper || instType === 'Political Campaign';
-            const isCommunity = isSuper || instType === 'Community';
-            const isCounty = isSuper || (currentUser?.role || '').startsWith('county_');
-
-            setLoadStatus("Building Workspace...");
-
-
-            // Also fire core module data in parallel with identity (don't await these yet)
-            let d: any[] = [], s: any[] = [], c: any[] = [], a: any[] = [], ay: any[] = [], sem: any[] = [], r: any[] = [], b: any[] = [], al: any[] = [], tasks: any[] = [], txns: any[] = [], recs: any[] = [], logs: any[] = [], notifs: any[] = [];
-
-            let coreModulePromise: Promise<any[]> = Promise.resolve([]);
-            if (currentUser) {
-                coreModulePromise = Promise.all([
-                    (isAcademic || isSuper) ? apiService.fetchDepartments(instId).catch(() => []) : Promise.resolve([]),
-                    (isAcademic || isSuper) ? apiService.fetchSubjects(instId).catch(() => []) : Promise.resolve([]),
-                    (isAcademic || isSuper) ? apiService.fetchCourses(instId).catch(() => []) : Promise.resolve([]),
-                    (isAcademic || isSuper) ? apiService.fetchAllocations(instId).catch(() => []) : Promise.resolve([]),
-                    (isAcademic || isSuper) ? apiService.fetchAcademicYears(instId).catch(() => []) : Promise.resolve([]),
-                    (isAcademic || isSuper) ? apiService.fetchSemesters(instId).catch(() => []) : Promise.resolve([]),
-                    (isAcademic || isSuper) ? apiService.fetchRooms(instId).catch(() => []) : Promise.resolve([]),
-                    (isAcademic || isSuper) ? apiService.fetchModuleRecords<Building>('buildings', instId).catch(() => []) : Promise.resolve([]),
-                    (isAcademic || isSuper) ? apiService.fetchAcademicLevels(instId).catch(() => []) : Promise.resolve([]),
-                    apiService.fetchModuleRecords<UserTask>('tasks', instId).catch(() => []),
-                    apiService.fetchTransactions(instId).catch(() => []),
-                    apiService.fetchModuleRecords<Receipt>('receipts', instId).catch(() => []),
-                    apiService.fetchModuleRecords<ActivityLog>('activity_log', instId).catch(() => []),
-                    apiService.fetchNotifications(currentUser.id).catch(() => []),
-                ]);
-            }
-
-            // ── Commit Phase 1 data → unlock UI immediately ──────────────────
-            if (insts && insts.length > 0) {
-                setInstitutions(prev => {
-                    const demoInsts = (prev || []).filter(i => i && i.id?.startsWith('demo_'));
-                    const combined = [...insts];
-                    demoInsts.forEach(di => {
-                        if (!combined.some(i => i.id === di.id)) combined.push(di);
-                    });
-                    return combined;
-                });
-            }
-            if (cnts && cnts.length > 0) setCounties(cnts);
-            if (reg) setSchoolRegistry(reg);
-            if (sett) {
-                setCompanyDetails(sett);
-                if (sett.marketplaceConfig?.customUrl) {
-                    try {
-                        const marketUrl = new URL(sett.marketplaceConfig.customUrl);
-                        if (window.location.hostname === marketUrl.hostname || new URLSearchParams(window.location.search).get('view') === 'marketplace') {
-                            setShowMarketplace(true);
-                        }
-                    } catch (e) { console.warn("Invalid marketplace URL:", e); }
-                }
-            }
-
-            let finalUsers: User[] = u || [];
-            const systemSuperAdmin = INITIAL_USERS.find(iu => iu.role === 'super_admin');
-            if (systemSuperAdmin && !finalUsers.some((existing: User) => existing.email === systemSuperAdmin.email)) {
-                finalUsers = [...finalUsers, systemSuperAdmin];
-            }
-            setUsers(finalUsers);
-
-            if (currentUser) {
-                const refreshedSelf = finalUsers.find((u: User) => u.id === currentUser.id);
-                if (refreshedSelf) {
-                    const hasChanges = JSON.stringify(refreshedSelf) !== JSON.stringify(currentUser);
-                    if (hasChanges) {
-                        setCurrentUser(prev => ({ ...prev, ...refreshedSelf } as User));
-                        apiService.storeSession({ ...currentUser, ...refreshedSelf } as User);
-                    }
-                } else if (!finalUsers.some((u: User) => u.id === currentUser.id)) {
-                    apiService.saveUser(currentUser).catch(err => console.error("Failed to auto-persist current user:", err));
-                }
-            }
-
-            // ── UNLOCK UI: dismiss splash now, core data is ready ─────────────
-            setLoadStatus("");
-            setAppInitializing(false);
-
-            // ── PHASE 2: Resolve core module data (already in-flight) ─────────
-            if (currentUser) {
-                const coreResults = await coreModulePromise;
-                [d, s, c, a, ay, sem, r, b, al, tasks, txns, recs, logs, notifs] = coreResults;
-            }
-
-            setDepartments(d || []);
-            setSubjects(s || []);
-            setCourses(c || []);
-            setRequests(a || []);
-            setAcademicYears(ay || []);
-            setSemesters(sem || []);
-            setRooms(r || []);
-            setBuildings(b || []);
-            setAcademicLevels(al || []);
-            setUserTasks(tasks || []);
-            let finalTxns = txns || [];
-            if (currentUser?.role === 'super_admin' && !instId) {
-                finalTxns = finalTxns.filter(txn => {
-                    const desc = (txn.description || '').toLowerCase();
-                    const type = txn.metadata?.type;
-                    const provider = txn.provider;
-                    return type === 'subscription' || 
-                           type === 'sms' ||
-                           type === 'alumnae_registration' ||
-                           provider === 'ncba' ||
-                           desc.includes('license') || 
-                           desc.includes('renewal') || 
-                           desc.includes('sms top-up') ||
-                           desc.includes('portal subscription') ||
-                           desc.includes('alumnae') ||
-                           desc.includes('activation');
-                });
-            }
-            setTransactions(finalTxns);
-            setReceipts(recs || []);
-            setActivityLog(logs || []);
-            setNotifications(notifs || []);
-            let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [], sar: any[] = [], enr: any[] = [], abs: any[] = [], con: any[] = [], att: any[] = [], item: any[] = [], tt: any[] = [], et: any[] = [], asg: any[] = [], subm: any[] = [], rat: any[] = [], ta: any[] = [], asmt: any[] = [], asmtMarks: any[] = [], bks: any[] = [], ltx: any[] = [], apts: any[] = [], sups: any[] = [], stx: any[] = [], cinv: any[] = [], ccats: any[] = [], cstores: any[] = [], bApps: any[] = [], bFunds: any[] = [], lo: any[] = [], obs: any[] = [], vis: any[] = [], sec: any[] = [], reqRecords: any[] = [], retExp: any[] = [], rStores: any[] = [], rInv: any[] = [], tor: any[] = [], fBulletin: any[] = [], fDocs: any[] = [], fWatch: any[] = [], fMaint: any[] = [], fCheckIn: any[] = [], vhcls: any[] = [], tonb: any[] = [], vlogs: any[] = [], cafe: any[] = [], cOrders: any[] = [], rSales: any[] = [], cwJobs: any[] = [], cFarmers: any[] = [], cColls: any[] = [], cRiders: any[] = [], cAgroInv: any[] = [], cAgroSales: any[] = [], cSaccoAcc: any[] = [], cSaccoTx: any[] = [], cPayouts: any[] = [], cExps: any[] = [], cInc: any[] = [], lClients: any[] = [], lMatters: any[] = [], lDocs: any[] = [], lTime: any[] = [], lInvs: any[] = [], lTrust: any[] = [], lTemplates: any[] = [], lAgreements: any[] = [], dsInst: any[] = [], dsVeh: any[] = [], dsStud: any[] = [], dsLess: any[] = [], dsMast: any[] = [], dsSet: any[] = [];
-            let ims: any[] = [];
-            let demoLeads: any[] = [];
-            let csList: any[] = [], csTest: any[] = [], csAppr: any[] = [];
-            let disc: any[] = [];
-            let fExps: any[] = [], fGoals: any[] = [];
-            let fPayroll: any[] = [];
-
-            
-            if (currentUser) {
-                const activeInst = insts?.find(i => i.id === currentUser.institutionId);
-                const effectiveInstId = currentUser?.role === 'super_admin' ? undefined : (activeInst?.id || currentUser.institutionId || instId || '');
-                
-                console.log("[Data Refresh] [DEBUG-ID-99] Loading institutional data for:", effectiveInstId || "Global");
-            
-                const demoLeadsPromise = currentUser.role === 'super_admin' 
-                    ? apiService.fetchDemoRequests().catch(() => []) 
-                    : Promise.resolve([]);
-
-                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements, dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, csList, csTest, csAppr, ims, disc, fExps, fGoals, fPayroll, demoLeads] = await Promise.all([
-
-                    apiService.fetchInvoices(effectiveInstId).catch(() => []),
-                    apiService.fetchExtensionRequests(isSuper ? 'ALL' : effectiveInstId).catch(() => []),
-                    apiService.fetchVoteHeads(effectiveInstId).catch(() => []),
-                    apiService.fetchFeeStructures(effectiveInstId).catch(() => []),
-                    apiService.fetchFinancialPeriods(effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<FeedbackSubmission>('feedback_submissions', effectiveInstId).catch(() => []),
-                    isAcademic ? apiService.fetchModuleRecords<StudentAbsenceRequest>('student_absence_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<EnrollmentRequest>('enrollment_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchAbsenceRequests(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<LecturerContract>('contracts', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<StudentAttendance>('student_attendances', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic || isBusiness ? apiService.fetchModuleRecords<InventoryItem>('inventory', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchTimetable(effectiveInstId || '').catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchExamTimetable(effectiveInstId || '').catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<Assignment>('assignments', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<Submission>('submissions', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<LessonRating>('lesson_ratings', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<TaAssignment>('ta_assignments', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<Assessment>('assessments', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchAssessmentMarks(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<Book>('books', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isHealth || isAcademic ? apiService.fetchModuleRecords<Appointment>('appointments', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    apiService.fetchModuleRecords<Supplier>('suppliers', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<StockTransaction>('stock_transactions', effectiveInstId).catch(() => []),
-                    isCounty ? apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory', effectiveInstId, cntId).catch(() => []) : Promise.resolve([]),
-                    isCounty ? apiService.fetchModuleRecords<CountyInventoryCategory>('county_inventory_categories', undefined, cntId).catch(() => []) : Promise.resolve([]),
-                    isCounty ? apiService.fetchModuleRecords<CountyStore>('county_stores', undefined, cntId).catch(() => []) : Promise.resolve([]),
-                    isCounty ? apiService.fetchModuleRecords<BursaryApplication>('bursary_applications', effectiveInstId, cntId).catch(() => []) : Promise.resolve([]),
-                    isCounty ? apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds', undefined, cntId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<ObservationNote>('observation_notes', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    apiService.fetchModuleRecords<Visitor>('visitors', effectiveInstId).catch(() => []),
-                    apiService.fetchSecurityAlerts(effectiveInstId || '').catch(() => []),
-                    apiService.fetchModuleRecords<Requisition>('requisitions', effectiveInstId).catch(() => []),
-                    isBusiness ? apiService.fetchModuleRecords<RetailExpense>('retail_expenses', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchModuleRecords<RetailStore>('retail_stores', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    apiService.fetchModuleRecords<TimeOffRequest>('time_off_requests', effectiveInstId).catch(() => []),
-                    isAcademic || isCommunity ? apiService.fetchModuleRecords<BulletinItem>('bulletin_items', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    apiService.fetchModuleRecords<DocumentCollection>('document_collections', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<WatchlistRecord>('watchlist_records', effectiveInstId).catch(() => []),
-                    isAcademic || isBusiness ? apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLogistics ? apiService.fetchVehicles(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLogistics ? apiService.fetchTransportOnboarding(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLogistics ? apiService.fetchVehicleLogs(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchModuleRecords<CafeOrder>('cafe_orders', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchModuleRecords<RetailSale>('retail_sales', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchModuleRecords<CarWashJob>('carwash_jobs', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isCoop ? apiService.fetchModuleRecords<CoopFarmer>('coop_farmers', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isCoop ? apiService.fetchModuleRecords<CoopCollection>('coop_collections', effectiveInstId, undefined, { limit: 1000 }).catch(() => []) : Promise.resolve([]),
-                    isCoop ? apiService.fetchModuleRecords<CoopRider>('coop_riders', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isCoop || isBusiness ? apiService.fetchModuleRecords<CoopAgrovetInventory>('coop_agrovet_inventory', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isCoop || isBusiness ? apiService.fetchModuleRecords<CoopAgrovetSales>('coop_agrovet_sales', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isCoop ? apiService.fetchModuleRecords<SaccoAccount>('sacco_accounts', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isCoop ? apiService.fetchModuleRecords<SaccoTransaction>('sacco_transactions', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isCoop ? apiService.fetchModuleRecords<CoopMonthlyPayout>('coop_monthly_payouts', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isCoop ? apiService.fetchModuleRecords<CoopExpense>('coop_expenses', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isCoop ? apiService.fetchModuleRecords<CoopIncome>('coop_income', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLaw ? apiService.fetchModuleRecords<LawClient>('law_clients', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLaw ? apiService.fetchModuleRecords<LawMatter>('law_matters', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLaw ? apiService.fetchModuleRecords<LawDocument>('law_documents', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLaw ? apiService.fetchModuleRecords<LawTimeEntry>('law_time_entries', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLaw ? apiService.fetchModuleRecords<LawInvoice>('law_invoices', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLaw ? apiService.fetchModuleRecords<LawTrustTransaction>('law_trust_transactions', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLaw ? apiService.fetchModuleRecords<LawAgreementTemplate>('law_agreement_templates', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLaw ? apiService.fetchModuleRecords<LawAgreement>('law_agreements', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isDrivingSchool ? apiService.fetchModuleRecords<DSInstructor>('ds_instructors', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isDrivingSchool ? apiService.fetchModuleRecords<DSVehicle>('ds_vehicles', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isDrivingSchool ? apiService.fetchModuleRecords<DSStudent>('ds_students', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isDrivingSchool ? apiService.fetchModuleRecords<DSLesson>('ds_lessons', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isDrivingSchool ? apiService.fetchModuleRecords<DSSkillMastery>('ds_skill_mastery', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isDrivingSchool ? apiService.fetchModuleRecords<DSSettings>('ds_settings', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchCarListings(effectiveInstId, 'all').catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchCarTestDrives(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchCarAppraisals(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', effectiveInstId).catch(() => []),
-                    isAcademic ? apiService.fetchModuleRecords<DisciplineIncident>('discipline_incidents', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    apiService.fetchModuleRecords<Expense>('expenses', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<FinancialGoal>('financial_goals', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<PayrollRecord>('payroll_records', effectiveInstId).catch(() => []),
-                    demoLeadsPromise
-                ]);
-
-
-                console.log("[Data Refresh] Hub Optimized");
-
-                if (insts && insts.length > 0) {
-                    const finalInsts = insts.map(i => ({
-                        ...i,
-                        moduleStates: (ims || []).filter((m: any) => m.institutionId === i.id)
-                    }));
-                    setInstitutions(finalInsts);
-                }
-
-                if (demoLeads) setDemoRequests(demoLeads);
-            }
-
-
-            setInvoices(inv || []);
-            setExtensionRequests(ext || []);
-            setVoteHeads(vh || []);
-            setFeeStructures(fs || []);
-            setFinancialPeriods(fp || []);
-            setFeedbackSubmissions(fb || []);
-            setStudentAbsenceRequests(sar || []);
-            setEnrollmentRequests(enr || []);
-            setAbsenceRequests(abs || []);
-            setContracts(con || []);
-            setStudentAttendances(att || []);
-            setInventory(item || []);
-            setCountyInventory(cinv || []);
-            setCountyInventoryCategories(ccats || []);
-            setCountyStores(cstores || []);
-            setGeneratedTimetable(tt || []);
-            setExamTimetable(et || []);
-            setAssignments(asg || []);
-            setSubmissions(subm || []);
-            setLessonRatings(rat || []);
-            setTaAssignments(ta || []);
-            setAssessments(asmt || []);
-            setAssessmentMarks(asmtMarks || []);
-            setBooks(bks || []);
-            setLibraryTransactions(ltx || []);
-            setAppointments(apts || []);
-            setCafeMenuItems(cafe || []);
-            setSuppliers(sups || []);
-            setStockTransactions(stx || []);
-            setBursaryApplications(bApps || []);
-            setBursaryFunds(bFunds || []);
-            setLeaveOutRequests(lo || []);
-            setObservationNotes(obs || []);
-            setVisitors(vis || []);
-            setSecurityAlerts(sec || []);
-            setRequisitions(reqRecords || []);
-            
-            setIncidents(disc || []);
-            setExpenses(fExps || []);
-            setFinancialGoals(fGoals || []);
-            setPayrollRecords(fPayroll || []);
-            // Driving School State Setters
-            setDsInstructors(dsInst || []);
-            setDsVehicles(dsVeh || []);
-            setDsStudents(dsStud || []);
-            setDsLessons(dsLess || []);
-            setDsMastery(dsMast || []);
-            setDsSettings(dsSet && dsSet.length > 0 ? dsSet[0] : null);
-            setCarListings(csList || []);
-            setCarTestDrives(csTest || []);
-            setCarAppraisals(csAppr || []);
-
-            setRetailExpenses(retExp || []);
-            setRetailStores(rStores || []);
-            setRetailInventory(rInv || []);
-            setTimeOffRequests(tor || []);
-            setBulletinItems(fBulletin || []);
-            setDocumentCollections(fDocs || []);
-            setMaintenanceRequests(fMaint || []);
-            setTeacherCheckIns(fCheckIn || []);
-            setVehicles(vhcls || []);
-            setTransportOnboarding(tonb || []);
-            setVehicleLogs(vlogs || []);
-            setCafeOrders(cOrders || []);
-            setRetailSales(rSales || []);
-            setJobs(cwJobs || []);
-            setNotifications(notifs || []);
-
-            setCoopFarmers(cFarmers || []);
-            setCoopCollections(cColls || []);
-            setCoopRiders(cRiders || []);
-            setCoopAgrovetInventory(cAgroInv || []);
-            setCoopAgrovetSales(cAgroSales || []);
-            setSaccoAccounts(cSaccoAcc || []);
-            setSaccoTransactions(cSaccoTx || []);
-            setCoopPayouts(cPayouts || []);
-            setCoopExpenses(cExps || []);
-            setCoopIncome(cInc || []);
-
-            setLawClients(lClients || []);
-            setLawMatters(lMatters || []);
-            setLawDocuments(lDocs || []);
-            setLawTimeEntries(lTime || []);
-            setLawInvoices(lInvs || []);
-            setLawTrustTransactions(lTrust || []);
-            setLawAgreementTemplates(lTemplates || []);
-            setLawAgreements(lAgreements || []);
-
-            setIsGeneratingDemoData(false);
-            setLoadStatus("");
-            setLoadError("");
-        } catch (error: any) {
-            console.error("Critical Load Error:", error);
-            const msg = error.message || "Unknown connectivity failure";
-            setLoadStatus(`Diagnostic Failure: ${msg}`);
-            setLoadError(msg);
-        } finally {
-            initialLoadDone.current = true;
-            setAppInitializing(false);
-            isRefreshingRef.current = false;
-        }
-    }, [currentUser?.id, currentUser?.role, currentUser?.institutionId, currentUser?.countyId]);
 
     useEffect(() => {
         // Trigger a hard reload when identity, scope, or perspective changes
