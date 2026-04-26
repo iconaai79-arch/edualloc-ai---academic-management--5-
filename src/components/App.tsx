@@ -5517,7 +5517,9 @@ export const App: React.FC = () => {
                                 featureFee={companyDetails?.alumnaeFeatureFee || 0}
                                 onBack={() => {
                                     setShowAlumnaePortal(false);
-                                    window.location.href = '/?view=community';
+                                    setActiveAlumna(null);
+                                    localStorage.removeItem('eduai_alumna_session');
+                                    setShowAlumnaeLogin(true);
                                 }}
                                 onJoinAnother={() => setShowAlumnaeRegister(true)}
                             />
