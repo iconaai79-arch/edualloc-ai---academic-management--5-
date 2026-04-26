@@ -850,7 +850,7 @@ export const App: React.FC = () => {
                     isAcademic ? apiService.fetchModuleRecords<EnrollmentRequest>('enrollment_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
                     isAcademic ? apiService.fetchAbsenceRequests(effectiveInstId).catch(() => []) : Promise.resolve([]),
                     isAcademic ? apiService.fetchModuleRecords<LecturerContract>('contracts', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchStudentAttendance('student_attendances', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isAcademic ? apiService.fetchModuleRecords<StudentAttendance>('student_attendances', effectiveInstId).catch(() => []) : Promise.resolve([]),
                     isAcademic || isBusiness ? apiService.fetchModuleRecords<InventoryItem>('inventory', effectiveInstId).catch(() => []) : Promise.resolve([]),
                     isAcademic ? apiService.fetchTimetable(effectiveInstId || '').catch(() => []) : Promise.resolve([]),
                     isAcademic ? apiService.fetchExamTimetable(effectiveInstId || '').catch(() => []) : Promise.resolve([]),
