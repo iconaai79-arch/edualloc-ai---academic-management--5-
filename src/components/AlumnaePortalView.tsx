@@ -181,30 +181,34 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         } catch (e) {}
     };
 
+    const [allInstitutionMembers, setAllInstitutionMembers] = useState<any[]>([]);
+
     const loadAlumnaeMembers = async () => {
         try {
             const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
             const gradYear = currentAlumna.graduationYear || currentAlumna.graduation_year;
             const schoolRegId = currentAlumna.schoolId || currentAlumna.school_id;
             
-            // Fetch all to ensure we have featured members, but we'll filter strictly in the UI
-            // We use the second parameter for institution scoping if available
+            // Fetch all members associated with this institution/school
             const data = await apiService.fetchModuleRecords('alumnae_members', instId);
             
-            // Scoped classmates: MUST match Institution/School AND Year
-            const classmates = (data || []).filter((m: any) => {
+            // STRICT FILTER: Ensure they belong to THIS institution or school registry entry
+            const institutionMembers = (data || []).filter((m: any) => {
                 const sameInst = (m.institutionId === instId || m.institution_id === instId || (schoolRegId && (m.schoolId === schoolRegId || m.school_id === schoolRegId)));
-                const sameYear = (String(m.graduationYear) === String(gradYear) || String(m.graduation_year) === String(gradYear));
-                return sameInst && sameYear;
+                return sameInst;
             });
+
+            setAllInstitutionMembers(institutionMembers);
+
+            // Scoped classmates: Same Institution + Same Year
+            const classmates = institutionMembers.filter((m: any) => 
+                (String(m.graduationYear) === String(gradYear) || String(m.graduation_year) === String(gradYear))
+            );
             
             setAlumnaeMembers(classmates);
             
             // Featured members: Must match Institution/School
-            setFeaturedMembers((data || []).filter((m: any) => {
-                const sameInst = (m.institutionId === instId || m.institution_id === instId || (schoolRegId && (m.schoolId === schoolRegId || m.school_id === schoolRegId)));
-                return sameInst && m.isFeatured;
-            }));
+            setFeaturedMembers(institutionMembers.filter((m: any) => m.isFeatured));
         } catch (e) {
             console.error("Failed to load alumnae members:", e);
         }
@@ -730,7 +734,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         </header>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {alumnaeMembers.filter(m => m.id !== currentAlumna.id).map(member => (
+                            {allInstitutionMembers.filter(m => m.id !== currentAlumna.id).map(member => (
                                 <div key={member.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-100/50 dark:shadow-none hover:scale-[1.02] transition-all group">
                                     <div className="flex items-center gap-4 mb-6">
                                         <div className="w-16 h-16 rounded-[1.5rem] bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 ring-4 ring-slate-50 dark:ring-slate-800">
@@ -805,7 +809,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                             {/* Conversations List */}
                             <div className={`w-full md:w-80 border-r border-slate-100 dark:border-slate-800 overflow-y-auto no-scrollbar ${activeConversationPartner ? 'hidden md:block' : 'block'}`}>
                                 <div className="p-4 space-y-2">
-                                    {alumnaeMembers.filter(m => m.id !== currentAlumna.id).map(member => {
+                                    {allInstitutionMembers.filter(m => m.id !== currentAlumna.id).map(member => {
                                         const lastMsg = [...messages].reverse().find(m => (m.senderId === member.id && m.receiverId === currentAlumna.id) || (m.senderId === currentAlumna.id && m.receiverId === member.id));
                                         return (
                                             <button 
