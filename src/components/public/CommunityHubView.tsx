@@ -13,7 +13,8 @@ import {
     Sparkles,
     ShieldCheck,
     History,
-    Palmtree
+    Palmtree,
+    Zap
 } from 'lucide-react';
 import type { Institution, County, CampaignProfile } from '../../types';
 import { apiService } from '../../services/apiService';
@@ -236,7 +237,7 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
                                                                  </div>
                                                              ))}
                                                          </div>
-                                                         <div className="flex gap-2">
+                                                         <div className="flex flex-wrap gap-2">
                                                              {hasActiveCampaignSession && (
                                                                  <button 
                                                                      onClick={() => onEnterWarRoom?.(aspirant)}
@@ -245,6 +246,16 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
                                                                      Enter War Room <Zap className="w-3 h-3" />
                                                                  </button>
                                                              )}
+                                                             <button 
+                                                                 onClick={() => {
+                                                                     const inst = institutions.find(i => i.id === aspirant.institutionId);
+                                                                     const targetSlug = inst?.slug || aspirant.candidateName.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-');
+                                                                     window.open(`https://${targetSlug}.eduai.co.ke`, '_blank');
+                                                                 }}
+                                                                 className="flex items-center gap-3 px-6 py-4 bg-indigo-50 text-indigo-600 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-100 transition-all active:scale-95"
+                                                             >
+                                                                 Access Portal <Globe className="w-4 h-4" />
+                                                             </button>
                                                              <button 
                                                                  onClick={() => window.location.href = `/?view=join-campaign&id=${aspirant.inviteSlug || aspirant.id}`}
                                                                  className="flex items-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-600 hover:shadow-xl hover:shadow-indigo-200 transition-all active:scale-95 group/btn"
@@ -383,7 +394,10 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
                                     </div>
 
                                     <button 
-                                        onClick={() => window.open(`https://${inst.slug || inst.name.toLowerCase().replace(/\s+/g, '-')}.eduai.co.ke`, '_blank')}
+                                         onClick={() => {
+                                             const targetSlug = inst.slug || inst.name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-');
+                                             window.open(`https://${targetSlug}.eduai.co.ke`, '_blank');
+                                         }}
                                         className="w-full bg-slate-50 group-hover:bg-indigo-600 text-slate-600 group-hover:text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center justify-center gap-2"
                                     >
                                         Access Portal
