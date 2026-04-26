@@ -185,23 +185,29 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         try {
             const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
             const gradYear = currentAlumna.graduationYear || currentAlumna.graduation_year;
+            const schoolRegId = currentAlumna.schoolId || currentAlumna.school_id;
             
-            const data = await apiService.fetchModuleRecords('alumnae_members', undefined, undefined, {
-                filter: { 
-                    institution_id: instId
-                }
+            // Fetch all to ensure we have featured members, but we'll filter strictly in the UI
+            // We use the second parameter for institution scoping if available
+            const data = await apiService.fetchModuleRecords('alumnae_members', instId);
+            
+            // Scoped classmates: MUST match Institution/School AND Year
+            const classmates = (data || []).filter((m: any) => {
+                const sameInst = (m.institutionId === instId || m.institution_id === instId || (schoolRegId && (m.schoolId === schoolRegId || m.school_id === schoolRegId)));
+                const sameYear = (String(m.graduationYear) === String(gradYear) || String(m.graduation_year) === String(gradYear));
+                return sameInst && sameYear;
             });
-            
-            // Scoped classmates: Same Institution + Same Year
-            const classmates = (data || []).filter((m: any) => 
-                (m.graduationYear === gradYear || m.graduation_year === gradYear)
-            );
             
             setAlumnaeMembers(classmates);
             
-            // Featured members can be from any year in the same institution
-            setFeaturedMembers((data || []).filter((m: any) => m.isFeatured));
-        } catch (e) {}
+            // Featured members: Must match Institution/School
+            setFeaturedMembers((data || []).filter((m: any) => {
+                const sameInst = (m.institutionId === instId || m.institution_id === instId || (schoolRegId && (m.schoolId === schoolRegId || m.school_id === schoolRegId)));
+                return sameInst && m.isFeatured;
+            }));
+        } catch (e) {
+            console.error("Failed to load alumnae members:", e);
+        }
     };
 
     const handleBeFeatured = async () => {
