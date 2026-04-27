@@ -23,7 +23,8 @@ import {
     Sparkles,
     Users,
     Share2,
-    Building2
+    Building2,
+    LogOut
 } from 'lucide-react';
 import type { AlumniPost, AlumniComment, Institution } from '../types';
 import { apiService } from '../services/apiService';
@@ -472,10 +473,10 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
                 <button 
                     onClick={onBack}
-                    className="w-full flex items-center gap-4 p-4 text-slate-400 hover:text-red-500 transition-all mb-4"
+                    className="w-full flex items-center gap-4 p-4 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/10 rounded-2xl transition-all mb-4 mt-auto"
                 >
-                    <ArrowLeft className="w-6 h-6" />
-                    <span className="hidden md:block font-black uppercase text-[10px] tracking-[0.2em]">Exit Portal</span>
+                    <LogOut className="w-6 h-6" />
+                    <span className="hidden md:block font-black uppercase text-[10px] tracking-[0.2em]">Logout</span>
                 </button>
 
                 <div className="p-4 border-b border-slate-100 dark:border-slate-800">
@@ -522,8 +523,11 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     <>
                     {/* Header Tabs */}
                 <header className="sticky top-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-100 dark:border-slate-800 z-40">
-                    <div className="px-6 py-4">
+                    <div className="px-6 py-4 flex justify-between items-center">
                         <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Alumnae <span className="text-indigo-600">Circle</span></h2>
+                        <button onClick={onBack} className="md:hidden p-2 text-slate-400 hover:text-rose-500 transition-colors">
+                            <LogOut className="w-5 h-5" />
+                        </button>
                     </div>
                     <div className="flex">
                         <button 

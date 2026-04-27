@@ -48,6 +48,8 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
     const [paymentStatus, setPaymentStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
     const [paymentMessage, setPaymentMessage] = useState('');
 
+    const isBillingEnabled = useMemo(() => feeEnabled && joiningFee > 0, [feeEnabled, joiningFee]);
+
     React.useEffect(() => {
         if (initialSchool) {
             setSelectedSchool(initialSchool);
@@ -89,7 +91,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
     }, [registry, searchTerm, selectedSchool]);
 
     const handleNext = () => {
-        if (step === 3 && joiningFee === 0) {
+        if (step === 3 && !isBillingEnabled) {
             handleFinalize();
         } else {
             setStep(step + 1);
@@ -249,9 +251,9 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
             <div className="w-full max-w-2xl mb-8 md:mb-12 px-2 md:px-10">
                 <div className="relative flex justify-between items-center">
                     <div className="absolute inset-0 top-1/2 -translate-y-1/2 h-0.5 bg-slate-200 dark:bg-slate-800 -z-10"></div>
-                    <div className="absolute inset-0 top-1/2 -translate-y-1/2 h-0.5 bg-indigo-600 -z-10 transition-all duration-500" style={{ width: `${((step - 1) / (joiningFee > 0 ? 4 : 3)) * 100}%` }}></div>
+                    <div className="absolute inset-0 top-1/2 -translate-y-1/2 h-0.5 bg-indigo-600 -z-10 transition-all duration-500" style={{ width: `${((step - 1) / (isBillingEnabled ? 4 : 3)) * 100}%` }}></div>
                     
-                    {[1, 2, 3, 4, ...(joiningFee > 0 ? [5] : [])].map((s) => (
+                    {[1, 2, 3, 4, ...(isBillingEnabled ? [5] : [])].map((s) => (
                         <div key={s} className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-black text-[10px] md:text-xs transition-all duration-500 ${
                             step >= s ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100' : 'bg-slate-100 text-slate-400 dark:bg-slate-800'
                         }`}>
@@ -263,8 +265,8 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                     <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600">Institution</span>
                     <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 2 ? 'text-indigo-600' : 'text-slate-400'}`}>Identity</span>
                     <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 3 ? 'text-indigo-600' : 'text-slate-400'}`}>Career</span>
-                    <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 4 ? 'text-indigo-600' : 'text-slate-400'}`}>{joiningFee > 0 ? 'Billing' : 'Verify'}</span>
-                    {joiningFee > 0 && <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 5 ? 'text-indigo-600' : 'text-slate-400'}`}>Verify</span>}
+                    <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 4 ? 'text-indigo-600' : 'text-slate-400'}`}>{isBillingEnabled ? 'Billing' : 'Verify'}</span>
+                    {isBillingEnabled && <span className={`text-[9px] font-black uppercase tracking-widest ${step >= 5 ? 'text-indigo-600' : 'text-slate-400'}`}>Verify</span>}
                 </div>
             </div>
 
@@ -527,7 +529,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                 )}
 
                 {/* Step 4: Billing (If applicable) */}
-                {step === 4 && joiningFee > 0 && (
+                {step === 4 && isBillingEnabled && (
                     <div className="space-y-8 animate-fade-in-up text-center">
                         <div className="w-24 h-24 bg-emerald-50 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-600">
                              <CheckCircle2 className="w-12 h-12" />
@@ -607,7 +609,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                 )}
 
                 {/* Step 4/5: Verification & Complete */}
-                {((step === 4 && joiningFee === 0) || step === 5) && (
+                {((step === 4 && !isBillingEnabled) || step === 5) && (
                     <div className="space-y-10 animate-fade-in-up text-center">
                         <div className="w-24 h-24 bg-emerald-50 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-10 text-emerald-600">
                              <ShieldCheck className="w-12 h-12" />
