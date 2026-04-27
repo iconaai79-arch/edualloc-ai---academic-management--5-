@@ -621,9 +621,10 @@ export const App: React.FC = () => {
             const view = params.get('view');
             const hostname = window.location.hostname;
             const isAlumnaeSubdomain = hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.includes('almamater') || hostname.includes('alma_mater');
+            const hasSession = !!localStorage.getItem('eduai_alumna_session');
             
-            // If they have a session, this will be overridden by the useEffect
-            return view === 'alumnae_social' || view === 'alumnae_portal' || isAlumnaeSubdomain;
+            // If they have a session, this will be handled by showAlumnaePortal or useEffect
+            return (view === 'alumnae_social' || view === 'alumnae_portal' || isAlumnaeSubdomain) && !hasSession;
         } catch (e) { return false; }
     });
 
@@ -1082,7 +1083,16 @@ export const App: React.FC = () => {
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [showBookDemo, setShowBookDemo] = useState(false);
     const [activeAlumna, setActiveAlumna] = useState<any>(null);
-    const [showAlumnaePortal, setShowAlumnaePortal] = useState(false);
+    const [showAlumnaePortal, setShowAlumnaePortal] = useState(() => {
+        try {
+            const saved = localStorage.getItem('eduai_alumna_session');
+            const hostname = window.location.hostname;
+            const isAlumnaeSubdomain = hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.includes('almamater') || hostname.includes('alma_mater');
+            const params = new URLSearchParams(window.location.search);
+            const view = params.get('view');
+            return !!saved && (isAlumnaeSubdomain || view === 'alumnae_portal' || view === 'alumnae_social');
+        } catch (e) { return false; }
+    });
     const [showAlumnaeSecureAccount, setShowAlumnaeSecureAccount] = useState(false);
     
     // Campaign Social States
