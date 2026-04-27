@@ -3445,6 +3445,19 @@ export const App: React.FC = () => {
                                                     image_url TEXT,
                                                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                                                 );
+
+                                                CREATE TABLE IF NOT EXISTS alumni_notifications (
+                                                    id TEXT PRIMARY KEY,
+                                                    recipient_id TEXT NOT NULL,
+                                                    actor_id TEXT NOT NULL,
+                                                    actor_name TEXT NOT NULL,
+                                                    actor_photo TEXT,
+                                                    type TEXT NOT NULL,
+                                                    related_id TEXT,
+                                                    content TEXT NOT NULL,
+                                                    is_read BOOLEAN DEFAULT false,
+                                                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                                                );
                                                 
                                                 -- FORCE SCHEMA CACHE RELOAD
                                                 NOTIFY pgrst, 'reload schema';`;

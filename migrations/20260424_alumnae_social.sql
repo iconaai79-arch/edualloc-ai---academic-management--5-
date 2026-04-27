@@ -78,6 +78,19 @@ CREATE TABLE IF NOT EXISTS project_updates (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS alumni_notifications (
+    id TEXT PRIMARY KEY,
+    recipient_id TEXT NOT NULL,
+    actor_id TEXT NOT NULL,
+    actor_name TEXT NOT NULL,
+    actor_photo TEXT,
+    type TEXT NOT NULL, -- 'join', 'like', 'comment', 'message'
+    related_id TEXT, -- post_id or message_id
+    content TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 2. Schema Repair and Evolution Block
 DO $$ 
 BEGIN 

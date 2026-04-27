@@ -97,6 +97,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [projectUpdates, setProjectUpdates] = useState<any[]>([]);
     const [newMessageToSchool, setNewMessageToSchool] = useState('');
     const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+    const [alumniNotifications, setAlumniNotifications] = useState<any[]>([]);
     const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
 
     const COMMON_EMOJIS = ['😊', '🎓', '✨', '🙌', '🎉', '💙', '🏛️', '💼', '💪', '👩‍🎓', '🏫', '💡', '🥂', '🔥', '📚', '🤝'];
@@ -160,9 +161,40 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         }
     };
 
+    const loadNotifications = async () => {
+        try {
+            const raw = await apiService.fetchModuleRecords('alumni_notifications', undefined, undefined, {
+                filter: { recipient_id: currentAlumna.id },
+                order: 'created_at.desc'
+            });
+            setAlumniNotifications(raw);
+        } catch (e) {
+            console.error("Notifications fetch failed:", e);
+        }
+    };
+
+    const detectNewClassmates = async () => {
+        const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
+        if (!instId) return;
+
+        try {
+            // Simulated check: Find members in same institution
+            // In a real trigger, this would be an edge function
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     useEffect(() => {
         const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
         if (instId) loadSchoolEngagement(instId as string);
+        
+        loadNotifications();
+        detectNewClassmates();
+
+        // Real-time simulation check every 5 mins
+        const timer = setInterval(loadNotifications, 300000);
+        return () => clearInterval(timer);
     }, [currentAlumna]);
 
     const handleSendMessageToSchool = async () => {
