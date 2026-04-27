@@ -1861,32 +1861,46 @@ Please change it after login.`;
 
     // Super Admin View (Default Fallback)
     return (
-        <div className="space-y-6 font-sans text-slate-900 dark:text-slate-100">
-            <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto no-print bg-white dark:bg-slate-800 rounded-2xl shadow-sm px-2 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
-                {tabs.map((tab) => (
-                    <button
-                        key={tab.key}
-                        onClick={() => {
-                            setActiveTab(tab.key as any);
-                            if (tab.key !== 'settings') setRequestedSettingsTab(undefined);
-                        }}
-                        className={`flex items-center gap-2 py-4 px-6 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.key
-                            ? 'border-indigo-600 text-indigo-600'
-                            : 'border-transparent text-slate-500 hover:text-slate-700'
-                            }`}
-                    >
-                        {tab.icon}
-                        {tab.label}
-                        {tab.key === 'interactions' && stats.totalActionable > 0 && (
-                            <span className="bg-red-50 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm animate-pulse ml-1">
-                                {stats.totalActionable}
+        <div className="min-h-screen bg-[#020617] text-slate-100 p-6 md:p-10 font-sans selection:bg-indigo-500/30">
+            {/* ── Cyber Command Header ── */}
+            <div className="sticky top-0 z-[100] flex flex-col md:flex-row items-center justify-between mb-12 p-3 bg-slate-900/40 backdrop-blur-3xl border border-white/5 rounded-[2.5rem] shadow-2xl shadow-indigo-500/10 gap-6">
+                <div className="flex items-center gap-6 px-6">
+                    <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-500/40">
+                        <ShieldCheckIcon className="w-8 h-8 text-white" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-black uppercase tracking-tighter text-white">
+                            Cyber <span className="text-indigo-400 italic">Command</span>
+                        </h1>
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Root Infrastructure Console</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full md:w-auto px-4 md:px-0">
+                    {tabs.map((tab) => (
+                        <button
+                            key={tab.key}
+                            onClick={() => {
+                                setActiveTab(tab.key as any);
+                                if (tab.key !== 'settings') setRequestedSettingsTab(undefined);
+                            }}
+                            className={`flex items-center gap-3 py-4 px-8 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all whitespace-nowrap group/tab ${activeTab === tab.key
+                                ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/40 scale-105'
+                                : 'text-slate-400 hover:text-white hover:bg-white/5'
+                                }`}
+                        >
+                            <span className={`${activeTab === tab.key ? 'text-white' : 'text-indigo-400 group-hover:scale-110 transition-transform'}`}>
+                                {tab.icon}
                             </span>
-                        )}
-                    </button>
-                ))}
-
-                <div className="flex-grow"></div>
-
+                            {tab.label}
+                            {tab.key === 'interactions' && stats.totalActionable > 0 && (
+                                <span className="bg-rose-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-lg animate-pulse ml-1">
+                                    {stats.totalActionable}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             <main className="animate-fade-in">
@@ -1894,17 +1908,19 @@ Please change it after login.`;
                     <div className="space-y-6">
                         {/* stats.totalActionable alert hidden as per request to hide interactions */}
 
-                        <div className="bg-gradient-to-r from-indigo-600 to-violet-700 p-8 rounded-[2.5rem] text-white shadow-xl shadow-indigo-200 dark:shadow-none relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32 blur-3xl group-hover:bg-white/20 transition-all duration-700"></div>
-                            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
-                                <div className="space-y-2 text-center md:text-left">
-                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 rounded-full text-[10px] font-black uppercase tracking-widest backdrop-blur-md">
-                                        <SparklesIcon className="w-3.5 h-3.5" />
-                                        Advanced Platform Tools
+                        <div className="bg-slate-950 p-12 rounded-[3.5rem] text-white shadow-2xl border border-white/5 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600/10 rounded-full -translate-y-48 translate-x-48 blur-[100px] group-hover:bg-indigo-600/20 transition-all duration-700"></div>
+                            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-10">
+                                <div className="space-y-4 text-center md:text-left">
+                                    <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-full text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400 backdrop-blur-md">
+                                        <SparklesIcon className="w-4 h-4" />
+                                        Advanced Infrastructure Hub
                                     </div>
-                                    <h2 className="text-3xl font-black tracking-tight">System Simulation Hub</h2>
-                                    <p className="text-indigo-100 font-medium max-w-xl">
-                                        Experience the platform from any user's perspective. Simulate specialized modules like Agrovet, Transport, and Property Management to verify configurations and workflows.
+                                    <h2 className="text-5xl font-black tracking-tighter uppercase leading-none">
+                                        System <span className="text-indigo-500 italic">Simulation</span>
+                                    </h2>
+                                    <p className="text-slate-400 font-medium max-w-xl text-lg">
+                                        Deploy virtual environments and simulate specialized modules across the entire EduAI ecosystem to verify integrity.
                                     </p>
                                 </div>
                                 <button
@@ -1913,88 +1929,95 @@ Please change it after login.`;
                                         setSelectedTenantForPerspective(demoInst);
                                         setIsPerspectiveModalOpen(true);
                                     }}
-                                    className="bg-white text-indigo-600 hover:bg-slate-50 font-black text-xs uppercase tracking-[0.2em] px-8 py-4 rounded-2xl transition-all shadow-lg active:scale-95 whitespace-nowrap"
+                                    className="bg-indigo-600 text-white hover:bg-indigo-500 font-black text-[10px] uppercase tracking-[0.3em] px-10 py-5 rounded-[2rem] transition-all shadow-2xl shadow-indigo-500/40 active:scale-95 whitespace-nowrap border border-indigo-400/20"
                                 >
-                                    Enter Simulation Mode
+                                    Launch Virtual Console
                                 </button>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Active Faculty</h3>
-                                <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                            <div className="bg-slate-900/50 p-10 rounded-[3rem] border border-white/5 shadow-2xl relative group overflow-hidden">
+                                <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-20 transition-opacity">
+                                    <UserGroupIcon className="w-16 h-16" />
+                                </div>
+                                <h3 className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">Network Faculty</h3>
+                                <p className="text-5xl font-black text-white tracking-tighter">
                                     {(props.users || []).filter(u => u && u.role !== 'student' && u.role !== 'super_admin').length}
                                 </p>
                             </div>
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Registry Load</h3>
+                            <div className="bg-slate-900/50 p-10 rounded-[3rem] border border-white/5 shadow-2xl relative group overflow-hidden">
+                                <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-20 transition-opacity">
+                                    <Database className="w-16 h-16" />
+                                </div>
+                                <h3 className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">Registry Load</h3>
                                 <div className="flex flex-col">
-                                    <p className="text-4xl font-black text-indigo-600 tracking-tighter">{(props.allocations || []).length}</p>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
-                                        {(props.allocations || []).reduce((sum, a) => {
-                                            const subject = (props.subjects || []).find(s => s.id === a.subjectId);
-                                            const periods = subject?.lessonStructure?.reduce((s, ls) => s + (ls.periods || 0) * (ls.count || 0), 0) || 0;
-                                            const streams = (a.courseLevelIds || []).length || 1;
-                                            return sum + (periods * streams);
-                                        }, 0)} Periods / Week
+                                    <p className="text-5xl font-black text-indigo-500 tracking-tighter">{(props.allocations || []).length}</p>
+                                    <p className="text-[10px] font-black text-indigo-400/60 uppercase tracking-widest mt-2">
+                                        Active Academic Units
                                     </p>
                                 </div>
                             </div>
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Total Students</h3>
-                                <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
+                            <div className="bg-slate-900/50 p-10 rounded-[3rem] border border-white/5 shadow-2xl relative group overflow-hidden">
+                                <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-20 transition-opacity">
+                                    <AcademicCapIcon className="w-16 h-16" />
+                                </div>
+                                <h3 className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">Total Learners</h3>
+                                <p className="text-5xl font-black text-white tracking-tighter">
                                     {(props.users || []).filter(u => u && u.role === 'student').length}
                                 </p>
                             </div>
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Platform SMS Balance</h3>
-                                <p className={`text-4xl font-black tracking-tighter ${(institutions || []).reduce((sum, inst) => sum + (inst.smsBalance ?? 0), 0) < 500
+                            <div className="bg-slate-900/50 p-10 rounded-[3rem] border border-white/5 shadow-2xl relative group overflow-hidden">
+                                <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-20 transition-opacity">
+                                    <Zap className="w-16 h-16" />
+                                </div>
+                                <h3 className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">SMS Liquidity</h3>
+                                <p className={`text-5xl font-black tracking-tighter ${(institutions || []).reduce((sum, inst) => sum + (inst.smsBalance ?? 0), 0) < 500
                                     ? 'text-amber-500'
-                                    : 'text-sky-600'
+                                    : 'text-sky-500'
                                     }`}>
                                     {(institutions || []).reduce((sum, inst) => sum + (inst.smsBalance ?? 0), 0).toLocaleString()}
                                 </p>
-                                <p className="text-[10px] text-slate-400 font-mono mt-1">SMS units across all tenants</p>
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-2 italic">Aggregated Units</p>
                             </div>
                         </div>
 
 
-                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                            <h3 className="text-xl font-black tracking-tighter uppercase mb-6 flex items-center gap-2">
-                                <SparklesIcon className="w-5 h-5 text-indigo-600" />
-                                Platform Command Center
+                        <div className="bg-slate-900/40 p-12 rounded-[3.5rem] border border-white/5 shadow-2xl backdrop-blur-xl">
+                            <h3 className="text-2xl font-black tracking-tighter uppercase mb-10 flex items-center gap-4 text-white">
+                                <div className="w-2 h-8 bg-indigo-500 rounded-full"></div>
+                                Command Center <span className="text-indigo-500 italic">Directives</span>
                             </h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
                                 <button
                                     onClick={() => setActiveTab('institutions')}
-                                    className="flex flex-col items-start p-6 bg-indigo-50 dark:bg-indigo-900/30 rounded-3xl border border-indigo-100 dark:border-indigo-800 hover:border-indigo-400 transition-all group text-left"
+                                    className="flex flex-col items-start p-8 bg-slate-900/80 rounded-[2.5rem] border border-white/5 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all group text-left shadow-xl"
                                 >
-                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-indigo-600 mb-4 group-hover:scale-110 transition-transform">
+                                    <div className="p-4 bg-indigo-600 rounded-2xl shadow-2xl shadow-indigo-500/20 text-white mb-6 group-hover:scale-110 transition-transform">
                                         <BuildingOfficeIcon className="w-6 h-6" />
                                     </div>
-                                    <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Tenant Manager</span>
-                                    <p className="text-[10px] text-slate-400 uppercase mt-1">Deploy & Monitor Systems</p>
+                                    <span className="font-black text-sm uppercase tracking-tight text-white">Tenant Manager</span>
+                                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-2">Deploy Infrastructure</p>
                                 </button>
                                 <button
                                     onClick={() => setActiveTab('all_users')}
-                                    className="flex flex-col items-start p-6 bg-emerald-50 dark:bg-emerald-900/30 rounded-3xl border border-emerald-100 dark:border-emerald-800 hover:border-emerald-400 transition-all group text-left"
+                                    className="flex flex-col items-start p-8 bg-slate-900/80 rounded-[2.5rem] border border-white/5 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all group text-left shadow-xl"
                                 >
-                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
+                                    <div className="p-4 bg-emerald-600 rounded-2xl shadow-2xl shadow-emerald-500/20 text-white mb-6 group-hover:scale-110 transition-transform">
                                         <UserGroupIcon className="w-6 h-6" />
                                     </div>
-                                    <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">User Directory</span>
-                                    <p className="text-[10px] text-slate-400 uppercase mt-1">Cross-Platform Identity</p>
+                                    <span className="font-black text-sm uppercase tracking-tight text-white">User Directory</span>
+                                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-2">Global Identity</p>
                                 </button>
                                 <button
                                     onClick={() => setActiveTab('reports')}
-                                    className="flex flex-col items-start p-6 bg-sky-50 dark:bg-sky-900/30 rounded-3xl border border-sky-100 dark:border-sky-800 hover:border-sky-400 transition-all group text-left"
+                                    className="flex flex-col items-start p-8 bg-slate-900/80 rounded-[2.5rem] border border-white/5 hover:border-sky-500/50 hover:bg-sky-500/5 transition-all group text-left shadow-xl"
                                 >
-                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-sky-600 mb-4 group-hover:scale-110 transition-transform">
+                                    <div className="p-4 bg-sky-600 rounded-2xl shadow-2xl shadow-sky-500/20 text-white mb-6 group-hover:scale-110 transition-transform">
                                         <ChartBarIcon className="w-6 h-6" />
                                     </div>
-                                    <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">System Analytics</span>
-                                    <p className="text-[10px] text-slate-400 uppercase mt-1">Performance Benchmarks</p>
+                                    <span className="font-black text-sm uppercase tracking-tight text-white">System Analytics</span>
+                                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-2">Core Performance</p>
                                 </button>
                                 <button
                                     onClick={() => {
@@ -2005,52 +2028,57 @@ Please change it after login.`;
                                             onLoginAsAdmin(institutions[0].id);
                                         }
                                     }}
-                                    className="flex flex-col items-start p-6 bg-amber-50 dark:bg-amber-900/30 rounded-3xl border border-amber-100 dark:border-amber-800 hover:border-amber-400 transition-all group text-left"
+                                    className="flex flex-col items-start p-8 bg-slate-900/80 rounded-[2.5rem] border border-white/5 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all group text-left shadow-xl"
                                 >
-                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-amber-600 mb-4 group-hover:scale-110 transition-transform">
+                                    <div className="p-4 bg-amber-600 rounded-2xl shadow-2xl shadow-amber-500/20 text-white mb-6 group-hover:scale-110 transition-transform">
                                         <SparklesIcon className="w-6 h-6" />
                                     </div>
-                                    <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Admin Dashboard</span>
-                                    <p className="text-[10px] text-slate-400 uppercase mt-1">Access Institutional ERP</p>
+                                    <span className="font-black text-sm uppercase tracking-tight text-white">Admin Dashboard</span>
+                                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-2">Institutional ERP</p>
                                 </button>
                                 <button
                                     onClick={() => setRequestedSettingsTab('billing')}
-                                    className="flex flex-col items-start p-6 bg-rose-50 dark:bg-rose-900/30 rounded-3xl border border-rose-100 dark:border-rose-800 hover:border-rose-400 transition-all group text-left"
+                                    className="flex flex-col items-start p-8 bg-slate-900/80 rounded-[2.5rem] border border-white/5 hover:border-rose-500/50 hover:bg-rose-500/5 transition-all group text-left shadow-xl"
                                 >
-                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-rose-600 mb-4 group-hover:scale-110 transition-transform">
+                                    <div className="p-4 bg-rose-600 rounded-2xl shadow-2xl shadow-rose-500/20 text-white mb-6 group-hover:scale-110 transition-transform">
                                         <BanknotesIcon className="w-6 h-6" />
                                     </div>
-                                    <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Revenue & Billing</span>
-                                    <p className="text-[10px] text-slate-400 uppercase mt-1">Platform Monetization</p>
+                                    <span className="font-black text-sm uppercase tracking-tight text-white">Revenue & Billing</span>
+                                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-2">Platform Monetization</p>
                                 </button>
                             </div>
                         </div>
 
 
-                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
-                                    <ClipboardListIcon className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                        <div className="bg-slate-900/50 p-10 rounded-[3rem] border border-white/5 shadow-2xl">
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className="p-3 bg-indigo-500/10 rounded-2xl border border-indigo-500/20">
+                                    <ClipboardListIcon className="w-6 h-6 text-indigo-400" />
                                 </div>
-                                <h3 className="text-xl font-black tracking-tighter uppercase">Administrative Events</h3>
+                                <h3 className="text-2xl font-black tracking-tighter uppercase text-white">Administrative <span className="text-indigo-500 italic">Audit</span></h3>
                             </div>
                             <div className="space-y-4">
                                 {(props.activityLog || []).slice(0, 5).map((log: ActivityLog) => (
-                                    <div key={log.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                        <div>
-                                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{String(log.action)}</p>
-                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                                                {String(log.userName)}
-                                                <span className="text-indigo-500 font-bold ml-1">[{log.institutionName || 'SYSTEM'}]</span>
-                                                <span className="mx-1">•</span>
-                                                {new Date(log.timestamp).toLocaleTimeString()}
-                                            </p>
+                                    <div key={log.id} className="flex justify-between items-center p-6 bg-slate-950/40 rounded-2xl border border-white/5 hover:border-indigo-500/30 transition-colors">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-1.5 h-10 bg-indigo-500/50 rounded-full"></div>
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-200">{String(log.action)}</p>
+                                                <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mt-1">
+                                                    <span className="text-white">{String(log.userName)}</span>
+                                                    <span className="text-indigo-500 font-bold ml-2">@{log.institutionName || 'SYSTEM'}</span>
+                                                    <span className="mx-2 text-slate-800">•</span>
+                                                    {new Date(log.timestamp).toLocaleTimeString()}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <span className="text-[10px] font-mono text-slate-400">{new Date(log.timestamp).toLocaleDateString()}</span>
+                                        <span className="text-[10px] font-mono text-slate-600 bg-slate-900 px-3 py-1 rounded-full border border-white/5">{new Date(log.timestamp).toLocaleDateString()}</span>
                                     </div>
                                 ))}
                                 {(!props.activityLog || props.activityLog.length === 0) && (
-                                    <p className="text-center py-10 text-slate-400 text-sm font-bold uppercase tracking-widest">No activity recorded</p>
+                                    <div className="text-center py-16 border-2 border-dashed border-white/5 rounded-[2.5rem]">
+                                        <p className="text-slate-600 text-sm font-black uppercase tracking-[0.3em]">No telemetry detected</p>
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -2059,18 +2087,27 @@ Please change it after login.`;
 
                 {activeTab === 'academics' && (
                     <div className="space-y-6 animate-fade-in">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Global Subjects</h3>
-                                <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">{(props.subjects || []).length}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <div className="bg-slate-900/50 p-10 rounded-[3rem] border border-white/5 shadow-2xl relative group overflow-hidden">
+                                <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-20 transition-opacity">
+                                    <BookOpenIcon className="w-16 h-16" />
+                                </div>
+                                <h3 className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">Global Subjects</h3>
+                                <p className="text-5xl font-black text-white tracking-tighter">{(props.subjects || []).length}</p>
                             </div>
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Curriculum Blocks</h3>
-                                <p className="text-4xl font-black text-indigo-600 tracking-tighter">{(props.courses || []).length}</p>
+                            <div className="bg-slate-900/50 p-10 rounded-[3rem] border border-white/5 shadow-2xl relative group overflow-hidden">
+                                <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-20 transition-opacity">
+                                    <RectangleStackIcon className="w-16 h-16" />
+                                </div>
+                                <h3 className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">Curriculum Blocks</h3>
+                                <p className="text-5xl font-black text-indigo-500 tracking-tighter">{(props.courses || []).length}</p>
                             </div>
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Teaching Assets</h3>
-                                <p className="text-4xl font-black text-emerald-600 tracking-tighter">{(props.users || []).filter(u => u.role === 'lecturer' || u.role === 'teacher').length}</p>
+                            <div className="bg-slate-900/50 p-10 rounded-[3rem] border border-white/5 shadow-2xl relative group overflow-hidden">
+                                <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-20 transition-opacity">
+                                    <UserIcon className="w-16 h-16" />
+                                </div>
+                                <h3 className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">Teaching Assets</h3>
+                                <p className="text-5xl font-black text-emerald-500 tracking-tighter">{(props.users || []).filter(u => u.role === 'lecturer' || u.role === 'teacher').length}</p>
                             </div>
                         </div>
 
