@@ -4301,6 +4301,7 @@ export interface AlumniPost {
     mediaUrls?: string[];
     likes: string[];
     commentsCount: number;
+    comments_count?: number;
     createdAt: string;
     photoUrl?: string;
     videoUrl?: string;
