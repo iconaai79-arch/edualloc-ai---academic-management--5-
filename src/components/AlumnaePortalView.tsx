@@ -68,9 +68,11 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         bio: currentAlumna?.bio || '',
         linkedinUrl: currentAlumna?.linkedinUrl || '',
         twitterUrl: currentAlumna?.twitterUrl || '',
-        profilePhotoUrl: currentAlumna?.profilePhotoUrl || ''
+        profilePhotoUrl: currentAlumna?.profilePhotoUrl || '',
+        coverPhotoUrl: currentAlumna?.coverPhotoUrl || ''
     });
     const [profilePhotoUrlFile, setProfilePhotoFile] = useState<File | null>(null);
+    const [profileCoverPhotoFile, setProfileCoverPhotoFile] = useState<File | null>(null);
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [otherMemberships, setOtherMemberships] = useState<any[]>([]);
     const [isDetectingMemberships, setIsDetectingMemberships] = useState(false);
@@ -231,6 +233,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         setIsSavingProfile(true);
         try {
             let photoUrl = profileData.profilePhotoUrl;
+            let coverUrl = profileData.coverPhotoUrl;
+            
             if (profilePhotoUrlFile) {
                 const uploadRes = await apiService.uploadToGoogleDrive(profilePhotoUrlFile, 'Alumnae_Profiles', {
                     institutionId: currentAlumna.institutionId,
@@ -239,18 +243,28 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 if (uploadRes.success) photoUrl = uploadRes.url;
             }
 
+            if (profileCoverPhotoFile) {
+                const uploadRes = await apiService.uploadToGoogleDrive(profileCoverPhotoFile, 'Alumnae_Covers', {
+                    institutionId: currentAlumna.institutionId,
+                    useGlobalConfig: !currentAlumna.institutionId
+                });
+                if (uploadRes.success) coverUrl = uploadRes.url;
+            }
+
             await apiService.saveModuleRecord('alumnae_members', {
                 ...currentAlumna,
                 ...profileData,
                 email: profileData.email || currentAlumna.email,
                 full_name: profileData.fullName || currentAlumna.fullName || currentAlumna.full_name,
                 institution_id: currentAlumna.institution_id || currentAlumna.institutionId,
-                profile_photo: photoUrl, // Ensure snake_case mapping
-                profilePhotoUrl: photoUrl,  // Keep for legacy frontend
+                profile_photo: photoUrl, 
+                profilePhotoUrl: photoUrl,
+                cover_photo_url: coverUrl,
+                coverPhotoUrl: coverUrl,
                 id: currentAlumna.id
             });
             // Update local session
-            const updated = { ...currentAlumna, ...profileData, profilePhotoUrl: photoUrl };
+            const updated = { ...currentAlumna, ...profileData, profilePhotoUrl: photoUrl, coverPhotoUrl: coverUrl };
             localStorage.setItem('eduai_alumna_session', JSON.stringify(updated));
             setIsEditingProfile(false);
             window.location.reload(); // Refresh to propagate changes
@@ -1729,10 +1743,36 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         </div>
 
                         <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto no-scrollbar">
-                            {/* Profile Photo Section */}
-                            <div className="flex flex-col items-center gap-4 mb-8">
-                                <div className="relative group">
-                                    <div className="w-24 h-24 rounded-[2rem] bg-slate-100 dark:bg-slate-800 overflow-hidden ring-4 ring-indigo-50 dark:ring-indigo-900/20 shadow-xl">
+                            {/* Profile Branding Section */}
+                            <div className="flex flex-col items-center gap-6 mb-8">
+                                <div className="w-full flex flex-col gap-4">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-2">Background Cover</label>
+                                    <div className="w-full h-32 rounded-3xl bg-slate-50 dark:bg-slate-800/50 relative overflow-hidden border border-slate-100 dark:border-slate-800 group shadow-inner">
+                                        {profileCoverPhotoFile ? (
+                                            <img src={URL.createObjectURL(profileCoverPhotoFile)} className="w-full h-full object-cover" />
+                                        ) : profileData.coverPhotoUrl ? (
+                                            <img src={profileData.coverPhotoUrl} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-slate-300">
+                                                <ImageIcon className="w-8 h-8 opacity-20" />
+                                            </div>
+                                        )}
+                                        <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white cursor-pointer transition-opacity backdrop-blur-[2px]">
+                                            <div className="flex items-center gap-2 px-6 py-2 bg-white/20 backdrop-blur-md rounded-2xl text-[10px] font-black uppercase tracking-widest">
+                                                <ImageIcon className="w-4 h-4" /> Change Cover
+                                            </div>
+                                            <input 
+                                                type="file" 
+                                                className="hidden" 
+                                                accept="image/*"
+                                                onChange={(e) => setProfileCoverPhotoFile(e.target.files?.[0] || null)}
+                                            />
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div className="relative group mt-[-3rem] z-10">
+                                    <div className="w-24 h-24 rounded-[2rem] bg-slate-100 dark:bg-slate-800 overflow-hidden ring-8 ring-white dark:ring-slate-900 shadow-2xl">
                                         {profilePhotoUrlFile ? (
                                             <img src={URL.createObjectURL(profilePhotoUrlFile)} className="w-full h-full object-cover" />
                                         ) : profileData.profilePhotoUrl ? (
@@ -1753,7 +1793,6 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                         />
                                     </label>
                                 </div>
-                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Update Profile Avatar</p>
                             </div>
 
                             <div className="space-y-4">
@@ -1934,10 +1973,15 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     <div className="flex-1 overflow-y-auto no-scrollbar">
                         {/* Immersive Profile Hero */}
                         <div className="relative">
-                            <div className="h-48 md:h-64 bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 relative overflow-hidden">
-                                <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent"></div>
-                                <Sparkles className="absolute top-10 right-10 w-24 h-24 text-white/10 rotate-12" />
-                                {viewedProfileData?.coverPhotoUrl && <img src={viewedProfileData.coverPhotoUrl} className="w-full h-full object-cover" />}
+                            <div className="h-48 md:h-64 bg-slate-100 dark:bg-slate-800 relative overflow-hidden group">
+                                {viewedProfileData?.coverPhotoUrl ? (
+                                    <img src={viewedProfileData.coverPhotoUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                                ) : (
+                                    <div className="w-full h-full bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600">
+                                        <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent"></div>
+                                        <Sparkles className="absolute top-10 right-10 w-24 h-24 text-white/10 rotate-12" />
+                                    </div>
+                                )}
                             </div>
                             
                             <div className="px-6 -mt-16 relative z-10 flex justify-between items-end">

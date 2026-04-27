@@ -121,6 +121,10 @@ BEGIN
             ALTER TABLE alumnae_members ADD COLUMN profile_photo_url TEXT;
         END IF;
 
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'cover_photo_url') THEN
+            ALTER TABLE alumnae_members ADD COLUMN cover_photo_url TEXT;
+        END IF;
+
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'admission_number') THEN
             ALTER TABLE alumnae_members ADD COLUMN admission_number TEXT;
         END IF;
