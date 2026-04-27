@@ -511,15 +511,25 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 [postId]: [...(prev[postId] || []), comment]
             }));
             
-            // Update local posts count
-            setPosts(posts.map(p => p.id === postId ? { ...p, comments_count: (p.comments_count || 0) + 1, commentsCount: (p.commentsCount || 0) + 1 } : p));
-            // Update remote posts count
-            const post = posts.find(p => p.id === postId);
-            if (post) {
+            // Update local posts count using functional update for latest state
+            let updatedPost: any = null;
+            setPosts(prev => {
+                return prev.map(p => {
+                    if (p.id === postId) {
+                        const newCount = (p.commentsCount || p.comments_count || 0) + 1;
+                        updatedPost = { ...p, commentsCount: newCount, comments_count: newCount };
+                        return updatedPost;
+                    }
+                    return p;
+                });
+            });
+
+            // Update remote posts count using the freshly calculated values
+            if (updatedPost) {
                 await apiService.saveModuleRecord('alumni_posts', { 
                     id: postId, 
-                    comments_count: (post.comments_count || 0) + 1,
-                    commentsCount: (post.commentsCount || 0) + 1 
+                    comments_count: updatedPost.comments_count,
+                    commentsCount: updatedPost.commentsCount 
                 } as any);
             }
         } catch (e: any) {
