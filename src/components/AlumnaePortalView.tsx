@@ -1282,8 +1282,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                     {/* Feed Content */}
                                     <div className="pb-32 divide-y divide-slate-100 dark:divide-slate-900">
                                         {/* Post Composer */}
-                                        <div className="p-8 bg-white dark:bg-slate-950">
-                                            <div className="flex gap-6">
+                                        <div className="p-4 md:p-8 bg-white dark:bg-slate-950">
+                                            <div className="flex gap-4 md:gap-6">
                                                 <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 shadow-sm border border-slate-100 dark:border-slate-800">
                                                     {currentAlumna.profilePhotoUrl ? <img src={currentAlumna.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
                                                 </div>
@@ -1292,7 +1292,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                         placeholder="What's your institutional legacy today?"
                                                         value={newPostContent}
                                                         onChange={(e) => setNewPostContent(e.target.value)}
-                                                        className="w-full bg-transparent border-none focus:ring-0 text-xl font-medium placeholder:text-slate-300 resize-none min-h-[140px] text-slate-900 dark:text-white font-display"
+                                                        className="w-full bg-transparent border-none focus:ring-0 text-lg md:text-xl font-medium placeholder:text-slate-300 resize-none min-h-[120px] md:min-h-[140px] text-slate-900 dark:text-white font-display px-0"
                                                     />
                                                     
                                                     {postImagePreview && (
@@ -1307,20 +1307,43 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                         </div>
                                                     )}
 
-                                                    <div className="flex items-center justify-between pt-6 border-t border-slate-50 dark:border-slate-900">
-                                                        <button 
-                                                            onClick={() => document.getElementById('post-photo-upload-main')?.click()} 
-                                                            className="flex items-center gap-3 px-6 py-3 bg-slate-50 dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-slate-500 hover:text-indigo-600 rounded-2xl transition-all group"
-                                                        >
-                                                            <ImageIcon className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                                                            <span className="text-[10px] font-black uppercase tracking-widest">Media</span>
-                                                            <input type="file" id="post-photo-upload-main" className="hidden" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setPostImageFile(file); setPostImagePreview(URL.createObjectURL(file)); } }} />
-                                                        </button>
+                                                    {postVideoPreview && (
+                                                        <div className="relative rounded-[2.5rem] overflow-hidden border-4 border-slate-50 dark:border-slate-900 shadow-2xl group">
+                                                            <video src={postVideoPreview} controls className="w-full h-full object-cover max-h-96" />
+                                                            <button 
+                                                                onClick={() => { setPostVideoFile(null); setPostVideoPreview(null); }}
+                                                                className="absolute top-6 right-6 p-3 bg-black/60 text-white rounded-full hover:bg-rose-600 backdrop-blur-xl transition-all shadow-xl z-10"
+                                                            >
+                                                                <X className="w-6 h-6" />
+                                                            </button>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-50 dark:border-slate-900">
+                                                        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto overflow-x-auto no-scrollbar">
+                                                            <button 
+                                                                onClick={() => document.getElementById('post-photo-upload-main')?.click()} 
+                                                                className="flex items-center gap-2 px-4 py-3 bg-slate-50 dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-slate-500 hover:text-indigo-600 rounded-2xl transition-all group shrink-0"
+                                                            >
+                                                                <ImageIcon className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                                                                <span className="text-[9px] font-black uppercase tracking-widest">Photo</span>
+                                                                <input type="file" id="post-photo-upload-main" className="hidden" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setPostImageFile(file); setPostImagePreview(URL.createObjectURL(file)); setPostVideoFile(null); setPostVideoPreview(null); } }} />
+                                                            </button>
+
+                                                            <button 
+                                                                onClick={() => document.getElementById('post-video-upload-main')?.click()} 
+                                                                className="flex items-center gap-2 px-4 py-3 bg-slate-50 dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-slate-500 hover:text-indigo-600 rounded-2xl transition-all group shrink-0"
+                                                            >
+                                                                <Video className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                                                                <span className="text-[9px] font-black uppercase tracking-widest">Video</span>
+                                                                <input type="file" id="post-video-upload-main" className="hidden" accept="video/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setPostVideoFile(file); setPostVideoPreview(URL.createObjectURL(file)); setPostImageFile(null); setPostImagePreview(null); } }} />
+                                                            </button>
+                                                        </div>
                                                         
                                                         <button 
                                                             onClick={handleCreatePost}
-                                                            disabled={(!newPostContent.trim() && !postImageFile) || isPosting}
-                                                            className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.25em] shadow-[0_20px_50px_rgba(79,70,229,0.4)] dark:shadow-none disabled:opacity-20 transition-all flex items-center gap-3 hover:scale-105 active:scale-95 group/broadcast"
+                                                            disabled={(!newPostContent.trim() && !postImageFile && !postVideoFile) || isPosting}
+                                                            className="w-full sm:w-auto bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.25em] shadow-2xl shadow-indigo-500/20 disabled:opacity-20 transition-all flex items-center justify-center gap-3 hover:scale-105 active:scale-95 group/broadcast"
                                                         >
                                                             {isPosting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />} 
                                                             Broadcast
