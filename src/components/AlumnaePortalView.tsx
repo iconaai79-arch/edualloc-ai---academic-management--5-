@@ -434,6 +434,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             authorId: currentAlumna.id,
             authorName: currentAlumna.fullName || currentAlumna.name,
             authorPhoto: currentAlumna.profilePhotoUrl,
+            institutionId: currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id || 'GLOBAL',
             content,
             createdAt: new Date().toISOString()
         };
@@ -446,13 +447,20 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             }));
             
             // Update local posts count
-            setPosts(posts.map(p => p.id === postId ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p));
+            setPosts(posts.map(p => p.id === postId ? { ...p, comments_count: (p.comments_count || 0) + 1, commentsCount: (p.commentsCount || 0) + 1 } : p));
             // Update remote posts count
             const post = posts.find(p => p.id === postId);
             if (post) {
-                await apiService.saveModuleRecord('alumni_posts', { id: postId, commentsCount: (post.commentsCount || 0) + 1 } as any);
+                await apiService.saveModuleRecord('alumni_posts', { 
+                    id: postId, 
+                    comments_count: (post.comments_count || 0) + 1,
+                    commentsCount: (post.commentsCount || 0) + 1 
+                } as any);
             }
-        } catch (e) {}
+        } catch (e: any) {
+            console.error("Comment Save Error:", e);
+            alert("Failed to save reply. Please run the 'Alumni Schema Migration' in Settings to ensure your database is up to date.");
+        }
     };
 
     const handleDeletePost = async (postId: string) => {

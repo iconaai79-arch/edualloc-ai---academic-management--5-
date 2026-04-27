@@ -3373,6 +3373,16 @@ export const App: React.FC = () => {
                                                             ALTER TABLE alumnae_members ADD COLUMN profile_photo_url TEXT;
                                                         END IF;
                                                     END IF;
+
+                                                    -- Comments Repairs
+                                                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumni_comments') THEN
+                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_comments' AND column_name = 'author_photo') THEN
+                                                            ALTER TABLE alumni_comments ADD COLUMN author_photo TEXT;
+                                                        END IF;
+                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = \'alumni_comments\' AND column_name = \'institution_id\') THEN
+                                                            ALTER TABLE alumni_comments ADD COLUMN institution_id TEXT;
+                                                        END IF;
+                                                    END IF;
                                                 END $$;
 
                                                 CREATE TABLE IF NOT EXISTS alumni_comments (
@@ -3381,6 +3391,8 @@ export const App: React.FC = () => {
                                                     author_id TEXT NOT NULL,
                                                     author_name TEXT NOT NULL,
                                                     institution_id TEXT,
+                                                    author_photo TEXT,
+
                                                     content TEXT NOT NULL,
                                                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                                                 );

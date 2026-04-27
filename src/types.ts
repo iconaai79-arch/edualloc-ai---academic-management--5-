@@ -4314,6 +4314,7 @@ export interface AlumniComment {
     authorId: string;
     authorName: string;
     authorPhoto?: string;
+    institutionId?: string;
     content: string;
     createdAt: string;
 }

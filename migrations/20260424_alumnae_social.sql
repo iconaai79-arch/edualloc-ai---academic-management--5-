@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS alumni_comments (
     author_id TEXT NOT NULL,
     author_name TEXT NOT NULL,
     author_photo TEXT,
+    institution_id TEXT,
     content TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -78,6 +79,17 @@ BEGIN
 
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'is_featured') THEN
             ALTER TABLE alumnae_members ADD COLUMN is_featured BOOLEAN DEFAULT false;
+        END IF;
+    END IF;
+
+    -- Comments Repairs
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumni_comments') THEN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_comments' AND column_name = 'author_photo') THEN
+            ALTER TABLE alumni_comments ADD COLUMN author_photo TEXT;
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_comments' AND column_name = 'institution_id') THEN
+            ALTER TABLE alumni_comments ADD COLUMN institution_id TEXT;
         END IF;
     END IF;
 
