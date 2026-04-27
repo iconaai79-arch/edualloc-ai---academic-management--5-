@@ -86,6 +86,8 @@ BEGIN
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_messages' AND column_name = 'institution_id') THEN
             ALTER TABLE alumni_messages ADD COLUMN institution_id TEXT;
         END IF;
+    END IF;
+
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'video_url') THEN
         ALTER TABLE alumni_posts ADD COLUMN video_url TEXT;
     END IF;
