@@ -28,7 +28,8 @@ import {
     Edit2,
     Trash2,
     Video,
-    ArrowRight
+    ArrowRight,
+    Maximize2
 } from 'lucide-react';
 import type { AlumniPost, AlumniComment, Institution } from '../types';
 import { apiService } from '../services/apiService';
@@ -95,6 +96,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [activeProject, setActiveProject] = useState<any | null>(null);
     const [projectUpdates, setProjectUpdates] = useState<any[]>([]);
     const [newMessageToSchool, setNewMessageToSchool] = useState('');
+    const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+    const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
 
     const COMMON_EMOJIS = ['😊', '🎓', '✨', '🙌', '🎉', '💙', '🏛️', '💼', '💪', '👩‍🎓', '🏫', '💡', '🥂', '🔥', '📚', '🤝'];
 
@@ -1165,8 +1168,16 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                      )}
                                     
                                     {post.photoUrl && (
-                                        <div className="mb-4 rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
-                                            <img src={post.photoUrl} className="w-full max-h-96 object-cover" />
+                                        <div 
+                                            onClick={() => setZoomedImage(post.photoUrl || null)}
+                                            className="mb-4 rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 cursor-zoom-in group/image relative"
+                                        >
+                                            <img src={post.photoUrl} className="w-full max-h-96 object-cover transition-transform duration-500 group-hover/image:scale-[1.02]" />
+                                            <div className="absolute inset-0 bg-black/0 group-hover/image:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover/image:opacity-100">
+                                                <div className="bg-white/20 backdrop-blur-md p-3 rounded-2xl text-white">
+                                                    <Maximize2 className="w-6 h-6" />
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
 
@@ -2013,6 +2024,54 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                 </div>
                             )}
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Image Zoom Lightbox */}
+            {zoomedImageUrl && (
+                <div 
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-2xl animate-in fade-in duration-300"
+                    onClick={() => setZoomedImageUrl(null)}
+                >
+                    <button 
+                        onClick={() => setZoomedImageUrl(null)}
+                        className="absolute top-8 right-8 w-14 h-14 bg-white/10 hover:bg-white/20 text-white rounded-2xl flex items-center justify-center transition-all hover:rotate-90 z-[110]"
+                    >
+                        <X className="w-8 h-8" />
+                    </button>
+                    
+                    <div className="relative max-w-[95vw] max-h-[90vh] flex items-center justify-center animate-in zoom-in-95 duration-500 ease-out">
+                        <img 
+                            src={zoomedImageUrl} 
+                            className="max-w-full max-h-full object-contain rounded-xl shadow-2xl selection:bg-none"
+                            onClick={(e) => e.stopPropagation()} 
+                        />
+                        <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 px-6 py-2 bg-white/10 backdrop-blur-xl rounded-full text-[10px] font-black uppercase tracking-[0.3em] text-white/60">
+                            Legacy Visual Capture
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Image Zoom Lightbox */}
+            {zoomedImage && (
+                <div 
+                    className="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-3xl flex items-center justify-center p-4 md:p-12 animate-in fade-in duration-300"
+                    onClick={() => setZoomedImage(null)}
+                >
+                    <button 
+                        onClick={() => setZoomedImage(null)}
+                        className="absolute top-8 right-8 w-14 h-14 bg-white/10 hover:bg-white/20 text-white rounded-2xl flex items-center justify-center transition-all group"
+                    >
+                        <X className="w-6 h-6 group-hover:rotate-90 transition-transform" />
+                    </button>
+                    
+                    <div className="relative max-w-7xl max-h-full w-full h-full flex items-center justify-center">
+                        <img 
+                            src={zoomedImage} 
+                            className="max-w-full max-h-full object-contain rounded-3xl shadow-2xl animate-in zoom-in-95 duration-500" 
+                            onClick={(e) => e.stopPropagation()}
+                        />
                     </div>
                 </div>
             )}
