@@ -1,17 +1,20 @@
--- Alumnae Social Tables
+-- Alumnae Social Module Base Infrastructure
+-- Optimized for EduAI Next-Gen Core
+
+-- 1. Main Social Infrastructure
 CREATE TABLE IF NOT EXISTS alumni_posts (
     id TEXT PRIMARY KEY,
     author_id TEXT NOT NULL,
     author_name TEXT NOT NULL,
     author_photo TEXT,
     institution_id TEXT NOT NULL,
+    school_id TEXT,
     content TEXT NOT NULL,
     photo_url TEXT,
-    media_urls TEXT[], 
     likes TEXT[] DEFAULT '{}',
     comments_count INTEGER DEFAULT 0,
-    hashtags TEXT[] DEFAULT '{}',
-    author_role TEXT,
+    is_announcement BOOLEAN DEFAULT false,
+    event_date TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -25,43 +28,6 @@ CREATE TABLE IF NOT EXISTS alumni_comments (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Update alumnae_members with missing infrastructure columns
-DO $$ 
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'admission_number') THEN
-        ALTER TABLE alumnae_members ADD COLUMN admission_number TEXT;
-    END IF;
-    
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'payment_id') THEN
-        ALTER TABLE alumnae_members ADD COLUMN payment_id TEXT;
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'registration_fee') THEN
-        ALTER TABLE alumnae_members ADD COLUMN registration_fee DECIMAL(15,2);
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'joined_at') THEN
-        ALTER TABLE alumnae_members ADD COLUMN joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'profile_photo') THEN
-        ALTER TABLE alumnae_members ADD COLUMN profile_photo TEXT;
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'school_name') THEN
-        ALTER TABLE alumnae_members ADD COLUMN school_name TEXT;
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'is_featured') THEN
-        ALTER TABLE alumnae_members ADD COLUMN is_featured BOOLEAN DEFAULT false;
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'featured_until') THEN
-        ALTER TABLE alumnae_members ADD COLUMN featured_until TIMESTAMP WITH TIME ZONE;
-    END IF;
-END $$;
-
--- Secure Private Messaging for Alumnae
 CREATE TABLE IF NOT EXISTS alumni_messages (
     id TEXT PRIMARY KEY,
     sender_id TEXT NOT NULL,
@@ -70,3 +36,57 @@ CREATE TABLE IF NOT EXISTS alumni_messages (
     is_read BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 2. Schema Repair and Evolution Block
+DO $$ 
+BEGIN 
+    -- Posts Column Repairs
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'school_id') THEN
+        ALTER TABLE alumni_posts ADD COLUMN school_id TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'is_announcement') THEN
+        ALTER TABLE alumni_posts ADD COLUMN is_announcement BOOLEAN DEFAULT false;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'event_date') THEN
+        ALTER TABLE alumni_posts ADD COLUMN event_date TIMESTAMP WITH TIME ZONE;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'photo_url') THEN
+        ALTER TABLE alumni_posts ADD COLUMN photo_url TEXT;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'author_photo') THEN
+        ALTER TABLE alumni_posts ADD COLUMN author_photo TEXT;
+    END IF;
+
+    -- Members Infrastructure Repairs
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumnae_members') THEN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'profile_photo_url') THEN
+            ALTER TABLE alumnae_members ADD COLUMN profile_photo_url TEXT;
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'admission_number') THEN
+            ALTER TABLE alumnae_members ADD COLUMN admission_number TEXT;
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'registration_fee') THEN
+            ALTER TABLE alumnae_members ADD COLUMN registration_fee DECIMAL(15,2);
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'is_featured') THEN
+            ALTER TABLE alumnae_members ADD COLUMN is_featured BOOLEAN DEFAULT false;
+        END IF;
+    END IF;
+
+    -- Add missing institutions_id to messages/comments if needed (Safe generic check)
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_messages' AND column_name = 'id') THEN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_messages' AND column_name = 'institution_id') THEN
+            ALTER TABLE alumni_messages ADD COLUMN institution_id TEXT;
+        END IF;
+    END IF;
+END $$;
+
+-- 3. Cache Management
+NOTIFY pgrst, 'reload schema';
