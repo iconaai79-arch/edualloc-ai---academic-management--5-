@@ -365,7 +365,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     institutionId: currentAlumna.institutionId,
                     useGlobalConfig: !currentAlumna.institutionId
                 });
-                if (uploadRes.success) photoUrl = uploadRes.url;
+                if (uploadRes.success) photoUrl = uploadRes.url || '';
             }
 
             if (postVideoFile) {
@@ -373,16 +373,16 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     institutionId: currentAlumna.institutionId,
                     useGlobalConfig: !currentAlumna.institutionId
                 });
-                if (uploadRes.success) videoUrl = uploadRes.url;
+                if (uploadRes.success) videoUrl = uploadRes.url || '';
             }
 
             const post: AlumniPost = {
                 id: `p_${Date.now()}`,
-                authorId: currentAlumna.id,
-                authorName: currentAlumna.fullName || currentAlumna.name,
+                authorId: currentAlumna.id || 'anonymous',
+                authorName: currentAlumna.fullName || currentAlumna.name || 'Alumna',
                 authorPhoto: currentAlumna.profilePhotoUrl,
                 institutionId: currentAlumna.institutionId || 'GLOBAL',
-                schoolId: (currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id) as string,
+                schoolId: (currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id || 'GLOBAL') as string,
                 content: newPostContent,
                 photoUrl: photoUrl,
                 videoUrl: videoUrl,
