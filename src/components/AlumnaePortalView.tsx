@@ -27,7 +27,8 @@ import {
     LogOut,
     Edit2,
     Trash2,
-    Video
+    Video,
+    ArrowRight
 } from 'lucide-react';
 import type { AlumniPost, AlumniComment, Institution } from '../types';
 import { apiService } from '../services/apiService';
@@ -89,6 +90,11 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [profilePosts, setProfilePosts] = useState<AlumniPost[]>([]);
     const [isFollowing, setIsFollowing] = useState(false);
     const [followStats, setFollowStats] = useState({ followers: 0, following: 0 });
+    const [schoolProjects, setSchoolProjects] = useState<any[]>([]);
+    const [schoolInbox, setSchoolInbox] = useState<any[]>([]);
+    const [activeProject, setActiveProject] = useState<any | null>(null);
+    const [projectUpdates, setProjectUpdates] = useState<any[]>([]);
+    const [newMessageToSchool, setNewMessageToSchool] = useState('');
 
     const COMMON_EMOJIS = ['😊', '🎓', '✨', '🙌', '🎉', '💙', '🏛️', '💼', '💪', '👩‍🎓', '🏫', '💡', '🥂', '🔥', '📚', '🤝'];
 
@@ -131,6 +137,59 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const handleSwitchCircle = (membership: any) => {
         localStorage.setItem('eduai_alumna_session', JSON.stringify(membership));
         window.location.reload(); // Hard refresh to reset all states with new institution
+    };
+
+    const loadSchoolEngagement = async (instId: string) => {
+        try {
+            const projects = await apiService.fetchModuleRecords('school_projects', undefined, undefined, {
+                filter: { institution_id: instId },
+                order: 'created_at.desc'
+            });
+            setSchoolProjects(projects);
+
+            const messages = await apiService.fetchModuleRecords('alumni_school_inbox', undefined, undefined, {
+                filter: { alumna_id: currentAlumna.id, institution_id: instId },
+                order: 'created_at.asc'
+            });
+            setSchoolInbox(messages);
+        } catch (e) {
+            console.error("Engagement load failed:", e);
+        }
+    };
+
+    useEffect(() => {
+        const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
+        if (instId) loadSchoolEngagement(instId as string);
+    }, [currentAlumna]);
+
+    const handleSendMessageToSchool = async () => {
+        if (!newMessageToSchool.trim()) return;
+        const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
+        if (!instId) return;
+
+        const msg = {
+            id: `sm_${Date.now()}`,
+            alumna_id: currentAlumna.id,
+            institution_id: instId,
+            content: newMessageToSchool,
+            direction: 'to_school',
+            created_at: new Date().toISOString()
+        };
+
+        try {
+            await apiService.saveModuleRecord('alumni_school_inbox', msg);
+            setSchoolInbox([...schoolInbox, {
+                id: msg.id,
+                alumnaId: msg.alumna_id,
+                institutionId: msg.institution_id,
+                content: msg.content,
+                direction: msg.direction,
+                createdAt: msg.created_at
+            }]);
+            setNewMessageToSchool('');
+        } catch (e) {
+            console.error(e);
+        }
     };
 
     const handleUpdateProfile = async () => {
@@ -621,6 +680,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         { icon: Hash, label: 'Explore', onClick: () => setActiveSection('explore'), active: activeSection === 'explore' },
                         { icon: Bell, label: 'Notifications', onClick: () => setActiveSection('notifications'), active: activeSection === 'notifications' },
                         { icon: MessageSquare, label: 'Messages', onClick: () => setActiveSection('messages'), active: activeSection === 'messages' },
+                        { icon: Sparkles, label: 'Funding', onClick: () => setActiveSection('funding' as any), active: activeSection === 'funding' },
+                        { icon: Building2, label: 'Support', onClick: () => setActiveSection('support' as any), active: activeSection === 'support' },
                         { icon: User, label: 'Profile', onClick: () => setIsEditingProfile(true) }
                     ].map((item, idx) => (
                         <button 
@@ -682,6 +743,130 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
             {/* Main Content Area */}
             <main className="flex-1 md:ml-64 max-w-2xl mx-auto w-full border-x border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950 min-h-screen pb-20 md:pb-0">
+                {/* Support / School Inbox Section */}
+                {activeSection === 'support' && (
+                    <div className="animate-in fade-in slide-in-from-bottom duration-500 min-h-screen flex flex-col">
+                        <header className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4 sticky top-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl z-20">
+                            <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
+                                <Building2 className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Institutional Response Network</h4>
+                                <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-widest flex items-center gap-1">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    Active Support
+                                </p>
+                            </div>
+                        </header>
+
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6 flex flex-col">
+                            {schoolInbox.length === 0 ? (
+                                <div className="flex-1 flex flex-col items-center justify-center opacity-30 mt-20">
+                                    <MessageSquare className="w-16 h-16 mb-6" />
+                                    <p className="text-xs font-black uppercase tracking-[0.3em] text-center max-w-xs">
+                                        Your direct priority line to the institution's leadership.
+                                    </p>
+                                </div>
+                            ) : (
+                                schoolInbox.map((msg, idx) => (
+                                    <div key={idx} className={`flex flex-col ${msg.direction === 'to_school' ? 'items-end' : 'items-start'}`}>
+                                        <div className={`max-w-[85%] p-5 rounded-3xl text-sm font-medium leading-relaxed ${msg.direction === 'to_school' ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-tl-none shadow-sm'}`}>
+                                            {msg.content}
+                                        </div>
+                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-2 px-2">
+                                            {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        <div className="sticky bottom-20 md:bottom-0 p-6 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 flex items-center gap-4">
+                            <input 
+                                type="text" 
+                                value={newMessageToSchool}
+                                onChange={(e) => setNewMessageToSchool(e.target.value)}
+                                onKeyPress={(e) => e.key === 'Enter' && handleSendMessageToSchool()}
+                                placeholder="Type your official request..."
+                                className="flex-1 h-14 px-8 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner"
+                            />
+                            <button 
+                                onClick={handleSendMessageToSchool}
+                                className="w-14 h-14 bg-indigo-600 text-white rounded-2xl flex items-center justify-center hover:scale-105 transition-all shadow-xl shadow-indigo-100 dark:shadow-none"
+                            >
+                                <ArrowRight className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Funding / Projects Section */}
+                {activeSection === 'funding' && (
+                    <div className="animate-in fade-in slide-in-from-bottom duration-500 pb-24">
+                        <header className="px-8 py-10 bg-indigo-600 text-white rounded-b-[3rem] shadow-2xl mb-12">
+                            <h2 className="text-3xl font-black uppercase tracking-tight mb-3">Institutional <span className="opacity-60">Legacy</span></h2>
+                            <p className="text-[10px] text-indigo-200 font-bold uppercase tracking-[0.4em]">Propelling school developmental projects through community</p>
+                        </header>
+
+                        <div className="px-6 space-y-12">
+                            {schoolProjects.length === 0 ? (
+                                <div className="py-20 text-center opacity-30">
+                                    <Building2 className="w-16 h-16 mx-auto mb-6" />
+                                    <p className="text-xs font-black uppercase tracking-[0.3em]">No active projects at this time.</p>
+                                </div>
+                            ) : (
+                                schoolProjects.map((project) => (
+                                    <div key={project.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-xl hover:-translate-y-1 transition-transform duration-500">
+                                        <div className="h-56 relative overflow-hidden">
+                                            {project.imageUrl ? (
+                                                <img src={project.imageUrl} className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" />
+                                            ) : (
+                                                <div className="w-full h-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-300">
+                                                    <Building2 className="w-16 h-16 opacity-20" />
+                                                </div>
+                                            )}
+                                            <div className="absolute top-6 left-6 flex gap-2">
+                                                <span className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[8px] font-black uppercase tracking-widest shadow-xl">
+                                                    {project.status === 'active' ? 'Developmental' : 'Legacy Project'}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-10">
+                                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">{project.title}</h3>
+                                            <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-10">{project.description}</p>
+
+                                            <div className="space-y-8">
+                                                <div>
+                                                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-3">
+                                                        <span className="text-slate-400">Raised: KES {project.currentAmount.toLocaleString()}</span>
+                                                        <span className="text-indigo-600">{Math.round((project.currentAmount / project.targetAmount) * 100)}%</span>
+                                                    </div>
+                                                    <div className="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className="h-full bg-gradient-to-r from-indigo-600 to-violet-600 transition-all duration-1000 ease-out shadow-lg" 
+                                                            style={{ width: `${Math.min(100, (project.currentAmount / project.targetAmount) * 100)}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <p className="text-[8px] text-slate-400 font-black uppercase tracking-widest mb-1">Target Milestone</p>
+                                                        <p className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tighter">KES {project.targetAmount.toLocaleString()}</p>
+                                                    </div>
+                                                    <button className="px-10 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl hover:scale-105 transition-all shadow-2xl">
+                                                        Contribute
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                )}
                 {activeSection === 'feed' ? (
                     <>
                     {/* Header Tabs */}

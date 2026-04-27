@@ -39,6 +39,45 @@ CREATE TABLE IF NOT EXISTS alumni_messages (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS alumni_follows (
+    id TEXT PRIMARY KEY,
+    follower_id TEXT NOT NULL,
+    following_id TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(follower_id, following_id)
+);
+
+CREATE TABLE IF NOT EXISTS alumni_school_inbox (
+    id TEXT PRIMARY KEY,
+    alumna_id TEXT NOT NULL,
+    institution_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    direction TEXT DEFAULT 'to_school', -- 'to_school' or 'from_school'
+    is_read BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS school_projects (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    image_url TEXT,
+    target_amount DECIMAL(15,2) DEFAULT 0,
+    current_amount DECIMAL(15,2) DEFAULT 0,
+    status TEXT DEFAULT 'active', -- 'active', 'completed'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS project_updates (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES school_projects(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    image_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 2. Schema Repair and Evolution Block
 DO $$ 
 BEGIN 
