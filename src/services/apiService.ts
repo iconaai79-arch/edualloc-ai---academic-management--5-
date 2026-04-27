@@ -606,6 +606,80 @@ export const apiService = {
         }
         return data;
     },
+    async updateModuleRecord<T = any>(module: string, id: string, data: Partial<T>): Promise<T | null> {
+        const payload = toSnakeCase(data);
+
+        if (!_supabase) {
+            const records = ls.get(module);
+            const index = records.findIndex((r: any) => r.id === id);
+            if (index >= 0) {
+                records[index] = { ...records[index], ...payload };
+                ls.set(module, records);
+            }
+            return toCamelCase(payload);
+        }
+
+        try {
+            const token = await apiService.getAuthToken();
+
+            const response = await fetch(`/api/records?module=${module}&id=${id}`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ data: payload })
+            });
+
+            if (!response.ok) {
+                const contentType = response.headers.get('content-type');
+                let errData: any = {};
+                if (contentType && contentType.includes('application/json')) {
+                    errData = await response.json().catch(() => ({}));
+                } else {
+                    errData = { error: await response.text().catch(() => `Status ${response.status}`) };
+                }
+                throw new Error(errData.error || `Failed to update ${module}`);
+            }
+
+            const contentTypePatch = response.headers.get('content-type');
+            if (contentTypePatch && contentTypePatch.includes('application/json')) {
+                const updatedData = await response.json().catch(() => null);
+                return Array.isArray(updatedData) ? toCamelCase(updatedData[0]) : toCamelCase(updatedData);
+            }
+            return toCamelCase(payload);
+        } catch (e: any) {
+            console.error(`Update API Error [${module}]:`, e);
+            throw e;
+        }
+    },
+    async deleteModuleRecord(module: string, id: string): Promise<void> {
+        if (!_supabase) {
+            const records = ls.get(module);
+            const filtered = records.filter((r: any) => r.id !== id);
+            ls.set(module, filtered);
+            return;
+        }
+
+        try {
+            const token = await apiService.getAuthToken();
+            const response = await fetch(`/api/records?module=${module}&id=${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || `Failed to delete ${module}`);
+            }
+        } catch (e: any) {
+            console.error(`Delete API Error [${module}]:`, e);
+            throw e;
+        }
+    },
     async saveModuleRecord<T = any>(module: string, data: T): Promise<T | null> {
         const payload = toSnakeCase(data);
 

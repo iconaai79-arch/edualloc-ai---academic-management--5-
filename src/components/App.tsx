@@ -3328,12 +3328,47 @@ export const App: React.FC = () => {
                                                     author_name TEXT NOT NULL,
                                                     author_photo TEXT,
                                                     institution_id TEXT NOT NULL,
+                                                    school_id TEXT,
                                                     content TEXT NOT NULL,
                                                     photo_url TEXT,
                                                     likes TEXT[] DEFAULT '{}',
                                                     comments_count INTEGER DEFAULT 0,
+                                                    is_announcement BOOLEAN DEFAULT false,
+                                                    event_date TIMESTAMP WITH TIME ZONE,
                                                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                                                 );
+
+                                                -- Repair existing tables
+                                                DO $$ 
+                                                BEGIN 
+                                                    -- Posts Column Repairs
+                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'school_id') THEN
+                                                        ALTER TABLE alumni_posts ADD COLUMN school_id TEXT;
+                                                    END IF;
+                                                    
+                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'is_announcement') THEN
+                                                        ALTER TABLE alumni_posts ADD COLUMN is_announcement BOOLEAN DEFAULT false;
+                                                    END IF;
+
+                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'event_date') THEN
+                                                        ALTER TABLE alumni_posts ADD COLUMN event_date TIMESTAMP WITH TIME ZONE;
+                                                    END IF;
+
+                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'photo_url') THEN
+                                                        ALTER TABLE alumni_posts ADD COLUMN photo_url TEXT;
+                                                    END IF;
+
+                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'author_photo') THEN
+                                                        ALTER TABLE alumni_posts ADD COLUMN author_photo TEXT;
+                                                    END IF;
+
+                                                    -- Members Column Repairs
+                                                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumnae_members') THEN
+                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'profile_photo_url') THEN
+                                                            ALTER TABLE alumnae_members ADD COLUMN profile_photo_url TEXT;
+                                                        END IF;
+                                                    END IF;
+                                                END $$;
 
                                                 CREATE TABLE IF NOT EXISTS alumni_comments (
                                                     id TEXT PRIMARY KEY,
@@ -3352,76 +3387,11 @@ export const App: React.FC = () => {
                                                     institution_id TEXT,
                                                     content TEXT NOT NULL,
                                                     is_read BOOLEAN DEFAULT false,
-                                                          DO $$ 
-                                                 BEGIN 
-                                                     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumnae_members') THEN
-                                                         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'profile_photo_url') THEN
-                                                             ALTER TABLE alumnae_members ADD COLUMN profile_photo_url TEXT;
-                                                         END IF;
-                                                         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'admission_number') THEN
-                                                             ALTER TABLE alumnae_members ADD COLUMN admission_number TEXT;
-                                                         END IF;
-                                                         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'school_id') THEN
-                                                             ALTER TABLE alumnae_members ADD COLUMN school_id TEXT;
-                                                         END IF;
-                                                         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'institution_id') THEN
-                                                             ALTER TABLE alumnae_members ADD COLUMN institution_id TEXT;
-                                                         END IF;
-                                                         
-                                                         -- Ensure nullable
-                                                         ALTER TABLE alumnae_members ALTER COLUMN institution_id DROP NOT NULL;
-                                                     END IF;
-
-                                                     -- Ensure messaging/comments have institution_id and are nullable
-                                                     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumni_messages') THEN
-                                                         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_messages' AND column_name = 'institution_id') THEN
-                                                             ALTER TABLE alumni_messages ADD COLUMN institution_id TEXT;
-                                                         END IF;
-                                                         ALTER TABLE alumni_messages ALTER COLUMN institution_id DROP NOT NULL;
-                                                     END IF;
-
-                                                     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumni_comments') THEN
-                                                         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_comments' AND column_name = 'institution_id') THEN
-                                                             ALTER TABLE alumni_comments ADD COLUMN institution_id TEXT;
-                                                         END IF;
-                                                         ALTER TABLE alumni_comments ALTER COLUMN institution_id DROP NOT NULL;
-                                                     END IF;
-                                                     
-                                                     -- Ensure photo_url exists on older posts table and institution_id is nullable
-                                                     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumni_posts') THEN
-                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'photo_url') THEN
-                                                            ALTER TABLE alumni_posts ADD COLUMN photo_url TEXT;
-                                                        END IF;
-                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'institution_id') THEN
-                                                            ALTER TABLE alumni_posts ADD COLUMN institution_id TEXT;
-                                                        END IF;
-                                                        ALTER TABLE alumni_posts ALTER COLUMN institution_id DROP NOT NULL;
-                                                     END IF;
-
-                                                     -- Fix: Drop Foreign Key constraints that block Unclaimed/Global portals
-                                                     IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'alumnae_members_institution_id_fkey') THEN
-                                                         ALTER TABLE alumnae_members DROP CONSTRAINT alumnae_members_institution_id_fkey;
-                                                     END IF;
-                                                     IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'alumni_posts_institution_id_fkey') THEN
-                                                         ALTER TABLE alumni_posts DROP CONSTRAINT alumni_posts_institution_id_fkey;
-                                                     END IF;
-                                                     IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'alumni_comments_institution_id_fkey') THEN
-                                                         ALTER TABLE alumni_comments DROP CONSTRAINT alumni_comments_institution_id_fkey;
-                                                     END IF;
-                                                     IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'alumni_messages_institution_id_fkey') THEN
-                                                         ALTER TABLE alumni_messages DROP CONSTRAINT alumni_messages_institution_id_fkey;
-                                                     END IF;
-                                                 END $$;
-
-                                                -- Fix permissions
-                                                GRANT ALL ON public.alumni_posts TO anon, authenticated, service_role;
-                                                GRANT ALL ON public.alumni_comments TO anon, authenticated, service_role;
-                                                GRANT ALL ON public.alumni_messages TO anon, authenticated, service_role;
-                                                GRANT ALL ON public.alumnae_members TO anon, authenticated, service_role;
-
-                                                -- Notify PostgREST to reload schema cache
-                                                NOTIFY pgrst, 'reload schema';
-                                            `;
+                                                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                                                );
+                                                
+                                                -- FORCE SCHEMA CACHE RELOAD (Critical for PostgREST/Supabase)
+                                                NOTIFY pgrst, 'reload schema';`;
                                             await apiService.runMigration(sql);
                                             alert("Alumnae infrastructure verified and updated successfully.");
                                         }}
@@ -6184,30 +6154,21 @@ export const App: React.FC = () => {
 
                                         const registrationPayload: any = {
                                             ...data,
-                                            full_name: (data.fullName || data.full_name || '').trim(),
-                                            admission_number: (data.admissionNumber || data.admission_number || '').trim(),
-                                            email: (data.email || data.user_email || '').toLowerCase().trim(),
+                                            fullName: (data.fullName || '').trim(),
+                                            admissionNumber: (data.admissionNumber || '').trim(),
+                                            email: (data.email || '').toLowerCase().trim(),
                                             id: `alumna_${Date.now()}`,
-                                            institution_id: (school?.institutionId && institutions.some(i => i.id === school.institutionId)) ? school.institutionId : null,
-                                            school_id: data.schoolId || null,
+                                            institutionId: (school?.institutionId && institutions.some(i => i.id === school.institutionId)) ? school.institutionId : null,
+                                            schoolId: data.schoolId || null,
                                             status: 'verified', // Auto-approve
-                                            profile_photo_url: profilePhotoUrl,
-                                            payment_id: data.paymentId || null,
-                                            registration_fee: companyDetails?.alumnaeJoiningFee || 0,
-                                            joined_at: new Date().toISOString()
+                                            profilePhotoUrl: profilePhotoUrl,
+                                            paymentId: data.paymentId || null,
+                                            registrationFee: companyDetails?.alumnaeJoiningFee || 0,
+                                            joinedAt: new Date().toISOString()
                                         };
                                         
-                                        // Clean up internal file reference and conflicting camelCase keys before saving
+                                        // Clean up internal file reference before saving
                                         delete registrationPayload.profilePictureFile;
-                                        delete registrationPayload.fullName;
-                                        delete registrationPayload.admissionNumber;
-                                        delete registrationPayload.profilePhotoUrl;
-                                        delete registrationPayload.joinedAt;
-                                        delete registrationPayload.linkedinUrl;
-                                        delete registrationPayload.twitterUrl;
-                                        delete registrationPayload.currentJob;
-                                        delete registrationPayload.currentCompany;
-                                        delete registrationPayload.graduationYear;
 
                                         await apiService.saveModuleRecord('alumnae_members', registrationPayload);
                                         

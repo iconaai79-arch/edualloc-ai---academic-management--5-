@@ -24,7 +24,9 @@ import {
     Users,
     Share2,
     Building2,
-    LogOut
+    LogOut,
+    Edit2,
+    Trash2
 } from 'lucide-react';
 import type { AlumniPost, AlumniComment, Institution } from '../types';
 import { apiService } from '../services/apiService';
@@ -72,6 +74,19 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [showSwitcher, setShowSwitcher] = useState(false);
     const [postImageFile, setPostImageFile] = useState<File | null>(null);
     const [postImagePreview, setPostImagePreview] = useState<string | null>(null);
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [scheduledDate, setScheduledDate] = useState('');
+    const [editingPostId, setEditingPostId] = useState<string | null>(null);
+    const [editingContent, setEditingContent] = useState('');
+    const [showPostMenuId, setShowPostMenuId] = useState<string | null>(null);
+
+    const COMMON_EMOJIS = ['😊', '🎓', '✨', '🙌', '🎉', '💙', '🏛️', '💼', '💪', '👩‍🎓', '🏫', '💡', '🥂', '🔥', '📚', '🤝'];
+
+    const addEmoji = (emoji: string) => {
+        setNewPostContent(prev => prev + emoji);
+        setShowEmojiPicker(false);
+    };
 
     const loadOtherMemberships = async () => {
         setIsDetectingMemberships(true);
@@ -285,8 +300,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 const featuredUntil = new Date();
                 featuredUntil.setMonth(featuredUntil.getMonth() + 1); // 1 month feature
 
-                await apiService.saveModuleRecord('alumnae_members', {
-                    id: currentAlumna.id,
+                await apiService.updateModuleRecord('alumnae_members', currentAlumna.id, {
                     isFeatured: true,
                     featuredUntil: featuredUntil.toISOString()
                 });
@@ -368,6 +382,9 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             setNewPostContent('');
             setPostImageFile(null);
             setPostImagePreview(null);
+            setScheduledDate('');
+            setShowEmojiPicker(false);
+            setShowDatePicker(false);
         } catch (e: any) {
             console.error(e);
             if (e.message?.includes('photo_url')) {
@@ -424,6 +441,54 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 await apiService.saveModuleRecord('alumni_posts', { id: postId, commentsCount: (post.commentsCount || 0) + 1 } as any);
             }
         } catch (e) {}
+    };
+
+    const handleDeletePost = async (postId: string) => {
+        if (!window.confirm("Are you sure you want to delete this legacy topic?")) return;
+        try {
+            await apiService.deleteModuleRecord('alumni_posts', postId);
+            setPosts(posts.filter(p => p.id !== postId));
+        } catch (e: any) {
+            alert("Delete failed: " + e.message);
+        }
+    };
+
+    const handleUpdatePost = async (postId: string) => {
+        if (!editingContent.trim()) return;
+        try {
+            await apiService.updateModuleRecord('alumni_posts', postId, {
+                content: editingContent
+            } as any);
+            setPosts(posts.map(p => p.id === postId ? { ...p, content: editingContent } : p));
+            setEditingPostId(null);
+            setEditingContent('');
+        } catch (e: any) {
+            alert("Update failed: " + e.message);
+        }
+    };
+
+    const handleSharePost = async (post: AlumniPost) => {
+        const shareText = `Legacy Check: ${post.authorName} shared something on Alumnae Circle! \n\n"${post.content.substring(0, 100)}..." \n\nJoin the conversation at ${window.location.origin}`;
+        
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'EduAI Alumnae Circle',
+                    text: shareText,
+                    url: window.location.href
+                });
+            } catch (e) {
+                copyToClipboard(shareText);
+            }
+        } else {
+            copyToClipboard(shareText);
+        }
+    };
+
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text).then(() => {
+            alert("Topic reference copied to cloud clipboard!");
+        });
     };
 
     const myInstitutions = useMemo(() => {
@@ -582,8 +647,56 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                     >
                                         <ImageIcon className="w-5 h-5" />
                                     </button>
-                                    <button className="p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all"><Smile className="w-5 h-5" /></button>
-                                    <button className="p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all"><Calendar className="w-5 h-5" /></button>
+                                    <div className="relative">
+                                        <button 
+                                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                            className={`p-2 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-xl transition-all ${showEmojiPicker ? 'text-emerald-600 bg-emerald-50' : ''}`}
+                                        >
+                                            <Smile className="w-5 h-5" />
+                                        </button>
+                                        
+                                        {showEmojiPicker && (
+                                            <div className="absolute bottom-full left-0 mb-2 p-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-2xl z-50 grid grid-cols-4 gap-1 w-40 animate-in fade-in slide-in-from-bottom-2">
+                                                {COMMON_EMOJIS.map(emoji => (
+                                                    <button 
+                                                        key={emoji}
+                                                        onClick={() => addEmoji(emoji)}
+                                                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all text-xl"
+                                                    >
+                                                        {emoji}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="relative">
+                                        <button 
+                                            onClick={() => setShowDatePicker(!showDatePicker)}
+                                            className={`p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all ${showDatePicker || scheduledDate ? 'text-indigo-600 bg-indigo-50' : ''}`}
+                                        >
+                                            <Calendar className="w-5 h-5" />
+                                        </button>
+
+                                        {showDatePicker && (
+                                            <div className="absolute bottom-full left-0 mb-2 p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-2xl z-50 w-64 animate-in fade-in slide-in-from-bottom-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Tag Important Date</label>
+                                                <input 
+                                                    type="date" 
+                                                    value={scheduledDate}
+                                                    onChange={(e) => {
+                                                        const date = e.target.value;
+                                                        setScheduledDate(date);
+                                                        if (date) {
+                                                            setNewPostContent(prev => prev.trim() + ` [📅 ${new Date(date).toLocaleDateString()}] `);
+                                                            setShowDatePicker(false);
+                                                        }
+                                                    }}
+                                                    className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold p-3 outline-none focus:ring-2 focus:ring-indigo-600 text-slate-900 dark:text-white"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                                 <button 
                                     onClick={handleCreatePost}
@@ -634,9 +747,79 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             <span className="text-slate-300 dark:text-slate-700">•</span>
                                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(post.createdAt).toLocaleDateString()}</span>
                                         </div>
-                                        <button className="text-slate-400 hover:text-slate-600"><MoreHorizontal className="w-5 h-5" /></button>
+                                        <div className="relative">
+                                            <button 
+                                                onClick={() => setShowPostMenuId(showPostMenuId === post.id ? null : post.id)}
+                                                className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded-lg transition-all"
+                                            >
+                                                <MoreHorizontal className="w-5 h-5" />
+                                            </button>
+
+                                            {showPostMenuId === post.id && (
+                                                <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                                    {(post.authorId === currentAlumna.id || currentAlumna.role === 'super_admin') && (
+                                                        <>
+                                                            <button 
+                                                                onClick={() => {
+                                                                    setEditingPostId(post.id);
+                                                                    setEditingContent(post.content);
+                                                                    setShowPostMenuId(null);
+                                                                }}
+                                                                className="w-full text-left px-4 py-3 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 transition-colors underline decoration-slate-200 underline-offset-4"
+                                                            >
+                                                                <Edit2 className="w-4 h-4 text-indigo-500" /> Edit Topic
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => {
+                                                                    handleDeletePost(post.id);
+                                                                    setShowPostMenuId(null);
+                                                                }}
+                                                                className="w-full text-left px-4 py-3 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/10 flex items-center gap-3 transition-colors underline decoration-rose-200 underline-offset-4"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" /> Delete Forever
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                    <button 
+                                                        onClick={() => {
+                                                            handleSharePost(post);
+                                                            setShowPostMenuId(null);
+                                                        }}
+                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 transition-colors underline decoration-slate-200 underline-offset-4"
+                                                    >
+                                                        <Share2 className="w-4 h-4 text-emerald-500" /> Spread the Word
+                                                    </button>
+                                                </div>
+                                            )}
+                                         </div>
                                     </div>
-                                    <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-sm mb-4">{post.content}</p>
+
+                                    {editingPostId === post.id ? (
+                                         <div className="space-y-3 mb-4 animate-in slide-in-from-left-2 duration-300">
+                                             <textarea 
+                                                value={editingContent}
+                                                onChange={(e) => setEditingContent(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-indigo-100 dark:border-indigo-900/30 rounded-2xl p-4 text-sm font-medium focus:ring-4 focus:ring-indigo-100 dark:focus:ring-indigo-900/10 transition-all outline-none"
+                                                rows={3}
+                                             />
+                                             <div className="flex gap-2 justify-end">
+                                                 <button 
+                                                    onClick={() => setEditingPostId(null)}
+                                                    className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
+                                                 >
+                                                     Cancel
+                                                 </button>
+                                                 <button 
+                                                    onClick={() => handleUpdatePost(post.id)}
+                                                    className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 transition-all active:scale-95"
+                                                 >
+                                                     Update Legacy
+                                                 </button>
+                                             </div>
+                                         </div>
+                                     ) : (
+                                         <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-sm mb-4">{post.content}</p>
+                                     )}
                                     
                                     {post.photoUrl && (
                                         <div className="mb-4 rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
@@ -669,9 +852,12 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                              </div>
                                              <span className="text-[10px] font-black">{(post.likes || []).length}</span>
                                          </button>
-                                         <button className="flex items-center gap-2 hover:text-indigo-600 transition-all">
+                                         <button 
+                                             onClick={() => handleSharePost(post)}
+                                             className="flex items-center gap-2 hover:text-indigo-600 transition-all"
+                                         >
                                              <div className="p-2 group-hover/post:bg-indigo-50 dark:group-hover/post:bg-indigo-900/20 rounded-xl">
-                                                 <Share className="w-4 h-4" />
+                                                 <Share2 className="w-4 h-4" />
                                              </div>
                                          </button>
                                      </div>

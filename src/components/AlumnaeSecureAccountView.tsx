@@ -40,8 +40,7 @@ export const AlumnaeSecureAccountView: React.FC<AlumnaeSecureAccountViewProps> =
 
         try {
             // 1. Update the alumnae_members record with the new password
-            await apiService.saveModuleRecord('alumnae_members', {
-                id: alumna.id, // Only send ID and updated fields to be safe
+            await apiService.updateModuleRecord('alumnae_members', alumna.id, {
                 password: password
             });
 
