@@ -3406,6 +3406,14 @@ export const App: React.FC = () => {
                                                     is_read BOOLEAN DEFAULT false,
                                                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                                                 );
+
+                                                CREATE TABLE IF NOT EXISTS alumni_follows (
+                                                    id TEXT PRIMARY KEY,
+                                                    follower_id TEXT NOT NULL,
+                                                    following_id TEXT NOT NULL,
+                                                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                                                    UNIQUE(follower_id, following_id)
+                                                );
                                                 
                                                 -- FORCE SCHEMA CACHE RELOAD
                                                 NOTIFY pgrst, 'reload schema';`;

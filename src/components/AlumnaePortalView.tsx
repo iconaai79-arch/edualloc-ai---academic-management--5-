@@ -87,6 +87,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [viewedProfileData, setViewedProfileData] = useState<any | null>(null);
     const [profileActiveTab, setProfileActiveTab] = useState<'posts' | 'replies' | 'media' | 'highlights'>('posts');
     const [profilePosts, setProfilePosts] = useState<AlumniPost[]>([]);
+    const [isFollowing, setIsFollowing] = useState(false);
+    const [followStats, setFollowStats] = useState({ followers: 0, following: 0 });
 
     const COMMON_EMOJIS = ['😊', '🎓', '✨', '🙌', '🎉', '💙', '🏛️', '💼', '💪', '👩‍🎓', '🏫', '💡', '🥂', '🔥', '📚', '🤝'];
 
@@ -529,6 +531,21 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 order: 'created_at.desc'
             });
             setProfilePosts(rawPosts);
+
+            // Check if following
+            const follows = await apiService.fetchModuleRecords('alumni_follows', undefined, undefined, {
+                filter: { follower_id: currentAlumna.id, following_id: profileId }
+            });
+            setIsFollowing(follows.length > 0);
+
+            // Get Stats
+            const totalFollowers = await apiService.fetchModuleRecords('alumni_follows', undefined, undefined, {
+                filter: { following_id: profileId }
+            });
+            const totalFollowing = await apiService.fetchModuleRecords('alumni_follows', undefined, undefined, {
+                filter: { follower_id: profileId }
+            });
+            setFollowStats({ followers: totalFollowers.length, following: totalFollowing.length });
         } catch (e) {
             console.error("Failed to load profile:", e);
         }
@@ -539,6 +556,38 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             loadProfileContent(viewedProfileId);
         }
     }, [viewedProfileId]);
+
+    const handleFollow = async () => {
+        if (!viewedProfileId) return;
+        const targetId = viewedProfileId;
+        const currentId = currentAlumna.id;
+
+        try {
+            if (isFollowing) {
+                // Unfollow - Find and delete
+                const existing = await apiService.fetchModuleRecords('alumni_follows', undefined, undefined, {
+                    filter: { follower_id: currentId, following_id: targetId }
+                });
+                if (existing.length > 0) {
+                    await apiService.deleteModuleRecord('alumni_follows', existing[0].id);
+                }
+                setIsFollowing(false);
+                setFollowStats(prev => ({ ...prev, followers: prev.followers - 1 }));
+            } else {
+                // Follow
+                const followId = `f_${Date.now()}`;
+                await apiService.saveModuleRecord('alumni_follows', {
+                    id: followId,
+                    follower_id: currentId,
+                    following_id: targetId
+                });
+                setIsFollowing(true);
+                setFollowStats(prev => ({ ...prev, followers: prev.followers + 1 }));
+            }
+        } catch (e) {
+            console.error("Follow action failed:", e);
+        }
+    };
 
     const myInstitutions = useMemo(() => {
         // Current active institution
@@ -1614,8 +1663,11 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                     >
                                         <MessageSquare className="w-6 h-6" />
                                     </button>
-                                    <button className="px-8 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-2xl">
-                                        Follow Legacy
+                                    <button 
+                                        onClick={handleFollow}
+                                        className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-2xl ${isFollowing ? 'bg-slate-100 text-slate-900 border border-slate-200' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'}`}
+                                    >
+                                        {isFollowing ? 'Following Legacy' : 'Follow Legacy'}
                                     </button>
                                 </div>
                             </div>
@@ -1642,11 +1694,11 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                     </div>
                                     <div className="flex gap-4">
                                         <div className="cursor-pointer hover:underline decoration-indigo-600">
-                                            <span className="font-black text-slate-900 dark:text-white">1.2k</span>
+                                            <span className="font-black text-slate-900 dark:text-white">{followStats.following}</span>
                                             <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest ml-1">Following</span>
                                         </div>
                                         <div className="cursor-pointer hover:underline decoration-indigo-600">
-                                            <span className="font-black text-slate-900 dark:text-white">840</span>
+                                            <span className="font-black text-slate-900 dark:text-white">{followStats.followers}</span>
                                             <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest ml-1">Followers</span>
                                         </div>
                                     </div>
