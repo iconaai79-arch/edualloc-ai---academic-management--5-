@@ -20,7 +20,9 @@ import type {
 
 const getSafeEnv = (key: string): string | null => {
     try {
+        // @ts-ignore
         if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+            // @ts-ignore
             const val = (import.meta as any).env[`VITE_${key}`] || (import.meta as any).env[key];
             if (val) return val;
         }

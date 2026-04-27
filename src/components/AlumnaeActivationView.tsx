@@ -24,13 +24,30 @@ export const AlumnaeActivationView: React.FC<AlumnaeActivationViewProps> = ({ on
     const [status, setStatus] = useState('Initializing Secure Sync...');
     const [isComplete, setIsComplete] = useState(false);
 
+    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+    useEffect(() => {
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            setDeferredPrompt(e);
+        });
+    }, []);
+
+    const handleInstall = async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') setDeferredPrompt(null);
+        }
+    };
+
     useEffect(() => {
         const steps = [
-            { p: 20, m: 'Encrypting Profile Identity...' },
-            { p: 45, m: 'Syncing with Institutional Registry...' },
-            { p: 70, m: 'Configuring Neural Notification Node...' },
-            { p: 90, m: 'Generating Legacy Access Token...' },
-            { p: 100, m: 'Activation Sequence Complete!' }
+            { p: 20, m: 'Initializing Social Infrastructure...' },
+            { p: 40, m: 'Installing Profile Neural Link...' },
+            { p: 60, m: 'Injecting Cloud Media Assets...' },
+            { p: 80, m: 'Activating Auto-Featured Feature (30 Days)...' },
+            { p: 100, m: 'Installation Sequence Complete!' }
         ];
 
         let currentStep = 0;
@@ -96,27 +113,32 @@ export const AlumnaeActivationView: React.FC<AlumnaeActivationViewProps> = ({ on
                         </div>
 
                         <div className="grid gap-4 text-left">
-                            <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-[2rem] flex items-center gap-6 border border-slate-100 dark:border-white/5 group hover:bg-white dark:hover:bg-slate-700 transition-all hover:shadow-xl cursor-pointer">
-                                <div className="w-14 h-14 bg-white dark:bg-slate-900 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm border border-slate-100 dark:border-white/5">
-                                    <Mail className="w-6 h-6" />
+                            <div className="p-6 bg-emerald-50/50 dark:bg-emerald-900/10 rounded-[2rem] flex items-center gap-6 border border-emerald-100 dark:border-emerald-900/30 group transition-all">
+                                <div className="w-14 h-14 bg-white dark:bg-slate-900 rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm border border-slate-100 dark:border-white/5">
+                                    <Sparkles className="w-6 h-6" />
                                 </div>
                                 <div className="flex-1">
-                                    <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm">Verify Email Address</h4>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic">Check your inbox for the link</p>
+                                    <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm">Welcome Boost Active</h4>
+                                    <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest italic">You are featured for the next 30 days</p>
                                 </div>
-                                <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                             </div>
 
-                            <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-[2rem] flex items-center gap-6 border border-slate-100 dark:border-white/5 group hover:bg-white dark:hover:bg-slate-700 transition-all hover:shadow-xl cursor-pointer">
-                                <div className="w-14 h-14 bg-white dark:bg-slate-900 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm border border-slate-100 dark:border-white/5">
-                                    <Smartphone className="w-6 h-6" />
+                            {deferredPrompt && (
+                                <div 
+                                    onClick={handleInstall}
+                                    className="p-6 bg-indigo-600 rounded-[2rem] flex items-center gap-6 border border-indigo-500 shadow-xl shadow-indigo-200 dark:shadow-none transition-all hover:scale-[1.02] cursor-pointer group"
+                                >
+                                    <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-xl">
+                                        <Smartphone className="w-6 h-6" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <h4 className="font-black text-white uppercase tracking-tight text-sm">Install Mobile App</h4>
+                                        <p className="text-[10px] text-indigo-100 font-bold uppercase tracking-widest italic">Add to Home Screen for best experience</p>
+                                    </div>
+                                    <ArrowRight className="w-4 h-4 text-white group-hover:translate-x-1 transition-all" />
                                 </div>
-                                <div className="flex-1">
-                                    <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm">Set Multi-Factor Auth</h4>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic">Enhance profile security</p>
-                                </div>
-                                <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
-                            </div>
+                            )}
 
                             <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-[2rem] flex items-center gap-6 border border-slate-100 dark:border-white/5 group hover:bg-white dark:hover:bg-slate-700 transition-all hover:shadow-xl cursor-pointer">
                                 <div className="w-14 h-14 bg-white dark:bg-slate-900 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm border border-slate-100 dark:border-white/5">

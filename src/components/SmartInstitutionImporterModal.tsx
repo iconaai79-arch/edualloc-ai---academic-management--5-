@@ -1,6 +1,6 @@
 
-import React, { useState, useMemo } from 'react';
-import type { Institution, InstitutionRegistrationData } from '../types';
+import React, { useState } from 'react';
+import type { InstitutionRegistrationData } from '../types';
 import { XIcon } from './icons/XIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
@@ -9,9 +9,22 @@ import { analyzeInstitutionSpreadsheet } from '../services/geminiService';
 
 import * as XLSX from 'xlsx';
 
-type InstitutionMappingField = 'name' | 'email' | 'phoneNumber' | 'institutionType' | 'adminName' | 'adminEmail' | 'subCounty' | 'constituency' | 'ward';
-const ALL_INSTITUTION_MAPPING_FIELDS: InstitutionMappingField[] = ['name', 'email', 'phoneNumber', 'institutionType', 'adminName', 'adminEmail', 'subCounty', 'constituency', 'ward'];
+type InstitutionMappingField = 'name' | 'email' | 'phoneNumber' | 'institutionType' | 'institutionCategory' | 'adminName' | 'adminEmail' | 'subCounty' | 'constituency' | 'ward';
+const ALL_INSTITUTION_MAPPING_FIELDS: InstitutionMappingField[] = ['name', 'email', 'phoneNumber', 'institutionType', 'institutionCategory', 'adminName', 'adminEmail', 'subCounty', 'constituency', 'ward'];
 const REQUIRED_INSTITUTION_MAPPING_FIELDS: InstitutionMappingField[] = ['name', 'email', 'adminEmail'];
+
+const FIELD_LABELS: Record<InstitutionMappingField, string> = {
+    name: 'School Name',
+    email: 'School Email',
+    phoneNumber: 'Phone Number',
+    institutionType: 'Institution Group / Type',
+    institutionCategory: 'Institution Category',
+    adminName: 'Admin Name',
+    adminEmail: 'Admin Email',
+    subCounty: 'Sub-County',
+    constituency: 'Constituency',
+    ward: 'Ward',
+};
 
 interface SmartInstitutionImporterModalProps {
     onClose: () => void;
@@ -25,8 +38,10 @@ export const SmartInstitutionImporterModal: React.FC<SmartInstitutionImporterMod
 }) => {
     const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing' | 'finalizing' | 'success' | 'error'>('upload');
     const [fileHeaders, setFileHeaders] = useState<string[]>([]);
-    const [userMapping, setUserMapping] = useState<Record<InstitutionMappingField, string | null>>(ALL_INSTITUTION_MAPPING_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<InstitutionMappingField, string | null>));
-    const [parsedData, setParsedData] = useState<{ valid: InstitutionRegistrationData[], invalid: { row: any, error: string }[] } | null>(null);
+    const [userMapping, setUserMapping] = useState<Record<InstitutionMappingField, string | null>>(
+        ALL_INSTITUTION_MAPPING_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<InstitutionMappingField, string | null>)
+    );
+    const [parsedData, setParsedData] = useState<{ valid: (InstitutionRegistrationData & { category?: string; businessSubType?: string })[], invalid: { row: any, error: string }[] } | null>(null);
     const [errorMessage, setErrorMessage] = useState('');
     const [rawData, setRawData] = useState<any[]>([]);
     const [importProgress, setImportProgress] = useState(0);
@@ -76,16 +91,72 @@ export const SmartInstitutionImporterModal: React.FC<SmartInstitutionImporterMod
         setUserMapping(prev => ({ ...prev!, [field]: value }));
     };
 
+    const normalizeInstitutionType = (raw: string): string => {
+        const t = raw.toLowerCase();
+        if (t.includes('education') || t.includes('school') || t.includes('primary') || t.includes('secondary') || t.includes('university') || t.includes('college')) return 'Education';
+        if (t.includes('his') || t.includes('health') || t.includes('hospital') || t.includes('clinic') || t.includes('medical')) return 'HIS';
+        if (t.includes('pharmacy') || t.includes('chemist')) return 'Pharmacy';
+        if (t.includes('business')) return 'Business';
+        if (t.includes('coop') || t.includes('agri') || t.includes('dairy') || t.includes('tea') || t.includes('coffee')) return 'Cooperative';
+        if (t.includes('sacco') || t.includes('financial') || t.includes('finance')) return 'SACCO';
+        if (t.includes('law') || t.includes('legal')) return 'Law Firm';
+        if (t.includes('logistics') || t.includes('transport')) return 'Logistics';
+        if (t.includes('community') || t.includes('politics')) return 'Community';
+        if (t.includes('church') || t.includes('religious') || t.includes('faith')) return 'Church';
+        if (t.includes('broadcaster') || t.includes('media') || t.includes('radio') || t.includes('tv')) return 'Broadcaster';
+        if (t.includes('hospitality') || t.includes('tourism') || t.includes('hotel')) return 'Hospitality';
+        if (t.includes('reseller')) return 'Reseller';
+        return 'Education';
+    };
+
+    const normalizeCategory = (raw: string, institutionType: string): string => {
+        if (!raw) {
+            // Auto-derive default based on type
+            if (institutionType === 'Education') return 'Primary';
+            if (institutionType === 'HIS') return 'Hospital/Clinic';
+            if (institutionType === 'Business') return 'Agrovet';
+            if (institutionType === 'Law Firm') return 'Law Firm';
+            if (institutionType === 'Broadcaster') return 'TV/Radio Station';
+            if (institutionType === 'Logistics') return 'Cargo & Delivery';
+            if (institutionType === 'Hospitality') return 'Hotel & Accommodation';
+            return '';
+        }
+        const c = raw.toLowerCase();
+        // Education categories
+        if (c.includes('kindergarten') || c.includes('playgroup')) return 'Kindergarten';
+        if (c.includes('ecd')) return 'ECD';
+        if (c.includes('primary')) return 'Primary';
+        if (c.includes('secondary')) return 'Secondary';
+        if (c.includes('international')) return 'International';
+        if (c.includes('tvet') || c.includes('vocational')) return 'TVET';
+        if (c.includes('polytechnic')) return 'Polytechnic';
+        if (c.includes('driving')) return 'Driving School';
+        if (c.includes('institute')) return 'Institute';
+        if (c.includes('college')) return 'College';
+        if (c.includes('university')) return 'University';
+        // Health categories
+        if (c.includes('hospital') || c.includes('clinic')) return 'Hospital/Clinic';
+        if (c.includes('dental')) return 'Dental';
+        if (c.includes('eye') || c.includes('ophthal')) return 'Eye';
+        if (c.includes('ent') || c.includes('ear')) return 'Ear';
+        // Business categories
+        if (c.includes('agrovet') || c.includes('agro')) return 'Agrovet';
+        if (c.includes('carwash') || c.includes('car wash')) return 'Car Wash';
+        if (c.includes('fuel') || c.includes('petrol') || c.includes('station')) return 'Fuel Station';
+        if (c.includes('retail') || c.includes('shop') || c.includes('supermarket')) return 'Retail Shop';
+        return raw.trim();
+    };
+
     const handleConfirmMapping = () => {
         if (!userMapping) return;
 
         const missingFields = REQUIRED_INSTITUTION_MAPPING_FIELDS.filter(f => !userMapping[f]);
         if (missingFields.length > 0) {
-            alert(`Please map: ${missingFields.map(f => f.replace(/([A-Z])/g, ' $1')).join(', ')}.`);
+            alert(`Please map: ${missingFields.map(f => FIELD_LABELS[f] || f).join(', ')}.`);
             return;
         }
 
-        const validInstitutions: InstitutionRegistrationData[] = [];
+        const validInstitutions: (InstitutionRegistrationData & { category?: string; businessSubType?: string })[] = [];
         const invalidRows: { row: any, error: string }[] = [];
 
         (rawData || []).forEach((row, index) => {
@@ -100,24 +171,15 @@ export const SmartInstitutionImporterModal: React.FC<SmartInstitutionImporterMod
 
                 // Optional fields
                 const phoneNumber = userMapping.phoneNumber ? String(row[userMapping.phoneNumber] || '') : '';
-                const institutionType = userMapping.institutionType ? String(row[userMapping.institutionType] || 'University') : 'University';
+                const institutionTypeRaw = userMapping.institutionType ? String(row[userMapping.institutionType] || 'Education') : 'Education';
+                const institutionCategoryRaw = userMapping.institutionCategory ? String(row[userMapping.institutionCategory] || '') : '';
                 const adminName = userMapping.adminName ? String(row[userMapping.adminName] || '') : '';
                 const subCounty = userMapping.subCounty ? String(row[userMapping.subCounty] || '') : '';
                 const constituency = userMapping.constituency ? String(row[userMapping.constituency] || '') : '';
                 const ward = userMapping.ward ? String(row[userMapping.ward] || '') : '';
 
-                // Normalize institution type
-                let finalType: any = 'University';
-                const typeLower = institutionType.toLowerCase();
-                if (typeLower.includes('primary')) finalType = 'Primary';
-                else if (typeLower.includes('secondary')) finalType = 'Secondary';
-                else if (typeLower.includes('university')) finalType = 'University';
-                else if (typeLower.includes('college')) finalType = 'College';
-                else if (typeLower.includes('institute')) finalType = 'Institute';
-                else if (typeLower.includes('polytechnic')) finalType = 'Polytechnic';
-                else if (typeLower.includes('ecd')) finalType = 'ECD';
-                else if (typeLower.includes('international')) finalType = 'International';
-                else if (typeLower.includes('his') || typeLower.includes('health')) finalType = 'HIS';
+                const finalType = normalizeInstitutionType(institutionTypeRaw);
+                const finalCategory = normalizeCategory(institutionCategoryRaw, finalType);
 
                 validInstitutions.push({
                     name: String(name).trim(),
@@ -126,7 +188,9 @@ export const SmartInstitutionImporterModal: React.FC<SmartInstitutionImporterMod
                     institutionEmail: String(email).trim(),
                     phoneNumber,
                     institutionPhone: phoneNumber,
-                    institutionType: finalType,
+                    institutionType: finalType as any,
+                    category: finalCategory,
+                    businessSubType: finalCategory,
                     adminName: adminName || 'Administrator',
                     adminEmail: String(adminEmail).trim(),
                     loadDemoData: false,
@@ -175,7 +239,8 @@ export const SmartInstitutionImporterModal: React.FC<SmartInstitutionImporterMod
                         <div className="text-center p-12 border-4 border-dashed border-slate-200 dark:border-slate-700 rounded-[2.5rem] bg-slate-50 dark:bg-slate-900/20">
                             <ArrowUpTrayIcon className="w-16 h-16 mx-auto text-slate-300 mb-4" />
                             <h4 className="text-lg font-bold mb-2">Upload Excel Spreadsheet</h4>
-                            <p className="text-sm text-slate-500 mb-8">Select an Excel (.xlsx) file with school names, emails, and admin details.</p>
+                            <p className="text-sm text-slate-500 mb-2">Select an Excel (.xlsx) file with school names, emails, and admin details.</p>
+                            <p className="text-xs text-slate-400 mb-8">Supported columns: <span className="font-semibold text-slate-500">Name, Email, Phone, Type, <span className="text-indigo-500">Category</span>, Admin Name, Admin Email, Sub-County, Constituency, Ward</span></p>
                             <label className="btn-primary cursor-pointer px-10 py-3 inline-block shadow-lg shadow-indigo-100">
                                 Select File
                                 <input type="file" onChange={e => e.target.files && e.target.files[0] && handleFileSelect(e.target.files[0])} accept=".xlsx, .xls, .csv" className="hidden" />
@@ -191,10 +256,14 @@ export const SmartInstitutionImporterModal: React.FC<SmartInstitutionImporterMod
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {ALL_INSTITUTION_MAPPING_FIELDS.map(field => (
-                                    <div key={field} className="flex flex-col gap-2 p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                        <label className="text-sm font-bold capitalize text-slate-700 dark:text-slate-300">
-                                            {field.replace(/([A-Z])/g, ' $1')} {REQUIRED_INSTITUTION_MAPPING_FIELDS.includes(field) && <span className="text-red-500">*</span>}
+                                    <div key={field} className={`flex flex-col gap-2 p-4 rounded-2xl border ${field === 'institutionCategory' ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 dark:border-indigo-800' : 'bg-slate-50 dark:bg-slate-900/40 border-slate-100 dark:border-slate-800'}`}>
+                                        <label className={`text-sm font-bold ${field === 'institutionCategory' ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-300'}`}>
+                                            {FIELD_LABELS[field]} {REQUIRED_INSTITUTION_MAPPING_FIELDS.includes(field) && <span className="text-red-500">*</span>}
+                                            {field === 'institutionCategory' && <span className="ml-2 text-[10px] font-black text-indigo-400 uppercase tracking-widest">New</span>}
                                         </label>
+                                        {field === 'institutionCategory' && (
+                                            <p className="text-[10px] text-indigo-400 leading-tight">e.g. Primary, Secondary, University, Hospital/Clinic, College, TVET…</p>
+                                        )}
                                         <select value={userMapping[field] || ''} onChange={e => handleMappingChange(field, e.target.value || null)} className="form-select">
                                             <option value="">-- Choose Header --</option>
                                             {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -224,19 +293,30 @@ export const SmartInstitutionImporterModal: React.FC<SmartInstitutionImporterMod
                                         <tr>
                                             <th className="px-6 py-3 text-left text-[10px] font-black uppercase text-slate-500 tracking-widest">School Name</th>
                                             <th className="px-6 py-3 text-left text-[10px] font-black uppercase text-slate-500 tracking-widest">Type</th>
+                                            <th className="px-6 py-3 text-left text-[10px] font-black uppercase text-indigo-500 tracking-widest">Category</th>
                                             <th className="px-6 py-3 text-left text-[10px] font-black uppercase text-slate-500 tracking-widest">Admin Email</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {parsedData?.valid.slice(0, 5).map((v, i) => (
+                                        {parsedData?.valid.slice(0, 8).map((v, i) => (
                                             <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors group">
                                                 <td className="px-6 py-3 text-sm font-bold">{v.name}</td>
                                                 <td className="px-6 py-3 text-sm text-slate-500">{v.institutionType}</td>
+                                                <td className="px-6 py-3 text-sm">
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-semibold text-xs">
+                                                        {(v as any).category || '—'}
+                                                    </span>
+                                                </td>
                                                 <td className="px-6 py-3 text-sm text-indigo-600 font-medium">{v.adminEmail}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
+                                {(parsedData?.valid.length ?? 0) > 8 && (
+                                    <div className="px-6 py-3 text-xs text-slate-400 bg-slate-50 dark:bg-slate-900/30 text-center">
+                                        …and {(parsedData?.valid.length ?? 0) - 8} more rows
+                                    </div>
+                                )}
                             </div>
                             <div className="flex justify-end pt-4 gap-3">
                                 <button onClick={() => setStep('mapping')} className="btn-secondary h-12 px-8">Back to Mapping</button>

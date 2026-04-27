@@ -29,7 +29,14 @@ import {
     Trash2,
     Video,
     ArrowRight,
-    Maximize2
+    Maximize2,
+    Atom,
+    Crown,
+    ChevronRight,
+    Mail,
+    Lock,
+    Eye,
+    Camera
 } from 'lucide-react';
 import type { AlumniPost, AlumniComment, Institution } from '../types';
 import { apiService } from '../services/apiService';
@@ -101,6 +108,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
     const [zoomedImage, setZoomedImage] = useState<string | null>(null);
     const [alumniNotifications, setAlumniNotifications] = useState<any[]>([]);
+    const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
+    const [showMoreMobileMenu, setShowMoreMobileMenu] = useState(false);
 
     const COMMON_EMOJIS = ['😊', '🎓', '✨', '🙌', '🎉', '💙', '🏛️', '💼', '💪', '👩‍🎓', '🏫', '💡', '🥂', '🔥', '📚', '🤝'];
 
@@ -153,6 +162,15 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             });
             setSchoolProjects(projects);
 
+            if (projects.length > 0) {
+                const projectIds = projects.map((p: any) => p.id);
+                const updates = await apiService.fetchModuleRecords('project_updates', undefined, undefined, {
+                    filter: { project_id: { in: projectIds } },
+                    order: 'created_at.desc'
+                });
+                setProjectUpdates(updates);
+            }
+
             const messages = await apiService.fetchModuleRecords('alumni_school_inbox', undefined, undefined, {
                 filter: { alumna_id: currentAlumna.id, institution_id: instId },
                 order: 'created_at.asc'
@@ -177,11 +195,39 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
     const detectNewClassmates = async () => {
         const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
-        if (!instId) return;
+        const gradYear = currentAlumna.graduationYear || currentAlumna.graduation_year;
+        if (!instId || !gradYear) return;
 
         try {
-            // Simulated check: Find members in same institution
-            // In a real trigger, this would be an edge function
+            // Find members who joined recently (simulated by checking newly loaded members)
+            // If we find someone in our year who we haven't seen before, notify locally
+            const lastChecked = localStorage.getItem(`last_classmate_check_${currentAlumna.id}`);
+            const now = new Date().toISOString();
+            
+            if (!lastChecked || (new Date(now).getTime() - new Date(lastChecked).getTime() > 3600000)) {
+                const results = await apiService.fetchModuleRecords('alumnae_members', instId);
+                const newClassmates = (results || []).filter((m: any) => 
+                    m.id !== currentAlumna.id && 
+                    (String(m.graduationYear) === String(gradYear) || String(m.graduation_year) === String(gradYear)) &&
+                    (!lastChecked || new Date(m.created_at || m.createdAt).getTime() > new Date(lastChecked).getTime())
+                );
+
+                if (newClassmates.length > 0) {
+                    const names = newClassmates.map((m: any) => m.fullName || m.full_name).slice(0, 2).join(', ');
+                    const extra = newClassmates.length > 2 ? ` and ${newClassmates.length - 2} others` : '';
+                    
+                    const newNotif = {
+                        id: `cn_${Date.now()}`,
+                        actor_name: 'Network Intelligence',
+                        content: `${names}${extra} just joined the Class of ${gradYear} circle! Reconnect now.`,
+                        created_at: now,
+                        is_read: false
+                    };
+                    
+                    setAlumniNotifications(prev => [newNotif, ...prev]);
+                    localStorage.setItem(`last_classmate_check_${currentAlumna.id}`, now);
+                }
+            }
         } catch (e) {
             console.error(e);
         }
@@ -592,6 +638,10 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             createdAt: new Date().toISOString()
         };
 
+        const currentPost = posts.find(p => p.id === postId);
+        const currentCount = currentPost ? (currentPost.commentsCount || currentPost.comments_count || 0) : 0;
+        const newCount = currentCount + 1;
+
         try {
             await apiService.saveModuleRecord('alumni_comments', comment);
             setComments(prev => ({
@@ -599,27 +649,18 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 [postId]: [...(prev[postId] || []), comment]
             }));
             
-            // Update local posts count using functional update for latest state
-            let updatedPost: any = null;
-            setPosts(prev => {
-                return prev.map(p => {
-                    if (p.id === postId) {
-                        const newCount = (p.commentsCount || p.comments_count || 0) + 1;
-                        updatedPost = { ...p, commentsCount: newCount, comments_count: newCount };
-                        return updatedPost;
-                    }
-                    return p;
-                });
-            });
+            // Update local posts count
+            setPosts(prev => prev.map(p => p.id === postId ? { ...p, commentsCount: newCount, comments_count: newCount } : p));
 
-            // Update remote posts count using the freshly calculated values
-            if (updatedPost) {
-                await apiService.saveModuleRecord('alumni_posts', { 
-                    id: postId, 
-                    comments_count: updatedPost.comments_count,
-                    commentsCount: updatedPost.commentsCount 
-                } as any);
-            }
+            // Update remote posts count
+            await apiService.saveModuleRecord('alumni_posts', { 
+                id: postId, 
+                comments_count: newCount,
+                commentsCount: newCount 
+            } as any);
+
+            // Clear input
+            setCommentInputs(prev => ({ ...prev, [postId]: '' }));
         } catch (e: any) {
             console.error("Comment Save Error:", e);
             alert("Failed to save reply. Please run the 'Alumni Schema Migration' in Settings to ensure your database is up to date.");
@@ -762,7 +803,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     }, [institutions, currentAlumna, otherMemberships]);
 
     return (
-        <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col md:flex-row">
+        <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col md:flex-row font-display">
             {/* Left Sidebar - Navigation (Hidden on mobile, shown on md+) */}
             <aside className="hidden md:flex w-64 border-r border-slate-100 dark:border-slate-800 flex-col p-4 fixed h-screen bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl z-50">
                 <div className="mb-8 px-2">
@@ -785,7 +826,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         <button 
                             key={idx} 
                             onClick={item.onClick}
-                            className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${item.active ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                            className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${item.active ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 border border-indigo-100/50' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
                         >
                             <item.icon className="w-6 h-6" />
                             <span className="hidden md:block font-bold text-sm uppercase tracking-widest">{item.label}</span>
@@ -793,851 +834,628 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     ))}
                 </nav>
 
-                <button 
-                    onClick={onBack}
-                    className="w-full flex items-center gap-4 p-4 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/10 rounded-2xl transition-all mb-4 mt-auto"
-                >
-                    <LogOut className="w-6 h-6" />
-                    <span className="hidden md:block font-black uppercase text-[10px] tracking-[0.2em]">Logout</span>
-                </button>
-
-                <div className="p-4 border-b border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-4 p-2">
-                        <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-lg shadow-lg shrink-0">
-                            {currentAlumna.fullName?.charAt(0) || 'A'}
+                <div className="mt-auto space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    {featureFee > 0 && !currentAlumna.isFeatured && (
+                        <div className="p-4 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-100 dark:shadow-none animate-pulse-slow">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Sparkles className="w-4 h-4 text-indigo-200" />
+                                <span className="text-[8px] font-black uppercase tracking-[0.2em]">Legacy Boost</span>
+                            </div>
+                            <p className="text-[9px] font-bold leading-tight mb-3 opacity-90 uppercase">Get featured for KES {featureFee}/mo</p>
+                            <button 
+                                onClick={handleBeFeatured}
+                                disabled={isProcessingFeature || isVerifyingPayment}
+                                className="w-full py-2 bg-white text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all flex items-center justify-center gap-2"
+                            >
+                                {isProcessingFeature || isVerifyingPayment ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Get Featured'}
+                            </button>
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{currentAlumna.fullName}</h3>
-                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest truncate">{currentAlumna.institutionName || 'Verified Alumna'}</p>
-                        </div>
-                    </div>
-                    {otherMemberships.length > 0 && (
-                        <button 
-                            onClick={() => setShowSwitcher(true)}
-                            className="w-full mt-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl text-[8px] font-black uppercase tracking-[0.2em] text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center gap-2"
-                        >
-                            <Repeat2 className="w-3 h-3" /> Switch Circle ({otherMemberships.length + 1})
-                        </button>
                     )}
-                </div>
 
-                {featureFee > 0 && !currentAlumna.isFeatured && (
-                    <div className="p-4 mx-2 mb-4 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-100 dark:shadow-none">
-                        <div className="flex items-center gap-3 mb-2">
-                            <Sparkles className="w-5 h-5 text-indigo-200" />
-                            <span className="text-[9px] font-black uppercase tracking-[0.2em]">Premium Visibility</span>
-                        </div>
-                        <p className="text-[10px] font-bold leading-tight mb-3 opacity-90 uppercase">Get featured at the top of the network for KES {featureFee}/mo</p>
-                        <button 
-                            onClick={handleBeFeatured}
-                            disabled={isProcessingFeature}
-                            className="w-full py-2.5 bg-white text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all flex items-center justify-center gap-2"
-                        >
-                            {isProcessingFeature || isVerifyingPayment ? (
-                                <div className="flex flex-col items-center gap-3">
-                                    <Loader2 className="w-8 h-8 animate-spin text-white" />
-                                    <span className="text-[8px] font-black uppercase tracking-[0.2em] animate-pulse">
-                                        {isVerifyingPayment ? 'Verifying Gateway Response...' : 'Initiating Legacy Boost...'}
-                                    </span>
-                                </div>
-                            ) : 'Get Featured Now'}
-                        </button>
-                    </div>
-                )}
+                    <button 
+                        onClick={onBack}
+                        className="w-full flex items-center gap-4 p-4 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/10 rounded-2xl transition-all"
+                    >
+                        <LogOut className="w-6 h-6" />
+                        <span className="hidden md:block font-black uppercase text-[10px] tracking-[0.2em]">Logout</span>
+                    </button>
+                </div>
             </aside>
 
             {/* Main Content Area */}
             <main className="flex-1 md:ml-64 max-w-2xl mx-auto w-full border-x border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950 min-h-screen pb-20 md:pb-0">
-                {/* Support / School Inbox Section */}
-                {activeSection === 'support' && (
-                    <div className="animate-in fade-in slide-in-from-bottom duration-500 min-h-screen flex flex-col">
-                        <header className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4 sticky top-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl z-20">
-                            <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
-                                <Building2 className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Institutional Response Network</h4>
-                                <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-widest flex items-center gap-1">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                    Active Support
-                                </p>
-                            </div>
-                        </header>
-
-                        <div className="flex-1 overflow-y-auto p-6 space-y-6 flex flex-col">
-                            {schoolInbox.length === 0 ? (
-                                <div className="flex-1 flex flex-col items-center justify-center opacity-30 mt-20">
-                                    <MessageSquare className="w-16 h-16 mb-6" />
-                                    <p className="text-xs font-black uppercase tracking-[0.3em] text-center max-w-xs">
-                                        Your direct priority line to the institution's leadership.
-                                    </p>
-                                </div>
-                            ) : (
-                                schoolInbox.map((msg, idx) => (
-                                    <div key={idx} className={`flex flex-col ${msg.direction === 'to_school' ? 'items-end' : 'items-start'}`}>
-                                        <div className={`max-w-[85%] p-5 rounded-3xl text-sm font-medium leading-relaxed ${msg.direction === 'to_school' ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-tl-none shadow-sm'}`}>
-                                            {msg.content}
+                {/* Section Controller */}
+                {(() => {
+                    switch (activeSection) {
+                        case 'support':
+                            return (
+                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen flex flex-col">
+                                    <header className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4 sticky top-0 bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl z-20">
+                                        <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-200">
+                                            <Building2 className="w-5 h-5" />
                                         </div>
-                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-2 px-2">
-                                            {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        </span>
-                                    </div>
-                                ))
-                            )}
-                        </div>
+                                        <div>
+                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Institutional Response Network</h4>
+                                            <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-widest flex items-center gap-1">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                                Priority Line Active
+                                            </p>
+                                        </div>
+                                    </header>
 
-                        <div className="sticky bottom-20 md:bottom-0 p-6 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 flex items-center gap-4">
-                            <input 
-                                type="text" 
-                                value={newMessageToSchool}
-                                onChange={(e) => setNewMessageToSchool(e.target.value)}
-                                onKeyPress={(e) => e.key === 'Enter' && handleSendMessageToSchool()}
-                                placeholder="Type your official request..."
-                                className="flex-1 h-14 px-8 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner"
-                            />
-                            <button 
-                                onClick={handleSendMessageToSchool}
-                                className="w-14 h-14 bg-indigo-600 text-white rounded-2xl flex items-center justify-center hover:scale-105 transition-all shadow-xl shadow-indigo-100 dark:shadow-none"
-                            >
-                                <ArrowRight className="w-5 h-5" />
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {/* Funding / Projects Section */}
-                {activeSection === 'funding' && (
-                    <div className="animate-in fade-in slide-in-from-bottom duration-500 pb-24">
-                        <header className="px-8 py-10 bg-indigo-600 text-white rounded-b-[3rem] shadow-2xl mb-12">
-                            <h2 className="text-3xl font-black uppercase tracking-tight mb-3">Institutional <span className="opacity-60">Legacy</span></h2>
-                            <p className="text-[10px] text-indigo-200 font-bold uppercase tracking-[0.4em]">Propelling school developmental projects through community</p>
-                        </header>
-
-                        <div className="px-6 space-y-12">
-                            {schoolProjects.length === 0 ? (
-                                <div className="py-20 text-center opacity-30">
-                                    <Building2 className="w-16 h-16 mx-auto mb-6" />
-                                    <p className="text-xs font-black uppercase tracking-[0.3em]">No active projects at this time.</p>
-                                </div>
-                            ) : (
-                                schoolProjects.map((project) => (
-                                    <div key={project.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-xl hover:-translate-y-1 transition-transform duration-500">
-                                        <div className="h-56 relative overflow-hidden">
-                                            {project.imageUrl ? (
-                                                <img src={project.imageUrl} className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" />
-                                            ) : (
-                                                <div className="w-full h-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-300">
-                                                    <Building2 className="w-16 h-16 opacity-20" />
-                                                </div>
-                                            )}
-                                            <div className="absolute top-6 left-6 flex gap-2">
-                                                <span className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[8px] font-black uppercase tracking-widest shadow-xl">
-                                                    {project.status === 'active' ? 'Developmental' : 'Legacy Project'}
-                                                </span>
+                                    <div className="flex-1 overflow-y-auto p-6 space-y-6 flex flex-col no-scrollbar">
+                                        {schoolInbox.length === 0 ? (
+                                            <div className="flex-1 flex flex-col items-center justify-center opacity-30 mt-20">
+                                                <MessageSquare className="w-16 h-16 mb-6" />
+                                                <p className="text-xs font-black uppercase tracking-[0.3em] text-center max-w-xs">
+                                                    Start an official conversation with your alma mater's administration.
+                                                </p>
                                             </div>
-                                        </div>
-
-                                        <div className="p-10">
-                                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">{project.title}</h3>
-                                            <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-10">{project.description}</p>
-
-                                            <div className="space-y-8">
-                                                <div>
-                                                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-3">
-                                                        <span className="text-slate-400">Raised: KES {project.currentAmount.toLocaleString()}</span>
-                                                        <span className="text-indigo-600">{Math.round((project.currentAmount / project.targetAmount) * 100)}%</span>
+                                        ) : (
+                                            schoolInbox.map((msg, idx) => (
+                                                <div key={idx} className={`flex flex-col ${msg.direction === 'to_school' ? 'items-end' : 'items-start'}`}>
+                                                    <div className={`max-w-[85%] p-5 rounded-3xl text-sm font-medium leading-relaxed shadow-sm ${msg.direction === 'to_school' ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-tl-none'}`}>
+                                                        {msg.content}
                                                     </div>
-                                                    <div className="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                                        <div 
-                                                            className="h-full bg-gradient-to-r from-indigo-600 to-violet-600 transition-all duration-1000 ease-out shadow-lg" 
-                                                            style={{ width: `${Math.min(100, (project.currentAmount / project.targetAmount) * 100)}%` }}
-                                                        />
+                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-2 px-2">
+                                                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+
+                                    <div className="sticky bottom-0 p-6 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 flex items-center gap-4">
+                                        <input 
+                                            type="text" 
+                                            value={newMessageToSchool}
+                                            onChange={(e) => setNewMessageToSchool(e.target.value)}
+                                            onKeyPress={(e) => e.key === 'Enter' && handleSendMessageToSchool()}
+                                            placeholder="Type your official request..."
+                                            className="flex-1 h-14 px-8 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner"
+                                        />
+                                        <button 
+                                            onClick={handleSendMessageToSchool}
+                                            className="w-14 h-14 bg-indigo-600 text-white rounded-2xl flex items-center justify-center hover:scale-105 transition-all shadow-xl shadow-indigo-100 dark:shadow-none"
+                                        >
+                                            <Send className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+
+                        case 'funding':
+                            return (
+                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
+                                    <header className="px-8 py-10 bg-indigo-600 text-white rounded-b-[3rem] shadow-2xl mb-12 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-10 opacity-10 rotate-12"><Building2 className="w-40 h-40" /></div>
+                                        <h2 className="text-3xl font-black uppercase tracking-tight mb-3">Institutional <span className="opacity-60 italic text-indigo-200">Projects</span></h2>
+                                        <p className="text-[10px] text-indigo-100 font-bold uppercase tracking-[0.4em]">Propelling growth through collective legacy</p>
+                                    </header>
+
+                                    <div className="px-6 space-y-12">
+                                        {schoolProjects.map((project) => (
+                                            <div key={project.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-2xl shadow-indigo-500/5">
+                                                <div className="h-64 relative overflow-hidden group">
+                                                    {project.imageUrl ? <img src={project.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" /> : <div className="w-full h-full bg-slate-100 items-center justify-center flex"><Building2 className="w-12 h-12 opacity-20" /></div>}
+                                                    <div className="absolute top-6 left-6 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[8px] font-black uppercase tracking-widest shadow-xl">
+                                                        {project.status === 'active' ? 'Developmental' : 'Legacy Project'}
                                                     </div>
                                                 </div>
-
-                                                <div className="flex items-center justify-between">
-                                                    <div>
-                                                        <p className="text-[8px] text-slate-400 font-black uppercase tracking-widest mb-1">Target Milestone</p>
-                                                        <p className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tighter">KES {project.targetAmount.toLocaleString()}</p>
+                                                <div className="p-10">
+                                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">{project.title}</h3>
+                                                    <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-8">{project.description}</p>
+                                                    <div className="space-y-8">
+                                                        <div>
+                                                            <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-3">
+                                                                <span className="text-slate-400">Raised: KES {project.current_amount || project.currentAmount || 0}</span>
+                                                                <span className="text-indigo-600">{Math.round(((project.current_amount || project.currentAmount || 0) / (project.target_amount || project.targetAmount)) * 100)}% Complete</span>
+                                                            </div>
+                                                            <div className="w-full h-4 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden p-1 shadow-inner">
+                                                                <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${Math.min(100, ((project.current_amount || project.currentAmount || 0) / (project.target_amount || project.targetAmount)) * 100)}%` }}></div>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div className="pt-8 border-t border-slate-50 dark:border-slate-800">
+                                                            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-6 flex items-center gap-2">
+                                                                <div className="w-1 h-1 rounded-full bg-indigo-600"></div>
+                                                                Developmental Milestones
+                                                            </h4>
+                                                            <div className="space-y-8">
+                                                                {projectUpdates.filter(u => u.project_id === project.id).map(update => (
+                                                                    <div key={update.id} className="flex gap-6 group">
+                                                                        <div className="w-px bg-slate-100 dark:bg-slate-800 relative">
+                                                                            <div className="absolute top-0 -left-1.5 w-3 h-3 rounded-full bg-indigo-600 ring-8 ring-white dark:ring-slate-950"></div>
+                                                                        </div>
+                                                                        <div className="pb-4 flex-1">
+                                                                            <h5 className="text-[12px] font-black uppercase text-slate-900 dark:text-white tracking-tight">{update.title}</h5>
+                                                                            <p className="text-xs text-slate-500 mt-2 leading-relaxed">{update.content}</p>
+                                                                            <p className="text-[8px] text-slate-400 uppercase font-black mt-3 flex items-center gap-2">
+                                                                                <Calendar className="w-3 h-3" />
+                                                                                {new Date(update.created_at).toLocaleDateString()}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                                {projectUpdates.filter(u => u.project_id === project.id).length === 0 && (
+                                                                    <div className="py-6 text-center bg-slate-50 dark:bg-slate-900/50 rounded-3xl">
+                                                                        <p className="text-[10px] italic font-bold text-slate-400 uppercase tracking-widest px-4">Initial planning phase in progress. Updates arriving shortly.</p>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <button className="px-10 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl hover:scale-105 transition-all shadow-2xl">
-                                                        Contribute
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+
+                        case 'classmates':
+                            return (
+                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 p-8 pb-32">
+                                    <header className="mb-12 flex flex-col gap-6">
+                                        <div>
+                                            <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Class of <span className="text-indigo-600 italic">{currentAlumna.graduationYear}</span></h2>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-2">Your Verified Alumnae Circle</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent('Reconnect with our classmates at the Alumnae Circle! Join hier: ' + window.location.origin)}`, '_blank')}
+                                            className="w-full py-5 bg-emerald-500 text-white rounded-[2rem] font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl shadow-emerald-200 dark:shadow-none flex items-center justify-center gap-3 hover:scale-[1.02] transition-all group"
+                                        >
+                                            <Share2 className="w-5 h-5 group-hover:rotate-12 transition-transform" /> Recall My Classmates
+                                        </button>
+                                    </header>
+
+                                    <div className="space-y-6">
+                                        {alumnaeMembers.filter(m => (m.graduationYear || m.class_year) == currentAlumna.graduationYear && m.id !== currentAlumna.id).map(member => (
+                                            <div key={member.id} className="p-8 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2.5rem] flex items-center gap-6 shadow-xl shadow-slate-100/50 dark:shadow-none hover:border-indigo-400 transition-all group">
+                                                <div className="w-20 h-20 rounded-[1.75rem] bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 group-hover:scale-105 transition-transform">
+                                                    {member.profile_photo_url || member.profilePhotoUrl ? <img src={member.profile_photo_url || member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-6 text-slate-300" />}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{member.fullName || member.full_name}</h3>
+                                                        <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+                                                    </div>
+                                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.15em] mb-4 truncate">{member.currentJob || 'Premium Alumna'} at {member.currentCompany || 'EduAI Network'}</p>
+                                                    <button 
+                                                        onClick={() => { setActiveConversationPartner(member); setActiveSection('messages'); }}
+                                                        className="px-6 py-2.5 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center gap-2"
+                                                    >
+                                                        <MessageSquare className="w-3.5 h-3.5" /> Start Thread
                                                     </button>
                                                 </div>
                                             </div>
-                                        </div>
+                                        ))}
                                     </div>
-                                ))
-                            )}
-                        </div>
-                    </div>
-                )}
-                {activeSection === 'feed' ? (
-                    <>
-                    {/* Header Tabs */}
-                <header className="sticky top-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-100 dark:border-slate-800 z-40">
-                    <div className="px-6 py-4 flex justify-between items-center">
-                        <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Alumnae <span className="text-indigo-600">Circle</span></h2>
-                        <button onClick={onBack} className="md:hidden p-2 text-slate-400 hover:text-rose-500 transition-colors">
-                            <LogOut className="w-5 h-5" />
-                        </button>
-                    </div>
-                    <div className="flex">
-                        <button 
-                            onClick={() => setActiveTab('for-you')}
-                            className={`flex-1 py-4 text-[10px] font-black uppercase tracking-[0.2em] relative transition-all ${activeTab === 'for-you' ? 'text-indigo-600' : 'text-slate-400 hover:bg-slate-50'}`}
-                        >
-                            Global Pulse
-                            {activeTab === 'for-you' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-indigo-600 rounded-full" />}
-                        </button>
-                        <button 
-                            onClick={() => setActiveTab('my-schools')}
-                            className={`flex-1 py-4 text-[10px] font-black uppercase tracking-[0.2em] relative transition-all ${activeTab === 'my-schools' ? 'text-indigo-600' : 'text-slate-400 hover:bg-slate-50'}`}
-                        >
-                            My Institutions
-                            {activeTab === 'my-schools' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-indigo-600 rounded-full" />}
-                        </button>
-                    </div>
-                </header>
+                                </div>
+                            );
 
-                {/* Post Composer */}
-                <div className="p-6 border-b border-slate-100 dark:border-slate-800">
-                    <div className="flex gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
-                            {currentAlumna.profilePhotoUrl ? <img src={currentAlumna.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-300" />}
-                        </div>
-                        <div className="flex-1 space-y-4">
-                            <textarea 
-                                placeholder="Share your legacy or start a topic..."
-                                value={newPostContent}
-                                onChange={(e) => setNewPostContent(e.target.value)}
-                                className="w-full bg-transparent border-none focus:ring-0 text-lg font-medium placeholder:text-slate-400 resize-none min-h-[100px] text-slate-900 dark:text-white"
-                            ></textarea>
-                            
-                            <div className="flex items-center justify-between pt-4 border-t border-slate-50 dark:border-slate-900">
-                                <div className="flex gap-2 text-indigo-600">
-                                    <input 
-                                        type="file" 
-                                        id="post-photo-upload" 
-                                        className="hidden" 
-                                        accept="image/*"
-                                        onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) {
-                                                setPostImageFile(file);
-                                                setPostImagePreview(URL.createObjectURL(file));
-                                            }
-                                        }}
-                                    />
-                                    <button 
-                                        onClick={() => document.getElementById('post-photo-upload')?.click()}
-                                        className={`p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all ${postImageFile ? 'bg-indigo-50 text-indigo-600' : ''}`}
-                                    >
-                                        <ImageIcon className="w-5 h-5" />
-                                    </button>
-                                    
-                                    <input 
-                                        type="file" 
-                                        id="post-video-upload" 
-                                        className="hidden" 
-                                        accept="video/*"
-                                        onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) {
-                                                if (file.size > 50 * 1024 * 1024) {
-                                                    alert("Short clips only! Video should be under 50MB.");
-                                                    return;
-                                                }
-                                                setPostVideoFile(file);
-                                                setPostVideoPreview(URL.createObjectURL(file));
-                                                setPostImageFile(null);
-                                                setPostImagePreview(null);
-                                            }
-                                        }}
-                                    />
-                                    <button 
-                                        onClick={() => document.getElementById('post-video-upload')?.click()}
-                                        className={`p-2 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-xl transition-all ${postVideoFile ? 'bg-primary-50 text-primary-600' : ''}`}
-                                        title="Attach Short Clip"
-                                    >
-                                        <Video className="w-5 h-5" />
-                                    </button>
-                                    <div className="relative">
-                                        <button 
-                                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                                            className={`p-2 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-xl transition-all ${showEmojiPicker ? 'text-emerald-600 bg-emerald-50' : ''}`}
-                                        >
-                                            <Smile className="w-5 h-5" />
-                                        </button>
-                                        
-                                        {showEmojiPicker && (
-                                            <div className="absolute bottom-full left-0 mb-2 p-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-2xl z-50 grid grid-cols-4 gap-1 w-40 animate-in fade-in slide-in-from-bottom-2">
-                                                {COMMON_EMOJIS.map(emoji => (
+                        case 'notifications':
+                            return (
+                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen">
+                                    <header className="px-8 py-10 bg-slate-900 text-white rounded-b-[3rem] shadow-2xl mb-12 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-10 opacity-10 rotate-12 scale-150"><Bell className="w-40 h-40" /></div>
+                                        <h2 className="text-3xl font-black uppercase tracking-tight mb-2">Legacy <span className="opacity-60 italic text-indigo-400">Pulse</span></h2>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.4em]">Real-time engagement across the network</p>
+                                    </header>
+
+                                    <div className="px-6 space-y-4 pb-32">
+                                        {alumniNotifications.length === 0 ? (
+                                            <div className="py-20 text-center opacity-30">
+                                                <Bell className="w-20 h-20 mx-auto mb-6 text-slate-200" />
+                                                <p className="text-xs font-black uppercase tracking-[0.3em]">No pulse activity detected.</p>
+                                            </div>
+                                        ) : (
+                                            alumniNotifications.map((notif) => (
+                                                <div key={notif.id} className={`p-8 rounded-[2.5rem] border transition-all flex items-start gap-6 ${notif.is_read ? 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 shadow-sm' : 'bg-indigo-50/50 dark:bg-indigo-900/10 border-indigo-100 dark:border-indigo-900/30 ring-2 ring-indigo-50 dark:ring-indigo-900/20 shadow-xl shadow-indigo-500/5'}`}>
+                                                    <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-indigo-200">
+                                                        <Sparkles className="w-7 h-7" />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className="text-sm font-medium text-slate-900 dark:text-white leading-relaxed">
+                                                            <span className="font-black uppercase tracking-tight mr-2">{notif.actor_name}</span> {notif.content}
+                                                        </p>
+                                                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-3 flex items-center gap-2">
+                                                            <Calendar className="w-3 h-3" />
+                                                            {new Date(notif.created_at).toLocaleDateString()}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            );
+
+                        case 'messages':
+                            return (
+                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen flex flex-col pb-32 md:pb-0">
+                                    <header className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl sticky top-0 z-30 flex items-center justify-between">
+                                        <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white font-display">Secure <span className="text-indigo-600 italic">Inbox</span></h2>
+                                    </header>
+
+                                    <div className="flex-1 flex overflow-hidden">
+                                        {/* Conversations List */}
+                                        <aside className={`w-full md:w-80 border-r border-slate-100 dark:border-slate-800 overflow-y-auto no-scrollbar ${activeConversationPartner ? 'hidden md:block' : 'block'}`}>
+                                            <div className="p-4 space-y-2">
+                                                {allInstitutionMembers.filter(m => m.id !== currentAlumna.id).map(member => (
                                                     <button 
-                                                        key={emoji}
-                                                        onClick={() => addEmoji(emoji)}
-                                                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all text-xl"
+                                                        key={member.id}
+                                                        onClick={() => setActiveConversationPartner(member)}
+                                                        className={`w-full p-5 rounded-3xl flex items-center gap-4 transition-all ${activeConversationPartner?.id === member.id ? 'bg-indigo-50 dark:bg-indigo-900/20 ring-1 ring-indigo-100 shadow-lg' : 'hover:bg-slate-50 dark:hover:bg-slate-900'}`}
                                                     >
-                                                        {emoji}
+                                                        <div className="relative">
+                                                            <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 border border-slate-100 dark:border-slate-800 shadow-sm">
+                                                                {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
+                                                            </div>
+                                                            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-white dark:border-slate-950 rounded-full"></div>
+                                                        </div>
+                                                        <div className="text-left flex-1 min-w-0">
+                                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase truncate tracking-tight">{member.fullName}</p>
+                                                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Start Thread</p>
+                                                        </div>
                                                     </button>
                                                 ))}
                                             </div>
-                                        )}
-                                    </div>
+                                        </aside>
 
-                                    <div className="relative">
-                                        <button 
-                                            onClick={() => setShowDatePicker(!showDatePicker)}
-                                            className={`p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all ${showDatePicker || scheduledDate ? 'text-indigo-600 bg-indigo-50' : ''}`}
-                                        >
-                                            <Calendar className="w-5 h-5" />
-                                        </button>
-
-                                        {showDatePicker && (
-                                            <div className="absolute bottom-full left-0 mb-2 p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-2xl z-50 w-64 animate-in fade-in slide-in-from-bottom-2">
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Tag Important Date</label>
-                                                <input 
-                                                    type="date" 
-                                                    value={scheduledDate}
-                                                    onChange={(e) => {
-                                                        const date = e.target.value;
-                                                        setScheduledDate(date);
-                                                        if (date) {
-                                                            setNewPostContent(prev => prev.trim() + ` [📅 ${new Date(date).toLocaleDateString()}] `);
-                                                            setShowDatePicker(false);
-                                                        }
-                                                    }}
-                                                    className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold p-3 outline-none focus:ring-2 focus:ring-indigo-600 text-slate-900 dark:text-white"
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                <button 
-                                    onClick={handleCreatePost}
-                                    disabled={(!newPostContent.trim() && !postImageFile) || isPosting}
-                                    className="bg-slate-900 dark:bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-slate-200 dark:shadow-indigo-900/20 disabled:opacity-30 transition-all active:scale-95 flex items-center gap-2"
-                                >
-                                    {isPosting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Post Topic
-                                </button>
-                            </div>
-
-                            {postImagePreview && (
-                                <div className="relative mt-4 w-full aspect-video rounded-3xl overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
-                                    <img src={postImagePreview} className="w-full h-full object-cover" />
-                                    <button 
-                                        onClick={() => {
-                                            setPostImageFile(null);
-                                            setPostImagePreview(null);
-                                        }}
-                                        className="absolute top-4 right-4 p-2 bg-black/50 text-white rounded-full hover:bg-black/70 backdrop-blur-md transition-all"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            )}
-
-                            {postVideoPreview && (
-                                <div className="relative mt-4 w-full aspect-video rounded-3xl overflow-hidden bg-black border border-slate-100 dark:border-slate-800">
-                                    <video src={postVideoPreview} controls className="w-full h-full object-contain" />
-                                    <button 
-                                        onClick={() => {
-                                            setPostVideoFile(null);
-                                            setPostVideoPreview(null);
-                                        }}
-                                        className="absolute top-4 right-4 p-2 bg-white/20 text-white rounded-full hover:bg-white/40 backdrop-blur-md transition-all"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Feed */}
-                <div className="divide-y divide-slate-100 dark:divide-slate-900">
-                    {loadingPosts ? (
-                        <div className="p-10 text-center">
-                            <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mx-auto mb-4" />
-                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Synchronizing Legacy Stream...</p>
-                        </div>
-                    ) : posts.map((post) => (
-                        <div key={post.id} className="p-6 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-all group/post">
-                            <div className="flex gap-4">
-                                <div 
-                                    onClick={() => setViewedProfileId(post.authorId)}
-                                    className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 cursor-pointer hover:ring-2 hover:ring-indigo-500 transition-all active:scale-90"
-                                >
-                                    {post.authorPhoto ? <img src={post.authorPhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-300" />}
-                                </div>
-                                <div className="flex-1">
-                                    <div className="flex items-center justify-between mb-1">
-                                        <div className="flex items-center gap-2">
-                                            <span 
-                                                onClick={() => setViewedProfileId(post.authorId)}
-                                                className="font-black text-slate-900 dark:text-white uppercase tracking-tight cursor-pointer hover:text-indigo-600 transition-colors"
-                                            >
-                                                {post.authorName}
-                                            </span>
-                                            <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
-                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">@{post.authorName.split(' ')[0].toLowerCase()}</span>
-                                            <span className="text-slate-300 dark:text-slate-700">•</span>
-                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(post.createdAt).toLocaleDateString()}</span>
-                                        </div>
-                                        <div className="relative">
-                                            <button 
-                                                onClick={() => setShowPostMenuId(showPostMenuId === post.id ? null : post.id)}
-                                                className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded-lg transition-all"
-                                            >
-                                                <MoreHorizontal className="w-5 h-5" />
-                                            </button>
-
-                                            {showPostMenuId === post.id && (
-                                                <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                                                    {(post.authorId === currentAlumna.id || currentAlumna.role === 'super_admin') && (
-                                                        <>
+                                        {/* Chat Window */}
+                                        <div className={`flex-1 flex flex-col bg-slate-50/50 dark:bg-slate-950/20 ${!activeConversationPartner ? 'hidden md:flex' : 'flex'}`}>
+                                            {activeConversationPartner ? (
+                                                <>
+                                                    <header className="p-4 border-b border-slate-100 bg-white/50 backdrop-blur-sm flex items-center justify-between">
+                                                        <button onClick={() => setActiveConversationPartner(null)} className="md:hidden p-2 text-slate-400 hover:text-indigo-600">
+                                                            <ArrowLeft className="w-5 h-5" />
+                                                        </button>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-lg bg-slate-100 overflow-hidden"><img src={activeConversationPartner.profilePhotoUrl} className="w-full h-full object-cover" /></div>
+                                                            <h5 className="text-[10px] font-black uppercase tracking-widest">{activeConversationPartner.fullName}</h5>
+                                                        </div>
+                                                        <div className="w-10"></div>
+                                                    </header>
+                                                    <div className="flex-1 p-8 overflow-y-auto space-y-6 no-scrollbar scrolling-touch">
+                                                        {messages.filter(m => (m.senderId === activeConversationPartner.id && m.receiverId === currentAlumna.id) || (m.senderId === currentAlumna.id && m.receiverId === activeConversationPartner.id)).map(msg => (
+                                                            <div key={msg.id} className={`flex ${msg.senderId === currentAlumna.id ? 'justify-end' : 'justify-start'}`}>
+                                                                <div className={`max-w-[75%] p-5 rounded-[2.5rem] text-sm font-medium shadow-sm transition-all hover:scale-[1.01] ${msg.senderId === currentAlumna.id ? 'bg-indigo-600 text-white rounded-br-none shadow-indigo-500/20' : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-bl-none border border-slate-100 dark:border-slate-800'}`}>
+                                                                    {msg.content}
+                                                                    <p className="text-[8px] font-black uppercase tracking-[0.2em] mt-3 opacity-40">
+                                                                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                        {messages.filter(m => (m.senderId === activeConversationPartner.id && m.receiverId === currentAlumna.id) || (m.senderId === currentAlumna.id && m.receiverId === activeConversationPartner.id)).length === 0 && (
+                                                            <div className="h-full flex flex-col items-center justify-center opacity-20">
+                                                                <MessageSquare className="w-20 h-20 mb-6" />
+                                                                <p className="text-[10px] font-black uppercase tracking-[0.3em]">Encryption Initialized</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="p-8 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-t border-slate-100 dark:border-slate-800">
+                                                        <div className="relative group">
+                                                            <input 
+                                                                type="text" 
+                                                                placeholder="Craft a legacy message..."
+                                                                value={newMessage}
+                                                                onChange={(e) => setNewMessage(e.target.value)}
+                                                                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                                                                className="w-full h-16 pl-10 pr-20 bg-slate-100 dark:bg-slate-900 border-none rounded-[1.75rem] text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner font-display"
+                                                            />
                                                             <button 
-                                                                onClick={() => {
-                                                                    setEditingPostId(post.id);
-                                                                    setEditingContent(post.content);
-                                                                    setShowPostMenuId(null);
-                                                                }}
-                                                                className="w-full text-left px-4 py-3 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 transition-colors underline decoration-slate-200 underline-offset-4"
+                                                                onClick={handleSendMessage}
+                                                                disabled={!newMessage.trim() || isSendingMessage}
+                                                                className="absolute right-3 top-1/2 -translate-y-1/2 w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center hover:scale-105 transition-all shadow-xl shadow-indigo-200"
                                                             >
-                                                                <Edit2 className="w-4 h-4 text-indigo-500" /> Edit Topic
+                                                                {isSendingMessage ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                                                             </button>
-                                                            <button 
-                                                                onClick={() => {
-                                                                    handleDeletePost(post.id);
-                                                                    setShowPostMenuId(null);
-                                                                }}
-                                                                className="w-full text-left px-4 py-3 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/10 flex items-center gap-3 transition-colors underline decoration-rose-200 underline-offset-4"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" /> Delete Forever
-                                                            </button>
-                                                        </>
-                                                    )}
-                                                    <button 
-                                                        onClick={() => {
-                                                            handleSharePost(post);
-                                                            setShowPostMenuId(null);
-                                                        }}
-                                                        className="w-full text-left px-4 py-3 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 transition-colors underline decoration-slate-200 underline-offset-4"
-                                                    >
-                                                        <Share2 className="w-4 h-4 text-emerald-500" /> Spread the Word
-                                                    </button>
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="flex-1 flex flex-col items-center justify-center p-20 text-center scrolling-touch">
+                                                    <div className="w-24 h-24 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-[3rem] flex items-center justify-center text-indigo-600 mb-8 animate-in zoom-in duration-500">
+                                                        <MessageSquare className="w-10 h-10" />
+                                                    </div>
+                                                    <h3 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white mb-3">Secure Network Communications</h3>
+                                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.25em] max-w-sm mx-auto leading-relaxed">Select a verified alumna from the sidebar to initialize an encrypted social thread.</p>
                                                 </div>
                                             )}
-                                         </div>
+                                        </div>
                                     </div>
+                                </div>
+                            );
 
-                                    {editingPostId === post.id ? (
-                                         <div className="space-y-3 mb-4 animate-in slide-in-from-left-2 duration-300">
-                                             <textarea 
-                                                value={editingContent}
-                                                onChange={(e) => setEditingContent(e.target.value)}
-                                                className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-indigo-100 dark:border-indigo-900/30 rounded-2xl p-4 text-sm font-medium focus:ring-4 focus:ring-indigo-100 dark:focus:ring-indigo-900/10 transition-all outline-none"
-                                                rows={3}
-                                             />
-                                             <div className="flex gap-2 justify-end">
-                                                 <button 
-                                                    onClick={() => setEditingPostId(null)}
-                                                    className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
-                                                 >
-                                                     Cancel
-                                                 </button>
-                                                 <button 
-                                                    onClick={() => handleUpdatePost(post.id)}
-                                                    className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 transition-all active:scale-95"
-                                                 >
-                                                     Update Legacy
-                                                 </button>
-                                             </div>
-                                         </div>
-                                     ) : (
-                                         <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-sm mb-4">{post.content}</p>
-                                     )}
-                                    
-                                    {post.photoUrl && (
-                                        <div 
-                                            onClick={() => setZoomedImage(post.photoUrl || null)}
-                                            className="mb-4 rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 cursor-zoom-in group/image relative"
-                                        >
-                                            <img src={post.photoUrl} className="w-full max-h-96 object-cover transition-transform duration-500 group-hover/image:scale-[1.02]" />
-                                            <div className="absolute inset-0 bg-black/0 group-hover/image:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover/image:opacity-100">
-                                                <div className="bg-white/20 backdrop-blur-md p-3 rounded-2xl text-white">
-                                                    <Maximize2 className="w-6 h-6" />
+                        case 'explore':
+                            return (
+                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 p-8 pb-32 flex flex-col min-h-screen">
+                                    <header className="mb-12 relative">
+                                        <div className="flex items-center gap-4 mb-4">
+                                            <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white"><Hash className="w-7 h-7" /></div>
+                                            <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Explore <span className="text-indigo-600 italic">Net</span></h2>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em]">Discover talent across the global alumni infrastructure</p>
+                                    </header>
+
+                                    <div className="grid grid-cols-1 gap-6">
+                                        {allInstitutionMembers.filter(m => m.id !== currentAlumna.id).map(member => (
+                                            <div key={member.id} className="bg-white dark:bg-slate-900 rounded-[3rem] p-10 border border-slate-100 dark:border-slate-800 shadow-2xl shadow-indigo-500/5 flex flex-col sm:flex-row items-center gap-8 text-center sm:text-left transition-all hover:border-indigo-400 group">
+                                                <div className="w-32 h-32 rounded-[2.5rem] bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 ring-12 ring-slate-50 dark:ring-slate-950 group-hover:scale-105 transition-transform">
+                                                    {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-10 text-slate-300" />}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
+                                                        <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{member.fullName}</h3>
+                                                        <div className="hidden sm:block w-1.5 h-1.5 rounded-full bg-slate-200"></div>
+                                                        <span className="text-[11px] font-black text-indigo-600 uppercase tracking-widest">Class of {member.graduationYear || member.class_year}</span>
+                                                    </div>
+                                                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-8 leading-relaxed">{member.currentJob || 'Social Alumna'} at {member.currentCompany || 'EduAI Network'}</p>
+                                                    <div className="flex flex-wrap gap-4 justify-center sm:justify-start">
+                                                        <button 
+                                                            onClick={member.id ? () => setViewedProfileId(member.id) : undefined}
+                                                            className="px-10 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-950 transition-all shadow-xl shadow-indigo-500/20"
+                                                        >
+                                                            View Profile
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => { setActiveConversationPartner(member); setActiveSection('messages'); }}
+                                                            className="p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-400 hover:text-indigo-600 transition-all"
+                                                        >
+                                                            <MessageSquare className="w-7 h-7" />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    )}
-
-                                    {post.videoUrl && (
-                                        <div className="mb-4 rounded-3xl overflow-hidden bg-black border border-slate-100 dark:border-slate-800 aspect-video">
-                                            <video 
-                                                src={post.videoUrl} 
-                                                controls 
-                                                preload="metadata"
-                                                className="w-full h-full object-contain"
-                                            />
-                                        </div>
-                                    )}
-                                    
-                                    <div className="flex items-center justify-between max-w-sm text-slate-400">
-                                        <button 
-                                            onClick={() => setSelectedPost(selectedPost?.id === post.id ? null : post)}
-                                            className="flex items-center gap-2 hover:text-indigo-600 transition-all"
-                                        >
-                                             <div className="p-2 group-hover/post:bg-indigo-50 dark:group-hover/post:bg-indigo-900/20 rounded-xl">
-                                                 <MessageSquare className="w-4 h-4" />
-                                             </div>
-                                             <span className="text-[10px] font-black">{post.commentsCount}</span>
-                                         </button>
-                                         <button className="flex items-center gap-2 hover:text-emerald-500 transition-all">
-                                             <div className="p-2 group-hover/post:bg-emerald-50 dark:group-hover/post:bg-emerald-900/20 rounded-xl">
-                                                 <Repeat2 className="w-4 h-4" />
-                                             </div>
-                                             <span className="text-[10px] font-black">2</span>
-                                         </button>
-                                         <button 
-                                             onClick={() => handleLike(post.id)}
-                                             className={`flex items-center gap-2 transition-all ${(post.likes || []).includes(currentAlumna?.id) ? 'text-rose-500' : 'hover:text-rose-500'}`}
-                                         >
-                                             <div className={`p-2 group-hover/post:bg-rose-50 dark:group-hover/post:bg-rose-900/20 rounded-xl`}>
-                                                 <Heart className={`w-4 h-4 ${(post.likes || []).includes(currentAlumna?.id) ? 'fill-current' : ''}`} />
-                                             </div>
-                                             <span className="text-[10px] font-black">{(post.likes || []).length}</span>
-                                         </button>
-                                         <button 
-                                             onClick={() => handleSharePost(post)}
-                                             className="flex items-center gap-2 hover:text-indigo-600 transition-all"
-                                         >
-                                             <div className="p-2 group-hover/post:bg-indigo-50 dark:group-hover/post:bg-indigo-900/20 rounded-xl">
-                                                 <Share2 className="w-4 h-4" />
-                                             </div>
-                                         </button>
-                                     </div>
-
-                                     {/* Comments Section */}
-                                     {selectedPost?.id === post.id && (
-                                         <div className="mt-6 pt-6 border-t border-slate-50 dark:border-slate-900 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                             <div className="space-y-4 max-h-64 overflow-y-auto pr-2 no-scrollbar">
-                                                 {(comments[post.id] || []).map((comment) => (
-                                                     <div key={comment.id} className="flex gap-3">
-                                                         <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
-                                                             {comment.authorPhoto ? <img src={comment.authorPhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-1.5 text-slate-300" />}
-                                                         </div>
-                                                         <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl px-4 py-2 flex-1">
-                                                             <div className="flex items-center justify-between mb-0.5">
-                                                                 <span className="text-[10px] font-black uppercase text-slate-900 dark:text-white">{comment.authorName}</span>
-                                                                 <span className="text-[9px] text-slate-400 font-bold uppercase">{new Date(comment.createdAt).toLocaleDateString()}</span>
-                                                             </div>
-                                                             <p className="text-xs text-slate-600 dark:text-slate-400">{comment.content}</p>
-                                                         </div>
-                                                     </div>
-                                                 ))}
-                                                 {(comments[post.id] || []).length === 0 && (
-                                                     <p className="text-center py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">No comments yet. Start the conversation!</p>
-                                                 )}
-                                             </div>
-                                             
-                                             <div className="flex gap-3 pt-2">
-                                                 <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
-                                                     {currentAlumna.profilePhotoUrl ? <img src={currentAlumna.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-1.5 text-slate-300" />}
-                                                 </div>
-                                                 <div className="flex-1 relative">
-                                                     <input 
-                                                         type="text" 
-                                                         id={`reply-input-${post.id}`}
-                                                         placeholder="Post your reply..." 
-                                                         className="w-full bg-slate-50 dark:bg-slate-900/50 border-none rounded-xl h-9 text-xs pl-4 pr-10 focus:ring-1 focus:ring-indigo-600 transition-all"
-                                                         onKeyDown={(e) => {
-                                                             if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                                                                 handleAddComment(post.id, e.currentTarget.value);
-                                                                 e.currentTarget.value = '';
-                                                             }
-                                                         }}
-                                                     />
-                                                     <button 
-                                                         onClick={() => {
-                                                             const input = document.getElementById(`reply-input-${post.id}`) as HTMLInputElement;
-                                                             if (input && input.value.trim()) {
-                                                                 handleAddComment(post.id, input.value);
-                                                                 input.value = '';
-                                                             }
-                                                         }}
-                                                         className="absolute right-2 top-1/2 -translate-y-1/2 text-indigo-600 hover:text-indigo-700"
-                                                     >
-                                                         <Send className="w-4 h-4" />
-                                                     </button>
-                                                 </div>
-                                              </div>
-                                          </div>
-                                      )}
-                                  </div>
-                              </div>
-                          </div>
-                      ))}
-                  </div>
-              </>
-                ) : activeSection === 'classmates' ? (
-                    <div className="p-8">
-                        <header className="mb-12 flex items-center justify-between">
-                            <div>
-                                <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Class of <span className="text-indigo-600">{currentAlumna.graduationYear}</span></h2>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">
-                                    {alumnaeMembers.filter(m => m.graduationYear === currentAlumna.graduationYear).length} Members found in your year
-                                </p>
-                            </div>
-                            <button 
-                                onClick={() => {
-                                    const text = `Join me in the Alumnae Circle! Connect with our classmates from the Class of ${currentAlumna.graduationYear} at ${window.location.origin}/?view=alumnae_register`;
-                                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
-                                }}
-                                className="px-6 py-3 bg-emerald-500 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-emerald-200 dark:shadow-none flex items-center gap-2 hover:scale-105 transition-all"
-                            >
-                                <Share2 className="w-4 h-4" /> Invite via WhatsApp
-                            </button>
-                        </header>
-
-                        <div className="space-y-4">
-                            {alumnaeMembers.filter(m => m.graduationYear === currentAlumna.graduationYear && m.id !== currentAlumna.id).map(member => (
-                                <div key={member.id} className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 flex items-center gap-6 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group">
-                                    <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
-                                        {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
+                                        ))}
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{member.fullName}</h3>
-                                            <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
-                                        </div>
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{member.currentJob || 'Alumna'} at {member.currentCompany || 'EduAI Network'}</p>
-                                    </div>
-                                    <button 
-                                        onClick={() => {
-                                            setActiveConversationPartner(member);
-                                            setActiveSection('messages');
-                                        }}
-                                        className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-2xl flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
-                                    >
-                                        <MessageSquare className="w-5 h-5" />
-                                    </button>
                                 </div>
-                            ))}
-                            {alumnaeMembers.filter(m => m.graduationYear === currentAlumna.graduationYear && m.id !== currentAlumna.id).length === 0 && (
-                                <div className="p-20 text-center">
-                                    <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-[2.5rem] flex items-center justify-center text-slate-300 mx-auto mb-6">
-                                        <Users className="w-10 h-10" />
-                                    </div>
-                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">You're the first one here from {currentAlumna.graduationYear}!</p>
-                                    <p className="text-xs text-slate-400 mt-2">Invite your classmates to join the legacy.</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                ) : activeSection === 'explore' ? (
-                    <div className="p-8">
-                        <header className="mb-12">
-                            <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Explore <span className="text-indigo-600">Network</span></h2>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Connect with graduates from your alma mater</p>
-                        </header>
+                            );
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {allInstitutionMembers.filter(m => m.id !== currentAlumna.id).map(member => (
-                                <div key={member.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-100/50 dark:shadow-none hover:scale-[1.02] transition-all group">
-                                    <div className="flex items-center gap-4 mb-6">
-                                        <div className="w-16 h-16 rounded-[1.5rem] bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 ring-4 ring-slate-50 dark:ring-slate-800">
-                                            {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{member.fullName}</h3>
-                                                {member.isFeatured && <Sparkles className="w-3.5 h-3.5 text-indigo-600" />}
+                        case 'feed':
+                        default:
+                            return (
+                                <>
+                                    {/* Header Tabs */}
+                                    <header className="sticky top-0 bg-white/95 dark:bg-slate-950/95 backdrop-blur-3xl border-b border-slate-100 dark:border-slate-800 z-40">
+                                        <div className="px-8 py-6 flex justify-between items-center">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white"><Atom className="w-6 h-6 animate-spin-slow" /></div>
+                                                <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">EduAI <span className="text-indigo-600 italic">Pulse</span></h2>
                                             </div>
-                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{member.currentJob || 'Alumna'}</p>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Alma Mater</p>
-                                            <p className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate">{member.schoolName || 'Partner Institution'}</p>
-                                        </div>
-                                        <button 
-                                            onClick={() => {
-                                                setActiveConversationPartner(member);
-                                                setActiveSection('messages');
-                                            }}
-                                            className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-indigo-200 dark:shadow-none flex items-center justify-center gap-2 group-hover:scale-[1.02] transition-all"
-                                        >
-                                            <MessageSquare className="w-4 h-4" /> Message
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                ) : activeSection === 'notifications' ? (
-                    <div className="p-8">
-                        <header className="mb-12">
-                            <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Recent <span className="text-indigo-600">Activity</span></h2>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Stay updated on your social footprint</p>
-                        </header>
-
-                        <div className="space-y-4">
-                            {[
-                                { icon: MessageSquare, color: 'text-indigo-600', bg: 'bg-indigo-50', text: 'Someone sent you a private message', time: '2 mins ago' },
-                                { icon: Heart, color: 'text-rose-500', bg: 'bg-rose-50', text: 'An alumna liked your post about networking', time: '1 hour ago' },
-                                { icon: User, color: 'text-blue-600', bg: 'bg-blue-50', text: 'New graduate joined the circle', time: '3 hours ago' },
-                                { icon: Sparkles, color: 'text-indigo-600', bg: 'bg-indigo-50', text: 'Institutional update: Legacy Fund launched', time: '5 hours ago' }
-                            ].map((notif, idx) => (
-                                <div key={idx} className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 flex items-center gap-6 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all cursor-pointer">
-                                    <div className={`w-12 h-12 ${notif.bg} rounded-2xl flex items-center justify-center ${notif.color}`}>
-                                        <notif.icon className="w-6 h-6" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-tight">{notif.text}</p>
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{notif.time}</p>
-                                    </div>
-                                    <div className="w-2 h-2 rounded-full bg-indigo-600"></div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                ) : (
-                    <div className="flex h-screen flex-col">
-                        <header className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl">
-                            <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Secure <span className="text-indigo-600">Inbox</span></h2>
-                            {activeConversationPartner && (
-                                <button onClick={() => setActiveConversationPartner(null)} className="md:hidden p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
-                                    <X className="w-5 h-5 text-slate-400" />
-                                </button>
-                            )}
-                        </header>
-
-                        <div className="flex-1 flex overflow-hidden">
-                            {/* Conversations List */}
-                            <div className={`w-full md:w-80 border-r border-slate-100 dark:border-slate-800 overflow-y-auto no-scrollbar ${activeConversationPartner ? 'hidden md:block' : 'block'}`}>
-                                <div className="p-4 space-y-2">
-                                    {allInstitutionMembers.filter(m => m.id !== currentAlumna.id).map(member => {
-                                        const lastMsg = [...messages].reverse().find(m => (m.senderId === member.id && m.receiverId === currentAlumna.id) || (m.senderId === currentAlumna.id && m.receiverId === member.id));
-                                        return (
-                                            <button 
-                                                key={member.id}
-                                                onClick={() => setActiveConversationPartner(member)}
-                                                className={`w-full p-4 rounded-2xl flex items-center gap-3 transition-all ${activeConversationPartner?.id === member.id ? 'bg-indigo-50 dark:bg-indigo-900/20 ring-1 ring-indigo-100' : 'hover:bg-slate-50 dark:hover:bg-slate-900'}`}
-                                            >
-                                                <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
-                                                    {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-300" />}
-                                                </div>
-                                                <div className="text-left flex-1 min-w-0">
-                                                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase truncate">{member.fullName || 'Alumna'}</p>
-                                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{lastMsg?.content || 'No messages yet'}</p>
-                                                </div>
-                                                {lastMsg && !lastMsg.isRead && lastMsg.receiverId === currentAlumna.id && (
-                                                    <div className="w-2 h-2 rounded-full bg-indigo-600"></div>
+                                            <div className="flex gap-3">
+                                                {otherMemberships.length > 0 && (
+                                                    <button 
+                                                        onClick={() => setShowSwitcher(true)}
+                                                        className="md:hidden p-3 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 rounded-2xl transition-all hover:scale-105"
+                                                    >
+                                                        <Repeat2 className="w-5 h-5" />
+                                                    </button>
                                                 )}
+                                                <button onClick={onBack} className="md:hidden p-3 bg-rose-50 text-rose-500 rounded-2xl transition-all hover:scale-105">
+                                                   <LogOut className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="flex px-4 overflow-x-auto no-scrollbar scroll-smooth">
+                                            <button 
+                                                onClick={() => setActiveTab('for-you')}
+                                                className={`flex-1 py-5 text-[11px] font-black uppercase tracking-[0.25em] relative transition-all whitespace-nowrap min-w-[120px] ${activeTab === 'for-you' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                                            >
+                                                Global Circle
+                                                {activeTab === 'for-you' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-1.5 bg-indigo-600 rounded-full animate-in slide-in-from-bottom-1" />}
                                             </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
+                                            <button 
+                                                onClick={() => setActiveTab('my-schools')}
+                                                className={`flex-1 py-5 text-[11px] font-black uppercase tracking-[0.25em] relative transition-all whitespace-nowrap min-w-[120px] ${activeTab === 'my-schools' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                                            >
+                                                Institutional
+                                                {activeTab === 'my-schools' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-1.5 bg-indigo-600 rounded-full animate-in slide-in-from-bottom-1" />}
+                                            </button>
+                                        </div>
+                                    </header>
 
-                            {/* Chat Window */}
-                            <div className={`flex-1 flex flex-col bg-slate-50/50 dark:bg-slate-950/20 ${!activeConversationPartner ? 'hidden md:flex' : 'flex'}`}>
-                                {activeConversationPartner ? (
-                                    <>
-                                        <div className="flex-1 p-6 overflow-y-auto space-y-6 no-scrollbar">
-                                            {messages.filter(m => (m.senderId === activeConversationPartner.id && m.receiverId === currentAlumna.id) || (m.senderId === currentAlumna.id && m.receiverId === activeConversationPartner.id)).map(msg => (
-                                                <div key={msg.id} className={`flex ${msg.senderId === currentAlumna.id ? 'justify-end' : 'justify-start'}`}>
-                                                    <div className={`max-w-[80%] p-4 rounded-[2rem] text-sm font-medium shadow-sm ${msg.senderId === currentAlumna.id ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-bl-none border border-slate-100 dark:border-slate-800'}`}>
-                                                        {msg.content}
-                                                        <p className={`text-[8px] font-bold uppercase tracking-widest mt-2 opacity-50 ${msg.senderId === currentAlumna.id ? 'text-white' : 'text-slate-400'}`}>
-                                                            {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                        </p>
+                                    {/* Feed Content */}
+                                    <div className="pb-32 divide-y divide-slate-100 dark:divide-slate-900">
+                                        {/* Post Composer */}
+                                        <div className="p-8 bg-white dark:bg-slate-950">
+                                            <div className="flex gap-6">
+                                                <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 shadow-sm border border-slate-100 dark:border-slate-800">
+                                                    {currentAlumna.profilePhotoUrl ? <img src={currentAlumna.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
+                                                </div>
+                                                <div className="flex-1 space-y-6">
+                                                    <textarea 
+                                                        placeholder="What's your institutional legacy today?"
+                                                        value={newPostContent}
+                                                        onChange={(e) => setNewPostContent(e.target.value)}
+                                                        className="w-full bg-transparent border-none focus:ring-0 text-xl font-medium placeholder:text-slate-300 resize-none min-h-[140px] text-slate-900 dark:text-white font-display"
+                                                    />
+                                                    
+                                                    {postImagePreview && (
+                                                        <div className="relative rounded-[2.5rem] overflow-hidden border-4 border-slate-50 dark:border-slate-900 shadow-2xl group">
+                                                            <img src={postImagePreview} className="w-full h-full object-cover max-h-96" />
+                                                            <button 
+                                                                onClick={() => { setPostImageFile(null); setPostImagePreview(null); }}
+                                                                className="absolute top-6 right-6 p-3 bg-black/60 text-white rounded-full hover:bg-rose-600 backdrop-blur-xl transition-all shadow-xl"
+                                                            >
+                                                                <X className="w-6 h-6" />
+                                                            </button>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="flex items-center justify-between pt-6 border-t border-slate-50 dark:border-slate-900">
+                                                        <button 
+                                                            onClick={() => document.getElementById('post-photo-upload-main')?.click()} 
+                                                            className="flex items-center gap-3 px-6 py-3 bg-slate-50 dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-slate-500 hover:text-indigo-600 rounded-2xl transition-all group"
+                                                        >
+                                                            <ImageIcon className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                                                            <span className="text-[10px] font-black uppercase tracking-widest">Media</span>
+                                                            <input type="file" id="post-photo-upload-main" className="hidden" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setPostImageFile(file); setPostImagePreview(URL.createObjectURL(file)); } }} />
+                                                        </button>
+                                                        
+                                                        <button 
+                                                            onClick={handleCreatePost}
+                                                            disabled={(!newPostContent.trim() && !postImageFile) || isPosting}
+                                                            className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.25em] shadow-2xl shadow-indigo-500/20 disabled:opacity-20 transition-all flex items-center gap-3 hover:scale-105 active:scale-95"
+                                                        >
+                                                            {isPosting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />} 
+                                                            Broadcast
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-slate-50/30 dark:bg-slate-950/30">
+                                            {loadingPosts ? (
+                                                <div className="p-32 text-center">
+                                                    <div className="relative inline-block">
+                                                        <div className="w-16 h-16 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin"></div>
+                                                        <Atom className="absolute inset-0 m-auto w-6 h-6 text-indigo-600 animate-pulse" />
+                                                    </div>
+                                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.4em] mt-8 animate-pulse">Syncing Pulse infrastructure...</p>
+                                                </div>
+                                            ) : posts.length === 0 ? (
+                                                <div className="p-32 text-center opacity-20">
+                                                    <Hash className="w-20 h-20 mx-auto mb-6" />
+                                                    <p className="text-sm font-black uppercase tracking-[0.4em]">Quiet on the network.</p>
+                                                </div>
+                                            ) : posts.map((post) => (
+                                                <div key={post.id} className="p-8 hover:bg-white dark:hover:bg-slate-900 transition-all group/post">
+                                                    <div className="flex gap-6">
+                                                        <div 
+                                                            className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 cursor-pointer shadow-sm group-hover/post:scale-105 transition-transform" 
+                                                            onClick={post.authorId ? () => setViewedProfileId(post.authorId) : undefined}
+                                                        >
+                                                            {post.authorPhoto ? <img src={post.authorPhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center gap-3 mb-2">
+                                                                <span 
+                                                                    className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-lg cursor-pointer hover:text-indigo-600 transition-colors" 
+                                                                    onClick={post.authorId ? () => setViewedProfileId(post.authorId) : undefined}
+                                                                >
+                                                                    {post.authorName}
+                                                                </span>
+                                                                <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+                                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(post.createdAt).toLocaleDateString()}</span>
+                                                            </div>
+                                                            <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-base mb-6 font-medium">{post.content}</p>
+                                                            {post.photoUrl && (
+                                                                <div 
+                                                                    className="mb-6 rounded-[2.5rem] overflow-hidden border border-slate-100 dark:border-slate-800 cursor-zoom-in shadow-xl hover:shadow-2xl transition-all duration-500" 
+                                                                    onClick={() => setZoomedImage(post.photoUrl || null)}
+                                                                >
+                                                                    <img src={post.photoUrl} className="w-full max-h-[500px] object-cover group-hover/post:scale-[1.02] transition-transform duration-1000" />
+                                                                </div>
+                                                            )}
+                                                            <div className="flex items-center justify-between max-w-sm ml-[-8px]">
+                                                                <button 
+                                                                    onClick={() => setSelectedPost(selectedPost?.id === post.id ? null : post)} 
+                                                                    className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${selectedPost?.id === post.id ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:bg-indigo-50 hover:text-indigo-600'}`}
+                                                                >
+                                                                    <MessageSquare className="w-5 h-5" />
+                                                                    <span className="text-xs font-black">{post.commentsCount || 0}</span>
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => handleLike(post.id)} 
+                                                                    className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${currentAlumna && (post.likes || []).includes(currentAlumna.id) ? 'bg-rose-50 text-rose-500' : 'text-slate-400 hover:bg-rose-50 hover:text-rose-500'}`}
+                                                                >
+                                                                    <Heart className={`w-5 h-5 ${currentAlumna && (post.likes || []).includes(currentAlumna.id) ? 'fill-current' : ''}`} />
+                                                                    <span className="text-xs font-black">{(post.likes || []).length}</span>
+                                                                </button>
+                                                                <button onClick={() => handleSharePost(post)} className="p-2 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl transition-all">
+                                                                    <Share2 className="w-5 h-5" />
+                                                                </button>
+                                                            </div>
+
+                                                            {selectedPost?.id === post.id && (
+                                                                <div className="mt-8 pt-8 border-t border-slate-50 dark:border-slate-900 space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                                                                    <div className="space-y-6 max-h-96 overflow-y-auto no-scrollbar pr-4">
+                                                                        {(comments[post.id] || []).map((comment) => (
+                                                                            <div key={comment.id} className="flex gap-4 group/comment">
+                                                                                <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-50">
+                                                                                    {comment.authorPhoto ? <img src={comment.authorPhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-300" />}
+                                                                                </div>
+                                                                                <div className="bg-slate-50 dark:bg-slate-900 rounded-[1.75rem] px-6 py-4 flex-1 shadow-sm group-hover/comment:bg-white dark:group-hover/comment:bg-slate-800 transition-colors">
+                                                                                    <div className="flex justify-between items-center mb-1">
+                                                                                        <p className="text-[10px] font-black uppercase text-indigo-600 tracking-tight">{comment.authorName}</p>
+                                                                                        <span className="text-[8px] text-slate-400 font-bold uppercase">{new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                                                    </div>
+                                                                                    <p className="text-sm text-slate-700 dark:text-slate-300 font-medium">{comment.content}</p>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                        {(comments[post.id] || []).length === 0 && (
+                                                                            <p className="text-[10px] font-black uppercase text-slate-400 text-center py-4 tracking-widest opacity-30">No replies yet. Be the first to spark legacy.</p>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="flex gap-4 items-center">
+                                                                        <div className="w-10 h-10 rounded-xl bg-slate-100 shrink-0 overflow-hidden"><img src={currentAlumna.profilePhotoUrl} className="w-full h-full object-cover" /></div>
+                                                                        <div className="relative flex-1">
+                                                                            <input 
+                                                                                type="text" 
+                                                                                placeholder="Share your thoughts..." 
+                                                                                value={commentInputs[post.id] || ''}
+                                                                                onChange={(e) => setCommentInputs(prev => ({ ...prev, [post.id]: e.target.value }))}
+                                                                                className="w-full h-14 pl-6 pr-16 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-indigo-600 transition-all font-display"
+                                                                                onKeyDown={(e) => { 
+                                                                                    if (e.key === 'Enter' && commentInputs[post.id]?.trim()) { 
+                                                                                        handleAddComment(post.id, commentInputs[post.id]); 
+                                                                                        setCommentInputs(prev => ({ ...prev, [post.id]: '' }));
+                                                                                    } 
+                                                                                }}
+                                                                            />
+                                                                            <button 
+                                                                                onClick={() => {
+                                                                                    if (commentInputs[post.id]?.trim()) {
+                                                                                        handleAddComment(post.id, commentInputs[post.id]);
+                                                                                        setCommentInputs(prev => ({ ...prev, [post.id]: '' }));
+                                                                                    }
+                                                                                }}
+                                                                                className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-indigo-100 hover:scale-105 transition-all"
+                                                                            >
+                                                                                <Send className="w-4 h-4" />
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))}
                                         </div>
-                                        <div className="p-6 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
-                                            <div className="relative">
-                                                <input 
-                                                    type="text" 
-                                                    placeholder={`Message ${activeConversationPartner.fullName.split(' ')[0]}...`}
-                                                    value={newMessage}
-                                                    onChange={(e) => setNewMessage(e.target.value)}
-                                                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                                                    className="w-full h-14 pl-6 pr-16 bg-slate-100 dark:bg-slate-900 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all"
-                                                />
-                                                <button 
-                                                    onClick={handleSendMessage}
-                                                    disabled={!newMessage.trim() || isSendingMessage}
-                                                    className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-30"
-                                                >
-                                                    {isSendingMessage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-                                        <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/20 rounded-[2.5rem] flex items-center justify-center text-indigo-600 mb-6 animate-pulse">
-                                            <MessageSquare className="w-10 h-10" />
-                                        </div>
-                                        <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">Your Conversations</h3>
-                                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest max-w-xs mx-auto mt-2 leading-relaxed">Select a member from the list to start a secure encrypted legacy conversation.</p>
                                     </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
+                                </>
+                            );
+                    }
+                })()}
             </main>
 
-            {/* Mobile Bottom Navigation */}
-            <nav className="md:hidden fixed bottom-0 inset-x-0 h-16 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-t border-slate-100 dark:border-slate-800 flex items-center justify-around px-2 z-[60] safe-bottom">
-                {[
-                    { icon: Home, label: 'Feed', section: 'feed' },
-                    { icon: Users, label: 'Circle', section: 'classmates' },
-                    { icon: Hash, label: 'Explore', section: 'explore' },
-                    { icon: MessageSquare, label: 'Chats', section: 'messages' },
-                    { icon: User, label: 'Me', onClick: () => setIsEditingProfile(true) }
-                ].map((item, idx) => (
-                    <button 
-                        key={idx} 
-                        onClick={item.onClick || (() => setActiveSection(item.section as any))}
-                        className={`flex flex-col items-center justify-center gap-1 transition-all flex-1 py-1 ${activeSection === item.section ? 'text-indigo-600' : 'text-slate-400'}`}
-                    >
-                        <item.icon className={`w-5 h-5 ${activeSection === item.section ? 'scale-110' : ''} transition-transform`} />
-                        <span className="text-[8px] font-black uppercase tracking-widest">{item.label}</span>
-                        {activeSection === item.section && <div className="w-1 h-1 bg-indigo-600 rounded-full mt-0.5" />}
-                    </button>
-                ))}
-            </nav>
-
-            {/* Right Sidebar - Recommendations */}
-            <aside className="hidden lg:block w-80 p-6 sticky top-0 h-screen overflow-y-auto">
-                <div className="space-y-6">
+            {/* Right Sidebar - Recommendations (Hidden on mobile) */}
+            <aside className="hidden lg:block w-80 p-6 sticky top-0 h-screen overflow-y-auto no-scrollbar">
+                <div className="space-y-8">
                     {/* Search */}
                     <div className="relative group">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
+                        <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
                         <input 
                             type="text" 
-                            placeholder="Search Network..." 
-                            className="w-full h-12 pl-12 pr-6 bg-slate-100 dark:bg-slate-900 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-indigo-600 transition-all"
+                            placeholder="Explore Network..." 
+                            className="w-full h-14 pl-14 pr-8 bg-slate-100 dark:bg-slate-900 border-none rounded-[1.75rem] text-xs font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner"
                         />
                     </div>
 
-                    {/* My Groups */}
-                    <div className="bg-slate-50 dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center justify-between">
-                            My Institutions
-                            <Plus 
-                                className="w-4 h-4 cursor-pointer hover:text-indigo-600 transition-colors" 
-                                onClick={() => setShowSwitcher(true)}
-                            />
+                    {/* My Circles */}
+                    <div className="bg-slate-50 dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-100/20">
+                        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-8 flex items-center justify-between">
+                            Verified Circles
+                            <button onClick={() => setShowSwitcher(true)} className="p-2 hover:bg-indigo-50 text-indigo-600 rounded-xl transition-colors">
+                                <Repeat2 className="w-4 h-4" />
+                            </button>
                         </h3>
-                        <div className="space-y-4">
+                        <div className="space-y-6">
                             {myInstitutions.map(inst => {
                                 const isActive = inst!.id === (currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id);
                                 return (
@@ -1649,77 +1467,61 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 if (membership) handleSwitchCircle(membership);
                                             }
                                         }}
-                                        className={`flex items-center justify-between group cursor-pointer p-2 rounded-2xl transition-all ${isActive ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                        className={`flex items-center justify-between group cursor-pointer p-3 rounded-2xl transition-all ${isActive ? 'bg-white dark:bg-slate-800 shadow-lg ring-1 ring-slate-100 dark:ring-slate-700' : 'hover:bg-slate-100'}`}
                                     >
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-colors ${isActive ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-400 group-hover:text-indigo-600'}`}>
-                                                {isActive ? <Sparkles className="w-5 h-5" /> : <Building2 className="w-5 h-5" />}
+                                        <div className="flex items-center gap-4">
+                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black transition-all ${isActive ? 'bg-indigo-600 text-white animate-pulse-slow' : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
+                                                {inst!.name.charAt(0)}
                                             </div>
                                             <div>
-                                                <p className={`text-[10px] font-black uppercase truncate max-w-[120px] ${isActive ? 'text-indigo-600' : 'text-slate-900 dark:text-white'}`}>{inst!.name}</p>
-                                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{isActive ? 'Active Member' : 'Switch Circle'}</p>
+                                                <p className={`text-[11px] font-black uppercase tracking-tight truncate max-w-[140px] ${isActive ? 'text-indigo-600' : 'text-slate-900 dark:text-white'}`}>{inst!.name}</p>
+                                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">{isActive ? 'Current' : 'Social Circle'}</p>
                                             </div>
                                         </div>
-                                        {isActive && <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>}
                                     </div>
                                 );
                             })}
                         </div>
                     </div>
 
-                    {/* Trending Topics */}
-                    <div className="bg-slate-50 dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Trending Conversations</h3>
-                        <div className="space-y-6">
+                    {/* Trending Metrics */}
+                    <div className="bg-slate-50 dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800">
+                        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Pulse Highlights</h3>
+                        <div className="space-y-8">
                             {[
-                                { tag: '#ClassOf2024', posts: '2.4k posts' },
-                                { tag: '#MentorConnect', posts: '1.8k posts' },
-                                { tag: '#LegacyAwards', posts: '950 posts' },
-                                { tag: '#TechAlumnae', posts: '620 posts' }
+                                { tag: '#ClassOf' + currentAlumna.graduationYear, stats: '342 Members online' },
+                                { tag: '#ImpactDay', stats: '2.4k contributions' },
+                                { tag: '#LegacyNetworking', stats: '890 active threads' }
                             ].map((topic, idx) => (
-                                <div key={idx} className="group cursor-pointer">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{topic.posts}</p>
-                                    <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight group-hover:text-indigo-600 transition-colors">{topic.tag}</p>
+                                <div key={topic.tag} className="group cursor-pointer">
+                                    <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></div>
+                                        {topic.stats}
+                                    </p>
+                                    <p className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight group-hover:text-indigo-600 transition-colors">{topic.tag}</p>
                                 </div>
                             ))}
                         </div>
-                        <button className="w-full mt-6 py-3 text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all">Show More</button>
                     </div>
 
                     {/* Featured Members Showcase */}
                     {featuredMembers.length > 0 && (
-                        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-2xl shadow-indigo-500/5">
-                            <div className="flex items-center gap-3 mb-8">
-                                <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white">
-                                    <Sparkles className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Featured <span className="text-indigo-600">Alumnae</span></h3>
-                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Premium Network Spotlight</p>
-                                </div>
-                            </div>
-
-                            <div className="space-y-6">
+                        <div className="bg-indigo-600 rounded-[3rem] p-8 text-white shadow-2xl shadow-indigo-200 dark:shadow-none overflow-hidden relative group">
+                            <div className="absolute top-0 right-0 p-8 opacity-20 rotate-12 transition-transform group-hover:scale-110"><Sparkles className="w-32 h-32" /></div>
+                            <h3 className="text-sm font-black uppercase tracking-widest mb-10 flex items-center gap-3 relative z-10">
+                                <div className="p-2 bg-white/20 rounded-xl"><Sparkles className="w-4 h-4" /></div>
+                                Merit Spotlight
+                            </h3>
+                            <div className="space-y-8 relative z-10">
                                 {featuredMembers.map((member) => (
-                                    <div key={member.id} className="group flex items-center gap-4 p-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all cursor-pointer">
-                                        <div className="relative">
-                                            <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-900">
-                                                {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-300" />}
-                                            </div>
-                                            <div className="absolute -top-1 -right-1 bg-indigo-600 text-white p-1 rounded-lg">
-                                                <CheckCircle2 className="w-2 h-2" />
-                                            </div>
+                                    <div key={member.id} className="flex items-center gap-5 p-3 rounded-3xl hover:bg-white/10 transition-all cursor-pointer" onClick={() => member.id && setViewedProfileId(member.id)}>
+                                        <div className="w-14 h-14 rounded-2xl bg-white/20 p-1 ring-2 ring-white/50">
+                                            {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover rounded-xl" /> : <User className="w-full h-full p-2 text-white/50" />}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase truncate">{member.fullName || 'Featured Alumna'}</p>
-                                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest truncate">{member.currentJob} at {member.currentCompany}</p>
+                                            <p className="text-sm font-black uppercase truncate tracking-tight">{member.fullName}</p>
+                                            <p className="text-[9px] font-black uppercase tracking-widest opacity-70 mt-1 truncate">{member.currentJob} at {member.currentCompany}</p>
                                         </div>
-                                        <button 
-                                            onClick={() => setActiveConversationPartner(member)}
-                                            className="w-8 h-8 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 hover:bg-indigo-600 hover:text-white transition-all"
-                                        >
-                                            <MessageSquare className="w-4 h-4" />
-                                        </button>
                                     </div>
                                 ))}
                             </div>
@@ -1728,425 +1530,387 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 </div>
             </aside>
 
-            {/* Edit Profile Modal */}
-            {isEditingProfile && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-300">
-                        <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between">
-                            <div>
-                                <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Edit <span className="text-indigo-600">Profile</span></h2>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Update your professional legacy</p>
-                            </div>
-                            <button onClick={() => setIsEditingProfile(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
-                                <X className="w-5 h-5 text-slate-400" />
+            {/* Mobile Bottom Navigation - High Fidelity Thumb Reach Interactivity */}
+            <nav className="md:hidden fixed bottom-0 inset-x-0 h-20 bg-white/95 dark:bg-slate-950/95 backdrop-blur-3xl border-t border-slate-100 dark:border-slate-800 flex items-center justify-around px-4 z-[60] pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+                {[
+                    { icon: Home, label: 'Pulse', section: 'feed' },
+                    { icon: Users, label: 'Circle', section: 'classmates' },
+                    { icon: Hash, label: 'Net', section: 'explore' },
+                    { icon: MessageSquare, label: 'Inbox', section: 'messages' },
+                    { icon: MoreHorizontal, label: 'More', onClick: () => setShowMoreMobileMenu(!showMoreMobileMenu) }
+                ].map((item, idx) => (
+                    <button 
+                        key={idx} 
+                        onClick={item.onClick || (() => { setActiveSection(item.section as any); setShowMoreMobileMenu(false); })}
+                        className={`flex flex-col items-center justify-center gap-2 transition-all flex-1 h-full relative group ${activeSection === item.section ? 'text-indigo-600' : 'text-slate-400'}`}
+                    >
+                        <div className={`p-2 rounded-2xl transition-all ${activeSection === item.section ? 'bg-indigo-50 dark:bg-indigo-900/30 ring-1 ring-indigo-100 scale-110 shadow-sm' : 'group-hover:bg-slate-50'}`}>
+                            <item.icon className="w-5 h-5" />
+                        </div>
+                        <span className="text-[8px] font-black uppercase tracking-[0.2em]">{item.label}</span>
+                    </button>
+                ))}
+
+                {/* Mobile More Popover */}
+                {showMoreMobileMenu && (
+                    <div className="absolute bottom-24 right-4 w-56 bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl border border-slate-100 dark:border-slate-800 p-4 animate-in slide-in-from-bottom-5 duration-300 z-[70]">
+                        <div className="space-y-2">
+                            <button 
+                                onClick={() => { setActiveSection('notifications'); setShowMoreMobileMenu(false); }}
+                                className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                            >
+                                <Bell className="w-5 h-5 text-indigo-600" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Pulse Alerts</span>
+                            </button>
+                            <button 
+                                onClick={() => { setActiveSection('funding' as any); setShowMoreMobileMenu(false); }}
+                                className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                            >
+                                <Sparkles className="w-5 h-5 text-indigo-600" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Funding</span>
+                            </button>
+                            <button 
+                                onClick={() => { setActiveSection('support' as any); setShowMoreMobileMenu(false); }}
+                                className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                            >
+                                <Building2 className="w-5 h-5 text-indigo-600" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Support</span>
+                            </button>
+                            <button 
+                                onClick={() => { setIsEditingProfile(true); setShowMoreMobileMenu(false); }}
+                                className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all border-t border-slate-50 dark:border-slate-800 mt-2 pt-4"
+                            >
+                                <User className="w-5 h-5 text-indigo-600" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Profile Identity</span>
                             </button>
                         </div>
+                    </div>
+                )}
+            </nav>
 
-                        <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto no-scrollbar">
-                            {/* Profile Branding Section */}
-                            <div className="flex flex-col items-center gap-6 mb-8">
-                                <div className="w-full flex flex-col gap-4">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-2">Background Cover</label>
-                                    <div className="w-full h-32 rounded-3xl bg-slate-50 dark:bg-slate-800/50 relative overflow-hidden border border-slate-100 dark:border-slate-800 group shadow-inner">
+            {/* Overlays & Modals */}
+            
+            {/* Edit Profile Modal */}
+            {isEditingProfile && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-[3rem] shadow-[0_40px_100px_rgba(0,0,0,0.3)] overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-500">
+                        <header className="p-10 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50">
+                            <div>
+                                <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Profile <span className="text-indigo-600 italic">Persona</span></h2>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-2">Sculpt your institutional presence</p>
+                            </div>
+                            <button onClick={() => setIsEditingProfile(false)} className="w-12 h-12 bg-white dark:bg-slate-950 rounded-2xl flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors shadow-sm">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </header>
+
+                        <div className="p-10 space-y-8 max-h-[60vh] overflow-y-auto no-scrollbar scrolling-touch">
+                            {/* Visual Branding */}
+                            <div className="space-y-6">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em]">Institutional Identity</label>
+                                <div className="flex flex-col items-center gap-8">
+                                    <div className="w-full h-40 bg-slate-100 dark:bg-slate-800 rounded-[2.5rem] relative overflow-hidden group shadow-inner">
                                         {profileCoverPhotoFile ? (
                                             <img src={URL.createObjectURL(profileCoverPhotoFile)} className="w-full h-full object-cover" />
                                         ) : profileData.coverPhotoUrl ? (
                                             <img src={profileData.coverPhotoUrl} className="w-full h-full object-cover" />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-slate-300">
-                                                <ImageIcon className="w-8 h-8 opacity-20" />
-                                            </div>
+                                            <div className="w-full h-full flex items-center justify-center opacity-10"><Building2 className="w-16 h-16" /></div>
                                         )}
-                                        <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white cursor-pointer transition-opacity backdrop-blur-[2px]">
-                                            <div className="flex items-center gap-2 px-6 py-2 bg-white/20 backdrop-blur-md rounded-2xl text-[10px] font-black uppercase tracking-widest">
-                                                <ImageIcon className="w-4 h-4" /> Change Cover
+                                        <label className="absolute inset-0 bg-indigo-600/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white cursor-pointer transition-all backdrop-blur-sm">
+                                            <div className="flex items-center gap-3 px-8 py-3 bg-white/20 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl">
+                                                <ImageIcon className="w-5 h-5" /> Update Background Photo
                                             </div>
-                                            <input 
-                                                type="file" 
-                                                className="hidden" 
-                                                accept="image/*"
-                                                onChange={(e) => setProfileCoverPhotoFile(e.target.files?.[0] || null)}
-                                            />
+                                            <input type="file" className="hidden" accept="image/*" onChange={(e) => setProfileCoverPhotoFile(e.target.files?.[0] || null)} />
+                                        </label>
+                                    </div>
+
+                                    <div className="relative mt-[-5rem] z-10 group">
+                                        <div className="w-32 h-32 rounded-[2.5rem] bg-white dark:bg-slate-900 p-2 shadow-2xl">
+                                            <div className="w-full h-full rounded-[2.25rem] bg-slate-100 dark:bg-slate-800 overflow-hidden ring-4 ring-indigo-500/10 transition-transform group-hover:scale-105">
+                                                {profilePhotoUrlFile ? (
+                                                    <img src={URL.createObjectURL(profilePhotoUrlFile)} className="w-full h-full object-cover" />
+                                                ) : profileData.profilePhotoUrl ? (
+                                                    <img src={profileData.profilePhotoUrl} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <User className="w-full h-full p-8 text-slate-300" />
+                                                )}
+                                            </div>
+                                        </div>
+                                        <label className="absolute -bottom-2 -right-2 w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center cursor-pointer hover:rotate-12 transition-all shadow-xl shadow-indigo-200">
+                                            <ImageIcon className="w-6 h-6" />
+                                            <input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && setProfilePhotoFile(e.target.files[0])} />
                                         </label>
                                     </div>
                                 </div>
+                            </div>
 
-                                <div className="relative group mt-[-3rem] z-10">
-                                    <div className="w-24 h-24 rounded-[2rem] bg-slate-100 dark:bg-slate-800 overflow-hidden ring-8 ring-white dark:ring-slate-900 shadow-2xl">
-                                        {profilePhotoUrlFile ? (
-                                            <img src={URL.createObjectURL(profilePhotoUrlFile)} className="w-full h-full object-cover" />
-                                        ) : profileData.profilePhotoUrl ? (
-                                            <img src={profileData.profilePhotoUrl} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <User className="w-full h-full p-6 text-slate-300" />
-                                        )}
+                            <div className="space-y-8">
+                                <div className="space-y-4">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Full Signature Name</label>
+                                    <input type="text" value={profileData.fullName} onChange={(e) => setProfileData({...profileData, fullName: e.target.value})} className="w-full h-14 px-8 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all font-display shadow-inner" />
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Designation</label>
+                                        <input type="text" value={profileData.currentJob} onChange={(e) => setProfileData({...profileData, currentJob: e.target.value})} className="w-full h-14 px-8 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner" />
                                     </div>
-                                    <label className="absolute -bottom-2 -right-2 w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center cursor-pointer hover:scale-110 transition-transform shadow-lg shadow-indigo-200">
-                                        <ImageIcon className="w-5 h-5" />
-                                        <input 
-                                            type="file" 
-                                            className="hidden" 
-                                            accept="image/*"
-                                            onChange={(e) => {
-                                                if (e.target.files?.[0]) setProfilePhotoFile(e.target.files[0]);
-                                            }}
-                                        />
-                                    </label>
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Organization</label>
+                                        <input type="text" value={profileData.currentCompany} onChange={(e) => setProfileData({...profileData, currentCompany: e.target.value})} className="w-full h-14 px-8 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner" />
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div className="space-y-4">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Full Name</label>
-                                <input 
-                                    type="text"
-                                    value={profileData.fullName}
-                                    onChange={(e) => setProfileData({...profileData, fullName: e.target.value})}
-                                    className="w-full h-12 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all"
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-4">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Current Job</label>
-                                    <input 
-                                        type="text"
-                                        value={profileData.currentJob}
-                                        onChange={(e) => setProfileData({...profileData, currentJob: e.target.value})}
-                                        className="w-full h-12 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all"
-                                    />
-                                </div>
-                                <div className="space-y-4">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Company</label>
-                                    <input 
-                                        type="text"
-                                        value={profileData.currentCompany}
-                                        onChange={(e) => setProfileData({...profileData, currentCompany: e.target.value})}
-                                        className="w-full h-12 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Professional Bio</label>
-                                <textarea 
-                                    value={profileData.bio}
-                                    onChange={(e) => setProfileData({...profileData, bio: e.target.value})}
-                                    className="w-full h-32 p-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-indigo-600 transition-all resize-none"
-                                ></textarea>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-4">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">LinkedIn URL</label>
-                                    <input 
-                                        type="text"
-                                        value={profileData.linkedinUrl}
-                                        onChange={(e) => setProfileData({...profileData, linkedinUrl: e.target.value})}
-                                        className="w-full h-12 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all"
-                                    />
-                                </div>
-                                <div className="space-y-4">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Twitter URL</label>
-                                    <input 
-                                        type="text"
-                                        value={profileData.twitterUrl}
-                                        onChange={(e) => setProfileData({...profileData, twitterUrl: e.target.value})}
-                                        className="w-full h-12 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all"
-                                    />
+                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Professional Narrative</label>
+                                    <textarea value={profileData.bio} onChange={(e) => setProfileData({...profileData, bio: e.target.value})} className="w-full h-40 p-8 bg-slate-100 dark:bg-slate-800 border-none rounded-[2rem] text-sm font-medium focus:ring-2 focus:ring-indigo-600 transition-all resize-none shadow-inner leading-relaxed" />
                                 </div>
                             </div>
                         </div>
 
-                        <div className="p-8 bg-slate-50 dark:bg-slate-800/50 flex gap-4">
-                            <button 
-                                onClick={() => setIsEditingProfile(false)}
-                                className="flex-1 py-4 bg-white dark:bg-slate-900 text-slate-400 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:text-slate-600 transition-all"
-                            >
-                                Cancel
+                        <footer className="p-10 bg-slate-50 dark:bg-slate-800/50 flex gap-6">
+                            <button onClick={() => setIsEditingProfile(false)} className="flex-1 py-5 bg-white dark:bg-slate-900 text-slate-400 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:text-rose-500 transition-all shadow-sm">Cancel</button>
+                            <button onClick={handleUpdateProfile} disabled={isSavingProfile} className="flex-[2] py-5 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-[0.25em] shadow-2xl shadow-indigo-200 dark:shadow-none flex items-center justify-center gap-3 active:scale-95 transition-all">
+                                {isSavingProfile ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                                Commit Changes
                             </button>
-                            <button 
-                                onClick={handleUpdateProfile}
-                                disabled={isSavingProfile}
-                                className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-indigo-200 dark:shadow-none flex items-center justify-center gap-2"
-                            >
-                                {isSavingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                                Save Changes
-                            </button>
-                        </div>
+                        </footer>
                     </div>
                 </div>
             )}
-            {/* Multi-Circle Switcher Modal */}
+
+            {/* Circle Switcher Modal */}
             {showSwitcher && (
-                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xl z-[100] flex items-center justify-center p-6">
-                    <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
-                        <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
+                <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-3xl z-[100] flex items-center justify-center p-6 animate-in fade-in duration-500">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[4rem] border border-slate-100 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
+                        <header className="p-12 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-indigo-50/20">
                             <div>
-                                <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Switch <span className="text-indigo-600 italic">Prestige Circle</span></h3>
-                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1">Jump between your verified institution memberships</p>
+                                <h3 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white font-display">Switch <span className="text-indigo-600 italic">Circle</span></h3>
+                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mt-2">Jump between verified institutions</p>
                             </div>
-                            <button onClick={() => setShowSwitcher(false)} className="w-10 h-10 bg-white dark:bg-slate-950 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors shadow-sm">
-                                <X className="w-5 h-5" />
+                            <button onClick={() => setShowSwitcher(false)} className="w-14 h-14 bg-white dark:bg-slate-950 rounded-2xl flex items-center justify-center text-slate-400 hover:text-rose-500 transition-all shadow-sm">
+                                <X className="w-6 h-6" />
                             </button>
-                        </div>
+                        </header>
                         
-                        <div className="p-8 space-y-4 max-h-[450px] overflow-y-auto custom-scrollbar">
-                            {/* Current Active */}
-                            <div className="p-6 bg-indigo-600 rounded-[2rem] text-white shadow-xl shadow-indigo-200 dark:shadow-none border border-indigo-500 relative overflow-hidden">
-                                <div className="absolute top-0 right-0 p-4 opacity-20"><CheckCircle2 className="w-12 h-12" /></div>
-                                <div className="flex items-center gap-4 relative z-10">
-                                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center font-black text-lg">
+                        <div className="p-12 space-y-6 max-h-[500px] overflow-y-auto no-scrollbar scrolling-touch">
+                            <div className="p-8 bg-indigo-600 rounded-[3rem] text-white shadow-2xl shadow-indigo-500/30 border border-indigo-400 flex items-center justify-between relative overflow-hidden group">
+                                <Sparkles className="absolute top-0 right-0 p-10 opacity-10 rotate-12 scale-150 transition-transform group-hover:scale-[1.7]" />
+                                <div className="flex items-center gap-6 relative z-10">
+                                    <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center font-black text-2xl shadow-inner border border-white/10 uppercase">
                                         {currentAlumna.institutionName?.charAt(0) || 'A'}
                                     </div>
                                     <div>
-                                        <p className="text-[8px] font-black uppercase tracking-[0.2em] opacity-70 mb-1">Active Now</p>
-                                        <h4 className="font-black uppercase tracking-tight text-lg">{currentAlumna.institutionName || 'Current Institution'}</h4>
+                                        <p className="text-[9px] font-black uppercase tracking-[0.25em] opacity-60 mb-2">Currently Active</p>
+                                        <h4 className="font-black uppercase tracking-tight text-xl">{currentAlumna.institutionName}</h4>
                                     </div>
                                 </div>
+                                <div className="w-3 h-3 bg-white rounded-full animate-pulse shadow-[0_0_20px_white]"></div>
                             </div>
 
-                            {/* Other Options */}
                             {otherMemberships.map((membership) => (
-                                <button
-                                    key={membership.id}
-                                    onClick={() => handleSwitchCircle(membership)}
-                                    className="w-full flex items-center justify-between p-6 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-[2rem] hover:bg-white dark:hover:bg-slate-700 hover:border-indigo-400 transition-all text-left group"
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center text-indigo-600 font-black text-lg group-hover:scale-110 transition-transform">
+                                <button key={membership.id} onClick={() => handleSwitchCircle(membership)} className="w-full flex items-center justify-between p-8 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-[3rem] hover:bg-white dark:hover:bg-slate-700 hover:border-indigo-400 hover:shadow-2xl transition-all group">
+                                    <div className="flex items-center gap-6">
+                                        <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-2xl flex items-center justify-center text-indigo-600 font-black text-2xl shadow-sm border border-slate-100 dark:border-slate-800 group-hover:scale-110 transition-transform uppercase">
                                             {membership.institutionName?.charAt(0) || 'A'}
                                         </div>
-                                        <div>
-                                            <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">{membership.institutionName || 'Legacy Institution'}</h4>
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1">Class of {membership.graduationYear || membership.class_year || 'N/A'}</p>
+                                        <div className="text-left">
+                                            <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-lg">{membership.institutionName || 'Legacy Member'}</h4>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mt-2">Verified Graduate Circle</p>
                                         </div>
                                     </div>
-                                    <ArrowLeft className="w-5 h-5 text-slate-300 group-hover:text-indigo-600 group-hover:-translate-x-1 transition-all rotate-180" />
+                                    <ArrowRight className="w-6 h-6 text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-2 transition-all" />
                                 </button>
                             ))}
 
-                            {/* Add New Option */}
                             {onJoinAnother && (
-                                <button
-                                    onClick={onJoinAnother}
-                                    className="w-full flex items-center gap-4 p-6 bg-indigo-50/50 dark:bg-indigo-900/10 border border-dashed border-indigo-200 dark:border-indigo-800 rounded-[2rem] hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all text-left group"
-                                >
-                                    <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center text-indigo-600 shadow-sm group-hover:scale-110 transition-transform">
-                                        <Plus className="w-6 h-6" />
+                                <button onClick={onJoinAnother} className="w-full flex items-center gap-6 p-8 bg-white dark:bg-slate-900 border-2 border-dashed border-indigo-100 dark:border-indigo-900/30 rounded-[3rem] hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-all group">
+                                    <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/40 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm group-hover:rotate-90 transition-transform">
+                                        <Plus className="w-8 h-8" />
                                     </div>
-                                    <div>
-                                        <h4 className="font-black text-indigo-600 uppercase tracking-tight">Join another Circle</h4>
-                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1">Register for a different school or chapter</p>
+                                    <div className="text-left">
+                                        <h4 className="font-black text-indigo-600 uppercase tracking-tight text-lg">Join New Instituion</h4>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mt-2">Expand your global legacy</p>
                                     </div>
                                 </button>
                             )}
                         </div>
-
-                        <div className="p-8 bg-slate-50 dark:bg-slate-800/50 flex justify-center border-t border-slate-100 dark:border-slate-800">
-                            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">EduAI Social Infrastructure • Verified Membership v2.0</p>
-                        </div>
                     </div>
                 </div>
             )}
-            {/* Full Profile View Overlay */}
+
+            {/* Profile Detail Overlay */}
             {viewedProfileId && (
-                <div className="fixed inset-0 bg-white dark:bg-slate-950 z-[100] md:ml-64 flex flex-col animate-in slide-in-from-right duration-500">
-                    {/* Futuristic Header */}
-                    <header className="sticky top-0 bg-white/70 dark:bg-slate-950/70 backdrop-blur-3xl z-50 border-b border-slate-100 dark:border-slate-800">
-                        <div className="px-6 py-4 flex items-center gap-6">
-                            <button 
-                                onClick={() => {
-                                    setViewedProfileId(null);
-                                    setViewedProfileData(null);
-                                }}
-                                className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all group"
-                            >
-                                <ArrowLeft className="w-5 h-5 group-active:-translate-x-1 transition-transform" />
-                            </button>
-                            <div>
-                                <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">{viewedProfileData?.fullName || 'Profile View'}</h2>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">{profilePosts.length} Shared Topics</p>
-                            </div>
+                <div className="fixed inset-0 bg-white dark:bg-slate-950 z-[110] md:ml-64 flex flex-col animate-in slide-in-from-right duration-500 scrolling-touch">
+                    <header className="sticky top-0 bg-white/95 dark:bg-slate-950/95 backdrop-blur-3xl z-50 border-b border-slate-100 dark:border-slate-800 px-6 py-6 flex items-center gap-6">
+                        <button onClick={() => { setViewedProfileId(null); setViewedProfileData(null); }} className="p-4 bg-slate-100 dark:bg-slate-900 rounded-2xl hover:bg-indigo-600 hover:text-white hover:scale-105 transition-all group shadow-sm">
+                            <ArrowLeft className="w-6 h-6 group-hover:-translate-x-1 transition-transform" />
+                        </button>
+                        <div className="min-w-0 flex-1">
+                            <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white truncate font-display">{viewedProfileData?.fullName || 'Legacy Member'}</h2>
+                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em] mt-1">{profilePosts.length} Network Contributions</p>
                         </div>
                     </header>
 
-                    <div className="flex-1 overflow-y-auto no-scrollbar">
-                        {/* Immersive Profile Hero */}
+                    <div className="flex-1 overflow-y-auto no-scrollbar scrolling-touch">
                         <div className="relative">
-                            <div className="h-48 md:h-64 bg-slate-100 dark:bg-slate-800 relative overflow-hidden group">
+                            <div className="h-64 md:h-80 bg-slate-100 dark:bg-slate-800 relative overflow-hidden group">
                                 {viewedProfileData?.coverPhotoUrl ? (
-                                    <img src={viewedProfileData.coverPhotoUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                                    <img src={viewedProfileData.coverPhotoUrl} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
                                 ) : (
-                                    <div className="w-full h-full bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600">
-                                        <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent"></div>
-                                        <Sparkles className="absolute top-10 right-10 w-24 h-24 text-white/10 rotate-12" />
+                                    <div className="w-full h-full bg-gradient-to-br from-indigo-700 via-indigo-600 to-indigo-900 relative">
+                                        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
                                     </div>
                                 )}
                             </div>
                             
-                            <div className="px-6 -mt-16 relative z-10 flex justify-between items-end">
-                                <div className="w-32 h-32 md:w-40 md:h-40 rounded-[3rem] bg-white dark:bg-slate-900 p-2 shadow-2xl">
-                                    <div className="w-full h-full rounded-[2.5rem] bg-slate-100 dark:bg-slate-800 overflow-hidden border-2 border-indigo-500/20">
+                            <div className="px-8 -mt-20 relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+                                <div className="w-40 h-40 md:w-56 md:h-56 rounded-[4rem] bg-white dark:bg-slate-950 p-3 shadow-2xl border border-white dark:border-slate-900">
+                                    <div className="w-full h-full rounded-[3.5rem] bg-slate-50 dark:bg-slate-900 overflow-hidden ring-1 ring-indigo-500/20 shadow-inner">
                                         {viewedProfileData?.profilePhotoUrl ? (
                                             <img src={viewedProfileData.profilePhotoUrl} className="w-full h-full object-cover" />
                                         ) : (
-                                            <User className="w-full h-full p-8 text-slate-300" />
+                                            <User className="w-full h-full p-12 text-slate-200" />
                                         )}
                                     </div>
                                 </div>
-                                <div className="mb-4 flex gap-3">
+                                <div className="mb-6 flex flex-wrap gap-4">
                                     <button 
                                         onClick={() => setActiveConversationPartner(viewedProfileData)}
-                                        className="p-4 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all shadow-xl shadow-indigo-100 dark:shadow-none"
+                                        className="p-5 bg-white dark:bg-slate-900 text-indigo-600 border border-slate-100 dark:border-slate-800 rounded-3xl hover:bg-indigo-600 hover:text-white hover:scale-105 transition-all shadow-xl shadow-slate-100/50"
                                     >
-                                        <MessageSquare className="w-6 h-6" />
+                                        <MessageSquare className="w-8 h-8" />
                                     </button>
                                     <button 
                                         onClick={handleFollow}
-                                        className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-2xl ${isFollowing ? 'bg-slate-100 text-slate-900 border border-slate-200' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'}`}
+                                        className={`px-12 py-5 rounded-3xl text-[11px] font-black uppercase tracking-[0.25em] hover:scale-105 transition-all shadow-2xl active:scale-95 ${isFollowing ? 'bg-slate-50 text-slate-400 border border-slate-100' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-indigo-500/20'}`}
                                     >
-                                        {isFollowing ? 'Following Legacy' : 'Follow Legacy'}
+                                        {isFollowing ? 'Legacy Following' : 'Claim Follow'}
                                     </button>
                                 </div>
                             </div>
 
-                            <div className="px-8 mt-6">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <h1 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{viewedProfileData?.fullName}</h1>
-                                    <CheckCircle2 className="w-6 h-6 text-indigo-600 fill-indigo-50" />
+                            <div className="px-10 mt-10 space-y-10">
+                                <div>
+                                    <div className="flex items-center gap-4 mb-3">
+                                        <h1 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight font-display">{viewedProfileData?.fullName}</h1>
+                                        <CheckCircle2 className="w-8 h-8 text-indigo-600 fill-indigo-50" />
+                                    </div>
+                                    <p className="text-[12px] text-slate-400 font-black uppercase tracking-[0.4em] mb-8">@{viewedProfileData?.fullName?.split(' ')[0].toLowerCase()}_infrastructure</p>
+                                    <p className="text-lg text-slate-600 dark:text-slate-400 font-medium leading-relaxed max-w-3xl border-l-4 border-indigo-600/10 pl-8 ml-[-32px]">
+                                        {viewedProfileData?.bio || `${viewedProfileData?.fullName} is a verified elite member. Building high-impact legacy across the infrastructure since joining in ${new Date(viewedProfileData?.createdAt || Date.now()).getFullYear()}.`}
+                                    </p>
                                 </div>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mb-4">@{viewedProfileData?.fullName?.split(' ')[0].toLowerCase()}_legacy</p>
-                                
-                                <p className="text-slate-600 dark:text-slate-400 font-medium text-sm leading-relaxed max-w-xl mb-6">
-                                    {viewedProfileData?.bio || `${viewedProfileData?.fullName} is a verified alumna of ${viewedProfileData?.institutionName || 'the network'}. Building professional legacy through community engagement.`}
-                                </p>
 
-                                <div className="flex flex-wrap items-center gap-6 mb-8">
-                                    <div className="flex items-center gap-2 text-slate-400">
-                                        <Building2 className="w-4 h-4" />
-                                        <span className="text-[10px] font-black uppercase tracking-widest">{viewedProfileData?.currentCompany || 'EduAI Global Network'}</span>
+                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 py-10 border-y border-slate-50 dark:border-slate-900">
+                                    <div className="space-y-2">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Sphere</p>
+                                        <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{viewedProfileData?.currentCompany || 'EduAI Global'}</h4>
                                     </div>
-                                    <div className="flex items-center gap-2 text-slate-400">
-                                        <Calendar className="w-4 h-4" />
-                                        <span className="text-[10px] font-black uppercase tracking-widest">Joined legacy {new Date(viewedProfileData?.createdAt || Date.now()).getFullYear()}</span>
+                                    <div className="space-y-2">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Designation</p>
+                                        <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{viewedProfileData?.currentJob || 'Premium Alumna'}</h4>
                                     </div>
-                                    <div className="flex gap-4">
-                                        <div className="cursor-pointer hover:underline decoration-indigo-600">
-                                            <span className="font-black text-slate-900 dark:text-white">{followStats.following}</span>
-                                            <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest ml-1">Following</span>
-                                        </div>
-                                        <div className="cursor-pointer hover:underline decoration-indigo-600">
-                                            <span className="font-black text-slate-900 dark:text-white">{followStats.followers}</span>
-                                            <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest ml-1">Followers</span>
-                                        </div>
+                                    <div className="space-y-2">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Class Year</p>
+                                        <h4 className="text-base font-black text-indigo-600 uppercase tracking-tight">{viewedProfileData?.graduationYear || viewedProfileData?.class_year}</h4>
+                                    </div>
+                                    <div className="space-y-2 text-right">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Pulse Impact</p>
+                                        <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">{(profilePosts.length * 23.4).toFixed(1)}k</h4>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-10">
+                                    <div className="flex items-center gap-3 cursor-pointer group">
+                                        <div className="w-12 h-12 bg-slate-50 dark:bg-slate-900 rounded-2xl flex items-center justify-center font-black group-hover:bg-indigo-50 transition-all">{followStats.following}</div>
+                                        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 group-hover:text-indigo-600">Following</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 cursor-pointer group">
+                                        <div className="w-12 h-12 bg-slate-50 dark:bg-slate-900 rounded-2xl flex items-center justify-center font-black group-hover:bg-indigo-50 transition-all">{followStats.followers}</div>
+                                        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 group-hover:text-indigo-600">Followers</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Profile Tabs */}
-                        <div className="sticky top-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-3xl z-40 border-b border-slate-100 dark:border-slate-800">
-                            <div className="flex">
-                                {['Posts', 'Replies', 'Highlights', 'Media'].map((tab) => (
+                        {/* Profile Social Layer */}
+                        <div className="sticky top-0 bg-white/95 dark:bg-slate-950/95 backdrop-blur-3xl z-40 border-b border-slate-100 dark:border-slate-800 mt-12 px-10">
+                            <div className="flex gap-12">
+                                {['Pulse', 'Media', 'Affiliations'].map((tab) => (
                                     <button 
                                         key={tab}
                                         onClick={() => setProfileActiveTab(tab.toLowerCase() as any)}
-                                        className={`flex-1 py-5 text-[10px] font-black uppercase tracking-[0.25em] relative transition-all ${profileActiveTab === tab.toLowerCase() ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+                                        className={`py-8 text-[11px] font-black uppercase tracking-[0.4em] relative transition-all ${profileActiveTab === tab.toLowerCase() ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-900'}`}
                                     >
                                         {tab}
                                         {profileActiveTab === tab.toLowerCase() && (
-                                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-indigo-600 rounded-full" />
+                                            <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-indigo-600 rounded-full shadow-[0_0_20px_rgba(79,70,229,0.4)] animate-in slide-in-from-bottom-1" />
                                         )}
                                     </button>
                                 ))}
                             </div>
                         </div>
 
-                        {/* Tab Content */}
-                        <div className="pb-20 max-w-2xl mx-auto divide-y divide-slate-100 dark:divide-slate-900">
-                            {profileActiveTab === 'posts' && (
+                        <div className="pb-32 divide-y divide-slate-100 dark:divide-slate-900 px-4 md:px-0">
+                            {profileActiveTab === 'pulse' && (
                                 profilePosts.length > 0 ? profilePosts.map(post => (
-                                    <div key={post.id} className="p-8 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-all group/post">
-                                        <div className="flex gap-6">
-                                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 flex items-center justify-center font-black">
-                                                {post.authorName?.charAt(0)}
-                                            </div>
+                                    <div key={post.id} className="p-10 hover:bg-slate-50/50 dark:hover:bg-slate-900/40 transition-all">
+                                        <div className="flex gap-8 max-w-4xl mx-auto">
+                                            <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-xl shadow-lg ring-4 ring-white dark:ring-slate-950">{post.authorName?.charAt(0)}</div>
                                             <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <span className="font-black text-slate-900 dark:text-white uppercase tracking-tight">{post.authorName}</span>
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    <span className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-lg">{post.authorName}</span>
                                                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(post.createdAt).toLocaleDateString()}</span>
                                                 </div>
-                                                <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-sm mb-4">{post.content}</p>
-                                                
+                                                <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-base mb-6 font-medium">{post.content}</p>
                                                 {post.photoUrl && (
-                                                    <div className="mb-4 rounded-[2rem] overflow-hidden border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-100">
-                                                        <img src={post.photoUrl} className="w-full max-h-80 object-cover" />
+                                                    <div className="mb-6 rounded-[3rem] overflow-hidden border-4 border-white dark:border-slate-900 shadow-2xl shadow-slate-200/50 group cursor-zoom-in" onClick={() => setZoomedImage(post.photoUrl || null)}>
+                                                        <img src={post.photoUrl} className="w-full max-h-[500px] object-cover group-hover:scale-[1.03] transition-transform duration-1000" />
                                                     </div>
                                                 )}
-
-                                                {post.videoUrl && (
-                                                    <div className="mb-4 rounded-[2rem] overflow-hidden bg-black aspect-video shadow-2xl">
-                                                        <video src={post.videoUrl} controls className="w-full h-full object-contain" />
-                                                    </div>
-                                                )}
-
-                                                <div className="flex items-center justify-between text-slate-400 max-w-xs">
-                                                    <button className="flex items-center gap-2 hover:text-indigo-600 transition-colors">
-                                                        <MessageSquare className="w-4 h-4" />
-                                                        <span className="text-[10px] font-black">{post.commentsCount}</span>
-                                                    </button>
-                                                    <button className="flex items-center gap-2 hover:text-rose-500 transition-colors">
-                                                        <Heart className="w-4 h-4" />
-                                                        <span className="text-[10px] font-black">{(post.likes?.length) || 0}</span>
-                                                    </button>
-                                                    <button className="p-2 hover:bg-indigo-50 rounded-xl transition-colors">
-                                                        <Share2 className="w-4 h-4" />
-                                                    </button>
+                                                <div className="flex items-center gap-10 text-slate-400 ml-[-8px]">
+                                                    <div className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl transition-all cursor-pointer"><MessageSquare className="w-5 h-5" /><span className="text-xs font-black">{post.commentsCount}</span></div>
+                                                    <div className="flex items-center gap-3 px-4 py-2 hover:bg-rose-50 hover:text-rose-500 rounded-2xl transition-all cursor-pointer"><Heart className="w-5 h-5" /><span className="text-xs font-black">{(post.likes?.length) || 0}</span></div>
+                                                    <Share2 className="w-5 h-5 hover:text-indigo-600 cursor-pointer transition-all" />
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 )) : (
-                                    <div className="p-20 text-center">
-                                        <Sparkles className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">No legacy threads started yet.</p>
+                                    <div className="p-32 text-center opacity-30">
+                                        <Hash className="w-20 h-20 mx-auto mb-8 text-slate-200" />
+                                        <p className="text-sm font-black uppercase tracking-[0.4em]">Broadcast history is currently empty.</p>
                                     </div>
                                 )
                             )}
 
-                            {(profileActiveTab === 'media') && (
-                                <div className="p-8 grid grid-cols-2 md:grid-cols-3 gap-4">
+                            {profileActiveTab === 'media' && (
+                                <div className="p-12 grid grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
                                     {profilePosts.filter(p => p.photoUrl || p.videoUrl).map((post, idx) => (
-                                        <div key={idx} className="aspect-square rounded-3xl overflow-hidden bg-indigo-50 group cursor-pointer relative shadow-lg">
+                                        <div key={idx} className="aspect-square rounded-[3rem] overflow-hidden bg-slate-100 group cursor-pointer relative shadow-2xl shadow-slate-200/50 hover:scale-105 transition-all duration-500 ring-1 ring-slate-100 group">
                                             {post.photoUrl ? (
-                                                <img src={post.photoUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                                <img src={post.photoUrl} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
                                             ) : (
-                                                <div className="w-full h-full bg-slate-900 flex items-center justify-center">
-                                                    <Video className="w-8 h-8 text-white/50" />
-                                                </div>
+                                                <div className="w-full h-full bg-slate-950 flex items-center justify-center"><Video className="w-10 h-10 text-white/50" /></div>
                                             )}
                                             <div 
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (post.photoUrl) setZoomedImage(post.photoUrl);
-                                                }}
-                                                className="absolute inset-0 bg-indigo-600/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm"
+                                                onClick={(e) => { e.stopPropagation(); if (post.photoUrl) setZoomedImage(post.photoUrl); }}
+                                                className="absolute inset-0 bg-indigo-600/80 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center backdrop-blur-md"
                                             >
-                                                <div className="flex gap-4 text-white">
-                                                    <div className="flex items-center gap-1 font-black text-xs">
-                                                        <Heart className="w-4 h-4" /> {post.likes?.length || 0}
-                                                    </div>
-                                                    <div className="flex items-center gap-1 font-black text-xs">
-                                                        <MessageSquare className="w-4 h-4" /> {post.commentsCount}
-                                                    </div>
+                                                <div className="flex gap-8 text-white scale-90 group-hover:scale-100 transition-transform duration-500">
+                                                    <div className="flex flex-col items-center gap-2"><Heart className="w-7 h-7 fill-white" /><span className="font-black text-sm">{post.likes?.length || 0}</span></div>
+                                                    <div className="flex flex-col items-center gap-2"><MessageSquare className="w-7 h-7" /><span className="font-black text-sm">{post.commentsCount}</span></div>
                                                 </div>
                                             </div>
                                         </div>
                                     ))}
                                     {profilePosts.filter(p => p.photoUrl || p.videoUrl).length === 0 && (
-                                        <div className="col-span-full p-20 text-center">
-                                            <ImageIcon className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">No media fragments found.</p>
+                                        <div className="col-span-full p-32 text-center opacity-20">
+                                            <ImageIcon className="w-20 h-20 mx-auto mb-8 text-slate-300" />
+                                            <p className="text-sm font-black uppercase tracking-[0.4em]">Media infrastructure is currently empty.</p>
                                         </div>
                                     )}
                                 </div>
@@ -2156,28 +1920,45 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 </div>
             )}
 
-            {/* Image Zoom Lightbox */}
+            {/* Global Lightbox Component */}
             {zoomedImage && (
                 <div 
-                    className="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-3xl flex items-center justify-center p-4 md:p-12 animate-in fade-in duration-300"
+                    className="fixed inset-0 z-[200] bg-slate-950/98 backdrop-blur-3xl flex items-center justify-center p-8 md:p-24 animate-in fade-in duration-500 cursor-zoom-out"
                     onClick={() => setZoomedImage(null)}
                 >
-                    <button 
-                        onClick={() => setZoomedImage(null)}
-                        className="absolute top-8 right-8 w-14 h-14 bg-white/10 hover:bg-white/20 text-white rounded-2xl flex items-center justify-center transition-all group"
-                    >
-                        <X className="w-6 h-6 group-hover:rotate-90 transition-transform" />
+                    <button onClick={() => setZoomedImage(null)} className="absolute top-10 right-10 w-16 h-16 bg-white/10 hover:bg-rose-600 text-white rounded-[1.75rem] flex items-center justify-center transition-all group z-10 hover:rotate-90">
+                        <X className="w-8 h-8" />
                     </button>
                     
-                    <div className="relative max-w-7xl max-h-full w-full h-full flex items-center justify-center">
+                    <div className="relative max-w-full max-h-full flex items-center justify-center animate-in zoom-in-95 duration-700 group">
                         <img 
                             src={zoomedImage} 
-                            className="max-w-full max-h-full object-contain rounded-3xl shadow-2xl animate-in zoom-in-95 duration-500" 
+                            className="max-w-full max-h-full object-contain rounded-[3rem] shadow-[0_40px_100px_rgba(0,0,0,0.6)] ring-1 ring-white/10 transition-transform duration-500 group-hover:scale-105" 
                             onClick={(e) => e.stopPropagation()}
                         />
+                        <div className="absolute inset-0 rounded-[3rem] ring-1 ring-white/20 pointer-events-none"></div>
+                    </div>
+                </div>
+            )}
+
+            {/* Payment Verification Overlay */}
+            {isVerifyingPayment && (
+                <div className="fixed inset-0 z-[210] bg-indigo-600 flex flex-col items-center justify-center text-white p-10 animate-in fade-in duration-500">
+                    <div className="relative mb-12">
+                        <div className="w-32 h-32 border-8 border-white/20 border-t-white rounded-full animate-spin"></div>
+                        <Sparkles className="absolute inset-0 m-auto w-12 h-12 animate-pulse" />
+                    </div>
+                    <h2 className="text-4xl font-black uppercase tracking-tighter mb-4 text-center">Verifying Legacy Boost</h2>
+                    <p className="text-[11px] font-black uppercase tracking-[0.4em] text-indigo-100 opacity-60 text-center max-w-xs leading-relaxed">
+                        Communicating with the secure financial infrastructure. Please remain on this pulse line.
+                    </p>
+                    <div className="mt-12 flex gap-2">
+                        {[0,1,2].map(i => <div key={i} className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: `${i * 0.2}s` }}></div>)}
                     </div>
                 </div>
             )}
         </div>
     );
 };
+
+export default AlumnaePortalView;

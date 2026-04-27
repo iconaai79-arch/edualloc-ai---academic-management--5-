@@ -195,6 +195,7 @@ const PerspectiveReturnButton: React.FC<{
     role: Role | null;
     isImpersonatedSession?: boolean;
     onReturn: () => void;
+    onAccessAlumnaPortal: (school: any) => void;
     onRestoreSession?: () => void;
     hasCurrentUser?: boolean;
     isPublicView?: boolean;
@@ -890,7 +891,7 @@ export const App: React.FC = () => {
                     isBusiness ? apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', effectiveInstId).catch(() => []) : Promise.resolve([]),
                     isBusiness ? apiService.fetchModuleRecords<CafeOrder>('cafe_orders', effectiveInstId).catch(() => []) : Promise.resolve([]),
                     isBusiness ? apiService.fetchModuleRecords<RetailSale>('retail_sales', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchCarWashJob('carwash_jobs', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchModuleRecords('carwash_jobs', effectiveInstId).catch(() => []) : Promise.resolve([]),
                     isCoop ? apiService.fetchModuleRecords<CoopFarmer>('coop_farmers', effectiveInstId).catch(() => []) : Promise.resolve([]),
                     isCoop ? apiService.fetchModuleRecords<CoopCollection>('coop_collections', effectiveInstId, undefined, { limit: 1000 }).catch(() => []) : Promise.resolve([]),
                     isCoop ? apiService.fetchModuleRecords<CoopRider>('coop_riders', effectiveInstId).catch(() => []) : Promise.resolve([]),
@@ -3309,6 +3310,7 @@ export const App: React.FC = () => {
                                         departments={departments}
                                         courses={courses}
                                         companyDetails={companyDetails}
+                                     onAccessAlumnaPortal={handleAccessAlumnaPortal}
                                         onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d as any); loadData(); }}
                                         transactions={transactions}
                                         demoRequests={demoRequests}
@@ -3634,14 +3636,7 @@ export const App: React.FC = () => {
                                         demoDataGenerationMessage={demoDataGenerationMessage}
                                         onGenerateDemoData={handleGenerateDemoData}
                                         onClearDemoData={handleClearDemoData}
-                                        examTimetable={examTimetable}
-                                        onManualInvoice={(instId: string, items: InvoiceItem[], total: number, due: string) => { }}
-                                        onUpdateRequestStatus={async (id, status) => { await apiService.updateAllocationStatus(id, status); await loadData(); }}
-                                        onBulkUpdateRequestStatus={async (status: RequestStatus, deptId?: string) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
-                                        onGenerateReceipt={onGenerateReceipt}
-                                        onAccessAlumnaPortal={handleAccessAlumnaPortal}
-                                        getLecturerById={getLecturerById}
-                                        getSubjectById={getSubjectById}
+                                        onSwitchPerspective={(role) => setImpersonatedRole(role)}
                                         getRoomById={getRoomById}
                                         onLogAction={handleLogAction}
                                         vehicles={vehicles}
@@ -3809,8 +3804,10 @@ export const App: React.FC = () => {
                                             });
                                             loadData();
                                         }}
-                                        onLogAction={handleLogAction}
-                                    />
+                                         onLogAction={handleLogAction}
+                                         onAccessAlumnaPortal={handleAccessAlumnaPortal}
+                                         schoolRegistry={schoolRegistry}
+                                     />
                                 ) : activeRole === 'lecturer' ? (
                                     <LecturerView
                                         user={currentUser}
@@ -3864,6 +3861,7 @@ export const App: React.FC = () => {
                                         }}
                                         studentAttendances={studentAttendances}
                                         onSaveAttendance={handleSaveAttendance}
+                                        onAccessAlumnaPortal={handleAccessAlumnaPortal}
                                     />
                                 ) : activeRole === 'student' ? (
                                     <StudentView
@@ -3909,6 +3907,7 @@ export const App: React.FC = () => {
                                         assessments={assessments}
                                         assessmentMarks={assessmentMarks}
                                         studentAttendances={studentAttendances}
+                                        onAccessAlumnaPortal={handleAccessAlumnaPortal}
                                         books={books}
                                     />
                                 ) : activeRole === 'parent' ? (
@@ -3933,6 +3932,7 @@ export const App: React.FC = () => {
                                         onSubmitStudentAbsenceRequest={async (req) => { await apiService.saveModuleRecord('student_absence_requests', { ...req, id: `sar_${Date.now()}`, status: 'pending', createdAt: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); }}
                                         assessments={assessments}
                                         assessmentMarks={assessmentMarks}
+                                        onAccessAlumnaPortal={handleAccessAlumnaPortal}
                                     />
                                 ) : (activeRole === 'librarian' || (activeRole === 'staff' && activeInstitution?.institutionType === 'Library')) ? (
                                     <LibraryMasterView
@@ -4274,8 +4274,8 @@ export const App: React.FC = () => {
                                     onWithdrawRequest={async (id) => { await apiService.deleteModuleRecord('allocation_requests', id); await handleLogAction("Withdrew allocation request"); loadData(); }}
                                     onAddExtensionRequest={handleAddExtensionRequest}
                                     onLogAction={handleLogAction}
-                                    companyDetails={companyDetails}
-
+                                     companyDetails={companyDetails}
+                                     onAccessAlumnaPortal={handleAccessAlumnaPortal}
 
 
 
@@ -4929,6 +4929,7 @@ export const App: React.FC = () => {
                                     onBulkUpdateRequestStatus={async (status: RequestStatus, deptId?: string) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
                                     onGenerateReceipt={onGenerateReceipt}
                                     onAccessAlumnaPortal={handleAccessAlumnaPortal}
+                                    schoolRegistry={schoolRegistry}
                                     getLecturerById={getLecturerById}
                                     getSubjectById={getSubjectById}
                                     getRoomById={getRoomById}
@@ -5343,8 +5344,9 @@ export const App: React.FC = () => {
                                     onWithdrawRequest={async (id) => { await apiService.deleteModuleRecord('allocation_requests', id); await handleLogAction("Withdrew allocation request"); loadData(); }}
                                     onAddExtensionRequest={handleAddExtensionRequest}
                                     onLogAction={handleLogAction}
-                                    companyDetails={companyDetails}
-
+                                     companyDetails={companyDetails}
+                                     onAccessAlumnaPortal={handleAccessAlumnaPortal}
+                                     schoolRegistry={schoolRegistry}
 
 
 
@@ -5998,6 +6000,7 @@ export const App: React.FC = () => {
                                     onBulkUpdateRequestStatus={async (status: RequestStatus, deptId?: string) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
                                     onGenerateReceipt={onGenerateReceipt}
                                     onAccessAlumnaPortal={handleAccessAlumnaPortal}
+                                    schoolRegistry={schoolRegistry}
                                     getLecturerById={getLecturerById}
                                     getSubjectById={getSubjectById}
                                     getRoomById={getRoomById}
@@ -6146,7 +6149,11 @@ export const App: React.FC = () => {
                             <AlumnaeActivationView 
                                 onFinish={() => {
                                     setShowAlumnaeActivation(false);
-                                    window.location.href = '/?view=community';
+                                    if (activeAlumna && !activeAlumna.password) {
+                                        setShowAlumnaeSecureAccount(true);
+                                    } else {
+                                        setShowAlumnaePortal(true);
+                                    }
                                 }}
                             />
                         ) : showTermsOfService ? (
@@ -6237,7 +6244,10 @@ export const App: React.FC = () => {
                                             profilePhotoUrl: profilePhotoUrl,
                                             paymentId: data.paymentId || null,
                                             registrationFee: companyDetails?.alumnaeJoiningFee || 0,
-                                            joinedAt: new Date().toISOString()
+                                            joinedAt: new Date().toISOString(),
+                                            // Implement Auto-Featured status for 30 days as a welcome gift
+                                            isFeatured: true,
+                                            featuredUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
                                         };
                                         
                                         // Clean up internal file reference before saving
@@ -6310,7 +6320,7 @@ export const App: React.FC = () => {
                                         localStorage.setItem('eduai_alumna_session', JSON.stringify(registrationPayload));
                                         setActiveAlumna(registrationPayload);
                                         setShowAlumnaeRegister(false);
-                                        setShowAlumnaeSecureAccount(true); // Redirect to securing form
+                                        setShowAlumnaeActivation(true); // Redirect to activation/install sequence
 
                                         // Send welcome email in background
                                         apiService.sendAlumnaWelcomeEmail({

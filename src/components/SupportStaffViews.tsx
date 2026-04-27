@@ -156,6 +156,7 @@ export interface SupportStaffViewProps {
     onSendSms?: (recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
     onAddTransaction?: (data: any, items: any[]) => Promise<any>;
     onRefreshData?: () => Promise<void>;
+    onAccessAlumnaPortal: (school: any) => void;
 }
 
 
@@ -1879,6 +1880,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                     onDeleteParent={() => { }}
                     companyDetails={companyDetails}
                     onAddTransaction={onAddTransaction}
+                    onAccessAlumnaPortal={props.onAccessAlumnaPortal}
                 />
             )}
 
@@ -1919,6 +1921,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                     onDeleteParent={() => { }}
                     companyDetails={companyDetails}
                     onAddTransaction={onAddTransaction}
+                    onAccessAlumnaPortal={props.onAccessAlumnaPortal}
                 />
             )}
 

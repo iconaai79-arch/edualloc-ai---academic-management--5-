@@ -147,6 +147,7 @@ export interface AdminViewProps {
     currentInstitution?: Institution | null;
     institutions?: Institution[];
     counties: County[];
+    schoolRegistry?: SchoolRegistry[];
     
     // Academic Lifecycle Props
     incidents?: DisciplineIncident[];
@@ -371,6 +372,9 @@ export interface AdminViewProps {
     carAppraisals?: CarAppraisal[];
     onAddCarListing?: (data: Partial<CarListing>) => Promise<void>;
     onUpdateCarTestDriveStatus?: (id: string, status: any) => Promise<void>;
+    onManualInvoice?: (institutionId: string, items: InvoiceItem[], totalAmount: number, dueDate: string) => void;
+    onUpdateAssessmentStatus?: (id: string, status: string) => Promise<void> | void;
+    onAccessAlumnaPortal: (school: SchoolRegistry) => void;
 }
 
 
@@ -1569,6 +1573,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         currentInstitution={props.currentInstitution!}
                         users={props.users || []}
                         allInstitutions={props.institutions || []}
+                        onAccessAlumnaPortal={props.onAccessAlumnaPortal}
+                        schoolRegistry={props.schoolRegistry}
                     />
                 )}
                 {activeTab === 'fuel_station' && (

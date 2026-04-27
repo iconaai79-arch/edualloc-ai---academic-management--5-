@@ -27,6 +27,7 @@ interface ParentViewProps {
     assessments?: Assessment[];
     onAddAssessment?: (data: any) => Promise<void>;
     onDeleteAssessment?: (id: string) => Promise<void>;
+    onAccessAlumnaPortal: (school: any) => void;
 }
 
 import { AttendanceAnalytics } from './AttendanceAnalytics';

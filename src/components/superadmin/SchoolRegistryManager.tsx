@@ -51,7 +51,8 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
         { key: 'cluster', label: 'Cluster Type' },
         { key: 'genderType', label: 'Gender Category' },
         { key: 'accommodationType', label: 'Accommodation Style' },
-        { key: 'specialNeedType', label: 'Inclusion Category' }
+        { key: 'specialNeedType', label: 'Inclusion Category' },
+        { key: 'institutionType', label: 'Institution Category' }
     ];
 
     const [newSchool, setNewSchool] = useState<Partial<SchoolRegistry>>({

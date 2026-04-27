@@ -75,6 +75,7 @@ interface LecturerViewProps {
     studentAttendances?: any[];
     studentAbsenceRequests?: any[];
     onSaveAttendance?: (lessonId: string, attendance: any[]) => Promise<void>;
+    onAccessAlumnaPortal: (school: any) => void;
 }
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {

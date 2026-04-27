@@ -109,6 +109,8 @@ interface AcademicsOfficerViewProps {
     onAddAssessment?: (data: any) => Promise<void>;
     onDeleteAssessment?: (id: string) => Promise<void>;
     onSaveAssessmentMarks?: (id: string, marks: any[]) => Promise<void>;
+    onAccessAlumnaPortal: (school: any) => void;
+    schoolRegistry?: any[];
 }
 
 export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props) => {
@@ -120,7 +122,8 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         onUpdateSubject, examTimetableSettings, buildings = [], academicYears = [],
         onLogAction, onAssociateSubjectToCourseLevel, onDisassociateSubjectFromCourseLevel,
         companyDetails, assessments = [], marks = [], activityLog = [],
-        incidents = [], onAddIncident, onAddAssessment, onDeleteAssessment, onSaveAssessmentMarks
+        incidents = [], onAddIncident, onAddAssessment, onDeleteAssessment, onSaveAssessmentMarks,
+        onAccessAlumnaPortal, schoolRegistry
     } = props;
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'exam_units' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline'>('dashboard');

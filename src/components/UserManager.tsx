@@ -177,7 +177,7 @@ interface SmartUserImporterModalProps {
     isCoop?: boolean;
 }
 
-const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose, onImport, existingUsers, departments, currentInstitution, currentUser, onLogAction, onAddTransaction, companyDetails, isRetailAgency, isPm: isPmProp }) => {
+const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose, onImport, existingUsers, departments, currentInstitution, currentUser, onLogAction, onAddTransaction, companyDetails, isRetailAgency, isPm: isPmProp, isCoop: isCoopProp }) => {
     const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing' | 'finalizing' | 'success' | 'error'>('upload');
     const [fileHeaders, setFileHeaders] = useState<string[]>([]);
     const [userMapping, setUserMapping] = useState<Record<UserMappingField, string | null>>(ALL_USER_MAPPING_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<UserMappingField, string | null>));
@@ -191,11 +191,11 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
     const existingUserStaffIds = useMemo(() => new Set<string>((existingUsers || []).filter(u => u && u.staffId).map(u => String(u.staffId).toLowerCase())), [existingUsers]);
     const institutionDomain = useMemo(() => currentInstitution?.email?.split('@')[1] || 'institution.edu', [currentInstitution]);
     const isCoop = useMemo(() => {
-        if (typeof props.isCoop === 'boolean') return props.isCoop;
+        if (typeof isCoopProp === 'boolean') return isCoopProp;
         const type = currentInstitution?.institutionType;
         const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
         return type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || subType.includes('coop') || subType.includes('sacco') || subType.includes('dairy') || subType.includes('tea') || subType.includes('coffee') || subType.includes('sugar');
-    }, [currentInstitution, props.isCoop]);
+    }, [currentInstitution, isCoopProp]);
 
     const isEdu = isEduInstitution(currentInstitution);
 
@@ -847,6 +847,7 @@ interface UserManagerProps {
     isAdding?: boolean;
     onAddExtensionRequest?: (reason: string) => void;
     isPm?: boolean;
+    onAccessAlumnaPortal: (school: any) => void;
 }
 
 export const UserManager: React.FC<UserManagerProps> = (props) => {

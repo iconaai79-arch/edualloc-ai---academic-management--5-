@@ -126,6 +126,7 @@ interface CountyAdminViewProps {
     onApprovePayouts: (ids: string[]) => void;
     onDisbursePayouts: (ids: string[]) => void;
     onAddPayouts: (data: any) => void;
+    onAccessAlumnaPortal: (school: SchoolRegistry) => void;
 }
 
 export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {

@@ -7,7 +7,7 @@ import {
     Phone, Mail, Globe, DollarSign, TrendingUp, Filter,
     Bell, Award, Handshake, UserCheck, Clock, Target
 } from 'lucide-react';
-import type { Institution, User } from '../types';
+import type { Institution, User, SchoolRegistry } from '../types';
 
 interface AlumniMember {
     id: string;
@@ -58,6 +58,8 @@ interface AlumniManagerProps {
     currentInstitution: Institution;
     users: User[];
     allInstitutions?: Institution[];
+    onAccessAlumnaPortal?: (school: any) => void;
+    schoolRegistry?: SchoolRegistry[];
 }
 
 const SAMPLE_ALUMNI: AlumniMember[] = [
@@ -78,7 +80,7 @@ const SAMPLE_EVENTS: AlumniEvent[] = [
     { id: 'e3', title: 'Alumni Career Fair 2026', date: 'Sep 20, 2026', time: '9:00 AM', venue: 'Virtual (Zoom)', type: 'Career Fair', description: 'Alumni-driven job fair for current students and graduates.', rsvpCount: 134 },
 ];
 
-export const AlumniManager: React.FC<AlumniManagerProps> = ({ currentInstitution, users, allInstitutions = [] }) => {
+export const AlumniManager: React.FC<AlumniManagerProps> = ({ currentInstitution, users, allInstitutions = [], onAccessAlumnaPortal, schoolRegistry = [] }) => {
     const [activeTab, setActiveTab] = useState<'overview' | 'directory' | 'jobs' | 'events' | 'achievements' | 'donations' | 'admin'>('overview');
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedYear, setSelectedYear] = useState('all');
@@ -410,6 +412,18 @@ export const AlumniManager: React.FC<AlumniManagerProps> = ({ currentInstitution
                                             <Globe className="w-3 h-3" /> Profile
                                         </button>
                                     </div>
+                                    {onAccessAlumnaPortal && (
+                                        <button 
+                                            onClick={() => {
+                                                const school = (schoolRegistry || []).find(s => s.id === a.schoolId || s.name === a.schoolName);
+                                                if (school) onAccessAlumnaPortal(school);
+                                                else alert("School registry record not found for this member's institution.");
+                                            }}
+                                            className="mt-2 w-full py-2.5 bg-rose-50 text-rose-600 rounded-xl font-black uppercase text-[9px] tracking-widest hover:bg-rose-600 hover:text-white transition-all flex items-center justify-center gap-1"
+                                        >
+                                            <Heart className="w-3 h-3" /> Alumnae Portal
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         ))}

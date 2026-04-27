@@ -39,7 +39,7 @@ export const minutesToTime = (minutes: number): string => {
 
 export const GRID_TIME_STEP_MINUTES = 15;
 
-const filterOutBreaks = (slots: { start: string; end: string }[], breaks: TimetableSettings['breaks'], includeBreaks: boolean = false) => {
+const filterOutBreaks = (slots: { start: string; end: string; label?: string; isBreak?: boolean }[], breaks: TimetableSettings['breaks'], includeBreaks: boolean = false) => {
   if (!slots || !Array.isArray(slots)) return [];
   if (includeBreaks || !breaks || !Array.isArray(breaks) || breaks.length === 0) return slots;
 
@@ -63,10 +63,10 @@ const filterOutBreaks = (slots: { start: string; end: string }[], breaks: Timeta
   });
 };
 
-export const generateTimeSlots = (settings: TimetableSettings, includeBreaks: boolean = false): { start: string; end: string }[] => {
+export const generateTimeSlots = (settings: TimetableSettings, includeBreaks: boolean = false): { start: string; end: string; label?: string; isBreak?: boolean }[] => {
   if (!settings) return [];
   const { startTime = '08:00', endTime = '17:00', breaks = [] } = settings;
-  const slots: { start: string; end: string }[] = [];
+  const slots: { start: string; end: string; label?: string; isBreak?: boolean }[] = [];
 
   let currentMinutes = timeToMinutes(startTime);
   const endMinutes = timeToMinutes(endTime);
@@ -105,7 +105,7 @@ export const generateDisplaySlots = (settings: TimetableSettings, includeBreaks:
   }
 
   const { startTime = '08:00', endTime = '17:00', cellSpanMinutes = 60 } = settings;
-  const slots: { start: string; end: string }[] = [];
+  const slots: { start: string; end: string; label?: string; isBreak?: boolean }[] = [];
 
   const step = cellSpanMinutes || 60;
   let currentMinutes = timeToMinutes(startTime);
