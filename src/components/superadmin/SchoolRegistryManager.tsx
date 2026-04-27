@@ -181,10 +181,30 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                 await Promise.all(batch.map(async (item) => {
                     try {
                         // Match existing record to allow UPSERT to work even if IDs were generated differently
-                        const existing = registry.find(r => 
+                        let existing = registry.find(r => 
                             (item.knecCode && r.knecCode === item.knecCode) || 
                             (item.uic && r.uic === item.uic)
                         );
+
+                        // Deep Search Fallback: If not found in current view, check the entire database
+                        if (!existing && (item.knecCode || item.uic)) {
+                            try {
+                                const filter: any = {};
+                                if (item.knecCode) filter.knec_code = item.knecCode;
+                                else if (item.uic) filter.uic = item.uic;
+
+                                const remoteMatches = await apiService.fetchModuleRecords('school_registry', undefined, undefined, {
+                                    filter,
+                                    limit: 1
+                                });
+                                if (remoteMatches && remoteMatches.length > 0) {
+                                    existing = remoteMatches[0];
+                                }
+                            } catch (e) {
+                                console.warn("Deep search failed, proceeding with standard insert:", e);
+                            }
+                        }
+
                         if (existing) {
                             item.id = existing.id;
                         }
