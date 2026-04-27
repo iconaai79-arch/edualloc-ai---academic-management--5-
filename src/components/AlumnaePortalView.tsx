@@ -1246,6 +1246,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                  <div className="flex-1 relative">
                                                      <input 
                                                          type="text" 
+                                                         id={`reply-input-${post.id}`}
                                                          placeholder="Post your reply..." 
                                                          className="w-full bg-slate-50 dark:bg-slate-900/50 border-none rounded-xl h-9 text-xs pl-4 pr-10 focus:ring-1 focus:ring-indigo-600 transition-all"
                                                          onKeyDown={(e) => {
@@ -1255,7 +1256,16 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                              }
                                                          }}
                                                      />
-                                                     <button className="absolute right-2 top-1/2 -translate-y-1/2 text-indigo-600 hover:text-indigo-700">
+                                                     <button 
+                                                         onClick={() => {
+                                                             const input = document.getElementById(`reply-input-${post.id}`) as HTMLInputElement;
+                                                             if (input && input.value.trim()) {
+                                                                 handleAddComment(post.id, input.value);
+                                                                 input.value = '';
+                                                             }
+                                                         }}
+                                                         className="absolute right-2 top-1/2 -translate-y-1/2 text-indigo-600 hover:text-indigo-700"
+                                                     >
                                                          <Send className="w-4 h-4" />
                                                      </button>
                                                  </div>
