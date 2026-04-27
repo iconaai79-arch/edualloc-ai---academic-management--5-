@@ -826,10 +826,11 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         <button 
                             key={idx} 
                             onClick={item.onClick}
-                            className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${item.active ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 border border-indigo-100/50' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                            className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all relative group ${item.active ? 'bg-indigo-600 text-white shadow-[0_10px_30px_rgba(79,70,229,0.3)] dark:shadow-[0_0_20px_rgba(99,102,241,0.2)]' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
                         >
-                            <item.icon className="w-6 h-6" />
+                            <item.icon className={`w-6 h-6 transition-transform ${item.active ? 'scale-110' : 'group-hover:scale-110'}`} />
                             <span className="hidden md:block font-bold text-sm uppercase tracking-widest">{item.label}</span>
+                            {item.active && <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-white rounded-l-full blur-[2px]"></div>}
                         </button>
                     ))}
                 </nav>
@@ -995,24 +996,26 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         case 'classmates':
                             return (
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 p-8 pb-32">
-                                    <header className="mb-12 flex flex-col gap-6">
-                                        <div>
-                                            <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Class of <span className="text-indigo-600 italic">{currentAlumna.graduationYear}</span></h2>
-                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-2">Your Verified Alumnae Circle</p>
+                                    <header className="mb-12 flex flex-col gap-8">
+                                        <div className="relative">
+                                            <div className="absolute -left-12 top-0 w-2 h-20 bg-indigo-600 rounded-full blur-lg opacity-40"></div>
+                                            <h2 className="text-4xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Class of <span className="text-indigo-400 italic drop-shadow-[0_0_15px_rgba(129,140,248,0.4)]">{currentAlumna.graduationYear}</span></h2>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.4em] mt-3">Your Verified Alumnae Circle</p>
                                             <div 
-                                                className="text-[11px] font-black uppercase tracking-[0.5em] text-indigo-600 mt-3 drop-shadow-lg"
+                                                className="text-[12px] font-black uppercase tracking-[0.6em] text-indigo-500 mt-4 drop-shadow-xl"
                                                 style={{ 
-                                                    textShadow: '1px 1px 0px #4f46e5, 2px 2px 0px #3730a3, 3px 3px 10px rgba(79,70,229,0.4)',
-                                                    transform: 'perspective(500px) rotateX(10deg)'
+                                                    textShadow: '1px 1px 0px #4f46e5, 2px 2px 0px #3730a3, 0 0 25px rgba(79,70,229,0.3)',
+                                                    transform: 'perspective(500px) rotateX(5deg)'
                                                 }}
                                             >
                                                 {currentAlumna.institutionName || currentAlumna.schoolName || 'Global Network'}
                                             </div>
                                         </div>
                                         <button 
-                                            onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent('Reconnect with our classmates at the Alumnae Circle! Join hier: ' + window.location.origin)}`, '_blank')}
-                                            className="w-full py-5 bg-emerald-500 text-white rounded-[2rem] font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl shadow-emerald-200 dark:shadow-none flex items-center justify-center gap-3 hover:scale-[1.02] transition-all group"
+                                            onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent('Reconnect with our classmates at the Alumnae Circle! Join here: ' + window.location.origin)}`, '_blank')}
+                                            className="w-full py-6 bg-emerald-500 text-white rounded-[2rem] font-black uppercase text-[11px] tracking-[0.3em] shadow-[0_20px_40px_rgba(16,185,129,0.2)] dark:shadow-none flex items-center justify-center gap-4 hover:scale-[1.02] active:scale-95 transition-all group overflow-hidden relative"
                                         >
+                                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
                                             <Share2 className="w-5 h-5 group-hover:rotate-12 transition-transform" /> Recall My Classmates
                                         </button>
                                     </header>
@@ -1227,16 +1230,16 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                             return (
                                 <>
                                     {/* Header Tabs */}
-                                    <header className="sticky top-0 bg-white/95 dark:bg-slate-950/95 backdrop-blur-3xl border-b border-slate-100 dark:border-slate-800 z-40">
+                                    <header className="sticky top-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-3xl border-b border-slate-100 dark:border-slate-800 z-40 shadow-[0_10px_40px_rgba(79,70,229,0.05)]">
                                         <div className="px-8 py-6 flex justify-between items-center">
                                             <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shrink-0"><Atom className="w-6 h-6 animate-spin-slow" /></div>
+                                                <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-[0_0_20px_rgba(79,70,229,0.4)]"><Atom className="w-6 h-6 animate-spin-slow" /></div>
                                                 <div className="flex flex-col">
-                                                    <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white leading-none">EduAI <span className="text-indigo-600 italic">Pulse</span></h2>
+                                                    <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white leading-none">EduAI <span className="text-indigo-400 italic drop-shadow-[0_0_10px_rgba(129,140,248,0.5)]">Pulse</span></h2>
                                                     <div 
-                                                        className="text-[9px] font-black uppercase tracking-[0.4em] text-indigo-600 mt-1 drop-shadow-sm"
+                                                        className="text-[9px] font-black uppercase tracking-[0.4em] text-indigo-500 mt-1.5"
                                                         style={{ 
-                                                            textShadow: '0.5px 0.5px 0px #4f46e5, 1px 1px 0px #3730a3',
+                                                            textShadow: '0.5px 0.5px 0px #4f46e5, 1px 1px 0px #3730a3, 0 0 15px rgba(99,102,241,0.3)',
                                                             transform: 'skewX(-5deg)'
                                                         }}
                                                     >
@@ -1248,30 +1251,30 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 {otherMemberships.length > 0 && (
                                                     <button 
                                                         onClick={() => setShowSwitcher(true)}
-                                                        className="md:hidden p-3 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 rounded-2xl transition-all hover:scale-105"
+                                                        className="md:hidden p-3 bg-indigo-600 text-white rounded-2xl transition-all hover:scale-105 shadow-lg shadow-indigo-200 dark:shadow-none"
                                                     >
                                                         <Repeat2 className="w-5 h-5" />
                                                     </button>
                                                 )}
-                                                <button onClick={onBack} className="md:hidden p-3 bg-rose-50 text-rose-500 rounded-2xl transition-all hover:scale-105">
+                                                <button onClick={onBack} className="md:hidden p-3 bg-white dark:bg-slate-900 text-rose-500 border border-rose-100 dark:border-rose-900/30 rounded-2xl transition-all hover:scale-105 shadow-sm">
                                                    <LogOut className="w-5 h-5" />
                                                 </button>
                                             </div>
                                         </div>
-                                        <div className="flex px-4 overflow-x-auto no-scrollbar scroll-smooth">
+                                        <div className="flex px-4 overflow-x-auto no-scrollbar scroll-smooth border-t border-slate-50 dark:border-slate-900/50">
                                             <button 
                                                 onClick={() => setActiveTab('for-you')}
-                                                className={`flex-1 py-5 text-[11px] font-black uppercase tracking-[0.25em] relative transition-all whitespace-nowrap min-w-[120px] ${activeTab === 'for-you' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                                                className={`flex-1 py-5 text-[11px] font-black uppercase tracking-[0.3em] relative transition-all whitespace-nowrap min-w-[120px] ${activeTab === 'for-you' ? 'text-indigo-500' : 'text-slate-400 hover:text-slate-600'}`}
                                             >
                                                 Global Circle
-                                                {activeTab === 'for-you' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-1.5 bg-indigo-600 rounded-full animate-in slide-in-from-bottom-1" />}
+                                                {activeTab === 'for-you' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-1.5 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.6)] animate-in slide-in-from-bottom-1" />}
                                             </button>
                                             <button 
                                                 onClick={() => setActiveTab('my-schools')}
-                                                className={`flex-1 py-5 text-[11px] font-black uppercase tracking-[0.25em] relative transition-all whitespace-nowrap min-w-[120px] ${activeTab === 'my-schools' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                                                className={`flex-1 py-5 text-[11px] font-black uppercase tracking-[0.3em] relative transition-all whitespace-nowrap min-w-[120px] ${activeTab === 'my-schools' ? 'text-indigo-500' : 'text-slate-400 hover:text-slate-600'}`}
                                             >
                                                 Institutional
-                                                {activeTab === 'my-schools' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-1.5 bg-indigo-600 rounded-full animate-in slide-in-from-bottom-1" />}
+                                                {activeTab === 'my-schools' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-1.5 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.6)] animate-in slide-in-from-bottom-1" />}
                                             </button>
                                         </div>
                                     </header>
@@ -1317,9 +1320,9 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                         <button 
                                                             onClick={handleCreatePost}
                                                             disabled={(!newPostContent.trim() && !postImageFile) || isPosting}
-                                                            className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.25em] shadow-2xl shadow-indigo-500/20 disabled:opacity-20 transition-all flex items-center gap-3 hover:scale-105 active:scale-95"
+                                                            className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.25em] shadow-[0_20px_50px_rgba(79,70,229,0.4)] dark:shadow-none disabled:opacity-20 transition-all flex items-center gap-3 hover:scale-105 active:scale-95 group/broadcast"
                                                         >
-                                                            {isPosting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />} 
+                                                            {isPosting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />} 
                                                             Broadcast
                                                         </button>
                                                     </div>
@@ -1562,12 +1565,15 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     <button 
                         key={idx} 
                         onClick={item.onClick || (() => { setActiveSection(item.section as any); setShowMoreMobileMenu(false); })}
-                        className={`flex flex-col items-center justify-center gap-2 transition-all flex-1 h-full relative group ${activeSection === item.section ? 'text-indigo-600' : 'text-slate-400'}`}
+                        className={`flex flex-col items-center justify-center gap-2 transition-all flex-1 h-full relative group ${activeSection === item.section ? 'text-indigo-500' : 'text-slate-400'}`}
                     >
-                        <div className={`p-2 rounded-2xl transition-all ${activeSection === item.section ? 'bg-indigo-50 dark:bg-indigo-900/30 ring-1 ring-indigo-100 scale-110 shadow-sm' : 'group-hover:bg-slate-50'}`}>
+                        <div className={`p-2.5 rounded-2xl transition-all relative ${activeSection === item.section ? 'bg-indigo-600 text-white shadow-[0_0_20px_rgba(79,70,229,0.5)] scale-110' : 'group-hover:bg-slate-50 dark:group-hover:bg-slate-900'}`}>
                             <item.icon className="w-5 h-5" />
                         </div>
                         <span className="text-[8px] font-black uppercase tracking-[0.2em]">{item.label}</span>
+                        {activeSection === item.section && (
+                            <div className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(99,102,241,1)]"></div>
+                        )}
                     </button>
                 ))}
 
