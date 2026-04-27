@@ -83,6 +83,10 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [editingPostId, setEditingPostId] = useState<string | null>(null);
     const [editingContent, setEditingContent] = useState('');
     const [showPostMenuId, setShowPostMenuId] = useState<string | null>(null);
+    const [viewedProfileId, setViewedProfileId] = useState<string | null>(null);
+    const [viewedProfileData, setViewedProfileData] = useState<any | null>(null);
+    const [profileActiveTab, setProfileActiveTab] = useState<'posts' | 'replies' | 'media' | 'highlights'>('posts');
+    const [profilePosts, setProfilePosts] = useState<AlumniPost[]>([]);
 
     const COMMON_EMOJIS = ['😊', '🎓', '✨', '🙌', '🎉', '💙', '🏛️', '💼', '💪', '👩‍🎓', '🏫', '💡', '🥂', '🔥', '📚', '🤝'];
 
@@ -511,6 +515,31 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         });
     };
 
+    const loadProfileContent = async (profileId: string) => {
+        try {
+            // Fetch Profile User Info
+            const members = await apiService.fetchModuleRecords('alumnae_members', undefined, undefined, {
+                filter: { id: profileId }
+            });
+            if (members.length > 0) setViewedProfileData(members[0]);
+
+            // Fetch Profile Posts
+            const rawPosts = await apiService.fetchModuleRecords('alumni_posts', undefined, undefined, {
+                filter: { authorId: profileId },
+                order: 'created_at.desc'
+            });
+            setProfilePosts(rawPosts);
+        } catch (e) {
+            console.error("Failed to load profile:", e);
+        }
+    };
+
+    useEffect(() => {
+        if (viewedProfileId) {
+            loadProfileContent(viewedProfileId);
+        }
+    }, [viewedProfileId]);
+
     const myInstitutions = useMemo(() => {
         // Current active institution
         const active = institutions.find(inst => inst.id === (currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id));
@@ -797,13 +826,21 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     ) : posts.map((post) => (
                         <div key={post.id} className="p-6 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-all group/post">
                             <div className="flex gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
+                                <div 
+                                    onClick={() => setViewedProfileId(post.authorId)}
+                                    className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 cursor-pointer hover:ring-2 hover:ring-indigo-500 transition-all active:scale-90"
+                                >
                                     {post.authorPhoto ? <img src={post.authorPhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-300" />}
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex items-center justify-between mb-1">
                                         <div className="flex items-center gap-2">
-                                            <span className="font-black text-slate-900 dark:text-white uppercase tracking-tight">{post.authorName}</span>
+                                            <span 
+                                                onClick={() => setViewedProfileId(post.authorId)}
+                                                className="font-black text-slate-900 dark:text-white uppercase tracking-tight cursor-pointer hover:text-indigo-600 transition-colors"
+                                            >
+                                                {post.authorName}
+                                            </span>
                                             <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
                                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">@{post.authorName.split(' ')[0].toLowerCase()}</span>
                                             <span className="text-slate-300 dark:text-slate-700">•</span>
@@ -1525,6 +1562,199 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
                         <div className="p-8 bg-slate-50 dark:bg-slate-800/50 flex justify-center border-t border-slate-100 dark:border-slate-800">
                             <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">EduAI Social Infrastructure • Verified Membership v2.0</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Full Profile View Overlay */}
+            {viewedProfileId && (
+                <div className="fixed inset-0 bg-white dark:bg-slate-950 z-[100] md:ml-64 flex flex-col animate-in slide-in-from-right duration-500">
+                    {/* Futuristic Header */}
+                    <header className="sticky top-0 bg-white/70 dark:bg-slate-950/70 backdrop-blur-3xl z-50 border-b border-slate-100 dark:border-slate-800">
+                        <div className="px-6 py-4 flex items-center gap-6">
+                            <button 
+                                onClick={() => {
+                                    setViewedProfileId(null);
+                                    setViewedProfileData(null);
+                                }}
+                                className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all group"
+                            >
+                                <ArrowLeft className="w-5 h-5 group-active:-translate-x-1 transition-transform" />
+                            </button>
+                            <div>
+                                <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">{viewedProfileData?.fullName || 'Profile View'}</h2>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">{profilePosts.length} Shared Topics</p>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div className="flex-1 overflow-y-auto no-scrollbar">
+                        {/* Immersive Profile Hero */}
+                        <div className="relative">
+                            <div className="h-48 md:h-64 bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 relative overflow-hidden">
+                                <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent"></div>
+                                <Sparkles className="absolute top-10 right-10 w-24 h-24 text-white/10 rotate-12" />
+                                {viewedProfileData?.coverPhotoUrl && <img src={viewedProfileData.coverPhotoUrl} className="w-full h-full object-cover" />}
+                            </div>
+                            
+                            <div className="px-6 -mt-16 relative z-10 flex justify-between items-end">
+                                <div className="w-32 h-32 md:w-40 md:h-40 rounded-[3rem] bg-white dark:bg-slate-900 p-2 shadow-2xl">
+                                    <div className="w-full h-full rounded-[2.5rem] bg-slate-100 dark:bg-slate-800 overflow-hidden border-2 border-indigo-500/20">
+                                        {viewedProfileData?.profilePhotoUrl ? (
+                                            <img src={viewedProfileData.profilePhotoUrl} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <User className="w-full h-full p-8 text-slate-300" />
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="mb-4 flex gap-3">
+                                    <button 
+                                        onClick={() => setActiveConversationPartner(viewedProfileData)}
+                                        className="p-4 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all shadow-xl shadow-indigo-100 dark:shadow-none"
+                                    >
+                                        <MessageSquare className="w-6 h-6" />
+                                    </button>
+                                    <button className="px-8 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-2xl">
+                                        Follow Legacy
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="px-8 mt-6">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <h1 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{viewedProfileData?.fullName}</h1>
+                                    <CheckCircle2 className="w-6 h-6 text-indigo-600 fill-indigo-50" />
+                                </div>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mb-4">@{viewedProfileData?.fullName?.split(' ')[0].toLowerCase()}_legacy</p>
+                                
+                                <p className="text-slate-600 dark:text-slate-400 font-medium text-sm leading-relaxed max-w-xl mb-6">
+                                    {viewedProfileData?.bio || `${viewedProfileData?.fullName} is a verified alumna of ${viewedProfileData?.institutionName || 'the network'}. Building professional legacy through community engagement.`}
+                                </p>
+
+                                <div className="flex flex-wrap items-center gap-6 mb-8">
+                                    <div className="flex items-center gap-2 text-slate-400">
+                                        <Building2 className="w-4 h-4" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">{viewedProfileData?.currentCompany || 'EduAI Global Network'}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-slate-400">
+                                        <Calendar className="w-4 h-4" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Joined legacy {new Date(viewedProfileData?.createdAt || Date.now()).getFullYear()}</span>
+                                    </div>
+                                    <div className="flex gap-4">
+                                        <div className="cursor-pointer hover:underline decoration-indigo-600">
+                                            <span className="font-black text-slate-900 dark:text-white">1.2k</span>
+                                            <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest ml-1">Following</span>
+                                        </div>
+                                        <div className="cursor-pointer hover:underline decoration-indigo-600">
+                                            <span className="font-black text-slate-900 dark:text-white">840</span>
+                                            <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest ml-1">Followers</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Profile Tabs */}
+                        <div className="sticky top-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-3xl z-40 border-b border-slate-100 dark:border-slate-800">
+                            <div className="flex">
+                                {['Posts', 'Replies', 'Highlights', 'Media'].map((tab) => (
+                                    <button 
+                                        key={tab}
+                                        onClick={() => setProfileActiveTab(tab.toLowerCase() as any)}
+                                        className={`flex-1 py-5 text-[10px] font-black uppercase tracking-[0.25em] relative transition-all ${profileActiveTab === tab.toLowerCase() ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+                                    >
+                                        {tab}
+                                        {profileActiveTab === tab.toLowerCase() && (
+                                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-indigo-600 rounded-full" />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Tab Content */}
+                        <div className="pb-20 max-w-2xl mx-auto divide-y divide-slate-100 dark:divide-slate-900">
+                            {profileActiveTab === 'posts' && (
+                                profilePosts.length > 0 ? profilePosts.map(post => (
+                                    <div key={post.id} className="p-8 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-all group/post">
+                                        <div className="flex gap-6">
+                                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 flex items-center justify-center font-black">
+                                                {post.authorName?.charAt(0)}
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className="font-black text-slate-900 dark:text-white uppercase tracking-tight">{post.authorName}</span>
+                                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(post.createdAt).toLocaleDateString()}</span>
+                                                </div>
+                                                <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-sm mb-4">{post.content}</p>
+                                                
+                                                {post.photoUrl && (
+                                                    <div className="mb-4 rounded-[2rem] overflow-hidden border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-100">
+                                                        <img src={post.photoUrl} className="w-full max-h-80 object-cover" />
+                                                    </div>
+                                                )}
+
+                                                {post.videoUrl && (
+                                                    <div className="mb-4 rounded-[2rem] overflow-hidden bg-black aspect-video shadow-2xl">
+                                                        <video src={post.videoUrl} controls className="w-full h-full object-contain" />
+                                                    </div>
+                                                )}
+
+                                                <div className="flex items-center justify-between text-slate-400 max-w-xs">
+                                                    <button className="flex items-center gap-2 hover:text-indigo-600 transition-colors">
+                                                        <MessageSquare className="w-4 h-4" />
+                                                        <span className="text-[10px] font-black">{post.commentsCount}</span>
+                                                    </button>
+                                                    <button className="flex items-center gap-2 hover:text-rose-500 transition-colors">
+                                                        <Heart className="w-4 h-4" />
+                                                        <span className="text-[10px] font-black">{(post.likes?.length) || 0}</span>
+                                                    </button>
+                                                    <button className="p-2 hover:bg-indigo-50 rounded-xl transition-colors">
+                                                        <Share2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )) : (
+                                    <div className="p-20 text-center">
+                                        <Sparkles className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">No legacy threads started yet.</p>
+                                    </div>
+                                )
+                            )}
+
+                            {(profileActiveTab === 'media') && (
+                                <div className="p-8 grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    {profilePosts.filter(p => p.photoUrl || p.videoUrl).map((post, idx) => (
+                                        <div key={idx} className="aspect-square rounded-3xl overflow-hidden bg-indigo-50 group cursor-pointer relative shadow-lg">
+                                            {post.photoUrl ? (
+                                                <img src={post.photoUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                            ) : (
+                                                <div className="w-full h-full bg-slate-900 flex items-center justify-center">
+                                                    <Video className="w-8 h-8 text-white/50" />
+                                                </div>
+                                            )}
+                                            <div className="absolute inset-0 bg-indigo-600/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+                                                <div className="flex gap-4 text-white">
+                                                    <div className="flex items-center gap-1 font-black text-xs">
+                                                        <Heart className="w-4 h-4" /> {post.likes?.length || 0}
+                                                    </div>
+                                                    <div className="flex items-center gap-1 font-black text-xs">
+                                                        <MessageSquare className="w-4 h-4" /> {post.commentsCount}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {profilePosts.filter(p => p.photoUrl || p.videoUrl).length === 0 && (
+                                        <div className="col-span-full p-20 text-center">
+                                            <ImageIcon className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">No media fragments found.</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
