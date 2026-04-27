@@ -99,7 +99,6 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
     const [zoomedImage, setZoomedImage] = useState<string | null>(null);
     const [alumniNotifications, setAlumniNotifications] = useState<any[]>([]);
-    const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
 
     const COMMON_EMOJIS = ['😊', '🎓', '✨', '🙌', '🎉', '💙', '🏛️', '💼', '💪', '👩‍🎓', '🏫', '💡', '🥂', '🔥', '📚', '🤝'];
 
@@ -2082,7 +2081,13 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                     <Video className="w-8 h-8 text-white/50" />
                                                 </div>
                                             )}
-                                            <div className="absolute inset-0 bg-indigo-600/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+                                            <div 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (post.photoUrl) setZoomedImage(post.photoUrl);
+                                                }}
+                                                className="absolute inset-0 bg-indigo-600/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm"
+                                            >
                                                 <div className="flex gap-4 text-white">
                                                     <div className="flex items-center gap-1 font-black text-xs">
                                                         <Heart className="w-4 h-4" /> {post.likes?.length || 0}
@@ -2107,31 +2112,6 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 </div>
             )}
 
-            {/* Image Zoom Lightbox */}
-            {zoomedImageUrl && (
-                <div 
-                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-2xl animate-in fade-in duration-300"
-                    onClick={() => setZoomedImageUrl(null)}
-                >
-                    <button 
-                        onClick={() => setZoomedImageUrl(null)}
-                        className="absolute top-8 right-8 w-14 h-14 bg-white/10 hover:bg-white/20 text-white rounded-2xl flex items-center justify-center transition-all hover:rotate-90 z-[110]"
-                    >
-                        <X className="w-8 h-8" />
-                    </button>
-                    
-                    <div className="relative max-w-[95vw] max-h-[90vh] flex items-center justify-center animate-in zoom-in-95 duration-500 ease-out">
-                        <img 
-                            src={zoomedImageUrl} 
-                            className="max-w-full max-h-full object-contain rounded-xl shadow-2xl selection:bg-none"
-                            onClick={(e) => e.stopPropagation()} 
-                        />
-                        <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 px-6 py-2 bg-white/10 backdrop-blur-xl rounded-full text-[10px] font-black uppercase tracking-[0.3em] text-white/60">
-                            Legacy Visual Capture
-                        </div>
-                    </div>
-                </div>
-            )}
             {/* Image Zoom Lightbox */}
             {zoomedImage && (
                 <div 
