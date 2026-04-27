@@ -96,6 +96,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [activeProject, setActiveProject] = useState<any | null>(null);
     const [projectUpdates, setProjectUpdates] = useState<any[]>([]);
     const [newMessageToSchool, setNewMessageToSchool] = useState('');
+    const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
     const [zoomedImage, setZoomedImage] = useState<string | null>(null);
     const [alumniNotifications, setAlumniNotifications] = useState<any[]>([]);
     const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
@@ -399,6 +400,43 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             }
 
             if (res.success) {
+                const checkoutRequestId = res.checkoutRequestId || res.requestId;
+                if (!checkoutRequestId) {
+                    throw new Error("Invalid response from payment gateway: Missing identifier.");
+                }
+
+                setIsVerifyingPayment(true);
+                setIsProcessingFeature(false);
+
+                // Polling Loop for Confirmation (Max 60s)
+                let confirmed = false;
+                let attempts = 0;
+                const maxAttempts = 12; // 12 * 5s = 60s
+
+                while (attempts < maxAttempts && !confirmed) {
+                    await new Promise(r => setTimeout(r, 5000)); // Wait 5s
+                    attempts++;
+
+                    try {
+                        const statusRes = await apiService.checkPaymentStatus(
+                            ncbaConfig && ncbaConfig.clientId ? 'ncba' : 'mpesa',
+                            checkoutRequestId
+                        );
+
+                        if (statusRes.success && (statusRes.status === 'Completed' || statusRes.status === 'Success' || statusRes.resultCode === '0')) {
+                            confirmed = true;
+                        } else if (statusRes.status === 'Failed' || statusRes.resultCode === '1') {
+                            throw new Error("Payment was cancelled or failed at the gateway.");
+                        }
+                    } catch (err) {
+                        console.warn("Retrying status check...", err);
+                    }
+                }
+
+                if (!confirmed) {
+                    throw new Error("Payment confirmation timed out. If you were charged, your status will update automatically within 24h.");
+                }
+
                 // Success - Update record
                 const featuredUntil = new Date();
                 featuredUntil.setMonth(featuredUntil.getMonth() + 1); // 1 month feature
@@ -408,15 +446,17 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     featuredUntil: featuredUntil.toISOString()
                 });
 
-                alert("Congratulations! You are now a Featured Alumna.");
+                alert("Verification Successful! You are now a Featured Alumna. Your profile is trending globally.");
                 window.location.reload();
             } else {
-                alert("Payment failed: " + res.message);
+                alert("Payment Initiation Failed: " + (res.message || "Unknown error"));
             }
         } catch (e: any) {
-            alert("Payment Error: " + e.message);
+            console.error("Promotion Error:", e);
+            alert("Security Error: " + (e.message || "Payment verification failed."));
         } finally {
             setIsProcessingFeature(false);
+            setIsVerifyingPayment(false);
         }
     };
 
@@ -780,7 +820,14 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                             disabled={isProcessingFeature}
                             className="w-full py-2.5 bg-white text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all flex items-center justify-center gap-2"
                         >
-                            {isProcessingFeature ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Get Featured Now'}
+                            {isProcessingFeature || isVerifyingPayment ? (
+                                <div className="flex flex-col items-center gap-3">
+                                    <Loader2 className="w-8 h-8 animate-spin text-white" />
+                                    <span className="text-[8px] font-black uppercase tracking-[0.2em] animate-pulse">
+                                        {isVerifyingPayment ? 'Verifying Gateway Response...' : 'Initiating Legacy Boost...'}
+                                    </span>
+                                </div>
+                            ) : 'Get Featured Now'}
                         </button>
                     </div>
                 )}
