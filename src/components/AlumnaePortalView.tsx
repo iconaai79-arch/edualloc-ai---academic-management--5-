@@ -26,7 +26,8 @@ import {
     Building2,
     LogOut,
     Edit2,
-    Trash2
+    Trash2,
+    Video
 } from 'lucide-react';
 import type { AlumniPost, AlumniComment, Institution } from '../types';
 import { apiService } from '../services/apiService';
@@ -74,6 +75,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [showSwitcher, setShowSwitcher] = useState(false);
     const [postImageFile, setPostImageFile] = useState<File | null>(null);
     const [postImagePreview, setPostImagePreview] = useState<string | null>(null);
+    const [postVideoFile, setPostVideoFile] = useState<File | null>(null);
+    const [postVideoPreview, setPostVideoPreview] = useState<string | null>(null);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [scheduledDate, setScheduledDate] = useState('');
@@ -350,11 +353,13 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     };
 
     const handleCreatePost = async () => {
-        if (!newPostContent.trim() && !postImageFile) return;
+        if (!newPostContent.trim() && !postImageFile && !postVideoFile) return;
         setIsPosting(true);
         
         try {
             let photoUrl = '';
+            let videoUrl = '';
+
             if (postImageFile) {
                 const uploadRes = await apiService.uploadToGoogleDrive(postImageFile, 'Alumnae_Social', {
                     institutionId: currentAlumna.institutionId,
@@ -363,15 +368,24 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 if (uploadRes.success) photoUrl = uploadRes.url;
             }
 
+            if (postVideoFile) {
+                const uploadRes = await apiService.uploadToGoogleDrive(postVideoFile, 'Alumnae_Short_Clips', {
+                    institutionId: currentAlumna.institutionId,
+                    useGlobalConfig: !currentAlumna.institutionId
+                });
+                if (uploadRes.success) videoUrl = uploadRes.url;
+            }
+
             const post: AlumniPost = {
                 id: `p_${Date.now()}`,
                 authorId: currentAlumna.id,
                 authorName: currentAlumna.fullName || currentAlumna.name,
                 authorPhoto: currentAlumna.profilePhotoUrl,
                 institutionId: currentAlumna.institutionId || 'GLOBAL',
-                schoolId: currentAlumna.schoolId || currentAlumna.registryId || currentAlumna.school_id,
+                schoolId: (currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id) as string,
                 content: newPostContent,
-                photoUrl: photoUrl, // Add photo support
+                photoUrl: photoUrl,
+                videoUrl: videoUrl,
                 likes: [],
                 commentsCount: 0,
                 createdAt: new Date().toISOString()
@@ -382,16 +396,14 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             setNewPostContent('');
             setPostImageFile(null);
             setPostImagePreview(null);
+            setPostVideoFile(null);
+            setPostVideoPreview(null);
             setScheduledDate('');
             setShowEmojiPicker(false);
             setShowDatePicker(false);
         } catch (e: any) {
             console.error(e);
-            if (e.message?.includes('photo_url')) {
-                alert("Database update required. Please contact a County Administrator to run the 'Alumni Schema Migration' in the Settings tab.");
-            } else {
-                alert("Post Error: " + e.message);
-            }
+            alert("Post Error: " + e.message);
         } finally {
             setIsPosting(false);
         }
@@ -647,6 +659,33 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                     >
                                         <ImageIcon className="w-5 h-5" />
                                     </button>
+                                    
+                                    <input 
+                                        type="file" 
+                                        id="post-video-upload" 
+                                        className="hidden" 
+                                        accept="video/*"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                if (file.size > 50 * 1024 * 1024) {
+                                                    alert("Short clips only! Video should be under 50MB.");
+                                                    return;
+                                                }
+                                                setPostVideoFile(file);
+                                                setPostVideoPreview(URL.createObjectURL(file));
+                                                setPostImageFile(null);
+                                                setPostImagePreview(null);
+                                            }
+                                        }}
+                                    />
+                                    <button 
+                                        onClick={() => document.getElementById('post-video-upload')?.click()}
+                                        className={`p-2 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-xl transition-all ${postVideoFile ? 'bg-primary-50 text-primary-600' : ''}`}
+                                        title="Attach Short Clip"
+                                    >
+                                        <Video className="w-5 h-5" />
+                                    </button>
                                     <div className="relative">
                                         <button 
                                             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -716,6 +755,21 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             setPostImagePreview(null);
                                         }}
                                         className="absolute top-4 right-4 p-2 bg-black/50 text-white rounded-full hover:bg-black/70 backdrop-blur-md transition-all"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            )}
+
+                            {postVideoPreview && (
+                                <div className="relative mt-4 w-full aspect-video rounded-3xl overflow-hidden bg-black border border-slate-100 dark:border-slate-800">
+                                    <video src={postVideoPreview} controls className="w-full h-full object-contain" />
+                                    <button 
+                                        onClick={() => {
+                                            setPostVideoFile(null);
+                                            setPostVideoPreview(null);
+                                        }}
+                                        className="absolute top-4 right-4 p-2 bg-white/20 text-white rounded-full hover:bg-white/40 backdrop-blur-md transition-all"
                                     >
                                         <X className="w-4 h-4" />
                                     </button>
@@ -824,6 +878,17 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                     {post.photoUrl && (
                                         <div className="mb-4 rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
                                             <img src={post.photoUrl} className="w-full max-h-96 object-cover" />
+                                        </div>
+                                    )}
+
+                                    {post.videoUrl && (
+                                        <div className="mb-4 rounded-3xl overflow-hidden bg-black border border-slate-100 dark:border-slate-800 aspect-video">
+                                            <video 
+                                                src={post.videoUrl} 
+                                                controls 
+                                                preload="metadata"
+                                                className="w-full h-full object-contain"
+                                            />
                                         </div>
                                     )}
                                     

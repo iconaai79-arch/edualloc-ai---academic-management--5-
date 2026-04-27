@@ -3331,6 +3331,7 @@ export const App: React.FC = () => {
                                                     school_id TEXT,
                                                     content TEXT NOT NULL,
                                                     photo_url TEXT,
+                                                    video_url TEXT,
                                                     likes TEXT[] DEFAULT '{}',
                                                     comments_count INTEGER DEFAULT 0,
                                                     is_announcement BOOLEAN DEFAULT false,
@@ -3356,6 +3357,10 @@ export const App: React.FC = () => {
 
                                                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'photo_url') THEN
                                                         ALTER TABLE alumni_posts ADD COLUMN photo_url TEXT;
+                                                    END IF;
+
+                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'video_url') THEN
+                                                        ALTER TABLE alumni_posts ADD COLUMN video_url TEXT;
                                                     END IF;
 
                                                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'author_photo') THEN
@@ -3390,7 +3395,7 @@ export const App: React.FC = () => {
                                                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                                                 );
                                                 
-                                                -- FORCE SCHEMA CACHE RELOAD (Critical for PostgREST/Supabase)
+                                                -- FORCE SCHEMA CACHE RELOAD
                                                 NOTIFY pgrst, 'reload schema';`;
                                             await apiService.runMigration(sql);
                                             alert("Alumnae infrastructure verified and updated successfully.");

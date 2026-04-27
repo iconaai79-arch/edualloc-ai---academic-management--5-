@@ -4303,6 +4303,7 @@ export interface AlumniPost {
     commentsCount: number;
     createdAt: string;
     photoUrl?: string;
+    videoUrl?: string;
     hashtags?: string[];
     schoolId?: string;
 }
