@@ -999,6 +999,15 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                         <div>
                                             <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Class of <span className="text-indigo-600 italic">{currentAlumna.graduationYear}</span></h2>
                                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-2">Your Verified Alumnae Circle</p>
+                                            <div 
+                                                className="text-[11px] font-black uppercase tracking-[0.5em] text-indigo-600 mt-3 drop-shadow-lg"
+                                                style={{ 
+                                                    textShadow: '1px 1px 0px #4f46e5, 2px 2px 0px #3730a3, 3px 3px 10px rgba(79,70,229,0.4)',
+                                                    transform: 'perspective(500px) rotateX(10deg)'
+                                                }}
+                                            >
+                                                {currentAlumna.institutionName || currentAlumna.schoolName || 'Global Network'}
+                                            </div>
                                         </div>
                                         <button 
                                             onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent('Reconnect with our classmates at the Alumnae Circle! Join hier: ' + window.location.origin)}`, '_blank')}
@@ -1220,9 +1229,20 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                     {/* Header Tabs */}
                                     <header className="sticky top-0 bg-white/95 dark:bg-slate-950/95 backdrop-blur-3xl border-b border-slate-100 dark:border-slate-800 z-40">
                                         <div className="px-8 py-6 flex justify-between items-center">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white"><Atom className="w-6 h-6 animate-spin-slow" /></div>
-                                                <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">EduAI <span className="text-indigo-600 italic">Pulse</span></h2>
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shrink-0"><Atom className="w-6 h-6 animate-spin-slow" /></div>
+                                                <div className="flex flex-col">
+                                                    <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white leading-none">EduAI <span className="text-indigo-600 italic">Pulse</span></h2>
+                                                    <div 
+                                                        className="text-[9px] font-black uppercase tracking-[0.4em] text-indigo-600 mt-1 drop-shadow-sm"
+                                                        style={{ 
+                                                            textShadow: '0.5px 0.5px 0px #4f46e5, 1px 1px 0px #3730a3',
+                                                            transform: 'skewX(-5deg)'
+                                                        }}
+                                                    >
+                                                        {currentAlumna.institutionName || currentAlumna.schoolName || 'Global Network'}
+                                                    </div>
+                                                </div>
                                             </div>
                                             <div className="flex gap-3">
                                                 {otherMemberships.length > 0 && (
