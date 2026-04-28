@@ -254,6 +254,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     };
 
     const loadNotifications = async () => {
+        try {
             const alumnaId = currentAlumna.id || currentAlumna.alumna_id || currentAlumna.student_id;
             const raw = await apiService.fetchModuleRecords('alumni_notifications', undefined, undefined, {
                 filter: { recipient_id: alumnaId },

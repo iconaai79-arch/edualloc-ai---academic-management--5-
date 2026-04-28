@@ -3688,8 +3688,6 @@ export const App: React.FC = () => {
                                         studentCheckIns={studentCheckIns}
                                         lessonRatings={lessonRatings}
                                         feedbackSubmissions={feedbackSubmissions}
-                                        onAccessAlumnaPortal={handleAccessAlumnaPortal}
-                                        schoolRegistry={schoolRegistry}
                                         courseSizes={courseSizes}
                                         contracts={contracts}
                                         isGeneratingDemoData={isGeneratingDemoData}
@@ -3866,8 +3864,6 @@ export const App: React.FC = () => {
                                             loadData();
                                         }}
                                          onLogAction={handleLogAction}
-                                         onAccessAlumnaPortal={handleAccessAlumnaPortal}
-                                         schoolRegistry={schoolRegistry}
                                      />
                                 ) : activeRole === 'lecturer' ? (
                                     <LecturerView
