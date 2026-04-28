@@ -726,7 +726,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         const msg = {
             id: `msg_${Date.now()}`,
             senderId: currentAlumna.id,
-            receiverId: activeConversationPartner.id,
+            recipientId: activeConversationPartner.id,
             institutionId: currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id,
             content: newMessage,
             isRead: false,
@@ -1421,7 +1421,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                         <div className="w-10"></div>
                                                     </header>
                                                     <div className="flex-1 p-8 overflow-y-auto space-y-6 no-scrollbar scrolling-touch">
-                                                        {messages.filter(m => (m.senderId === activeConversationPartner.id && m.receiverId === currentAlumna.id) || (m.senderId === currentAlumna.id && m.receiverId === activeConversationPartner.id)).map(msg => (
+                                                        {messages.filter(m => (m.senderId === activeConversationPartner.id && m.recipientId === currentAlumna.id) || (m.senderId === currentAlumna.id && m.recipientId === activeConversationPartner.id)).map(msg => (
                                                             <div key={msg.id} className={`flex ${msg.senderId === currentAlumna.id ? 'justify-end' : 'justify-start'}`}>
                                                                 <div className={`max-w-[75%] p-5 rounded-[2.5rem] text-sm font-medium shadow-sm transition-all hover:scale-[1.01] ${msg.senderId === currentAlumna.id ? 'bg-indigo-600 text-white rounded-br-none shadow-indigo-500/20' : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-bl-none border border-slate-100 dark:border-slate-800'}`}>
                                                                     {msg.content}
@@ -1431,7 +1431,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                                 </div>
                                                             </div>
                                                         ))}
-                                                        {messages.filter(m => (m.senderId === activeConversationPartner.id && m.receiverId === currentAlumna.id) || (m.senderId === currentAlumna.id && m.receiverId === activeConversationPartner.id)).length === 0 && (
+                                                        {messages.filter(m => (m.senderId === activeConversationPartner.id && m.recipientId === currentAlumna.id) || (m.senderId === currentAlumna.id && m.recipientId === activeConversationPartner.id)).length === 0 && (
                                                             <div className="h-full flex flex-col items-center justify-center opacity-20">
                                                                 <MessageSquare className="w-20 h-20 mb-6" />
                                                                 <p className="text-[10px] font-black uppercase tracking-[0.3em]">Encryption Initialized</p>
@@ -1881,7 +1881,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                                     className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${selectedPost?.id === post.id ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:bg-indigo-50 hover:text-indigo-600'}`}
                                                                 >
                                                                     <MessageSquare className="w-5 h-5" />
-                                                                    <span className="text-xs font-black">{post.commentsCount || 0}</span>
+                                                                    <span className="text-xs font-black">{(comments[post.id]?.length || post.commentsCount || 0)}</span>
                                                                 </button>
                                                                 <button 
                                                                     onClick={() => handleLike(post.id)} 
@@ -2444,7 +2444,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                     </div>
                                                 )}
                                                 <div className="flex items-center gap-10 text-slate-400 ml-[-8px]">
-                                                    <div className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl transition-all cursor-pointer"><MessageSquare className="w-5 h-5" /><span className="text-xs font-black">{post.commentsCount}</span></div>
+                                                    <div className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl transition-all cursor-pointer"><MessageSquare className="w-5 h-5" /><span className="text-xs font-black">{(comments[post.id]?.length || post.commentsCount || 0)}</span></div>
                                                     <div className="flex items-center gap-3 px-4 py-2 hover:bg-rose-50 hover:text-rose-500 rounded-2xl transition-all cursor-pointer"><Heart className="w-5 h-5" /><span className="text-xs font-black">{(post.likes?.length) || 0}</span></div>
                                                     <Share2 className="w-5 h-5 hover:text-indigo-600 cursor-pointer transition-all" />
                                                 </div>
@@ -2474,7 +2474,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             >
                                                 <div className="flex gap-8 text-white scale-90 group-hover:scale-100 transition-transform duration-500">
                                                     <div className="flex flex-col items-center gap-2"><Heart className="w-7 h-7 fill-white" /><span className="font-black text-sm">{post.likes?.length || 0}</span></div>
-                                                    <div className="flex flex-col items-center gap-2"><MessageSquare className="w-7 h-7" /><span className="font-black text-sm">{post.commentsCount}</span></div>
+                                                    <div className="flex flex-col items-center gap-2"><MessageSquare className="w-7 h-7" /><span className="font-black text-sm">{(comments[post.id]?.length || post.commentsCount || 0)}</span></div>
                                                 </div>
                                             </div>
                                         </div>
