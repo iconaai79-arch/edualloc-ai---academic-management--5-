@@ -1400,9 +1400,14 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     }, [institutions, currentAlumna, otherMemberships]);
 
     return (
-        <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col md:flex-row font-display">
+        <div className="min-h-screen bg-[#020617] flex flex-col md:flex-row font-sans selection:bg-indigo-500/30 text-slate-300 relative overflow-hidden">
+            {/* Background Decorative Elements */}
+            <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 rounded-full blur-[120px] animate-pulse"></div>
+                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-violet-600/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
+            </div>
             {/* Left Sidebar - Navigation (Hidden on mobile, shown on md+) */}
-            <aside className="hidden md:flex w-64 border-r border-slate-100 dark:border-slate-800 flex-col p-4 fixed h-screen bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl z-50">
+            <aside className="hidden md:flex w-64 border-r border-white/5 flex-col p-4 fixed h-screen bg-white/5 backdrop-blur-3xl z-50">
                 <div className="mb-8 px-2">
                     <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200">
                         <Sparkles className="w-6 h-6" />
@@ -1466,7 +1471,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             </aside>
 
             {/* Main Content Area */}
-            <main className="flex-1 md:ml-64 max-w-2xl mx-auto w-full border-x border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950 min-h-screen pb-20 md:pb-0">
+            <main className="flex-1 md:ml-64 max-w-2xl mx-auto w-full border-x border-white/5 bg-white/5 backdrop-blur-sm min-h-screen pb-20 md:pb-0 relative z-10">
                 {/* Section Controller */}
                 {(() => {
                     switch (activeSection) {
@@ -1485,7 +1490,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             </div>
                                         ) : (
                                             schoolProjects.map(event => ( // Assuming events are loaded into schoolProjects or similar
-                                                <div key={event.id} className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-2xl group">
+                                                <div key={event.id} className="bg-white/5 border border-white/10 shadow-xl">
                                                     <div className="h-48 relative overflow-hidden">
                                                         {event.image_url ? <img src={event.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" /> : <div className="w-full h-full bg-amber-50 flex items-center justify-center opacity-20"><Calendar className="w-12 h-12" /></div>}
                                                     </div>
@@ -1609,7 +1614,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
                                     <div className="px-6 space-y-12">
                                         {schoolProjects.map((project) => (
-                                            <div key={project.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-2xl shadow-indigo-500/5">
+                                            <div key={project.id} className="bg-white/5 border border-white/10 shadow-2xl">
                                                 <div className="h-64 relative overflow-hidden group">
                                                     {project.imageUrl ? <img src={project.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" /> : <div className="w-full h-full bg-slate-100 items-center justify-center flex"><Building2 className="w-12 h-12 opacity-20" /></div>}
                                                     <div className="absolute top-6 left-6 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[8px] font-black uppercase tracking-widest shadow-xl">
@@ -1943,7 +1948,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             </div>
                                         ) : (
                                             jobs.map(job => (
-                                                <div key={job.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-100/50 hover:border-indigo-400 transition-all">
+                                                <div key={job.id} className="bg-white/5 backdrop-blur-xl border border-white/10">
                                                     <div className="flex justify-between items-start mb-6">
                                                         <div>
                                                             <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{job.title}</h3>
@@ -1994,7 +1999,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             </div>
                                         ) : (
                                             businesses.map(biz => (
-                                                <div key={biz.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl flex gap-6 hover:border-rose-400 transition-all">
+                                                <div key={biz.id} className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 shadow-xl flex gap-6 hover:border-rose-400 transition-all">
                                                     <div className="w-24 h-24 rounded-3xl bg-slate-50 dark:bg-slate-800 overflow-hidden shrink-0">
                                                         {biz.logo_url ? <img src={biz.logo_url} className="w-full h-full object-cover" /> : <ShoppingBag className="w-full h-full p-6 text-slate-200" />}
                                                     </div>
@@ -2033,7 +2038,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             </div>
                                         ) : (
                                             alumnaeMembers.filter(m => (m.isMentorAvailable || m.is_mentor_available) && m.id !== currentAlumna.id).map(mentor => (
-                                                <div key={mentor.id} className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl flex items-center gap-8 hover:border-indigo-400 transition-all group">
+                                                <div key={mentor.id} className="bg-white/5 backdrop-blur-md border border-white/10">
                                                     <div className="w-24 h-24 rounded-[2rem] bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 group-hover:scale-105 transition-transform">
                                                         {mentor.profilePhotoUrl ? <img src={mentor.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-6 text-slate-300" />}
                                                     </div>
@@ -2131,7 +2136,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 </div>
                                             ) : (
                                                 schoolTeam.map(member => (
-                                                    <div key={member.id} className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-lg flex items-center gap-6 group hover:border-indigo-400 transition-all">
+                                                    <div key={member.id} className="bg-white/5 border border-white/10">
                                                         <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 border border-slate-100 dark:border-slate-800 shadow-sm relative">
                                                             {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
                                                             <div className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 ${member.role === 'Admin' ? 'bg-amber-400' : member.role === 'Moderator' ? 'bg-indigo-400' : 'bg-emerald-400'}`}></div>
@@ -2181,7 +2186,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             </div>
                                         ) : (
                                             groups.map(group => (
-                                                <div key={group.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-xl hover:border-indigo-400 transition-all group">
+                                                <div key={group.id} className="bg-white/5 backdrop-blur-md border border-white/10">
                                                     <div className="h-32 bg-slate-100 dark:bg-slate-800 relative overflow-hidden">
                                                         {group.image_url ? <img src={group.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" /> : <div className="w-full h-full flex items-center justify-center opacity-10"><Globe className="w-12 h-12" /></div>}
                                                     </div>
@@ -2492,7 +2497,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             </main>
 
             {/* Right Sidebar - Recommendations (Hidden on mobile) */}
-            <aside className="hidden lg:block w-80 p-6 sticky top-0 h-screen overflow-y-auto no-scrollbar">
+            <aside className="hidden lg:block w-80 p-6 sticky top-0 h-screen overflow-y-auto no-scrollbar relative z-10 bg-[#020617]/50 backdrop-blur-xl border-l border-white/5">
                 <div className="space-y-8">
                     {/* Search */}
                     <div className="relative group">
@@ -2542,7 +2547,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     </div>
 
                     {/* Trending Metrics */}
-                    <div className="bg-slate-50 dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800">
+                    <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8">
                         <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Pulse Highlights</h3>
                         <div className="space-y-8">
                             {[
@@ -2588,7 +2593,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             </aside>
 
             {/* Mobile Bottom Navigation - High Fidelity Thumb Reach Interactivity */}
-            <nav className="md:hidden fixed bottom-0 inset-x-0 h-20 bg-white/95 dark:bg-slate-950/95 backdrop-blur-3xl border-t border-slate-100 dark:border-slate-800 flex items-center justify-around px-4 z-[60] pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+            <nav className="md:hidden fixed bottom-0 inset-x-0 h-20 bg-[#020617]/90 backdrop-blur-3xl border-t border-white/10 flex items-center justify-around px-4 z-[60] pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
                 {[
                     { icon: Home, label: 'Pulse', section: 'feed' },
                     { icon: Users, label: 'Circle', section: 'classmates' },
@@ -2613,7 +2618,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
                 {/* Mobile More Popover */}
                 {showMoreMobileMenu && (
-                    <div className="absolute bottom-24 right-4 w-56 bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl border border-slate-100 dark:border-slate-800 p-4 animate-in slide-in-from-bottom-5 duration-300 z-[70]">
+                    <div className="absolute bottom-24 right-4 w-56 bg-[#020617]/95 backdrop-blur-2xl rounded-[2rem] shadow-2xl border border-white/10 p-4 animate-in slide-in-from-bottom-5 duration-300 z-[70]">
                         <div className="space-y-2">
                             <button 
                                 onClick={() => { setActiveSection('notifications'); setShowMoreMobileMenu(false); }}
