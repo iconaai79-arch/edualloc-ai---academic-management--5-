@@ -46,6 +46,8 @@ interface LecturerDashboardProps {
     studentAbsenceRequests?: any[];
     onSaveAttendance?: (lessonId: string, attendance: any[]) => Promise<void>;
     users?: User[];
+    onAccessAlumnaPortal: (school: any) => void;
+    schoolRegistry?: any[];
 }
 
 interface UpcomingLessonsWidgetProps {
@@ -351,7 +353,8 @@ const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({
 export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
     user, requests = [], allocations = [], subjects = [], getSubjectById, getRoomById, setActiveTab, generatedTimetable = [], onLessonCheckIn, onAbsenceRequest,
     userTasks = [], onAddTask, onUpdateTask, onDeleteTask, onNavigateToNearby, currentInstitution, onRequestChange,
-    studentAttendances = [], studentAbsenceRequests = [], onSaveAttendance, users = []
+    studentAttendances = [], studentAbsenceRequests = [], onSaveAttendance, users = [],
+    onAccessAlumnaPortal, schoolRegistry
 }) => {
     const useRequests = currentInstitution?.useAllocationRequests ?? true;
     const pendingRequestsCount = requests.filter(r => r && r.lecturerId === user.id && (r.status === 'pending' || r.status === 'hod_approved' || r.status === 'deallocation_pending')).length;
@@ -573,6 +576,18 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                                 <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest block mb-1">Schedule</span>
                                 <p className="font-black text-slate-900 dark:text-white uppercase tracking-tight">Master Weekly Calendar</p>
                                 <p className="text-sm text-slate-500 mt-2 font-medium">Review confirmed lecture slots and locations.</p>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const school = (schoolRegistry || []).find(s => s.institutionId === currentInstitution?.id || s.id === currentInstitution?.id);
+                                    if (school) onAccessAlumnaPortal(school);
+                                    else alert("School registry record not found for this institution.");
+                                }}
+                                className="w-full text-left p-6 rounded-[2rem] bg-rose-50 dark:bg-rose-900/50 hover:bg-white hover:shadow-xl hover:border-rose-200 border-2 border-transparent transition-all group"
+                            >
+                                <span className="text-[10px] font-black uppercase text-rose-600 tracking-widest block mb-1">Network</span>
+                                <p className="font-black text-slate-900 dark:text-white uppercase tracking-tight">Alumnae Portal</p>
+                                <p className="text-sm text-slate-500 mt-2 font-medium">Connect with former students and alumni community.</p>
                             </button>
                         </div>
                     </div>

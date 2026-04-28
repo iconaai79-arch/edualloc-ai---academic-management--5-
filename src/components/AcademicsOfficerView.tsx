@@ -255,6 +255,20 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                                 <span className="font-black text-sm uppercase tracking-tight">Timetable Wizard</span>
                                 <p className="text-[10px] opacity-80 uppercase mt-1">Guided Generation</p>
                             </button>
+                            <button
+                                onClick={() => {
+                                    const school = (schoolRegistry || []).find(s => s.institutionId === currentInstitution?.id || s.id === currentInstitution?.id);
+                                    if (school) onAccessAlumnaPortal(school);
+                                    else alert("School registry record not found for this institution.");
+                                }}
+                                className="flex flex-col items-start p-6 bg-rose-600 text-white rounded-3xl shadow-xl shadow-rose-200 hover:shadow-rose-300 transition-all group text-left hover:-translate-y-1"
+                            >
+                                <div className="p-3 bg-white/20 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
+                                    <SparklesIcon className="w-6 h-6" />
+                                </div>
+                                <span className="font-black text-sm uppercase tracking-tight">Alumnae Portal</span>
+                                <p className="text-[10px] opacity-80 uppercase mt-1">Connect with Graduates</p>
+                            </button>
                         </div>
                     </section>
 

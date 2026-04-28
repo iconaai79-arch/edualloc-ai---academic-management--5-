@@ -710,10 +710,18 @@ export const apiService = {
                 } else {
                     errData = { error: await response.text().catch(() => `Status ${response.status}`) };
                 }
+                
                 console.error(`Save API Error [${module}]:`, response.status, errData);
+                
+                // Detailed error extraction for debugging RLS vs Constraints
+                const errorCode = errData.code || 'UNKNOWN';
+                const errorDetail = errData.details || errData.detail || '';
+                const errorHint = errData.hint ? ` Hint: ${errData.hint}` : '';
                 const reasonStr = errData.reason ? ` Reason: ${errData.reason}` : '';
                 const debugStr = errData.debug?.token ? ` Debug: ${errData.debug.token}` : '';
-                throw new Error(`${errData.error || `Failed to save ${module}`}${reasonStr}${debugStr}`);
+                
+                const fullErrorMessage = `${errData.error || `Failed to save ${module}`} [Code: ${errorCode}] ${errorDetail}${errorHint}${reasonStr}${debugStr}`;
+                throw new Error(fullErrorMessage);
             }
 
             const contentTypePost = response.headers.get('content-type');
@@ -774,10 +782,18 @@ export const apiService = {
                 } else {
                     errData = { error: await response.text().catch(() => `Status ${response.status}`) };
                 }
+                
                 console.error(`Bulk Save API Error [${module}]:`, response.status, errData);
+                
+                // Detailed error extraction
+                const errorCode = errData.code || 'UNKNOWN';
+                const errorDetail = errData.details || errData.detail || '';
+                const errorHint = errData.hint ? ` Hint: ${errData.hint}` : '';
                 const reasonStr = errData.reason ? ` Reason: ${errData.reason}` : '';
                 const debugStr = errData.debug?.token ? ` Debug: ${errData.debug.token}` : '';
-                throw new Error(`${errData.error || `Failed to save ${module}`}${reasonStr}${debugStr}`);
+                
+                const fullErrorMessage = `${errData.error || `Failed to bulk save ${module}`} [Code: ${errorCode}] ${errorDetail}${errorHint}${reasonStr}${debugStr}`;
+                throw new Error(fullErrorMessage);
             }
 
             const contentTypeBulk = response.headers.get('content-type');

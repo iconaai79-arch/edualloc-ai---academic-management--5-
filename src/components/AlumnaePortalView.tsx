@@ -67,7 +67,14 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [loadingPosts, setLoadingPosts] = useState(true);
     const [isProcessingFeature, setIsProcessingFeature] = useState(false);
     const [featuredMembers, setFeaturedMembers] = useState<any[]>([]);
-    const [activeSection, setActiveSection] = useState<'feed' | 'messages' | 'explore' | 'notifications' | 'classmates' | 'funding' | 'support' | 'jobs' | 'marketplace' | 'mentorship' | 'groups'>('feed');
+    const [activeSection, setActiveSection] = useState<'feed' | 'messages' | 'explore' | 'notifications' | 'classmates' | 'funding' | 'support' | 'jobs' | 'marketplace' | 'mentorship' | 'groups' | 'management'>('feed');
+    const [schoolTeam, setSchoolTeam] = useState<any[]>([]);
+    const [isTeamLoading, setIsTeamLoading] = useState(false);
+    const [isAddingTeamMember, setIsAddingTeamMember] = useState(false);
+    const [newTeamMemberEmail, setNewTeamMemberEmail] = useState('');
+    const [newTeamMemberRole, setNewTeamMemberRole] = useState<'Admin' | 'Moderator' | 'Editor'>('Moderator');
+    const [isSavingTeamMember, setIsSavingTeamMember] = useState(false);
+    const [isManagementTeam, setIsManagementTeam] = useState(false);
     const [jobs, setJobs] = useState<any[]>([]);
     const [businesses, setBusinesses] = useState<any[]>([]);
     const [rsvps, setRsvps] = useState<any[]>([]);
@@ -156,6 +163,12 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const addEmoji = (emoji: string) => {
         setNewPostContent(prev => prev + emoji);
         setShowEmojiPicker(false);
+    };
+
+    const getCurrentStaffRole = () => {
+        if (currentAlumna.isSuperAdmin) return 'Admin';
+        const staff = schoolTeam.find(t => (t.member_id || t.memberId) === currentAlumna.id);
+        return staff?.role || staff?.Role || null;
     };
 
     const loadOtherMemberships = async () => {
@@ -370,11 +383,104 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         }
     };
 
+    const loadSchoolTeam = async () => {
+        const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
+        if (!instId) return;
+        
+        setIsTeamLoading(true);
+        try {
+            const team = await apiService.fetchModuleRecords('alumni_school_staff', undefined, undefined, {
+                filter: { institution_id: instId }
+            });
+            
+            // Enrich with member details
+            if (team && team.length > 0) {
+                const memberIds = team.map((t: any) => t.member_id || t.memberId);
+                const memberDetails = await apiService.fetchModuleRecords('alumnae_members', undefined, undefined, {
+                    filter: { id: { in: memberIds } }
+                });
+                
+                const enriched = team.map((t: any) => {
+                    const detail = memberDetails.find((m: any) => m.id === (t.member_id || t.memberId));
+                    return {
+                        ...t,
+                        fullName: detail?.full_name || detail?.fullName || 'Unknown Member',
+                        email: detail?.email || 'N/A',
+                        profilePhotoUrl: detail?.profile_photo || detail?.profilePhotoUrl
+                    };
+                });
+                setSchoolTeam(enriched);
+                
+                // Check if current user is part of the team
+                const isMember = enriched.some((t: any) => (t.member_id || t.memberId) === currentAlumna.id);
+                setIsManagementTeam(isMember || currentAlumna.isSuperAdmin);
+            } else {
+                setSchoolTeam([]);
+                setIsManagementTeam(!!currentAlumna.isSuperAdmin);
+            }
+        } catch (e) {
+            console.error("Team load failed:", e);
+        } finally {
+            setIsTeamLoading(false);
+        }
+    };
+
+    const handleAddTeamMember = async () => {
+        if (!newTeamMemberEmail.trim()) return;
+        const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
+        
+        setIsSavingTeamMember(true);
+        try {
+            // 1. Find member by email
+            const members = await apiService.fetchModuleRecords('alumnae_members', undefined, undefined, {
+                filter: { email: newTeamMemberEmail.trim().toLowerCase() }
+            });
+            
+            if (!members || members.length === 0) {
+                alert("Member not found with this email address. Please ensure they have registered in the portal.");
+                return;
+            }
+            
+            const member = members[0];
+            
+            // 2. Add to staff table
+            await apiService.saveModuleRecord('alumni_school_staff', {
+                id: `stf_${Date.now()}`,
+                institution_id: instId,
+                member_id: member.id,
+                role: newTeamMemberRole,
+                added_by: currentAlumna.id,
+                created_at: new Date().toISOString()
+            });
+            
+            alert(`${member.full_name || member.fullName} added to the management team as ${newTeamMemberRole}.`);
+            setNewTeamMemberEmail('');
+            setIsAddingTeamMember(false);
+            loadSchoolTeam();
+        } catch (e: any) {
+            console.error("Failed to add team member:", e);
+            alert("Failed to add member: " + (e.message || "Duplicate entry or database error."));
+        } finally {
+            setIsSavingTeamMember(false);
+        }
+    };
+
+    const handleRemoveTeamMember = async (staffId: string) => {
+        if (!window.confirm("Are you sure you want to remove this member from the management team?")) return;
+        try {
+            await apiService.deleteModuleRecord('alumni_school_staff', staffId);
+            loadSchoolTeam();
+        } catch (e) {
+            console.error("Remove failed:", e);
+        }
+    };
+
     useEffect(() => {
         const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
         if (instId) {
             loadSchoolEngagement(instId as string);
             loadNewModules();
+            loadSchoolTeam();
         }
         
         loadNotifications();
@@ -927,38 +1033,45 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         if (!newMessage.trim() || !activeConversationPartner) return;
         
         // Defensive identification of the partner ID
-        const partnerId = activeConversationPartner.id || 
-                         (activeConversationPartner as any).alumna_id || 
-                         (activeConversationPartner as any).student_id ||
-                         (activeConversationPartner as any).recipient_id ||
-                         (activeConversationPartner as any).receiver_id;
+        const partnerId = (activeConversationPartner.id || 
+                          (activeConversationPartner as any).alumna_id || 
+                          (activeConversationPartner as any).student_id ||
+                          (activeConversationPartner as any).recipient_id ||
+                          (activeConversationPartner as any).receiver_id)?.toString();
 
-        if (!partnerId) {
+        if (!partnerId || partnerId === 'undefined' || partnerId === 'null' || partnerId.trim() === '') {
             console.error("[Messaging] Critical Error: Identified partner has no valid ID", activeConversationPartner);
-            alert("Security Error: Unable to identify message recipient identity. Please refresh your session.");
+            alert("Security Error: Unable to identify message recipient. Please refresh the page and try again.");
             return;
         }
 
-        const senderId = currentAlumna.id || currentAlumna.alumna_id || currentAlumna.student_id;
-        if (!senderId) {
+        const senderId = (currentAlumna.id || currentAlumna.alumna_id || currentAlumna.student_id)?.toString();
+        if (!senderId || senderId === 'undefined' || senderId === 'null' || senderId.trim() === '') {
             console.error("[Messaging] Critical Error: Current alumna has no valid ID", currentAlumna);
-            alert("Security Error: Your session identity is incomplete. Please log in again.");
+            alert("Security Error: Your identity could not be verified. Please log in again.");
             return;
         }
 
         setIsSendingMessage(true);
         const msgId = `msg_${Date.now()}`;
         
-        // We use BOTH receiver_id and recipient_id to ensure compatibility with all database schema variants
+        // We use redundant field mapping to ensure compatibility with all database schema variants (recipient_id vs receiver_id)
+        // and both snake_case/camelCase to ensure toSnakeCase handles them reliably.
         const msg = {
             id: msgId,
             sender_id: senderId,
+            senderId: senderId,
             recipient_id: partnerId,
-            receiver_id: partnerId, 
+            recipientId: partnerId,
+            receiver_id: partnerId,
+            receiverId: partnerId,
             institution_id: currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id || 'GLOBAL',
+            institutionId: currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id || 'GLOBAL',
             content: newMessage,
             is_read: false,
-            created_at: new Date().toISOString()
+            isRead: false,
+            created_at: new Date().toISOString(),
+            createdAt: new Date().toISOString()
         };
 
         try {
@@ -1141,6 +1254,16 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     };
 
     const handleDeletePost = async (postId: string) => {
+        const post = posts.find(p => p.id === postId);
+        const isAuthor = post && (post.authorId === currentAlumna.id);
+        const staffRole = getCurrentStaffRole();
+        const canDelete = isAuthor || currentAlumna.isSuperAdmin || staffRole === 'Admin' || staffRole === 'Moderator';
+
+        if (!canDelete) {
+            alert("Permission denied. Only the author or school moderators can delete topics.");
+            return;
+        }
+
         if (!window.confirm("Are you sure you want to delete this legacy topic?")) return;
         try {
             await apiService.deleteModuleRecord('alumni_posts', postId);
@@ -1299,6 +1422,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         { icon: Globe, label: 'Groups', onClick: () => setActiveSection('groups'), active: activeSection === 'groups' },
                         { icon: Sparkles, label: 'Funding', onClick: () => setActiveSection('funding' as any), active: activeSection === 'funding' },
                         { icon: Building2, label: 'Support', onClick: () => setActiveSection('support' as any), active: activeSection === 'support' },
+                        ...(isManagementTeam ? [{ icon: ShieldCheck, label: 'Management', onClick: () => setActiveSection('management'), active: activeSection === 'management' }] : []),
                         { icon: User, label: 'Profile', onClick: () => setIsEditingProfile(true) }
                     ].map((item, idx) => (
                         <button 
@@ -1926,6 +2050,118 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 </div>
                                             ))
                                         )}
+                                    </div>
+                                </div>
+                            );
+
+                        case 'management':
+                            return (
+                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
+                                    <header className="px-8 py-10 bg-slate-900 text-white rounded-b-[3rem] shadow-2xl mb-12 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12"><ShieldCheck className="w-32 h-32" /></div>
+                                        <div className="relative z-10">
+                                            <h2 className="text-3xl font-black uppercase tracking-tight mb-2">School <span className="opacity-40 italic">Control</span></h2>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.4em]">Manage profile administrators & delegates</p>
+                                        </div>
+                                    </header>
+
+                                    <div className="px-6 space-y-8">
+                                        {/* Add Member Button/Form */}
+                                        {(currentAlumna.isSuperAdmin || schoolTeam.find(t => (t.member_id || t.memberId) === currentAlumna.id)?.role === 'Admin') && (
+                                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-8 shadow-xl">
+                                                {!isAddingTeamMember ? (
+                                                    <button 
+                                                        onClick={() => setIsAddingTeamMember(true)}
+                                                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg flex items-center justify-center gap-3"
+                                                    >
+                                                        <Plus className="w-4 h-4" /> Add Team Member
+                                                    </button>
+                                                ) : (
+                                                    <div className="space-y-6">
+                                                        <div className="flex justify-between items-center mb-2">
+                                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-600">New Delegate</h4>
+                                                            <button onClick={() => setIsAddingTeamMember(false)} className="text-slate-400 hover:text-rose-500 transition-all"><X className="w-4 h-4" /></button>
+                                                        </div>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                            <div className="space-y-2">
+                                                                <label className="text-[8px] font-black uppercase text-slate-400 tracking-widest ml-1">Member Email</label>
+                                                                <input 
+                                                                    type="email" 
+                                                                    value={newTeamMemberEmail}
+                                                                    onChange={e => setNewTeamMemberEmail(e.target.value)}
+                                                                    placeholder="member@email.com"
+                                                                    className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl h-12 px-4 text-[10px] font-bold uppercase tracking-widest focus:ring-2 ring-indigo-500"
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                <label className="text-[8px] font-black uppercase text-slate-400 tracking-widest ml-1">Assignment Role</label>
+                                                                <select 
+                                                                    value={newTeamMemberRole}
+                                                                    onChange={e => setNewTeamMemberRole(e.target.value as any)}
+                                                                    className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl h-12 px-4 text-[10px] font-bold uppercase tracking-widest focus:ring-2 ring-indigo-500"
+                                                                >
+                                                                    <option value="Admin">Admin (Full Control)</option>
+                                                                    <option value="Moderator">Moderator (Feed & Comments)</option>
+                                                                    <option value="Editor">Editor (Stories & Events)</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                        <button 
+                                                            onClick={handleAddTeamMember}
+                                                            disabled={isSavingTeamMember || !newTeamMemberEmail}
+                                                            className="w-full py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all flex items-center justify-center gap-2"
+                                                        >
+                                                            {isSavingTeamMember ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm Delegation'}
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Team List */}
+                                        <div className="space-y-4">
+                                            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-4 mb-4">Active Management Team</h3>
+                                            
+                                            {isTeamLoading ? (
+                                                <div className="py-20 text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-indigo-500" /></div>
+                                            ) : schoolTeam.length === 0 ? (
+                                                <div className="py-20 text-center opacity-20">
+                                                    <ShieldCheck className="w-16 h-16 mx-auto mb-6" />
+                                                    <p className="text-xs font-black uppercase tracking-[0.3em]">No delegates assigned yet.</p>
+                                                </div>
+                                            ) : (
+                                                schoolTeam.map(member => (
+                                                    <div key={member.id} className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-lg flex items-center gap-6 group hover:border-indigo-400 transition-all">
+                                                        <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 border border-slate-100 dark:border-slate-800 shadow-sm relative">
+                                                            {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
+                                                            <div className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 ${member.role === 'Admin' ? 'bg-amber-400' : member.role === 'Moderator' ? 'bg-indigo-400' : 'bg-emerald-400'}`}></div>
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{member.fullName}</h4>
+                                                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">{member.email}</p>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
+                                                                    member.role === 'Admin' ? 'bg-amber-100 text-amber-600' : 
+                                                                    member.role === 'Moderator' ? 'bg-indigo-100 text-indigo-600' : 
+                                                                    'bg-emerald-100 text-emerald-600'
+                                                                }`}>
+                                                                    {member.role}
+                                                                </span>
+                                                                <span className="text-[8px] text-slate-300 font-bold uppercase tracking-widest italic">Since {new Date(member.created_at || member.createdAt).toLocaleDateString()}</span>
+                                                            </div>
+                                                        </div>
+                                                        {(currentAlumna.isSuperAdmin || (schoolTeam.find(t => (t.member_id || t.memberId) === currentAlumna.id)?.role === 'Admin' && member.member_id !== currentAlumna.id)) && (
+                                                            <button 
+                                                                onClick={() => handleRemoveTeamMember(member.id)}
+                                                                className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-all"
+                                                            >
+                                                                <Trash2 className="w-5 h-5" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             );

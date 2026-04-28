@@ -93,7 +93,8 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
         onSubmitRequest, onWithdrawRequest, onDeallocationRequest, onAllocationChangeRequest,
         getSubjectById, getRoomById, getLecturerById, generatedTimetable = [],
         activeAcademicYear, activeSemester, academicYears = [], semesters = [], timetableSettings,
-        userTasks = [], onAddTask, onUpdateTask, onDeleteTask, currentInstitution
+        userTasks = [], onAddTask, onUpdateTask, onDeleteTask, currentInstitution,
+        onAccessAlumnaPortal, schoolRegistry
     } = props;
 
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -242,6 +243,8 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                     studentAbsenceRequests={props.studentAbsenceRequests}
                     onSaveAttendance={props.onSaveAttendance}
                     users={props.users}
+                    onAccessAlumnaPortal={onAccessAlumnaPortal}
+                    schoolRegistry={schoolRegistry}
                 />
             )}
 

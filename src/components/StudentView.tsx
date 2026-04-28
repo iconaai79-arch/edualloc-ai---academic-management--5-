@@ -199,6 +199,7 @@ interface StudentViewProps {
     onAddParent: (studentId: string, parentData: { name: string, email: string, phone: string }) => Promise<{ success: boolean, message: string, credentials?: { email: string, password: string } }>;
     onDeleteParent: (studentId: string, parentId: string) => void;
     onAccessAlumnaPortal: (school: any) => void;
+    schoolRegistry?: any[];
     books: Book[];
 }
 
@@ -224,7 +225,8 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
     const {
         user, users, courses, subjects, rooms, departments, enrollmentRequests, onSubmitEnrollmentRequest,
         generatedTimetable, examTimetable, getSubjectById, getRoomById, getLecturerById,
-        timetableSettings, studentCheckIns, onStudentLessonCheckIn, letterheadConfig, logoUrl, footerImageUrl, assignments, submissions, onAddSubmission, lessonRatings, onAddLessonRating, onRateLesson, onAddFeedback, feedbackSubmissions, studentAbsenceRequests, onSubmitStudentAbsenceRequest, buildings, finalTimetableUrl, activeSemester, taAssignments, userTasks, onAddTask, onUpdateTask, onDeleteTask, currentInstitution, studentAttendances, books } = props;
+        timetableSettings, studentCheckIns, onStudentLessonCheckIn, letterheadConfig, logoUrl, footerImageUrl, assignments, submissions, onAddSubmission, lessonRatings, onAddLessonRating, onRateLesson, onAddFeedback, feedbackSubmissions, studentAbsenceRequests, onSubmitStudentAbsenceRequest, buildings, finalTimetableUrl, activeSemester, taAssignments, userTasks, onAddTask, onUpdateTask, onDeleteTask, currentInstitution, studentAttendances, books,
+        onAccessAlumnaPortal, schoolRegistry } = props;
     const [activeTab, setActiveTab] = useState('dashboard');
     const [subTab, setSubTab] = useState<'weekly' | 'exams' | 'enrollment' | 'requests'>('weekly');
     const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
@@ -402,6 +404,8 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
                     currentInstitution={currentInstitution}
                     studentAttendances={studentAttendances}
                     books={books}
+                    onAccessAlumnaPortal={onAccessAlumnaPortal}
+                    schoolRegistry={schoolRegistry}
                 />
             )}
 

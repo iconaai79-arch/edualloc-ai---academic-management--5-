@@ -3688,6 +3688,8 @@ export const App: React.FC = () => {
                                         studentCheckIns={studentCheckIns}
                                         lessonRatings={lessonRatings}
                                         feedbackSubmissions={feedbackSubmissions}
+                                        onAccessAlumnaPortal={handleAccessAlumnaPortal}
+                                        schoolRegistry={schoolRegistry}
                                         courseSizes={courseSizes}
                                         contracts={contracts}
                                         isGeneratingDemoData={isGeneratingDemoData}

@@ -49,6 +49,8 @@ interface StudentDashboardProps {
     currentInstitution?: Institution | null;
     studentAttendances: StudentAttendance[];
     books: Book[];
+    onAccessAlumnaPortal: (school: any) => void;
+    schoolRegistry?: any[];
 }
 
 const formatTimeRemaining = (targetTime: Date, now: Date): string => {
@@ -75,7 +77,7 @@ const timeStringToDate = (timeString: string): Date => {
 };
 
 
-export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timetable, course, level, subjects, users, getSubjectById, getRoomById, getLecturerById, now, timetableSettings, studentCheckIns, onStudentLessonCheckIn, letterheadConfig, logoUrl, footerImageUrl, lessonRatings, onRateLesson, userTasks, onAddTask, onUpdateTask, onDeleteTask, currentInstitution, studentAttendances, books }) => {
+export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timetable, course, level, subjects, users, getSubjectById, getRoomById, getLecturerById, now, timetableSettings, studentCheckIns, onStudentLessonCheckIn, letterheadConfig, logoUrl, footerImageUrl, lessonRatings, onRateLesson, userTasks, onAddTask, onUpdateTask, onDeleteTask, currentInstitution, studentAttendances, books, onAccessAlumnaPortal, schoolRegistry }) => {
     const enrolledSubjectsCount = user.enrolledSubjectIds?.length || 0;
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [checkInState, setCheckInState] = useState<Record<string, {
@@ -343,6 +345,16 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
                             className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${dashboardTab === 'library' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
                         >
                             Digital Library
+                        </button>
+                        <button 
+                            onClick={() => {
+                                const school = (schoolRegistry || []).find(s => s.institutionId === currentInstitution?.id || s.id === currentInstitution?.id);
+                                if (school) onAccessAlumnaPortal(school);
+                                else alert("School registry record not found for this institution.");
+                            }}
+                            className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all bg-rose-600 text-white hover:bg-rose-700 shadow-lg shadow-rose-100"
+                        >
+                            Alumnae Portal
                         </button>
                     </div>
                 </div>
