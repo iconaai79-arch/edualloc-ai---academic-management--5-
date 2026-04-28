@@ -4853,7 +4853,7 @@ export const App: React.FC = () => {
                                     onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: `sem_${Date.now()}`, institutionId: currentUser!.institutionId }); loadData(); }}
                                     onUpdateSemester={async (id, data) => { const existing = semesters.find(s => s.id === id); await apiService.saveModuleRecord('semesters', { ...existing, ...data, id }); loadData(); }}
                                     onDeleteSemester={async (id) => { await apiService.deleteModuleRecord('semesters', id); loadData(); }}
-                                    onUpdateRequestStatus={async (id, status) => { await apiService.updateAllocationStatus(id, status); loadData(); }}
+                                    onUpdateRequestStatus={async (id: string, status: RequestStatus) => { await apiService.updateAllocationStatus(id, status); await loadData(); }}
                                     onBulkUpdateRequestStatus={async (status, deptId) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
                                     onDirectAssign={handleDirectAssign}
                                     onTimetableGenerated={async (entries, ay, sem) => { await apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[]); await handleLogAction(`Generated timetable for ${ay} / ${sem}`); await loadData(false, true); }}
@@ -4935,7 +4935,7 @@ export const App: React.FC = () => {
                                     demoDataGenerationMessage={demoDataGenerationMessage}
                                     examTimetable={examTimetable}
                                     onManualInvoice={(instId: string, items: InvoiceItem[], total: number, due: string) => { }}
-                                     onUpdateRequestStatus={async (id, status) => { await apiService.updateAllocationStatus(id, status); await loadData(); }}
+                                    onUpdateRequestStatus={async (id: string, status: RequestStatus) => { await apiService.updateAllocationStatus(id, status); await loadData(); }}
                                     onBulkUpdateRequestStatus={async (status: RequestStatus, deptId?: string) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
                                     onGenerateReceipt={onGenerateReceipt}
                                     onAccessAlumnaPortal={handleAccessAlumnaPortal}
@@ -5924,7 +5924,7 @@ export const App: React.FC = () => {
                                     onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: `sem_${Date.now()}`, institutionId: currentUser!.institutionId }); loadData(); }}
                                     onUpdateSemester={async (id, data) => { const existing = semesters.find(s => s.id === id); await apiService.saveModuleRecord('semesters', { ...existing, ...data, id }); loadData(); }}
                                     onDeleteSemester={async (id) => { await apiService.deleteModuleRecord('semesters', id); loadData(); }}
-                                    onUpdateRequestStatus={async (id, status) => { await apiService.updateAllocationStatus(id, status); loadData(); }}
+                                    onUpdateRequestStatus={async (id: string, status: RequestStatus) => { await apiService.updateAllocationStatus(id, status); await loadData(); }}
                                     onBulkUpdateRequestStatus={async (status, deptId) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
                                     onDirectAssign={handleDirectAssign}
                                     onTimetableGenerated={async (entries, ay, sem) => { await apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[]); await handleLogAction(`Generated timetable for ${ay} / ${sem}`); await loadData(false, true); }}
@@ -6006,7 +6006,7 @@ export const App: React.FC = () => {
                                     onClearDemoData={handleClearDemoData}
                                     examTimetable={examTimetable}
                                     onManualInvoice={(instId: string, items: InvoiceItem[], total: number, due: string) => { }}
-                                     onUpdateRequestStatus={async (id, status) => { await apiService.updateAllocationStatus(id, status); await loadData(); }}
+                                    onUpdateRequestStatus={async (id: string, status: RequestStatus) => { await apiService.updateAllocationStatus(id, status); await loadData(); }}
                                     onBulkUpdateRequestStatus={async (status: RequestStatus, deptId?: string) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
                                     onGenerateReceipt={onGenerateReceipt}
                                     onAccessAlumnaPortal={handleAccessAlumnaPortal}
