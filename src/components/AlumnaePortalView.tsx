@@ -241,9 +241,9 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     };
 
     const loadNotifications = async () => {
-        try {
+            const alumnaId = currentAlumna.id || currentAlumna.alumna_id || currentAlumna.student_id;
             const raw = await apiService.fetchModuleRecords('alumni_notifications', undefined, undefined, {
-                filter: { recipient_id: currentAlumna.id },
+                filter: { recipient_id: alumnaId },
                 order: 'created_at.desc'
             });
             setAlumniNotifications(raw);
@@ -342,9 +342,9 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 isFeatured: s.is_featured || s.isFeatured
             })));
 
-            // Load Doc Requests
+            const alumnaId = currentAlumna.id || currentAlumna.alumna_id || currentAlumna.student_id;
             const reqData = await apiService.fetchModuleRecords('alumni_document_requests', undefined, undefined, {
-                filter: { alumna_id: currentAlumna.id },
+                filter: { alumna_id: alumnaId },
                 order: 'created_at.desc'
             });
             setDocRequests((reqData || []).map((r: any) => ({
@@ -353,9 +353,9 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 alumnaId: r.alumna_id || r.alumnaId
             })));
 
-            // Load RSVPs
+            const alumnaId = currentAlumna.id || currentAlumna.alumna_id || currentAlumna.student_id;
             const rsvpData = await apiService.fetchModuleRecords('alumni_event_rsvps', undefined, undefined, {
-                filter: { alumna_id: currentAlumna.id }
+                filter: { alumna_id: alumnaId }
             });
             setRsvps((rsvpData || []).map((r: any) => ({
                 ...r,
@@ -437,6 +437,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 if (uploadRes.success) coverUrl = uploadRes.url;
             }
 
+            const alumnaId = currentAlumna.id || currentAlumna.alumna_id || currentAlumna.student_id;
             await apiService.saveModuleRecord('alumnae_members', {
                 ...currentAlumna,
                 ...profileData,
@@ -447,7 +448,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 profilePhotoUrl: photoUrl,
                 cover_photo_url: coverUrl,
                 coverPhotoUrl: coverUrl,
-                id: currentAlumna.id
+                id: alumnaId
             });
             // Update local session
             const updated = { ...currentAlumna, ...profileData, profilePhotoUrl: photoUrl, coverPhotoUrl: coverUrl };
@@ -558,7 +559,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             const mapped = (data || []).map((m: any) => ({
                 id: m.id,
                 senderId: m.sender_id || m.senderId,
-                recipientId: m.recipient_id || m.recipientId,
+                recipientId: m.recipient_id || m.recipientId || m.receiver_id || m.receiverId,
                 institutionId: m.institution_id || m.institutionId,
                 content: m.content,
                 isRead: m.is_read || m.isRead,
@@ -566,8 +567,9 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             }));
 
             // Frontend filter as complex OR filters might be limited in standard fetch
+            const alumnaId = currentAlumna.id || currentAlumna.alumna_id || currentAlumna.student_id;
             const filtered = mapped.filter((m: any) => 
-                m.senderId === currentAlumna.id || m.recipientId === currentAlumna.id
+                m.senderId === alumnaId || m.recipientId === alumnaId
             );
             setMessages(filtered);
         } catch (e) {}
@@ -923,35 +925,65 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
     const handleSendMessage = async () => {
         if (!newMessage.trim() || !activeConversationPartner) return;
-        setIsSendingMessage(true);
         
+        // Defensive identification of the partner ID
+        const partnerId = activeConversationPartner.id || 
+                         (activeConversationPartner as any).alumna_id || 
+                         (activeConversationPartner as any).student_id ||
+                         (activeConversationPartner as any).recipient_id ||
+                         (activeConversationPartner as any).receiver_id;
+
+        if (!partnerId) {
+            console.error("[Messaging] Critical Error: Identified partner has no valid ID", activeConversationPartner);
+            alert("Security Error: Unable to identify message recipient identity. Please refresh your session.");
+            return;
+        }
+
+        const senderId = currentAlumna.id || currentAlumna.alumna_id || currentAlumna.student_id;
+        if (!senderId) {
+            console.error("[Messaging] Critical Error: Current alumna has no valid ID", currentAlumna);
+            alert("Security Error: Your session identity is incomplete. Please log in again.");
+            return;
+        }
+
+        setIsSendingMessage(true);
+        const msgId = `msg_${Date.now()}`;
+        
+        // We use BOTH receiver_id and recipient_id to ensure compatibility with all database schema variants
         const msg = {
-            id: `msg_${Date.now()}`,
-            sender_id: currentAlumna.id,
-            recipient_id: activeConversationPartner.id,
-            institution_id: currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id,
+            id: msgId,
+            sender_id: senderId,
+            recipient_id: partnerId,
+            receiver_id: partnerId, 
+            institution_id: currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id || 'GLOBAL',
             content: newMessage,
             is_read: false,
             created_at: new Date().toISOString()
         };
 
         try {
-            await apiService.saveModuleRecord('alumni_messages', msg);
-            // Update local state with camelCase for UI consistency if needed, 
-            // but let's be consistent with what the state expects
+            console.log(`[Messaging] Dispatching secure message to ${partnerId}`, msg);
+            const result = await apiService.saveModuleRecord('alumni_messages', msg);
+            
+            if (!result) {
+                throw new Error("Message persistence returned empty response.");
+            }
+
             const uiMsg = {
-                id: msg.id,
-                senderId: msg.sender_id,
-                recipientId: msg.recipient_id,
-                institutionId: msg.institution_id,
-                content: msg.content,
-                isRead: msg.is_read,
+                id: msgId,
+                senderId: senderId,
+                recipientId: partnerId,
+                content: newMessage,
+                isRead: false,
                 createdAt: msg.created_at
             };
-            setMessages([...messages, uiMsg]);
+            
+            setMessages(prev => [...prev, uiMsg]);
             setNewMessage('');
+            console.log(`[Messaging] Message delivered successfully. ID: ${msgId}`);
         } catch (e: any) {
-            alert("Message Error: " + e.message);
+            console.error("[Messaging] Delivery Failure:", e);
+            alert("Message Delivery Failure: " + (e.message || "The networking engine encountered a constraint violation. Please run 'Schema Migration' in SuperAdmin settings if this persists."));
         } finally {
             setIsSendingMessage(false);
         }
@@ -981,9 +1013,10 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 if (uploadRes.success) videoUrl = uploadRes.url || '';
             }
 
+            const alumnaId = currentAlumna.id || currentAlumna.alumna_id || currentAlumna.student_id;
             const post: any = {
                 id: `p_${Date.now()}`,
-                author_id: currentAlumna.id || 'anonymous',
+                author_id: alumnaId || 'anonymous',
                 author_name: currentAlumna.fullName || currentAlumna.name || 'Alumna',
                 author_photo: currentAlumna.profilePhotoUrl,
                 institution_id: currentAlumna.institutionId || 'GLOBAL',
@@ -1052,49 +1085,58 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
     const handleAddComment = async (postId: string, content: string) => {
         if (!content.trim()) return;
-        
+
+        const alumnaId = currentAlumna.id || currentAlumna.alumna_id || currentAlumna.student_id;
+        const commentId = `c_${Date.now()}`;
         const commentData = {
-            id: `c_${Date.now()}`,
+            id: commentId,
             post_id: postId,
-            author_id: currentAlumna.id,
-            author_name: currentAlumna.fullName || currentAlumna.name,
+            author_id: alumnaId,
+            author_name: currentAlumna.fullName || currentAlumna.name || 'Alumna',
             author_photo: currentAlumna.profilePhotoUrl,
             institution_id: currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id || 'GLOBAL',
             content,
             created_at: new Date().toISOString()
         };
 
+        // UI Optimistic Update
+        const uiComment = {
+            id: commentId,
+            postId,
+            authorId: currentAlumna.id,
+            authorName: currentAlumna.fullName || currentAlumna.name || 'Alumna',
+            authorPhoto: currentAlumna.profilePhotoUrl,
+            content,
+            createdAt: commentData.created_at
+        };
+
         const currentPost = posts.find(p => p.id === postId);
-        const currentCount = currentPost ? (currentPost.commentsCount || currentPost.comments_count || 0) : 0;
+        const currentCount = currentPost ? (Number(currentPost.commentsCount) || Number(currentPost.comments_count) || 0) : 0;
         const newCount = currentCount + 1;
 
         try {
+            console.log(`[Social] Adding comment to post ${postId}`, commentData);
             await apiService.saveModuleRecord('alumni_comments', commentData);
             
-            const uiComment: AlumniComment = {
-                id: commentData.id,
-                postId: commentData.post_id,
-                authorId: commentData.author_id,
-                authorName: commentData.author_name as string,
-                authorPhoto: commentData.author_photo,
-                institutionId: commentData.institution_id,
-                content: commentData.content,
-                createdAt: commentData.created_at
-            };
-
+            // Sync local state
             setComments(prev => ({
                 ...prev,
                 [postId]: [...(prev[postId] || []), uiComment]
             }));
             
             // Update local posts count (Trigger will handle DB side, we update UI)
-            setPosts(prev => prev.map(p => p.id === postId ? { ...p, commentsCount: newCount, comments_count: newCount } : p));
+            setPosts(prev => prev.map(p => p.id === postId ? { 
+                ...p, 
+                commentsCount: newCount, 
+                comments_count: newCount 
+            } : p));
 
             // Clear input
             setCommentInputs(prev => ({ ...prev, [postId]: '' }));
+            console.log(`[Social] Comment saved successfully. New count: ${newCount}`);
         } catch (e: any) {
-            console.error("Comment Save Error:", e);
-            alert("Failed to save reply. Please run the 'Alumni Schema Migration' in Settings to ensure your database is up to date.");
+            console.error("[Social] Failed to save comment:", e);
+            alert("Failed to save reply. Please ensure your database is synchronized via the 'Schema Migration' in Settings.");
         }
     };
 

@@ -3387,9 +3387,9 @@ export const App: React.FC = () => {
                                                             ALTER TABLE alumnae_members ADD COLUMN profile_photo_url TEXT;
                                                         END IF;
 
-                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'cover_photo_url') THEN
-                                                        ALTER TABLE alumnae_members ADD COLUMN cover_photo_url TEXT;
-                                                    END IF;
+                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'cover_photo_url') THEN
+                                                            ALTER TABLE alumnae_members ADD COLUMN cover_photo_url TEXT;
+                                                        END IF;
                                                     END IF;
 
                                                     -- Comments Repairs
@@ -3397,9 +3397,25 @@ export const App: React.FC = () => {
                                                         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_comments' AND column_name = 'author_photo') THEN
                                                             ALTER TABLE alumni_comments ADD COLUMN author_photo TEXT;
                                                         END IF;
-                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = \'alumni_comments\' AND column_name = \'institution_id\') THEN
+                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_comments' AND column_name = 'institution_id') THEN
                                                             ALTER TABLE alumni_comments ADD COLUMN institution_id TEXT;
                                                         END IF;
+                                                    END IF;
+
+                                                    -- Messages Repairs
+                                                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumni_messages') THEN
+                                                        -- Ensure both columns exist without strict NOT NULL to avoid crashes during transitions
+                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_messages' AND column_name = 'recipient_id') THEN
+                                                            ALTER TABLE alumni_messages ADD COLUMN recipient_id TEXT;
+                                                        END IF;
+                                                        
+                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_messages' AND column_name = 'receiver_id') THEN
+                                                            ALTER TABLE alumni_messages ADD COLUMN receiver_id TEXT;
+                                                        END IF;
+
+                                                        -- Sync data between the two identifiers
+                                                        UPDATE alumni_messages SET recipient_id = receiver_id WHERE recipient_id IS NULL AND receiver_id IS NOT NULL;
+                                                        UPDATE alumni_messages SET receiver_id = recipient_id WHERE receiver_id IS NULL AND recipient_id IS NOT NULL;
                                                     END IF;
                                                 END $$;
 
@@ -3410,7 +3426,6 @@ export const App: React.FC = () => {
                                                     author_name TEXT NOT NULL,
                                                     institution_id TEXT,
                                                     author_photo TEXT,
-
                                                     content TEXT NOT NULL,
                                                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                                                 );
@@ -3418,7 +3433,8 @@ export const App: React.FC = () => {
                                                 CREATE TABLE IF NOT EXISTS alumni_messages (
                                                     id TEXT PRIMARY KEY,
                                                     sender_id TEXT NOT NULL,
-                                                    receiver_id TEXT NOT NULL,
+                                                    receiver_id TEXT, -- Nullable for transition compatibility
+                                                    recipient_id TEXT,
                                                     institution_id TEXT,
                                                     content TEXT NOT NULL,
                                                     is_read BOOLEAN DEFAULT false,
@@ -3477,9 +3493,40 @@ export const App: React.FC = () => {
                                                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                                                 );
                                                 
+                                                -- TRIGGERS FOR DATA INTEGRITY
+                                                CREATE OR REPLACE FUNCTION public.update_alumni_post_comment_count()
+                                                RETURNS TRIGGER AS $$
+                                                BEGIN
+                                                    IF (TG_OP = 'INSERT') THEN
+                                                        UPDATE public.alumni_posts
+                                                        SET comments_count = COALESCE(comments_count, 0) + 1
+                                                        WHERE id = NEW.post_id;
+                                                    ELSIF (TG_OP = 'DELETE') THEN
+                                                        UPDATE public.alumni_posts
+                                                        SET comments_count = GREATEST(0, COALESCE(comments_count, 0) - 1)
+                                                        WHERE id = OLD.post_id;
+                                                    END IF;
+                                                    RETURN NULL;
+                                                END;
+                                                $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+                                                DROP TRIGGER IF EXISTS tr_update_alumni_post_comment_count ON public.alumni_comments;
+                                                CREATE TRIGGER tr_update_alumni_post_comment_count
+                                                AFTER INSERT OR DELETE ON public.alumni_comments
+                                                FOR EACH ROW EXECUTE FUNCTION public.update_alumni_post_comment_count();
+
+                                                -- SYNC EXISTING COUNTS
+                                                UPDATE public.alumni_posts p
+                                                SET comments_count = (
+                                                    SELECT count(*)
+                                                    FROM public.alumni_comments c
+                                                    WHERE c.post_id = p.id
+                                                );
+
                                                 -- FORCE SCHEMA CACHE RELOAD
                                                 NOTIFY pgrst, 'reload schema';`;
                                             await apiService.runMigration(sql);
+
                                             alert("Alumnae infrastructure verified and updated successfully.");
                                         }}
                                         onAddInstitution={async (d) => { 

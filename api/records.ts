@@ -156,11 +156,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     else q = q.eq('county_id', user.institutionId);
                 } else if (user.role === 'alumna') {
                     if (moduleName === 'alumni_messages') {
-                        q = q.or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
+                        // Support both recipient_id and receiver_id for legacy/migration compatibility
+                        q = q.or(`sender_id.eq.${user.id},recipient_id.eq.${user.id},receiver_id.eq.${user.id}`);
                     } else if (moduleName === 'alumnae_members') {
                         // Allow alumnae to see other members (networking)
-                    } else if (['alumni_posts', 'alumni_comments'].includes(moduleName)) {
-                        // Social feed is semi-public/scoped
+                    } else if (['alumni_posts', 'alumni_comments', 'alumni_notifications'].includes(moduleName)) {
+                        // Social feed and notifications are accessible to verified alumnae
                     } else {
                         q = q.eq('institution_id', user.institutionId);
                     }
