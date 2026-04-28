@@ -336,26 +336,6 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                                         <button onClick={() => setSelectedSchool(null)} className="text-[10px] font-black uppercase tracking-widest text-white/50 hover:text-white underline underline-offset-4 decoration-white/20">Change School</button>
                                     </div>
                                 </div>
-
-                                {!selectedSchool.institutionId && (
-                                    <div className="p-6 bg-amber-50 dark:bg-amber-900/20 rounded-3xl border border-amber-200 dark:border-amber-900/30 flex items-center justify-between group">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white shadow-lg">
-                                                <ShieldCheck className="w-6 h-6" />
-                                            </div>
-                                            <div>
-                                                <h4 className="text-[10px] font-black uppercase tracking-tight text-amber-800 dark:text-amber-400">School Admin?</h4>
-                                                <p className="text-[9px] font-bold text-amber-600/70 uppercase tracking-widest">Activate your official portal today</p>
-                                            </div>
-                                        </div>
-                                        <button 
-                                            onClick={() => window.location.href = `https://almamater.eduai.co.ke/?view=register&claimSchoolId=${selectedSchool.id}`}
-                                            className="px-6 py-3 bg-amber-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg hover:bg-amber-700 transition-all active:scale-95"
-                                        >
-                                            Claim Portal
-                                        </button>
-                                    </div>
-                                )}
                             </div>
                         )}
 
