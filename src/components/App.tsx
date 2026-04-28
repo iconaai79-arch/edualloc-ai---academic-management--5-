@@ -4853,8 +4853,6 @@ export const App: React.FC = () => {
                                     onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: `sem_${Date.now()}`, institutionId: currentUser!.institutionId }); loadData(); }}
                                     onUpdateSemester={async (id, data) => { const existing = semesters.find(s => s.id === id); await apiService.saveModuleRecord('semesters', { ...existing, ...data, id }); loadData(); }}
                                     onDeleteSemester={async (id) => { await apiService.deleteModuleRecord('semesters', id); loadData(); }}
-                                    onUpdateRequestStatus={async (id: string, status: RequestStatus) => { await apiService.updateAllocationStatus(id, status); await loadData(); }}
-                                    onBulkUpdateRequestStatus={async (status, deptId) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
                                     onDirectAssign={handleDirectAssign}
                                     onTimetableGenerated={async (entries, ay, sem) => { await apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[]); await handleLogAction(`Generated timetable for ${ay} / ${sem}`); await loadData(false, true); }}
                                     onExamTimetableGenerated={async (entries, ay, sem) => { await apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries); await handleLogAction(`Generated exam timetable for ${ay} / ${sem}`); await loadData(false, true); }}
@@ -4867,12 +4865,6 @@ export const App: React.FC = () => {
                                     onAddTask={async (t) => { await apiService.saveModuleRecord('tasks', { ...t, userId: currentUser.id, id: `t_${Date.now()}`, createdAt: new Date().toISOString() }); await handleLogAction(`Added task: ${t.title}`); loadData(); }}
                                     onUpdateTask={async (id, c) => { const task = userTasks.find(x => x.id === id); if (task) { await apiService.saveModuleRecord('tasks', { ...task, isComplete: c }); await handleLogAction(`${c ? 'Completed' : 'Reopened'} task: ${task.title}`); loadData(); } }}
                                     onDeleteTask={async (id) => { const task = userTasks.find(x => x.id === id); if (task) { await apiService.deleteModuleRecord('tasks', id); await handleLogAction(`Deleted task: ${task.title}`); loadData(); } }}
-                                    onLogAction={handleLogAction}
-                                    onSendBulkCredentials={async (users, method) => {
-                                        const res = await apiService.sendBulkCredentials(users, method);
-                                        await handleLogAction(`Sent bulk credentials to ${res.success_count} users via ${method}`);
-                                        return res;
-                                    }}
                                     onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId || activeInstitution?.id); await handleLogAction(`Sent SMS to ${Array.isArray(r) ? r.length + ' recipients' : r}`); return res; }}
                                     onSaveSmsConfig={async (config) => { await onUpdateInstitution(activeInstitution!.id, { smsConfig: config }); await handleLogAction(`Updated SMS configuration`); }}
                                     onUpdateRequest={async (id, data) => { await apiService.saveModuleRecord('allocation_requests', { id, ...data }); await handleLogAction(`Updated allocation request`); loadData(); }}
@@ -4881,11 +4873,6 @@ export const App: React.FC = () => {
                                     onUpdateUnavailability={async (id, u) => { /* Placeholder */ await handleLogAction(`Updated unavailability`); }}
                                     onDeleteUnavailability={() => { }}
                                     onManageUnavailability={() => { }}
-                                    onAddParent={async (sid, p) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => { handleLogAction(`Added parent for student ${sid}`); return { success: true, message: 'Parent added.' }; })}
-                                    onDeleteParent={() => { }}
-                                    getLecturerById={getLecturerById}
-                                    getSubjectById={getSubjectById}
-                                    getRoomById={getRoomById}
                                     onPublishTimetable={() => { }}
                                     onRemovePublishedTimetable={() => { }}
                                     onSendTestEmail={async (r) => ({ success: true, message: 'Test email sent.' })}
@@ -5924,8 +5911,6 @@ export const App: React.FC = () => {
                                     onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: `sem_${Date.now()}`, institutionId: currentUser!.institutionId }); loadData(); }}
                                     onUpdateSemester={async (id, data) => { const existing = semesters.find(s => s.id === id); await apiService.saveModuleRecord('semesters', { ...existing, ...data, id }); loadData(); }}
                                     onDeleteSemester={async (id) => { await apiService.deleteModuleRecord('semesters', id); loadData(); }}
-                                    onUpdateRequestStatus={async (id: string, status: RequestStatus) => { await apiService.updateAllocationStatus(id, status); await loadData(); }}
-                                    onBulkUpdateRequestStatus={async (status, deptId) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
                                     onDirectAssign={handleDirectAssign}
                                     onTimetableGenerated={async (entries, ay, sem) => { await apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[]); await handleLogAction(`Generated timetable for ${ay} / ${sem}`); await loadData(false, true); }}
                                     onExamTimetableGenerated={async (entries, ay, sem) => { await apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries); await handleLogAction(`Generated exam timetable for ${ay} / ${sem}`); await loadData(false, true); }}
@@ -5938,12 +5923,6 @@ export const App: React.FC = () => {
                                     onAddTask={async (t) => { await apiService.saveModuleRecord('tasks', { ...t, userId: currentUser.id, id: `t_${Date.now()}`, createdAt: new Date().toISOString() }); await handleLogAction(`Added task: ${t.title}`); loadData(); }}
                                     onUpdateTask={async (id, c) => { const task = userTasks.find(x => x.id === id); if (task) { await apiService.saveModuleRecord('tasks', { ...task, isComplete: c }); await handleLogAction(`${c ? 'Completed' : 'Reopened'} task: ${task.title}`); loadData(); } }}
                                     onDeleteTask={async (id) => { const task = userTasks.find(x => x.id === id); if (task) { await apiService.deleteModuleRecord('tasks', id); await handleLogAction(`Deleted task: ${task.title}`); loadData(); } }}
-                                    onLogAction={handleLogAction}
-                                    onSendBulkCredentials={async (users, method) => {
-                                        const res = await apiService.sendBulkCredentials(users, method);
-                                        await handleLogAction(`Sent bulk credentials to ${res.success_count} users via ${method}`);
-                                        return res;
-                                    }}
                                     onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId || activeInstitution?.id); await handleLogAction(`Sent SMS to ${Array.isArray(r) ? r.length + ' recipients' : r}`); return res; }}
                                     onSaveSmsConfig={async (config) => { await onUpdateInstitution(activeInstitution!.id, { smsConfig: config }); await handleLogAction(`Updated SMS configuration`); }}
                                     onUpdateRequest={async (id, data) => { await apiService.saveModuleRecord('allocation_requests', { id, ...data }); await handleLogAction(`Updated allocation request`); loadData(); }}
@@ -5952,11 +5931,6 @@ export const App: React.FC = () => {
                                     onUpdateUnavailability={async (id, u) => { /* Placeholder */ await handleLogAction(`Updated unavailability`); }}
                                     onDeleteUnavailability={() => { }}
                                     onManageUnavailability={() => { }}
-                                    onAddParent={async (sid, p) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => { handleLogAction(`Added parent for student ${sid}`); return { success: true, message: 'Parent added.' }; })}
-                                    onDeleteParent={() => { }}
-                                    getLecturerById={getLecturerById}
-                                    getSubjectById={getSubjectById}
-                                    getRoomById={getRoomById}
                                     onPublishTimetable={() => { }}
                                     onRemovePublishedTimetable={() => { }}
                                     onSendTestEmail={async (r) => ({ success: true, message: 'Test email sent.' })}
