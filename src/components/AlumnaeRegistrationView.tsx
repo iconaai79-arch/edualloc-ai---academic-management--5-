@@ -231,7 +231,12 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center py-10 md:py-20 px-4">
+        <div className="min-h-screen bg-[#020617] flex flex-col items-center py-10 md:py-20 px-4 relative overflow-hidden">
+            {/* Background Decorative Elements */}
+            <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 rounded-full blur-[120px] animate-pulse"></div>
+                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-violet-600/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
+            </div>
             {/* Branding */}
             <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6 mb-10 md:mb-16 animate-fade-in text-center md:text-left">
                 <div className="w-20 h-20 md:w-24 md:h-24 bg-white dark:bg-slate-900 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-indigo-100 dark:shadow-none border border-slate-100 dark:border-slate-800 p-2 group overflow-hidden">
@@ -271,7 +276,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
             </div>
 
             {/* Form Card */}
-            <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-[2.5rem] md:rounded-[4rem] shadow-2xl border border-slate-100 dark:border-slate-800 p-6 md:p-12 relative overflow-hidden">
+            <div className="w-full max-w-2xl bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] md:rounded-[4rem] shadow-2xl p-6 md:p-12 relative overflow-hidden z-10">
                 
                 {/* Step 1: School Selection */}
                 {step === 1 && (

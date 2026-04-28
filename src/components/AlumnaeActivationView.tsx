@@ -66,8 +66,8 @@ export const AlumnaeActivationView: React.FC<AlumnaeActivationViewProps> = ({ on
     }, []);
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4">
-            <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-[4rem] shadow-2xl border border-slate-100 dark:border-slate-800 p-12 relative overflow-hidden text-center">
+        <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center p-4">
+            <div className="w-full max-w-xl bg-white/5 backdrop-blur-3xl border border-white/10 p-12 relative overflow-hidden text-center">
                 
                 {/* Decorative Background Elements */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 dark:bg-indigo-900/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
@@ -140,13 +140,11 @@ export const AlumnaeActivationView: React.FC<AlumnaeActivationViewProps> = ({ on
                                 </div>
                             )}
 
-                            <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-[2rem] flex items-center gap-6 border border-slate-100 dark:border-white/5 group hover:bg-white dark:hover:bg-slate-700 transition-all hover:shadow-xl cursor-pointer">
-                                <div className="w-14 h-14 bg-white dark:bg-slate-900 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm border border-slate-100 dark:border-white/5">
+                            <div className="p-6 bg-slate-900/50 rounded-[2rem] flex items-center gap-6 border border-white/5 group hover:bg-slate-800 transition-all hover:shadow-xl cursor-pointer">
+                                <div className="w-14 h-14 bg-slate-950 rounded-2xl flex items-center justify-center text-indigo-400 shadow-sm border border-white/5">
                                     <Bell className="w-6 h-6" />
                                 </div>
                                 <div className="flex-1">
-                                    <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm">Enable Smart Alerts</h4>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic">Get university updates & jobs</p>
                                 </div>
                                 <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
                             </div>

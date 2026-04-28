@@ -57,8 +57,12 @@ export const AlumnaeSecureAccountView: React.FC<AlumnaeSecureAccountViewProps> =
 
     if (isSuccess) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-6">
-                <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-[2.5rem] p-12 text-center shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-500">
+            <div className="min-h-screen flex items-center justify-center bg-[#020617] flex flex-col items-center justify-center p-6 relative overflow-hidden">
+            {/* Background Decorative Elements */}
+            <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 rounded-full blur-[120px] animate-pulse"></div>
+            </div>
+                <div className="w-full max-w-md bg-white/5 backdrop-blur-3xl border border-white/10 shadow-2xl relative z-10">
                     <div className="w-24 h-24 bg-emerald-50 dark:bg-emerald-900/20 rounded-[2rem] flex items-center justify-center text-emerald-500 mx-auto mb-8 shadow-xl shadow-emerald-200/50">
                         <CheckCircle2 className="w-12 h-12" />
                     </div>
@@ -72,8 +76,12 @@ export const AlumnaeSecureAccountView: React.FC<AlumnaeSecureAccountViewProps> =
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-6">
-            <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in slide-in-from-bottom-12 duration-700">
+        <div className="min-h-screen flex items-center justify-center bg-[#020617] flex flex-col items-center justify-center p-6 relative overflow-hidden">
+            {/* Background Decorative Elements */}
+            <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 rounded-full blur-[120px] animate-pulse"></div>
+            </div>
+            <div className="w-full max-w-md bg-white/5 backdrop-blur-3xl border border-white/10 shadow-2xl relative z-10">
                 <div className="p-12">
                     <div className="flex items-center gap-4 mb-10">
                         <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 dark:shadow-none">

@@ -1784,13 +1784,13 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         case 'messages':
                             return (
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen flex flex-col pb-32 md:pb-0">
-                                    <header className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl sticky top-0 z-30 flex items-center justify-between">
-                                        <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white font-display">Secure <span className="text-indigo-600 italic">Inbox</span></h2>
+                                    <header className="px-6 py-5 border-b border-white/10 bg-[#020617]/80 backdrop-blur-xl sticky top-0 z-30 flex items-center justify-between">
+                                        <h2 className="text-xl font-black uppercase tracking-tight text-white font-display">Secure <span className="text-indigo-400 italic">Inbox</span></h2>
                                     </header>
 
                                     <div className="flex-1 flex overflow-hidden">
                                         {/* Conversations List */}
-                                        <aside className={`w-full md:w-80 border-r border-slate-100 dark:border-slate-800 overflow-y-auto no-scrollbar ${activeConversationPartner ? 'hidden md:block' : 'block'}`}>
+                                        <aside className={`w-full md:w-80 border-r border-white/10 overflow-y-auto no-scrollbar ${activeConversationPartner ? 'hidden md:block' : 'block'} bg-white/5`}>
                                             <div className="p-4 space-y-2">
                                                 {allInstitutionMembers.filter(m => m.id !== currentAlumna.id).map(member => (
                                                     <button 
@@ -1814,10 +1814,10 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                         </aside>
 
                                         {/* Chat Window */}
-                                        <div className={`flex-1 flex flex-col bg-slate-50/50 dark:bg-slate-950/20 ${!activeConversationPartner ? 'hidden md:flex' : 'flex'}`}>
+                                        <div className={`flex-1 flex flex-col bg-[#020617]/50 ${!activeConversationPartner ? 'hidden md:flex' : 'flex'}`}>
                                             {activeConversationPartner ? (
                                                 <>
-                                                    <header className="p-4 border-b border-slate-100 bg-white/50 backdrop-blur-sm flex items-center justify-between">
+                                                    <header className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-sm flex items-center justify-between">
                                                         <button onClick={() => setActiveConversationPartner(null)} className="md:hidden p-2 text-slate-400 hover:text-indigo-600">
                                                             <ArrowLeft className="w-5 h-5" />
                                                         </button>
@@ -1845,7 +1845,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                             </div>
                                                         )}
                                                     </div>
-                                                    <div className="p-8 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-t border-slate-100 dark:border-slate-800">
+                                                    <div className="p-8 bg-[#020617]/80 backdrop-blur-xl border-t border-white/10">
                                                         <div className="relative group">
                                                             <input 
                                                                 type="text" 
@@ -2671,9 +2671,9 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             
             {/* Post Job Modal */}
             {showPostJobModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
-                        <header className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#020617]/90 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="w-full max-w-xl bg-white/5 backdrop-blur-3xl rounded-[3rem] shadow-2xl overflow-hidden border border-white/10">
+                        <header className="p-8 border-b border-white/10 flex items-center justify-between">
                             <div>
                                 <h2 className="text-2xl font-black uppercase tracking-tight">Post <span className="text-indigo-600 italic">Opportunity</span></h2>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-1">Hire excellence from the network</p>
@@ -2763,9 +2763,9 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
             {/* Post Business Modal */}
             {showPostBusinessModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
-                        <header className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#020617]/90 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="w-full max-w-xl bg-white/5 backdrop-blur-3xl rounded-[3rem] shadow-2xl overflow-hidden border border-white/10">
+                        <header className="p-8 border-b border-white/10 flex items-center justify-between">
                             <div>
                                 <h2 className="text-2xl font-black uppercase tracking-tight text-rose-500">Legacy <span className="italic">Business</span></h2>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-1">Promote your brand to the circle</p>
@@ -3024,8 +3024,14 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
             {/* Profile Detail Overlay */}
             {viewedProfileId && (
-                <div className="fixed inset-0 bg-white dark:bg-slate-950 z-[110] md:ml-64 flex flex-col animate-in slide-in-from-right duration-500 scrolling-touch">
-                    <header className="sticky top-0 bg-white/95 dark:bg-slate-950/95 backdrop-blur-3xl z-50 border-b border-slate-100 dark:border-slate-800 px-6 py-6 flex items-center gap-6">
+                <div className="fixed inset-0 bg-[#020617] z-[110] md:ml-64 flex flex-col animate-in slide-in-from-right duration-500 scrolling-touch selection:bg-indigo-500/30">
+                    {/* Background Decorative Elements for Profile */}
+                    <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+                        <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-indigo-600/10 rounded-full blur-[120px]"></div>
+                        <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-violet-600/10 rounded-full blur-[120px]"></div>
+                    </div>
+
+                    <header className="sticky top-0 bg-[#020617]/80 backdrop-blur-3xl z-50 border-b border-white/10 px-6 py-6 flex items-center gap-6">
                         <button onClick={() => { setViewedProfileId(null); setViewedProfileData(null); }} className="p-4 bg-slate-100 dark:bg-slate-900 rounded-2xl hover:bg-indigo-600 hover:text-white hover:scale-105 transition-all group shadow-sm">
                             <ArrowLeft className="w-6 h-6 group-hover:-translate-x-1 transition-transform" />
                         </button>
@@ -3049,7 +3055,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                             </div>
                             
                             <div className="px-8 -mt-20 relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
-                                <div className="w-40 h-40 md:w-56 md:h-56 rounded-[4rem] bg-white dark:bg-slate-950 p-3 shadow-2xl border border-white dark:border-slate-900">
+                                <div className="w-40 h-40 md:w-56 md:h-56 rounded-[4rem] bg-[#020617] p-3 shadow-2xl border border-white/10">
                                     <div className="w-full h-full rounded-[3.5rem] bg-slate-50 dark:bg-slate-900 overflow-hidden ring-1 ring-indigo-500/20 shadow-inner">
                                         {viewedProfileData?.profilePhotoUrl ? (
                                             <img src={viewedProfileData.profilePhotoUrl} className="w-full h-full object-cover" />
@@ -3122,7 +3128,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         </div>
 
                         {/* Profile Social Layer */}
-                        <div className="sticky top-0 bg-white/95 dark:bg-slate-950/95 backdrop-blur-3xl z-40 border-b border-slate-100 dark:border-slate-800 mt-12 px-10">
+                        <div className="sticky top-0 bg-[#020617]/80 backdrop-blur-3xl z-40 border-b border-white/10 mt-12 px-10">
                             <div className="flex gap-12">
                                 {['Pulse', 'Media', 'Affiliations'].map((tab) => (
                                     <button 
