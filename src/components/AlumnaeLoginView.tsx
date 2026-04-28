@@ -502,7 +502,6 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
                         <span className="text-[9px] font-black uppercase tracking-widest text-slate-700">EduAI Secure Auth v2.0</span>
                     </div>
                 </div>
-            </div>
             
             <style>{`
                 @keyframes float {
