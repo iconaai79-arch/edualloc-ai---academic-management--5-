@@ -1495,7 +1495,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                         {event.image_url ? <img src={event.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" /> : <div className="w-full h-full bg-amber-50 flex items-center justify-center opacity-20"><Calendar className="w-12 h-12" /></div>}
                                                     </div>
                                                     <div className="p-8">
-                                                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">{event.title}</h3>
+                                                        <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">{event.title}</h3>
                                                         <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest mb-4 flex items-center gap-2">
                                                             <Calendar className="w-3 h-3" /> {new Date(event.event_date).toLocaleDateString()} @ {event.location}
                                                         </p>
@@ -1527,7 +1527,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             <Building2 className="w-5 h-5" />
                                         </div>
                                         <div>
-                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Institutional Response Network</h4>
+                                            <h4 className="text-sm font-black text-white uppercase tracking-tight">Institutional Response Network</h4>
                                             <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-widest flex items-center gap-1">
                                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                                 Priority Line Active
@@ -1550,7 +1550,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                         className="p-6 bg-white/5 border border-slate-100 dark:border-slate-800 rounded-[2rem] hover:bg-white hover:border-indigo-400 transition-all text-left group"
                                                     >
                                                         <Building2 className="w-6 h-6 text-slate-300 mb-4 group-hover:text-indigo-600 group-hover:scale-110 transition-all" />
-                                                        <p className="text-[10px] font-black uppercase tracking-tight text-slate-900 dark:text-white">{type}</p>
+                                                        <p className="text-[10px] font-black uppercase tracking-tight text-white">{type}</p>
                                                         <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-1">Formal Request</p>
                                                     </button>
                                                 ))}
@@ -1572,7 +1572,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                         ) : (
                                             schoolInbox.map((msg, idx) => (
                                                 <div key={idx} className={`flex flex-col ${msg.direction === 'to_school' ? 'items-end' : 'items-start'}`}>
-                                                    <div className={`max-w-[85%] p-5 rounded-3xl text-sm font-medium leading-relaxed shadow-sm ${msg.direction === 'to_school' ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white/10 text-slate-900 dark:text-white rounded-tl-none'}`}>
+                                                    <div className={`max-w-[85%] p-5 rounded-3xl text-sm font-medium leading-relaxed shadow-sm ${msg.direction === 'to_school' ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white/10 text-white rounded-tl-none'}`}>
                                                         {msg.content}
                                                     </div>
                                                     <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-2 px-2">
@@ -1622,7 +1622,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                     </div>
                                                 </div>
                                                 <div className="p-10">
-                                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">{project.title}</h3>
+                                                    <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-4">{project.title}</h3>
                                                     <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-8">{project.description}</p>
                                                     <div className="space-y-8">
                                                         <div>
@@ -1668,7 +1668,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                                             <div className="absolute top-0 -left-1.5 w-3 h-3 rounded-full bg-indigo-600 ring-8 ring-white dark:ring-slate-950"></div>
                                                                         </div>
                                                                         <div className="pb-4 flex-1">
-                                                                            <h5 className="text-[12px] font-black uppercase text-slate-900 dark:text-white tracking-tight">{update.title}</h5>
+                                                                            <h5 className="text-[12px] font-black uppercase text-white tracking-tight">{update.title}</h5>
                                                                             <p className="text-xs text-slate-500 mt-2 leading-relaxed">{update.content}</p>
                                                                             <p className="text-[8px] text-slate-400 uppercase font-black mt-3 flex items-center gap-2">
                                                                                 <Calendar className="w-3 h-3" />
@@ -1698,7 +1698,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                     <header className="mb-12 flex flex-col gap-8">
                                         <div className="relative">
                                             <div className="absolute -left-12 top-0 w-2 h-20 bg-indigo-600 rounded-full blur-lg opacity-40"></div>
-                                            <h2 className="text-4xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Class of <span className="text-indigo-400 italic drop-shadow-[0_0_15px_rgba(129,140,248,0.4)]">{currentAlumna.graduationYear}</span></h2>
+                                            <h2 className="text-4xl font-black uppercase tracking-tight text-white">Class of <span className="text-indigo-400 italic drop-shadow-[0_0_15px_rgba(129,140,248,0.4)]">{currentAlumna.graduationYear}</span></h2>
                                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.4em] mt-3">Your Verified Alumnae Circle</p>
                                             <div 
                                                 className="text-[12px] font-black uppercase tracking-[0.6em] text-indigo-500 mt-4 drop-shadow-xl"
@@ -1727,7 +1727,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-2 mb-1">
-                                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{member.fullName || member.full_name}</h3>
+                                                        <h3 className="text-lg font-black text-white uppercase tracking-tight truncate">{member.fullName || member.full_name}</h3>
                                                         <CheckCircle2 className="w-4 h-4 text-indigo-600" />
                                                     </div>
                                                     <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.15em] mb-4 truncate">{member.currentJob || 'Premium Alumna'} at {member.currentCompany || 'EduAI Network'}</p>
@@ -1766,7 +1766,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                         <Sparkles className="w-7 h-7" />
                                                     </div>
                                                     <div className="flex-1">
-                                                        <p className="text-sm font-medium text-slate-900 dark:text-white leading-relaxed">
+                                                        <p className="text-sm font-medium text-white leading-relaxed">
                                                             <span className="font-black uppercase tracking-tight mr-2">{notif.actor_name}</span> {notif.content}
                                                         </p>
                                                         <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-3 flex items-center gap-2">
@@ -1805,7 +1805,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                             <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-white dark:border-slate-950 rounded-full"></div>
                                                         </div>
                                                         <div className="text-left flex-1 min-w-0">
-                                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase truncate tracking-tight">{member.fullName}</p>
+                                                            <p className="text-xs font-black text-white uppercase truncate tracking-tight">{member.fullName}</p>
                                                             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Start Thread</p>
                                                         </div>
                                                     </button>
@@ -1830,7 +1830,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                     <div className="flex-1 p-8 overflow-y-auto space-y-6 no-scrollbar scrolling-touch">
                                                         {messages.filter(m => (m.senderId === activeConversationPartner.id && m.recipientId === currentAlumna.id) || (m.senderId === currentAlumna.id && m.recipientId === activeConversationPartner.id)).map(msg => (
                                                             <div key={msg.id} className={`flex ${msg.senderId === currentAlumna.id ? 'justify-end' : 'justify-start'}`}>
-                                                                <div className={`max-w-[75%] p-5 rounded-[2.5rem] text-sm font-medium shadow-sm transition-all hover:scale-[1.01] ${msg.senderId === currentAlumna.id ? 'bg-indigo-600 text-white rounded-br-none shadow-indigo-500/20' : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-bl-none border border-slate-100 dark:border-slate-800'}`}>
+                                                                <div className={`max-w-[75%] p-5 rounded-[2.5rem] text-sm font-medium shadow-sm transition-all hover:scale-[1.01] ${msg.senderId === currentAlumna.id ? 'bg-indigo-600 text-white rounded-br-none shadow-indigo-500/20' : 'bg-white dark:bg-slate-900 text-white rounded-bl-none border border-slate-100 dark:border-slate-800'}`}>
                                                                     {msg.content}
                                                                     <p className="text-[8px] font-black uppercase tracking-[0.2em] mt-3 opacity-40">
                                                                         {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1870,7 +1870,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                     <div className="w-24 h-24 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-[3rem] flex items-center justify-center text-indigo-600 mb-8 animate-in zoom-in duration-500">
                                                         <MessageSquare className="w-10 h-10" />
                                                     </div>
-                                                    <h3 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white mb-3">Secure Network Communications</h3>
+                                                    <h3 className="text-2xl font-black uppercase tracking-tight text-white mb-3">Secure Network Communications</h3>
                                                     <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.25em] max-w-sm mx-auto leading-relaxed">Select a verified alumna from the sidebar to initialize an encrypted social thread.</p>
                                                 </div>
                                             )}
@@ -1885,7 +1885,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                     <header className="mb-12 relative">
                                         <div className="flex items-center gap-4 mb-4">
                                             <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white"><Hash className="w-7 h-7" /></div>
-                                            <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Explore <span className="text-indigo-600 italic">Net</span></h2>
+                                            <h2 className="text-3xl font-black uppercase tracking-tight text-white">Explore <span className="text-indigo-600 italic">Net</span></h2>
                                         </div>
                                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em]">Discover talent across the global alumni infrastructure</p>
                                     </header>
@@ -1898,7 +1898,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
-                                                        <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{member.fullName}</h3>
+                                                        <h3 className="text-2xl font-black text-white uppercase tracking-tight truncate">{member.fullName}</h3>
                                                         <div className="hidden sm:block w-1.5 h-1.5 rounded-full bg-slate-200"></div>
                                                         <span className="text-[11px] font-black text-indigo-600 uppercase tracking-widest">Class of {member.graduationYear || member.class_year}</span>
                                                     </div>
@@ -1951,7 +1951,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 <div key={job.id} className="bg-white/5 backdrop-blur-xl border border-white/10">
                                                     <div className="flex justify-between items-start mb-6">
                                                         <div>
-                                                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{job.title}</h3>
+                                                            <h3 className="text-xl font-black text-white uppercase tracking-tight">{job.title}</h3>
                                                             <p className="text-xs font-black text-indigo-600 uppercase tracking-widest mt-1">{job.company}</p>
                                                         </div>
                                                         <div className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-xl text-[8px] font-black uppercase tracking-widest">
@@ -2004,7 +2004,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                         {biz.logo_url ? <img src={biz.logo_url} className="w-full h-full object-cover" /> : <ShoppingBag className="w-full h-full p-6 text-slate-200" />}
                                                     </div>
                                                     <div className="flex-1">
-                                                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{biz.business_name}</h3>
+                                                        <h3 className="text-xl font-black text-white uppercase tracking-tight">{biz.business_name}</h3>
                                                         <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest mt-1 mb-4">{biz.industry}</p>
                                                         <div className="px-4 py-3 bg-rose-500/10 text-rose-400 rounded-2xl text-[9px] font-black uppercase tracking-widest mb-6 inline-block">
                                                             Exclusive: {biz.exclusive_discount}
@@ -2043,7 +2043,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                         {mentor.profilePhotoUrl ? <img src={mentor.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-6 text-slate-300" />}
                                                     </div>
                                                     <div className="flex-1">
-                                                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{mentor.fullName}</h3>
+                                                        <h3 className="text-xl font-black text-white uppercase tracking-tight">{mentor.fullName}</h3>
                                                         <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mt-1 mb-4">{mentor.currentJob} at {mentor.currentCompany}</p>
                                                         <button 
                                                             onClick={() => { setActiveConversationPartner(mentor); setActiveSection('messages'); }}
@@ -2142,7 +2142,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                             <div className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 ${member.role === 'Admin' ? 'bg-amber-400' : member.role === 'Moderator' ? 'bg-indigo-400' : 'bg-emerald-400'}`}></div>
                                                         </div>
                                                         <div className="flex-1">
-                                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{member.fullName}</h4>
+                                                            <h4 className="text-sm font-black text-white uppercase tracking-tight">{member.fullName}</h4>
                                                             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">{member.email}</p>
                                                             <div className="flex items-center gap-2">
                                                                 <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
@@ -2191,7 +2191,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                         {group.image_url ? <img src={group.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" /> : <div className="w-full h-full flex items-center justify-center opacity-10"><Globe className="w-12 h-12" /></div>}
                                                     </div>
                                                     <div className="p-6">
-                                                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">{group.name}</h3>
+                                                        <h3 className="text-sm font-black text-white uppercase tracking-tight mb-2">{group.name}</h3>
                                                         <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mb-6">{group.category}</p>
                                                         <button className="w-full py-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all">Join Circle</button>
                                                     </div>
@@ -2232,7 +2232,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             <div className="flex items-center gap-4">
                                                 <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-[0_0_20px_rgba(79,70,229,0.4)]"><Atom className="w-6 h-6 animate-spin-slow" /></div>
                                                 <div className="flex flex-col">
-                                                    <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white leading-none">EduAI <span className="text-indigo-400 italic drop-shadow-[0_0_10px_rgba(129,140,248,0.5)]">Pulse</span></h2>
+                                                    <h2 className="text-2xl font-black uppercase tracking-tighter text-white leading-none">EduAI <span className="text-indigo-400 italic drop-shadow-[0_0_10px_rgba(129,140,248,0.5)]">Pulse</span></h2>
                                                     <div 
                                                         className="text-[9px] font-black uppercase tracking-[0.4em] text-indigo-500 mt-1.5"
                                                         style={{ 
@@ -2289,7 +2289,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                         placeholder="What's your institutional legacy today?"
                                                         value={newPostContent}
                                                         onChange={(e) => setNewPostContent(e.target.value)}
-                                                        className="w-full bg-transparent border-none focus:ring-0 text-lg md:text-xl font-medium placeholder:text-slate-300 resize-none min-h-[120px] md:min-h-[140px] text-slate-900 dark:text-white font-display px-0"
+                                                        className="w-full bg-transparent border-none focus:ring-0 text-lg md:text-xl font-medium placeholder:text-slate-300 resize-none min-h-[120px] md:min-h-[140px] text-white font-display px-0"
                                                     />
                                                     
                                                     {postImagePreview && (
@@ -2389,7 +2389,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                         <div className="flex-1">
                                                             <div className="flex items-center gap-3 mb-2">
                                                                 <span 
-                                                                    className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-lg cursor-pointer hover:text-indigo-600 transition-colors" 
+                                                                    className="font-black text-white uppercase tracking-tight text-lg cursor-pointer hover:text-indigo-600 transition-colors" 
                                                                     onClick={post.authorId ? () => setViewedProfileId(post.authorId) : undefined}
                                                                 >
                                                                     {post.authorName}
@@ -2536,7 +2536,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 {inst!.name.charAt(0)}
                                             </div>
                                             <div>
-                                                <p className={`text-[11px] font-black uppercase tracking-tight truncate max-w-[140px] ${isActive ? 'text-indigo-600' : 'text-slate-900 dark:text-white'}`}>{inst!.name}</p>
+                                                <p className={`text-[11px] font-black uppercase tracking-tight truncate max-w-[140px] ${isActive ? 'text-indigo-600' : 'text-white'}`}>{inst!.name}</p>
                                                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">{isActive ? 'Current' : 'Social Circle'}</p>
                                             </div>
                                         </div>
@@ -2560,7 +2560,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                         <div className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></div>
                                         {topic.stats}
                                     </div>
-                                    <p className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight group-hover:text-indigo-600 transition-colors">{topic.tag}</p>
+                                    <p className="text-base font-black text-white uppercase tracking-tight group-hover:text-indigo-600 transition-colors">{topic.tag}</p>
                                 </div>
                             ))}
                         </div>
@@ -2857,7 +2857,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-[3rem] shadow-[0_40px_100px_rgba(0,0,0,0.3)] overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-500">
                         <header className="p-10 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50">
                             <div>
-                                <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Profile <span className="text-indigo-600 italic">Persona</span></h2>
+                                <h2 className="text-2xl font-black uppercase tracking-tight text-white">Profile <span className="text-indigo-600 italic">Persona</span></h2>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-2">Sculpt your institutional presence</p>
                             </div>
                             <button onClick={() => setIsEditingProfile(false)} className="w-12 h-12 bg-white dark:bg-slate-950 rounded-2xl flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors shadow-sm">
@@ -2930,7 +2930,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 <Zap className="w-6 h-6" />
                                             </div>
                                             <div>
-                                                <h4 className="text-xs font-black uppercase tracking-tight text-slate-900 dark:text-white">Mentorship Availability</h4>
+                                                <h4 className="text-xs font-black uppercase tracking-tight text-white">Mentorship Availability</h4>
                                                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Volunteer to guide junior alumnae</p>
                                             </div>
                                         </div>
@@ -2968,7 +2968,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[4rem] border border-slate-100 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
                         <header className="p-12 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-indigo-50/20">
                             <div>
-                                <h3 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white font-display">Switch <span className="text-indigo-600 italic">Circle</span></h3>
+                                <h3 className="text-2xl font-black uppercase tracking-tight text-white font-display">Switch <span className="text-indigo-600 italic">Circle</span></h3>
                                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mt-2">Jump between verified institutions</p>
                             </div>
                             <button onClick={() => setShowSwitcher(false)} className="w-14 h-14 bg-white dark:bg-slate-950 rounded-2xl flex items-center justify-center text-slate-400 hover:text-rose-500 transition-all shadow-sm">
@@ -3036,7 +3036,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                             <ArrowLeft className="w-6 h-6 group-hover:-translate-x-1 transition-transform" />
                         </button>
                         <div className="min-w-0 flex-1">
-                            <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white truncate font-display">{viewedProfileData?.fullName || 'Legacy Member'}</h2>
+                            <h2 className="text-2xl font-black uppercase tracking-tight text-white truncate font-display">{viewedProfileData?.fullName || 'Legacy Member'}</h2>
                             <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em] mt-1">{profilePosts.length} Network Contributions</p>
                         </div>
                     </header>
@@ -3067,13 +3067,13 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                 <div className="mb-6 flex flex-wrap gap-4">
                                     <button 
                                         onClick={() => setActiveConversationPartner(viewedProfileData)}
-                                        className="p-5 bg-white dark:bg-slate-900 text-indigo-600 border border-slate-100 dark:border-slate-800 rounded-3xl hover:bg-indigo-600 hover:text-white hover:scale-105 transition-all shadow-xl shadow-slate-100/50"
+                                        className="p-5 bg-white/5 text-indigo-400 border border-white/10 rounded-3xl hover:bg-indigo-600 hover:text-white hover:scale-105 transition-all shadow-2xl"
                                     >
                                         <MessageSquare className="w-8 h-8" />
                                     </button>
                                     <button 
                                         onClick={handleFollow}
-                                        className={`px-12 py-5 rounded-3xl text-[11px] font-black uppercase tracking-[0.25em] hover:scale-105 transition-all shadow-2xl active:scale-95 ${isFollowing ? 'bg-slate-50 text-slate-400 border border-slate-100' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-indigo-500/20'}`}
+                                        className={`px-12 py-5 rounded-3xl text-[11px] font-black uppercase tracking-[0.25em] hover:scale-105 transition-all shadow-2xl active:scale-95 ${isFollowing ? 'bg-white/10 text-slate-400 border border-white/10' : 'bg-indigo-600 text-white shadow-indigo-500/20'}`}
                                     >
                                         {isFollowing ? 'Legacy Following' : 'Claim Follow'}
                                     </button>
@@ -3083,7 +3083,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                             <div className="px-10 mt-10 space-y-10">
                                 <div>
                                     <div className="flex items-center gap-4 mb-3">
-                                        <h1 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight font-display">{viewedProfileData?.fullName}</h1>
+                                        <h1 className="text-3xl font-black text-white uppercase tracking-tight font-display">{viewedProfileData?.fullName}</h1>
                                         <CheckCircle2 className="w-8 h-8 text-indigo-600 fill-indigo-50" />
                                     </div>
                                     <p className="text-[12px] text-slate-400 font-black uppercase tracking-[0.4em] mb-8">@{viewedProfileData?.fullName?.split(' ')[0].toLowerCase()}_infrastructure</p>
@@ -3095,11 +3095,11 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 py-10 border-y border-slate-50 dark:border-slate-900">
                                     <div className="space-y-2">
                                         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Sphere</p>
-                                        <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{viewedProfileData?.currentCompany || 'EduAI Global'}</h4>
+                                        <h4 className="text-base font-black text-white uppercase tracking-tight truncate">{viewedProfileData?.currentCompany || 'EduAI Global'}</h4>
                                     </div>
                                     <div className="space-y-2">
                                         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Designation</p>
-                                        <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{viewedProfileData?.currentJob || 'Premium Alumna'}</h4>
+                                        <h4 className="text-base font-black text-white uppercase tracking-tight truncate">{viewedProfileData?.currentJob || 'Premium Alumna'}</h4>
                                     </div>
                                     <div className="space-y-2">
                                         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Class Year</p>
@@ -3134,7 +3134,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                     <button 
                                         key={tab}
                                         onClick={() => setProfileActiveTab(tab.toLowerCase() as any)}
-                                        className={`py-8 text-[11px] font-black uppercase tracking-[0.4em] relative transition-all ${profileActiveTab === tab.toLowerCase() ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-900'}`}
+                                        className={`py-8 text-[11px] font-black uppercase tracking-[0.4em] relative transition-all ${profileActiveTab === tab.toLowerCase() ? 'text-indigo-600' : 'text-slate-400 hover:text-white'}`}
                                     >
                                         {tab}
                                         {profileActiveTab === tab.toLowerCase() && (
@@ -3153,7 +3153,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-xl shadow-lg ring-4 ring-white dark:ring-slate-950">{post.authorName?.charAt(0)}</div>
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-3 mb-3">
-                                                    <span className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-lg">{post.authorName}</span>
+                                                    <span className="font-black text-white uppercase tracking-tight text-lg">{post.authorName}</span>
                                                     {post.groupName && (
                                                         <div className="flex items-center gap-2 px-3 py-1 bg-white/10 text-slate-500 rounded-lg text-[8px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700">
                                                             <Globe className="w-3 h-3 text-indigo-500" />
