@@ -3580,8 +3580,10 @@ export const App: React.FC = () => {
                                         timetableSettings={timetableSettings}
                                         examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
                                         assessments={assessments}
-                                        marks={assessmentMarks}
+                                        assessmentMarks={assessmentMarks}
                                         incidents={incidents}
+                                        onAccessAlumnaPortal={handleAccessAlumnaPortal}
+                                        schoolRegistry={schoolRegistry}
                                         onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
                                         onDeleteAssessment={async (id: string) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
                                         onSaveAssessmentMarks={async (id: string, marks: any[]) => {
@@ -3864,6 +3866,8 @@ export const App: React.FC = () => {
                                             loadData();
                                         }}
                                          onLogAction={handleLogAction}
+                                         onAccessAlumnaPortal={handleAccessAlumnaPortal}
+                                         schoolRegistry={schoolRegistry}
                                      />
                                 ) : activeRole === 'lecturer' ? (
                                     <LecturerView

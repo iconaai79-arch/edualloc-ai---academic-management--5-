@@ -10,9 +10,25 @@ ADD COLUMN IF NOT EXISTS profile_photo_url TEXT,
 ADD COLUMN IF NOT EXISTS cover_photo_url TEXT;
 
 -- 2. Alumnae Jobs (Exclusively for the network)
+-- Table Maintenance: Fix potential schema inconsistencies from previous partial migrations
+DO $$ 
+BEGIN 
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumni_jobs') THEN
+        -- Drop incorrect ID foreign key if it exists (fixes "alumni_jobs_id_fkey" error)
+        IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'alumni_jobs_id_fkey' AND table_name = 'alumni_jobs') THEN
+            ALTER TABLE public.alumni_jobs DROP CONSTRAINT alumni_jobs_id_fkey;
+        END IF;
+
+        -- Handle renaming from author_id to alumna_id for existing tables
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_jobs' AND column_name = 'author_id') THEN
+            ALTER TABLE public.alumni_jobs RENAME COLUMN author_id TO alumna_id;
+        END IF;
+    END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS public.alumni_jobs (
     id TEXT PRIMARY KEY,
-    author_id TEXT REFERENCES public.alumnae_members(id) ON DELETE CASCADE,
+    alumna_id TEXT REFERENCES public.alumnae_members(id) ON DELETE CASCADE,
     institution_id TEXT REFERENCES public.institutions(id) ON DELETE SET NULL,
     title TEXT NOT NULL,
     company TEXT NOT NULL,
@@ -244,3 +260,6 @@ BEGIN
     EXECUTE 'DROP POLICY IF EXISTS "Alumni School Inbox Isolation" ON public.alumni_school_inbox';
     EXECUTE 'CREATE POLICY "Alumni School Inbox Isolation" ON public.alumni_school_inbox FOR ALL USING (true)';
 END $policy_block$;
+
+NOTIFY pgrst, 'reload schema';
+

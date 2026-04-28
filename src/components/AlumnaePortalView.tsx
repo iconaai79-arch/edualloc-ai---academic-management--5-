@@ -67,7 +67,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [loadingPosts, setLoadingPosts] = useState(true);
     const [isProcessingFeature, setIsProcessingFeature] = useState(false);
     const [featuredMembers, setFeaturedMembers] = useState<any[]>([]);
-    const [activeSection, setActiveSection] = useState<'feed' | 'messages' | 'explore' | 'notifications' | 'classmates' | 'funding' | 'support' | 'jobs' | 'marketplace' | 'mentorship' | 'groups' | 'management'>('feed');
+    const [activeSection, setActiveSection] = useState<'feed' | 'messages' | 'explore' | 'notifications' | 'classmates' | 'funding' | 'support' | 'jobs' | 'marketplace' | 'mentorship' | 'groups' | 'management' | 'events' | 'profile'>('feed');
     const [schoolTeam, setSchoolTeam] = useState<any[]>([]);
     const [isTeamLoading, setIsTeamLoading] = useState(false);
     const [isAddingTeamMember, setIsAddingTeamMember] = useState(false);
@@ -120,7 +120,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [showPostMenuId, setShowPostMenuId] = useState<string | null>(null);
     const [viewedProfileId, setViewedProfileId] = useState<string | null>(null);
     const [viewedProfileData, setViewedProfileData] = useState<any | null>(null);
-    const [profileActiveTab, setProfileActiveTab] = useState<'posts' | 'replies' | 'media' | 'highlights'>('posts');
+    const [profileActiveTab, setProfileActiveTab] = useState<'posts' | 'replies' | 'media' | 'highlights' | 'pulse'>('posts');
     const [profilePosts, setProfilePosts] = useState<AlumniPost[]>([]);
     const [isFollowing, setIsFollowing] = useState(false);
     const [followStats, setFollowStats] = useState({ followers: 0, following: 0 });
@@ -943,7 +943,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 salary_range: jobData.salaryRange,
                 apply_url: jobData.applyUrl,
                 institution_id: instId,
-                author_id: currentAlumna.id,
+                alumna_id: currentAlumna.id,
                 created_at: new Date().toISOString()
             });
             setShowPostJobModal(false);
@@ -970,7 +970,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     institutionId: currentAlumna.institutionId,
                     useGlobalConfig: !currentAlumna.institutionId
                 });
-                if (uploadRes.success) logoUrl = uploadRes.url;
+                if (uploadRes.success) logoUrl = uploadRes.url || '';
             }
 
             const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
