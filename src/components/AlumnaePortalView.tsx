@@ -943,7 +943,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 salary_range: jobData.salaryRange,
                 apply_url: jobData.applyUrl,
                 institution_id: instId,
-                alumna_id: currentAlumna.id,
+                author_id: currentAlumna.id,
                 created_at: new Date().toISOString()
             });
             setShowPostJobModal(false);
@@ -983,7 +983,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 exclusive_discount: businessData.exclusiveDiscount,
                 logo_url: logoUrl,
                 institution_id: instId,
-                alumna_id: currentAlumna.id,
+                owner_id: currentAlumna.id,
                 created_at: new Date().toISOString()
             });
             setShowPostBusinessModal(false);
