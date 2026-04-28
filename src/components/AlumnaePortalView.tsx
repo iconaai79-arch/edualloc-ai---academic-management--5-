@@ -1193,7 +1193,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                         </button>
                                     </div>
                                 </div>
-                            );
+                            </div>
+                        );
 
                         case 'funding':
                             return (
@@ -1466,10 +1467,10 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                     <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.25em] max-w-sm mx-auto leading-relaxed">Select a verified alumna from the sidebar to initialize an encrypted social thread.</p>
                                                 </div>
                                             )}
-                                        </div>
                                     </div>
                                 </div>
-                            );
+                            </div>
+                        );
 
                         case 'explore':
                             return (
@@ -2197,6 +2198,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                         <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Designation</label>
                                         <input type="text" value={profileData.currentJob} onChange={(e) => setProfileData({...profileData, currentJob: e.target.value})} className="w-full h-14 px-8 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner" />
                                     </div>
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Current Institution</label>
                                         <input type="text" value={profileData.currentCompany} onChange={(e) => setProfileData({...profileData, currentCompany: e.target.value})} className="w-full h-14 px-8 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner" />
                                     </div>
                                 </div>
@@ -2220,7 +2223,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                         </button>
                                     </div>
                                 </div>
-                                </div>
+
 
                                 <div className="space-y-4">
                                     <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Professional Narrative</label>

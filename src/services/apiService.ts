@@ -876,34 +876,8 @@ export const apiService = {
 
         await apiService.saveModuleRecord('institution_module_states', moduleState);
     },
-    async deleteModuleRecord(module: string, id: string): Promise<void> {
-        if (!_supabase) {
-            ls.delete(module, id);
-            return;
-        }
-
-        const token = await apiService.getAuthToken();
-
-        const response = await fetch(`/api/records?module=${module}&id=${id}`, {
-            method: 'DELETE',
-            headers: {
-                'Authorization': token ? `Bearer ${token}` : '',
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (!response.ok) {
-            const contentType = response.headers.get('content-type');
-            let errData: any = {};
-            if (contentType && contentType.includes('application/json')) {
-                errData = await response.json().catch(() => ({}));
-            } else {
-                errData = { error: await response.text().catch(() => `Status ${response.status}`) };
-            }
-            throw new Error(errData.error || `Failed to delete ${module}`);
-        }
-    },
     async fetchInstitutions(institutionId?: string): Promise<Institution[]> { return apiService.fetchModuleRecords('institutions', institutionId); },
+
     async saveInstitution(inst: Institution): Promise<void> { 
         const { countyId, moduleStates, ...rest } = inst as any;
         await apiService.saveModuleRecord('institutions', { 
