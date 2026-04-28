@@ -134,7 +134,8 @@ import {
     Compass, 
     Hotel, 
     Filter,
-    History
+    History,
+    Database
 } from 'lucide-react';
 
 export interface SuperAdminViewProps {
