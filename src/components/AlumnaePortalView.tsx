@@ -367,7 +367,6 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 alumnaId: r.alumna_id || r.alumnaId
             })));
 
-            const alumnaId = currentAlumna.id || currentAlumna.alumna_id || currentAlumna.student_id;
             const rsvpData = await apiService.fetchModuleRecords('alumni_event_rsvps', undefined, undefined, {
                 filter: { alumna_id: alumnaId }
             });
