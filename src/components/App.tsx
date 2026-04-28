@@ -5836,10 +5836,6 @@ export const App: React.FC = () => {
                                     setShowAlumnaeLogin(false);
                                     setShowAlumnaeRegister(true);
                                 }}
-                                onBack={() => {
-                                    setShowAlumnaeLogin(false);
-                                    setShowCommunityHub(true);
-                                }}
                             />
                         ) : showInstitutionClaim ? (
                             <InstitutionClaimView 

@@ -21,10 +21,9 @@ import { apiService } from '../services/apiService';
 interface AlumnaeLoginViewProps {
     onLoginSuccess: (alumna: any) => void;
     onSwitchToRegister: () => void;
-    onBack?: () => void;
 }
 
-export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSuccess, onSwitchToRegister, onBack }) => {
+export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSuccess, onSwitchToRegister }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -494,11 +493,7 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
                     </div>
                 </div>
 
-                    <div className="mt-8 flex justify-between items-center px-4">
-                        <button onClick={onBack} className="text-slate-500 hover:text-white flex items-center gap-2 transition-colors">
-                            <ChevronLeft className="w-4 h-4" />
-                            <span className="text-[9px] font-black uppercase tracking-widest">Return Home</span>
-                        </button>
+                    <div className="mt-8 flex justify-end items-center px-4">
                         <span className="text-[9px] font-black uppercase tracking-widest text-slate-700">EduAI Secure Auth v2.0</span>
                     </div>
                 </div>
