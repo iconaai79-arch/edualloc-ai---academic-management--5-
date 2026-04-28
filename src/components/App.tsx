@@ -575,8 +575,8 @@ export const App: React.FC = () => {
             // Check for valid tenant subdomain (e.g. tenant.domain.com or tenant.eduai.co.ke)
             if (parts.length >= 2) {
                 const sub = parts[0];
-                const reserved = ['www', 'app', 'marketplace', 'showcase', 'marketing', 'api', 'localhost', '127'];
-                if (!reserved.includes(sub) && !sub.includes('portal') && !sub.includes('admin')) {
+                const reserved = ['www', 'app', 'marketplace', 'showcase', 'marketing', 'api', 'localhost', '127', 'alumni', 'alumnae', 'almamater'];
+                if (!reserved.includes(sub) && !sub.includes('portal') && !sub.includes('admin') && !sub.includes('alma')) {
                     return sub; // Return as slug
                 }
             }
