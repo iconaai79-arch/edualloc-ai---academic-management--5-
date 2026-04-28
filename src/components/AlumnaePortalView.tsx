@@ -1824,7 +1824,6 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 </div>
                                             </div>
                                         </div>
-                                        )}
 
                                         <div className="bg-slate-50/30 dark:bg-slate-950/30">
                                             {loadingPosts ? (
@@ -1952,7 +1951,6 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 </div>
                                             ))}
                                         </div>
-                                    </div>
                                 </>
                             );
                     }
