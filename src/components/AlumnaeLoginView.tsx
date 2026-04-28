@@ -485,17 +485,17 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Not a member yet?</p>
                             <button 
                                 onClick={onSwitchToRegister}
-                                className="text-xs font-black text-indigo-400 uppercase tracking-widest hover:text-white transition-all flex items-center justify-center gap-3 mx-auto group"
+                                className="text-xs font-black text-indigo-400 uppercase tracking-widest hover:text-white transition-all flex items-center justify-center gap-3 mx-auto group mb-8"
                             >
                                 Apply for Access <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
                             </button>
+
+                            <div className="pt-4 border-t border-white/5 opacity-40">
+                                <span className="text-[8px] font-black uppercase tracking-[0.3em] text-slate-500">EduAI Secure Auth v2.0</span>
+                            </div>
                         </div>
                     </div>
                 </div>
-
-                    <div className="mt-8 flex justify-end items-center px-4">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-700">EduAI Secure Auth v2.0</span>
-                    </div>
                 </div>
             
             <style>{`
