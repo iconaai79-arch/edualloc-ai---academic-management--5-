@@ -1433,7 +1433,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         <button 
                             key={idx} 
                             onClick={item.onClick}
-                            className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all relative group ${item.active ? 'bg-indigo-600 text-white shadow-[0_10px_30px_rgba(79,70,229,0.3)] dark:shadow-[0_0_20px_rgba(99,102,241,0.2)]' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                            className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all relative group ${item.active ? 'bg-indigo-600 text-white shadow-[0_10px_30px_rgba(79,70,229,0.3)] dark:shadow-[0_0_20px_rgba(99,102,241,0.2)]' : 'text-slate-500 hover:bg-white/10'}`}
                         >
                             <item.icon className={`w-6 h-6 transition-transform ${item.active ? 'scale-110' : 'group-hover:scale-110'}`} />
                             <span className="hidden md:block font-bold text-sm uppercase tracking-widest">{item.label}</span>
@@ -1507,7 +1507,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                             >
                                                                 RSVP Confirmed
                                                             </button>
-                                                            <button className="p-4 bg-slate-100 dark:bg-slate-800 text-slate-400 rounded-2xl hover:text-indigo-600 transition-all">
+                                                            <button className="p-4 bg-white/10 text-slate-400 rounded-2xl hover:text-indigo-600 transition-all">
                                                                 <Share2 className="w-5 h-5" />
                                                             </button>
                                                         </div>
@@ -1547,7 +1547,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                     <button 
                                                         key={type}
                                                         onClick={() => handleRequestDoc(type)}
-                                                        className="p-6 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2rem] hover:bg-white hover:border-indigo-400 transition-all text-left group"
+                                                        className="p-6 bg-white/5 border border-slate-100 dark:border-slate-800 rounded-[2rem] hover:bg-white hover:border-indigo-400 transition-all text-left group"
                                                     >
                                                         <Building2 className="w-6 h-6 text-slate-300 mb-4 group-hover:text-indigo-600 group-hover:scale-110 transition-all" />
                                                         <p className="text-[10px] font-black uppercase tracking-tight text-slate-900 dark:text-white">{type}</p>
@@ -1572,7 +1572,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                         ) : (
                                             schoolInbox.map((msg, idx) => (
                                                 <div key={idx} className={`flex flex-col ${msg.direction === 'to_school' ? 'items-end' : 'items-start'}`}>
-                                                    <div className={`max-w-[85%] p-5 rounded-3xl text-sm font-medium leading-relaxed shadow-sm ${msg.direction === 'to_school' ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-tl-none'}`}>
+                                                    <div className={`max-w-[85%] p-5 rounded-3xl text-sm font-medium leading-relaxed shadow-sm ${msg.direction === 'to_school' ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white/10 text-slate-900 dark:text-white rounded-tl-none'}`}>
                                                         {msg.content}
                                                     </div>
                                                     <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-2 px-2">
@@ -1590,7 +1590,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             onChange={(e) => setNewMessageToSchool(e.target.value)}
                                             onKeyPress={(e) => e.key === 'Enter' && handleSendMessageToSchool()}
                                             placeholder="Type your official request..."
-                                            className="flex-1 h-14 px-8 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner"
+                                            className="flex-1 h-14 px-8 bg-white/5 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner"
                                         />
                                         <button 
                                             onClick={handleSendMessageToSchool}
@@ -1630,7 +1630,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                                 <span className="text-slate-400">Raised: KES {project.current_amount || project.currentAmount || 0}</span>
                                                                 <span className="text-indigo-600">{Math.round(((project.current_amount || project.currentAmount || 0) / (project.target_amount || project.targetAmount)) * 100)}% Complete</span>
                                                             </div>
-                                                            <div className="w-full h-4 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden p-1 shadow-inner">
+                                                            <div className="w-full h-4 bg-white/10 rounded-full overflow-hidden p-1 shadow-inner">
                                                                 <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${Math.min(100, ((project.current_amount || project.currentAmount || 0) / (project.target_amount || project.targetAmount)) * 100)}%` }}></div>
                                                             </div>
                                                         </div>
@@ -1643,7 +1643,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                                         placeholder="Legacy Amount (KES)..."
                                                                         value={donationAmount}
                                                                         onChange={(e) => setDonationAmount(e.target.value)}
-                                                                        className="w-full h-16 pl-10 pr-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-xs font-black focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner"
+                                                                        className="w-full h-16 pl-10 pr-4 bg-white/5 border-none rounded-2xl text-xs font-black focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner"
                                                                     />
                                                                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-[10px]">KES</div>
                                                                 </div>
@@ -1664,7 +1664,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                             <div className="space-y-8">
                                                                 {projectUpdates.filter(u => u.project_id === project.id).map(update => (
                                                                     <div key={update.id} className="flex gap-6 group">
-                                                                        <div className="w-px bg-slate-100 dark:bg-slate-800 relative">
+                                                                        <div className="w-px bg-white/10 relative">
                                                                             <div className="absolute top-0 -left-1.5 w-3 h-3 rounded-full bg-indigo-600 ring-8 ring-white dark:ring-slate-950"></div>
                                                                         </div>
                                                                         <div className="pb-4 flex-1">
@@ -1678,7 +1678,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                                     </div>
                                                                 ))}
                                                                 {projectUpdates.filter(u => u.project_id === project.id).length === 0 && (
-                                                                    <div className="py-6 text-center bg-slate-50 dark:bg-slate-900/50 rounded-3xl">
+                                                                    <div className="py-6 text-center bg-white/5 rounded-3xl">
                                                                         <p className="text-[10px] italic font-bold text-slate-400 uppercase tracking-widest px-4">Initial planning phase in progress. Updates arriving shortly.</p>
                                                                     </div>
                                                                 )}
@@ -1721,8 +1721,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
                                     <div className="space-y-6">
                                         {alumnaeMembers.filter(m => (m.graduationYear || m.class_year) == currentAlumna.graduationYear && m.id !== currentAlumna.id).map(member => (
-                                            <div key={member.id} className="p-8 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2.5rem] flex items-center gap-6 shadow-xl shadow-slate-100/50 dark:shadow-none hover:border-indigo-400 transition-all group">
-                                                <div className="w-20 h-20 rounded-[1.75rem] bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 group-hover:scale-105 transition-transform">
+                                            <div key={member.id} className="p-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2.5rem] flex items-center gap-6 shadow-2xl hover:border-indigo-400 transition-all group">
+                                                <div className="w-20 h-20 rounded-[1.75rem] bg-white/10 overflow-hidden shrink-0 group-hover:scale-105 transition-transform">
                                                     {member.profile_photo_url || member.profilePhotoUrl ? <img src={member.profile_photo_url || member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-6 text-slate-300" />}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
@@ -1733,7 +1733,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                     <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.15em] mb-4 truncate">{member.currentJob || 'Premium Alumna'} at {member.currentCompany || 'EduAI Network'}</p>
                                                     <button 
                                                         onClick={() => { setActiveConversationPartner(member); setActiveSection('messages'); }}
-                                                        className="px-6 py-2.5 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center gap-2"
+                                                        className="px-6 py-2.5 bg-white/5 text-indigo-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center gap-2"
                                                     >
                                                         <MessageSquare className="w-3.5 h-3.5" /> Start Thread
                                                     </button>
@@ -1761,7 +1761,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             </div>
                                         ) : (
                                             alumniNotifications.map((notif) => (
-                                                <div key={notif.id} className={`p-8 rounded-[2.5rem] border transition-all flex items-start gap-6 ${notif.is_read ? 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 shadow-sm' : 'bg-indigo-50/50 dark:bg-indigo-900/10 border-indigo-100 dark:border-indigo-900/30 ring-2 ring-indigo-50 dark:ring-indigo-900/20 shadow-xl shadow-indigo-500/5'}`}>
+                                                <div key={notif.id} className={`p-8 rounded-[2.5rem] border transition-all flex items-start gap-6 ${notif.is_read ? 'bg-white/5 border-white/10' : 'bg-indigo-500/10 border-indigo-500/30 ring-2 ring-indigo-500/10'}`}>
                                                     <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-indigo-200">
                                                         <Sparkles className="w-7 h-7" />
                                                     </div>
@@ -1796,10 +1796,10 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                     <button 
                                                         key={member.id}
                                                         onClick={() => setActiveConversationPartner(member)}
-                                                        className={`w-full p-5 rounded-3xl flex items-center gap-4 transition-all ${activeConversationPartner?.id === member.id ? 'bg-indigo-50 dark:bg-indigo-900/20 ring-1 ring-indigo-100 shadow-lg' : 'hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                                                        className={`w-full p-5 rounded-3xl flex items-center gap-4 transition-all ${activeConversationPartner?.id === member.id ? 'bg-indigo-500/10 text-indigo-400' : 'hover:bg-white/10'}`}
                                                     >
                                                         <div className="relative">
-                                                            <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 border border-slate-100 dark:border-slate-800 shadow-sm">
+                                                            <div className="w-14 h-14 rounded-2xl bg-white/10 overflow-hidden shrink-0 border border-slate-100 dark:border-slate-800 shadow-sm">
                                                                 {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
                                                             </div>
                                                             <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-white dark:border-slate-950 rounded-full"></div>
@@ -1892,8 +1892,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
                                     <div className="grid grid-cols-1 gap-6">
                                         {allInstitutionMembers.filter(m => m.id !== currentAlumna.id).map(member => (
-                                            <div key={member.id} className="bg-white dark:bg-slate-900 rounded-[3rem] p-10 border border-slate-100 dark:border-slate-800 shadow-2xl shadow-indigo-500/5 flex flex-col sm:flex-row items-center gap-8 text-center sm:text-left transition-all hover:border-indigo-400 group">
-                                                <div className="w-32 h-32 rounded-[2.5rem] bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 ring-12 ring-slate-50 dark:ring-slate-950 group-hover:scale-105 transition-transform">
+                                            <div key={member.id} className="bg-white/5 backdrop-blur-3xl rounded-[3rem] p-10 border border-white/10 shadow-2xl flex flex-col sm:flex-row items-center gap-8 text-center sm:text-left transition-all hover:border-indigo-400 group">
+                                                <div className="w-32 h-32 rounded-[2.5rem] bg-white/10 overflow-hidden shrink-0 ring-12 ring-slate-50 dark:ring-slate-950 group-hover:scale-105 transition-transform">
                                                     {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-10 text-slate-300" />}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
@@ -1912,7 +1912,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                         </button>
                                                         <button 
                                                             onClick={() => { setActiveConversationPartner(member); setActiveSection('messages'); }}
-                                                            className="p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-400 hover:text-indigo-600 transition-all"
+                                                            className="p-4 bg-white/5 rounded-2xl text-slate-400 hover:text-indigo-400 transition-all"
                                                         >
                                                             <MessageSquare className="w-7 h-7" />
                                                         </button>
@@ -1999,14 +1999,14 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             </div>
                                         ) : (
                                             businesses.map(biz => (
-                                                <div key={biz.id} className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 shadow-xl flex gap-6 hover:border-rose-400 transition-all">
+                                                <div key={biz.id} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8 shadow-xl flex gap-6 hover:border-rose-400 transition-all">
                                                     <div className="w-24 h-24 rounded-3xl bg-slate-50 dark:bg-slate-800 overflow-hidden shrink-0">
                                                         {biz.logo_url ? <img src={biz.logo_url} className="w-full h-full object-cover" /> : <ShoppingBag className="w-full h-full p-6 text-slate-200" />}
                                                     </div>
                                                     <div className="flex-1">
                                                         <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{biz.business_name}</h3>
                                                         <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest mt-1 mb-4">{biz.industry}</p>
-                                                        <div className="px-4 py-3 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-2xl text-[9px] font-black uppercase tracking-widest mb-6 inline-block">
+                                                        <div className="px-4 py-3 bg-rose-500/10 text-rose-400 rounded-2xl text-[9px] font-black uppercase tracking-widest mb-6 inline-block">
                                                             Exclusive: {biz.exclusive_discount}
                                                         </div>
                                                         <button 
@@ -2039,7 +2039,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                         ) : (
                                             alumnaeMembers.filter(m => (m.isMentorAvailable || m.is_mentor_available) && m.id !== currentAlumna.id).map(mentor => (
                                                 <div key={mentor.id} className="bg-white/5 backdrop-blur-md border border-white/10">
-                                                    <div className="w-24 h-24 rounded-[2rem] bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 group-hover:scale-105 transition-transform">
+                                                    <div className="w-24 h-24 rounded-[2rem] bg-white/10 overflow-hidden shrink-0 group-hover:scale-105 transition-transform">
                                                         {mentor.profilePhotoUrl ? <img src={mentor.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-6 text-slate-300" />}
                                                     </div>
                                                     <div className="flex-1">
@@ -2137,7 +2137,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             ) : (
                                                 schoolTeam.map(member => (
                                                     <div key={member.id} className="bg-white/5 border border-white/10">
-                                                        <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 border border-slate-100 dark:border-slate-800 shadow-sm relative">
+                                                        <div className="w-16 h-16 rounded-2xl bg-white/10 overflow-hidden shrink-0 border border-slate-100 dark:border-slate-800 shadow-sm relative">
                                                             {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
                                                             <div className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 ${member.role === 'Admin' ? 'bg-amber-400' : member.role === 'Moderator' ? 'bg-indigo-400' : 'bg-emerald-400'}`}></div>
                                                         </div>
@@ -2187,7 +2187,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                         ) : (
                                             groups.map(group => (
                                                 <div key={group.id} className="bg-white/5 backdrop-blur-md border border-white/10">
-                                                    <div className="h-32 bg-slate-100 dark:bg-slate-800 relative overflow-hidden">
+                                                    <div className="h-32 bg-white/10 relative overflow-hidden">
                                                         {group.image_url ? <img src={group.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" /> : <div className="w-full h-full flex items-center justify-center opacity-10"><Globe className="w-12 h-12" /></div>}
                                                     </div>
                                                     <div className="p-6">
@@ -2258,7 +2258,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 </button>
                                             </div>
                                         </div>
-                                        <div className="flex px-4 overflow-x-auto no-scrollbar scroll-smooth border-t border-slate-50 dark:border-slate-900/50">
+                                        <div className="flex px-4 overflow-x-auto no-scrollbar scroll-smooth border-t border-white/5">
                                             <button 
                                                 onClick={() => setActiveTab('for-you')}
                                                 className={`flex-1 py-5 text-[11px] font-black uppercase tracking-[0.3em] relative transition-all whitespace-nowrap min-w-[120px] ${activeTab === 'for-you' ? 'text-indigo-500' : 'text-slate-400 hover:text-slate-600'}`}
@@ -2279,9 +2279,9 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                     {/* Feed Content */}
                                     <div className="pb-32 divide-y divide-slate-100 dark:divide-slate-900">
                                         {/* Post Composer */}
-                                        <div className="p-4 md:p-8 bg-white dark:bg-slate-950">
+                                        <div className="p-4 md:p-8 bg-white/5 backdrop-blur-xl">
                                             <div className="flex gap-4 md:gap-6">
-                                                <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 shadow-sm border border-slate-100 dark:border-slate-800">
+                                                <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5">
                                                     {currentAlumna.profilePhotoUrl ? <img src={currentAlumna.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
                                                 </div>
                                                 <div className="flex-1 space-y-6">
@@ -2316,11 +2316,11 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                         </div>
                                                     )}
 
-                                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-50 dark:border-slate-900">
+                                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-white/5">
                                                         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto overflow-x-auto no-scrollbar">
                                                             <button 
                                                                 onClick={() => document.getElementById('post-photo-upload-main')?.click()} 
-                                                                className="flex items-center gap-2 px-4 py-3 bg-slate-50 dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-slate-500 hover:text-indigo-600 rounded-2xl transition-all group shrink-0"
+                                                                className="flex items-center gap-2 px-4 py-3 bg-white/5 hover:bg-indigo-900/30 text-slate-400 hover:text-indigo-600 rounded-2xl transition-all group shrink-0"
                                                             >
                                                                 <ImageIcon className="w-5 h-5 group-hover:scale-110 transition-transform" />
                                                                 <span className="text-[9px] font-black uppercase tracking-widest">Photo</span>
@@ -2329,7 +2329,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
                                                             <button 
                                                                 onClick={() => document.getElementById('post-video-upload-main')?.click()} 
-                                                                className="flex items-center gap-2 px-4 py-3 bg-slate-50 dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-slate-500 hover:text-indigo-600 rounded-2xl transition-all group shrink-0"
+                                                                className="flex items-center gap-2 px-4 py-3 bg-white/5 hover:bg-indigo-900/30 text-slate-400 hover:text-indigo-600 rounded-2xl transition-all group shrink-0"
                                                             >
                                                                 <Video className="w-5 h-5 group-hover:scale-110 transition-transform" />
                                                                 <span className="text-[9px] font-black uppercase tracking-widest">Video</span>
@@ -2340,7 +2340,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                                 <select 
                                                                     value={selectedGroupId || ''} 
                                                                     onChange={(e) => setSelectedGroupId(e.target.value || null)}
-                                                                    className="bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-[9px] font-black uppercase tracking-widest text-slate-500 focus:ring-2 focus:ring-indigo-600 transition-all cursor-pointer h-[44px] px-4"
+                                                                    className="bg-white/5 border-none rounded-2xl text-[9px] font-black uppercase tracking-widest text-slate-500 focus:ring-2 focus:ring-indigo-600 transition-all cursor-pointer h-[44px] px-4"
                                                                 >
                                                                     <option value="">Posting to Circle</option>
                                                                     {groups.map(g => (
@@ -2381,7 +2381,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 <div key={post.id} className="p-8 hover:bg-white dark:hover:bg-slate-900 transition-all group/post">
                                                     <div className="flex gap-6">
                                                         <div 
-                                                            className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 cursor-pointer shadow-sm group-hover/post:scale-105 transition-transform" 
+                                                            className="w-14 h-14 rounded-2xl bg-white/10 overflow-hidden shrink-0 cursor-pointer shadow-sm group-hover/post:scale-105 transition-transform" 
                                                             onClick={post.authorId ? () => setViewedProfileId(post.authorId) : undefined}
                                                         >
                                                             {post.authorPhoto ? <img src={post.authorPhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
@@ -2396,7 +2396,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                                 </span>
                                                                 <CheckCircle2 className="w-4 h-4 text-indigo-600" />
                                                                 {post.groupName && (
-                                                                    <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-lg text-[8px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700">
+                                                                    <div className="flex items-center gap-2 px-3 py-1 bg-white/10 text-slate-500 rounded-lg text-[8px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700">
                                                                         <Globe className="w-3 h-3 text-indigo-500" />
                                                                         {post.groupName}
                                                                     </div>
@@ -2415,14 +2415,14 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                             <div className="flex items-center justify-between max-w-sm ml-[-8px]">
                                                                 <button 
                                                                     onClick={() => setSelectedPost(selectedPost?.id === post.id ? null : post)} 
-                                                                    className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${selectedPost?.id === post.id ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:bg-indigo-50 hover:text-indigo-600'}`}
+                                                                    className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${selectedPost?.id === post.id ? 'bg-indigo-500/10 text-indigo-400' : 'text-slate-400 hover:bg-indigo-500/10 hover:text-indigo-400'}`}
                                                                 >
                                                                     <MessageSquare className="w-5 h-5" />
                                                                     <span className="text-xs font-black">{(comments[post.id]?.length || post.commentsCount || 0)}</span>
                                                                 </button>
                                                                 <button 
                                                                     onClick={() => handleLike(post.id)} 
-                                                                    className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${currentAlumna && (post.likes || []).includes(currentAlumna.id) ? 'bg-rose-50 text-rose-500' : 'text-slate-400 hover:bg-rose-50 hover:text-rose-500'}`}
+                                                                    className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${currentAlumna && (post.likes || []).includes(currentAlumna.id) ? 'bg-rose-500/10 text-rose-400' : 'text-slate-400 hover:bg-rose-500/10 hover:text-rose-400'}`}
                                                                 >
                                                                     <Heart className={`w-5 h-5 ${currentAlumna && (post.likes || []).includes(currentAlumna.id) ? 'fill-current' : ''}`} />
                                                                     <span className="text-xs font-black">{(post.likes || []).length}</span>
@@ -2433,14 +2433,14 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                             </div>
 
                                                             {selectedPost?.id === post.id && (
-                                                                <div className="mt-8 pt-8 border-t border-slate-50 dark:border-slate-900 space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                                                                <div className="mt-8 pt-8 border-t border-white/5 space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
                                                                     <div className="space-y-6 max-h-96 overflow-y-auto no-scrollbar pr-4">
                                                                         {(comments[post.id] || []).map((comment) => (
                                                                             <div key={comment.id} className="flex gap-4 group/comment">
                                                                                 <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-50">
                                                                                     {comment.authorPhoto ? <img src={comment.authorPhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-300" />}
                                                                                 </div>
-                                                                                <div className="bg-slate-50 dark:bg-slate-900 rounded-[1.75rem] px-6 py-4 flex-1 shadow-sm group-hover/comment:bg-white dark:group-hover/comment:bg-slate-800 transition-colors">
+                                                                                <div className="bg-white/5 rounded-[1.75rem] px-6 py-4 flex-1 shadow-sm group-hover/comment:bg-white/10 transition-colors">
                                                                                     <div className="flex justify-between items-center mb-1">
                                                                                         <p className="text-[10px] font-black uppercase text-indigo-600 tracking-tight">{comment.authorName}</p>
                                                                                         <span className="text-[8px] text-slate-400 font-bold uppercase">{new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -2461,7 +2461,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                                                 placeholder="Share your thoughts..." 
                                                                                 value={commentInputs[post.id] || ''}
                                                                                 onChange={(e) => setCommentInputs(prev => ({ ...prev, [post.id]: e.target.value }))}
-                                                                                className="w-full h-14 pl-6 pr-16 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-indigo-600 transition-all font-display"
+                                                                                className="w-full h-14 pl-6 pr-16 bg-white/5 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-indigo-600 transition-all font-display"
                                                                                 onKeyDown={(e) => { 
                                                                                     if (e.key === 'Enter' && commentInputs[post.id]?.trim()) { 
                                                                                         handleAddComment(post.id, commentInputs[post.id]); 
@@ -2510,7 +2510,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     </div>
 
                     {/* My Circles */}
-                    <div className="bg-slate-50 dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-100/20">
+                    <div className="bg-white/5 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-100/20">
                         <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-8 flex items-center justify-between">
                             Verified Circles
                             <button onClick={() => setShowSwitcher(true)} className="p-2 hover:bg-indigo-50 text-indigo-600 rounded-xl transition-colors">
@@ -2678,7 +2678,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                 <h2 className="text-2xl font-black uppercase tracking-tight">Post <span className="text-indigo-600 italic">Opportunity</span></h2>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-1">Hire excellence from the network</p>
                             </div>
-                            <button onClick={() => setShowPostJobModal(false)} className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors">
+                            <button onClick={() => setShowPostJobModal(false)} className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors">
                                 <X className="w-5 h-5" />
                             </button>
                         </header>
@@ -2770,13 +2770,13 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                 <h2 className="text-2xl font-black uppercase tracking-tight text-rose-500">Legacy <span className="italic">Business</span></h2>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-1">Promote your brand to the circle</p>
                             </div>
-                            <button onClick={() => setShowPostBusinessModal(false)} className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors">
+                            <button onClick={() => setShowPostBusinessModal(false)} className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors">
                                 <X className="w-5 h-5" />
                             </button>
                         </header>
                         <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto no-scrollbar">
                             <div className="flex items-center gap-6">
-                                <div className="w-24 h-24 rounded-3xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center relative overflow-hidden group border-2 border-dashed border-slate-200">
+                                <div className="w-24 h-24 rounded-3xl bg-white/10 flex items-center justify-center relative overflow-hidden group border-2 border-dashed border-slate-200">
                                     {businessLogoFile ? (
                                         <img src={URL.createObjectURL(businessLogoFile)} className="w-full h-full object-cover" />
                                     ) : (
@@ -2870,7 +2870,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                             <div className="space-y-6">
                                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em]">Institutional Identity</label>
                                 <div className="flex flex-col items-center gap-8">
-                                    <div className="w-full h-40 bg-slate-100 dark:bg-slate-800 rounded-[2.5rem] relative overflow-hidden group shadow-inner">
+                                    <div className="w-full h-40 bg-white/10 rounded-[2.5rem] relative overflow-hidden group shadow-inner">
                                         {profileCoverPhotoFile ? (
                                             <img src={URL.createObjectURL(profileCoverPhotoFile)} className="w-full h-full object-cover" />
                                         ) : profileData.coverPhotoUrl ? (
@@ -2888,7 +2888,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
                                     <div className="relative mt-[-5rem] z-10 group">
                                         <div className="w-32 h-32 rounded-[2.5rem] bg-white dark:bg-slate-900 p-2 shadow-2xl">
-                                            <div className="w-full h-full rounded-[2.25rem] bg-slate-100 dark:bg-slate-800 overflow-hidden ring-4 ring-indigo-500/10 transition-transform group-hover:scale-105">
+                                            <div className="w-full h-full rounded-[2.25rem] bg-white/10 overflow-hidden ring-4 ring-indigo-500/10 transition-transform group-hover:scale-105">
                                                 {profilePhotoUrlFile ? (
                                                     <img src={URL.createObjectURL(profilePhotoUrlFile)} className="w-full h-full object-cover" />
                                                 ) : profileData.profilePhotoUrl ? (
@@ -2909,17 +2909,17 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                             <div className="space-y-8">
                                 <div className="space-y-4">
                                     <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Full Signature Name</label>
-                                    <input type="text" value={profileData.fullName} onChange={(e) => setProfileData({...profileData, fullName: e.target.value})} className="w-full h-14 px-8 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all font-display shadow-inner" />
+                                    <input type="text" value={profileData.fullName} onChange={(e) => setProfileData({...profileData, fullName: e.target.value})} className="w-full h-14 px-8 bg-white/10 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all font-display shadow-inner" />
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-4">
                                         <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Designation</label>
-                                        <input type="text" value={profileData.currentJob} onChange={(e) => setProfileData({...profileData, currentJob: e.target.value})} className="w-full h-14 px-8 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner" />
+                                        <input type="text" value={profileData.currentJob} onChange={(e) => setProfileData({...profileData, currentJob: e.target.value})} className="w-full h-14 px-8 bg-white/10 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner" />
                                     </div>
                                     <div className="space-y-4">
                                         <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Current Institution</label>
-                                        <input type="text" value={profileData.currentCompany} onChange={(e) => setProfileData({...profileData, currentCompany: e.target.value})} className="w-full h-14 px-8 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner" />
+                                        <input type="text" value={profileData.currentCompany} onChange={(e) => setProfileData({...profileData, currentCompany: e.target.value})} className="w-full h-14 px-8 bg-white/10 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner" />
                                     </div>
                                 </div>
 
@@ -2946,7 +2946,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
                                 <div className="space-y-4">
                                     <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Professional Narrative</label>
-                                    <textarea value={profileData.bio} onChange={(e) => setProfileData({...profileData, bio: e.target.value})} className="w-full h-40 p-8 bg-slate-100 dark:bg-slate-800 border-none rounded-[2rem] text-sm font-medium focus:ring-2 focus:ring-indigo-600 transition-all resize-none shadow-inner leading-relaxed" />
+                                    <textarea value={profileData.bio} onChange={(e) => setProfileData({...profileData, bio: e.target.value})} className="w-full h-40 p-8 bg-white/10 border-none rounded-[2rem] text-sm font-medium focus:ring-2 focus:ring-indigo-600 transition-all resize-none shadow-inner leading-relaxed" />
                                 </div>
                             </div>
                         </div>
@@ -3043,7 +3043,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
                     <div className="flex-1 overflow-y-auto no-scrollbar scrolling-touch">
                         <div className="relative">
-                            <div className="h-64 md:h-80 bg-slate-100 dark:bg-slate-800 relative overflow-hidden group">
+                            <div className="h-64 md:h-80 bg-white/10 relative overflow-hidden group">
                                 {viewedProfileData?.coverPhotoUrl ? (
                                     <img src={viewedProfileData.coverPhotoUrl} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
                                 ) : (
@@ -3056,7 +3056,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                             
                             <div className="px-8 -mt-20 relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
                                 <div className="w-40 h-40 md:w-56 md:h-56 rounded-[4rem] bg-[#020617] p-3 shadow-2xl border border-white/10">
-                                    <div className="w-full h-full rounded-[3.5rem] bg-slate-50 dark:bg-slate-900 overflow-hidden ring-1 ring-indigo-500/20 shadow-inner">
+                                    <div className="w-full h-full rounded-[3.5rem] bg-white/5 overflow-hidden ring-1 ring-indigo-500/20 shadow-inner">
                                         {viewedProfileData?.profilePhotoUrl ? (
                                             <img src={viewedProfileData.profilePhotoUrl} className="w-full h-full object-cover" />
                                         ) : (
@@ -3116,11 +3116,11 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
                                 <div className="flex gap-10">
                                     <div className="flex items-center gap-3 cursor-pointer group">
-                                        <div className="w-12 h-12 bg-slate-50 dark:bg-slate-900 rounded-2xl flex items-center justify-center font-black group-hover:bg-indigo-50 transition-all">{followStats.following}</div>
+                                        <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center font-black group-hover:bg-white/10">{followStats.following}</div>
                                         <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 group-hover:text-indigo-600">Following</span>
                                     </div>
                                     <div className="flex items-center gap-3 cursor-pointer group">
-                                        <div className="w-12 h-12 bg-slate-50 dark:bg-slate-900 rounded-2xl flex items-center justify-center font-black group-hover:bg-indigo-50 transition-all">{followStats.followers}</div>
+                                        <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center font-black group-hover:bg-white/10">{followStats.followers}</div>
                                         <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 group-hover:text-indigo-600">Followers</span>
                                     </div>
                                 </div>
@@ -3155,7 +3155,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 <div className="flex items-center gap-3 mb-3">
                                                     <span className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-lg">{post.authorName}</span>
                                                     {post.groupName && (
-                                                        <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-lg text-[8px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700">
+                                                        <div className="flex items-center gap-2 px-3 py-1 bg-white/10 text-slate-500 rounded-lg text-[8px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700">
                                                             <Globe className="w-3 h-3 text-indigo-500" />
                                                             {post.groupName}
                                                         </div>
