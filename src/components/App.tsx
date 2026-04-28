@@ -5018,7 +5018,6 @@ export const App: React.FC = () => {
                                     onOnboardStudent={handleOnboardStudent}
                                     onOffboardStudent={handleOffboardStudent}
                                     onConfirmReceipt={handleConfirmReceipt}
-                                    onActivateModuleTrial={handleActivateModuleTrial}
                                     carListings={carListings}
                                     carTestDrives={carTestDrives}
                                     carAppraisals={carAppraisals}
