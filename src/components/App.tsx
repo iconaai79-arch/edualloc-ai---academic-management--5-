@@ -5840,10 +5840,6 @@ export const App: React.FC = () => {
                                     setShowAlumnaeLogin(false);
                                     setShowCommunityHub(true);
                                 }}
-                                onClaimOwnership={() => {
-                                    setShowAlumnaeLogin(false);
-                                    setShowInstitutionClaim(true);
-                                }}
                             />
                         ) : showInstitutionClaim ? (
                             <InstitutionClaimView 
