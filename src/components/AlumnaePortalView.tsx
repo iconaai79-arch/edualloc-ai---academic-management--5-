@@ -36,7 +36,14 @@ import {
     Mail,
     Lock,
     Eye,
-    Camera
+    Camera,
+    Briefcase,
+    ShoppingBag,
+    Flag,
+    Medal,
+    Globe,
+    Zap,
+    ShieldCheck
 } from 'lucide-react';
 import type { AlumniPost, AlumniComment, Institution } from '../types';
 import { apiService } from '../services/apiService';
@@ -60,7 +67,16 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [loadingPosts, setLoadingPosts] = useState(true);
     const [isProcessingFeature, setIsProcessingFeature] = useState(false);
     const [featuredMembers, setFeaturedMembers] = useState<any[]>([]);
-    const [activeSection, setActiveSection] = useState<'feed' | 'messages' | 'explore' | 'notifications' | 'classmates' | 'funding' | 'support'>('feed');
+    const [activeSection, setActiveSection] = useState<'feed' | 'messages' | 'explore' | 'notifications' | 'classmates' | 'funding' | 'support' | 'jobs' | 'marketplace' | 'mentorship' | 'groups'>('feed');
+    const [jobs, setJobs] = useState<any[]>([]);
+    const [businesses, setBusinesses] = useState<any[]>([]);
+    const [rsvps, setRsvps] = useState<any[]>([]);
+    const [groups, setGroups] = useState<any[]>([]);
+    const [successStories, setSuccessStories] = useState<any[]>([]);
+    const [docRequests, setDocRequests] = useState<any[]>([]);
+    const [loadingNewModules, setLoadingNewModules] = useState(false);
+    const [donationAmount, setDonationAmount] = useState('');
+    const [isDonating, setIsDonating] = useState(false);
     const [messages, setMessages] = useState<any[]>([]);
     const [activeConversationPartner, setActiveConversationPartner] = useState<any | null>(null);
     const [newMessage, setNewMessage] = useState('');
@@ -76,7 +92,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         linkedinUrl: currentAlumna?.linkedinUrl || '',
         twitterUrl: currentAlumna?.twitterUrl || '',
         profilePhotoUrl: currentAlumna?.profilePhotoUrl || '',
-        coverPhotoUrl: currentAlumna?.coverPhotoUrl || ''
+        coverPhotoUrl: currentAlumna?.coverPhotoUrl || '',
+        isMentorAvailable: currentAlumna?.isMentorAvailable || false
     });
     const [profilePhotoUrlFile, setProfilePhotoFile] = useState<File | null>(null);
     const [profileCoverPhotoFile, setProfileCoverPhotoFile] = useState<File | null>(null);
@@ -233,9 +250,65 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         }
     };
 
+    const loadNewModules = async () => {
+        setLoadingNewModules(true);
+        try {
+            const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
+            
+            // Load Jobs
+            const jobData = await apiService.fetchModuleRecords('alumni_jobs', undefined, undefined, {
+                filter: { institution_id: instId },
+                order: 'created_at.desc'
+            });
+            setJobs(jobData);
+
+            // Load Businesses
+            const bizData = await apiService.fetchModuleRecords('alumni_businesses', undefined, undefined, {
+                filter: { institution_id: instId },
+                order: 'created_at.desc'
+            });
+            setBusinesses(bizData);
+
+            // Load Groups
+            const groupData = await apiService.fetchModuleRecords('alumni_groups', undefined, undefined, {
+                filter: { institution_id: instId },
+                order: 'created_at.desc'
+            });
+            setGroups(groupData);
+
+            // Load Success Stories
+            const storyData = await apiService.fetchModuleRecords('alumni_success_stories', undefined, undefined, {
+                filter: { institution_id: instId },
+                order: 'created_at.desc'
+            });
+            setSuccessStories(storyData);
+
+            // Load Doc Requests
+            const reqData = await apiService.fetchModuleRecords('alumni_document_requests', undefined, undefined, {
+                filter: { alumna_id: currentAlumna.id },
+                order: 'created_at.desc'
+            });
+            setDocRequests(reqData);
+
+            // Load RSVPs
+            const rsvpData = await apiService.fetchModuleRecords('alumni_event_rsvps', undefined, undefined, {
+                filter: { alumna_id: currentAlumna.id }
+            });
+            setRsvps(rsvpData);
+
+        } catch (e) {
+            console.error("New modules load failed:", e);
+        } finally {
+            setLoadingNewModules(false);
+        }
+    };
+
     useEffect(() => {
         const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
-        if (instId) loadSchoolEngagement(instId as string);
+        if (instId) {
+            loadSchoolEngagement(instId as string);
+            loadNewModules();
+        }
         
         loadNotifications();
         detectNewClassmates();
@@ -519,6 +592,125 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         }
     };
 
+    const handleDonate = async (project: any) => {
+        if (!donationAmount || isNaN(Number(donationAmount)) || Number(donationAmount) <= 0) {
+            alert("Please enter a valid contribution amount.");
+            return;
+        }
+
+        if (!window.confirm(`Contribute KES ${donationAmount} to "${project.title}"? Your legacy will be recorded.`)) return;
+        setIsDonating(true);
+        
+        try {
+            let res;
+            if (ncbaConfig && ncbaConfig.clientId && ncbaConfig.clientSecret) {
+                res = await apiService.triggerNcbaPayment({
+                    amount: Number(donationAmount),
+                    phoneNumber: currentAlumna.phoneNumber,
+                    reference: `DON_${project.id}_${currentAlumna.id}`,
+                    description: `Donation: ${project.title}`,
+                    institutionId: project.institution_id || 'GLOBAL'
+                });
+            } else {
+                res = await apiService.triggerMpesaStkPush({
+                    amount: Number(donationAmount),
+                    phoneNumber: currentAlumna.phoneNumber,
+                    reference: `DON_${project.id}_${currentAlumna.id}`,
+                    description: `Donation: ${project.title}`,
+                    institutionId: project.institution_id || 'GLOBAL'
+                });
+            }
+
+            if (res.success) {
+                const checkoutRequestId = res.checkoutRequestId || res.requestId;
+                setIsVerifyingPayment(true);
+                
+                let confirmed = false;
+                let attempts = 0;
+                while (attempts < 12 && !confirmed) {
+                    await new Promise(r => setTimeout(r, 5000));
+                    attempts++;
+                    const statusRes = await apiService.checkPaymentStatus(
+                        ncbaConfig && ncbaConfig.clientId ? 'ncba' : 'mpesa',
+                        checkoutRequestId
+                    );
+                    if (statusRes.success && (statusRes.status === 'Completed' || statusRes.status === 'Success')) {
+                        confirmed = true;
+                    }
+                }
+
+                if (confirmed) {
+                    // Update project amount
+                    const current = project.current_amount || project.currentAmount || 0;
+                    const newTotal = Number(current) + Number(donationAmount);
+                    
+                    await apiService.updateModuleRecord('school_projects', project.id, {
+                        current_amount: newTotal,
+                        currentAmount: newTotal
+                    });
+
+                    // Record contribution
+                    await apiService.saveModuleRecord('alumnae_contributions', {
+                        id: `don_${Date.now()}`,
+                        alumna_id: currentAlumna.id,
+                        institution_id: project.institution_id,
+                        amount: Number(donationAmount),
+                        purpose: project.title,
+                        status: 'completed'
+                    });
+
+                    // Award Loyalty Points (1 point per 100 KES)
+                    const pointsEarned = Math.floor(Number(donationAmount) / 100);
+                    const currentPoints = currentAlumna.loyaltyPoints || currentAlumna.loyalty_points || 0;
+                    await apiService.updateModuleRecord('alumnae_members', currentAlumna.id, {
+                        loyalty_points: currentPoints + pointsEarned
+                    });
+
+                    alert(`Contribution successful! You've earned ${pointsEarned} Legacy Points.`);
+                    loadSchoolEngagement(project.institution_id);
+                    setDonationAmount('');
+                }
+            }
+        } catch (e: any) {
+            alert("Contribution Error: " + e.message);
+        } finally {
+            setIsDonating(false);
+            setIsVerifyingPayment(false);
+        }
+    };
+
+    const handleRSVP = async (event: any, status: string = 'confirmed') => {
+        try {
+            await apiService.saveModuleRecord('alumni_event_rsvps', {
+                id: `rsvp_${Date.now()}`,
+                event_id: event.id,
+                alumna_id: currentAlumna.id,
+                status: status
+            });
+            alert(`RSVP ${status}! We've added this to your legacy calendar.`);
+            loadNewModules();
+        } catch (e: any) {
+            alert("RSVP Error: " + e.message);
+        }
+    };
+
+    const handleRequestDoc = async (type: string) => {
+        try {
+            const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
+            await apiService.saveModuleRecord('alumni_document_requests', {
+                id: `req_${Date.now()}`,
+                alumna_id: currentAlumna.id,
+                institution_id: instId,
+                document_type: type,
+                status: 'pending'
+            });
+            alert(`Request for ${type} submitted successfully.`);
+            loadNewModules();
+        } catch (e: any) {
+            alert("Request Error: " + e.message);
+        }
+    };
+
     useEffect(() => {
         loadPosts();
         loadMessages();
@@ -692,14 +884,15 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     };
 
     const handleSharePost = async (post: AlumniPost) => {
-        const shareText = `Legacy Check: ${post.authorName} shared something on Alumnae Circle! \n\n"${post.content.substring(0, 100)}..." \n\nJoin the conversation at ${window.location.origin}`;
+        const baseUrl = 'https://almamater.eduai.co.ke';
+        const shareText = `Legacy Check: ${post.authorName} shared something on Alumnae Circle! \n\n"${post.content.substring(0, 100)}..." \n\nJoin the conversation at ${baseUrl}`;
         
         if (navigator.share) {
             try {
                 await navigator.share({
                     title: 'EduAI Alumnae Circle',
                     text: shareText,
-                    url: window.location.href
+                    url: `${baseUrl}/?view=alumnae_social`
                 });
             } catch (e) {
                 copyToClipboard(shareText);
@@ -819,6 +1012,10 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         { icon: Hash, label: 'Explore', onClick: () => setActiveSection('explore'), active: activeSection === 'explore' },
                         { icon: Bell, label: 'Notifications', onClick: () => setActiveSection('notifications'), active: activeSection === 'notifications' },
                         { icon: MessageSquare, label: 'Messages', onClick: () => setActiveSection('messages'), active: activeSection === 'messages' },
+                        { icon: Briefcase, label: 'Jobs', onClick: () => setActiveSection('jobs'), active: activeSection === 'jobs' },
+                        { icon: ShoppingBag, label: 'Marketplace', onClick: () => setActiveSection('marketplace'), active: activeSection === 'marketplace' },
+                        { icon: Zap, label: 'Mentorship', onClick: () => setActiveSection('mentorship'), active: activeSection === 'mentorship' },
+                        { icon: Globe, label: 'Groups', onClick: () => setActiveSection('groups'), active: activeSection === 'groups' },
                         { icon: Sparkles, label: 'Funding', onClick: () => setActiveSection('funding' as any), active: activeSection === 'funding' },
                         { icon: Building2, label: 'Support', onClick: () => setActiveSection('support' as any), active: activeSection === 'support' },
                         { icon: User, label: 'Profile', onClick: () => setIsEditingProfile(true) }
@@ -868,6 +1065,50 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 {/* Section Controller */}
                 {(() => {
                     switch (activeSection) {
+                        case 'events':
+                            return (
+                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
+                                    <header className="px-8 py-10 bg-amber-500 text-white rounded-b-[3rem] shadow-2xl mb-12">
+                                        <h2 className="text-3xl font-black uppercase tracking-tight mb-2">Legacy <span className="opacity-40 italic">Events</span></h2>
+                                        <p className="text-[10px] text-amber-100 font-bold uppercase tracking-[0.4em]">Reunions & Networking Assemblies</p>
+                                    </header>
+                                    <div className="px-6 space-y-8">
+                                        {schoolProjects.length === 0 ? ( // Reusing variable name if needed or using a new one if I loaded it
+                                            <div className="py-20 text-center opacity-20">
+                                                <Calendar className="w-16 h-16 mx-auto mb-6" />
+                                                <p className="text-xs font-black uppercase tracking-[0.3em]">No upcoming events.</p>
+                                            </div>
+                                        ) : (
+                                            schoolProjects.map(event => ( // Assuming events are loaded into schoolProjects or similar
+                                                <div key={event.id} className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-2xl group">
+                                                    <div className="h-48 relative overflow-hidden">
+                                                        {event.image_url ? <img src={event.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" /> : <div className="w-full h-full bg-amber-50 flex items-center justify-center opacity-20"><Calendar className="w-12 h-12" /></div>}
+                                                    </div>
+                                                    <div className="p-8">
+                                                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">{event.title}</h3>
+                                                        <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                                            <Calendar className="w-3 h-3" /> {new Date(event.event_date).toLocaleDateString()} @ {event.location}
+                                                        </p>
+                                                        <p className="text-sm text-slate-500 mb-8 line-clamp-2">{event.description}</p>
+                                                        <div className="flex gap-4">
+                                                            <button 
+                                                                onClick={() => handleRSVP(event, 'confirmed')}
+                                                                className="flex-1 py-4 bg-amber-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 transition-all shadow-xl shadow-amber-100"
+                                                            >
+                                                                RSVP Confirmed
+                                                            </button>
+                                                            <button className="p-4 bg-slate-100 dark:bg-slate-800 text-slate-400 rounded-2xl hover:text-indigo-600 transition-all">
+                                                                <Share2 className="w-5 h-5" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            );
+
                         case 'support':
                             return (
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen flex flex-col">
@@ -884,8 +1125,34 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                         </div>
                                     </header>
 
-                                    <div className="flex-1 overflow-y-auto p-6 space-y-6 flex flex-col no-scrollbar">
-                                        {schoolInbox.length === 0 ? (
+                                    <div className="flex-1 overflow-y-auto p-6 space-y-10 flex flex-col no-scrollbar">
+                                        {/* Document Request Section */}
+                                        <div className="space-y-6">
+                                            <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 flex items-center gap-3">
+                                                <div className="w-8 h-px bg-slate-100" />
+                                                Digital Document Vault
+                                            </h4>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                {['Transcript', 'Certificate', 'Recommendation', 'ID Card'].map(type => (
+                                                    <button 
+                                                        key={type}
+                                                        onClick={() => handleRequestDoc(type)}
+                                                        className="p-6 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2rem] hover:bg-white hover:border-indigo-400 transition-all text-left group"
+                                                    >
+                                                        <Building2 className="w-6 h-6 text-slate-300 mb-4 group-hover:text-indigo-600 group-hover:scale-110 transition-all" />
+                                                        <p className="text-[10px] font-black uppercase tracking-tight text-slate-900 dark:text-white">{type}</p>
+                                                        <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-1">Formal Request</p>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-6">
+                                            <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 flex items-center gap-3">
+                                                <div className="w-8 h-px bg-slate-100" />
+                                                Official Correspondence
+                                            </h4>
+                                            {schoolInbox.length === 0 ? (
                                             <div className="flex-1 flex flex-col items-center justify-center opacity-30 mt-20">
                                                 <MessageSquare className="w-16 h-16 mb-6" />
                                                 <p className="text-xs font-black uppercase tracking-[0.3em] text-center max-w-xs">
@@ -958,6 +1225,27 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                         </div>
                                                         
                                                         <div className="pt-8 border-t border-slate-50 dark:border-slate-800">
+                                                            <div className="flex flex-col sm:flex-row gap-4 mb-10">
+                                                                <div className="flex-1 relative">
+                                                                    <input 
+                                                                        type="number" 
+                                                                        placeholder="Legacy Amount (KES)..."
+                                                                        value={donationAmount}
+                                                                        onChange={(e) => setDonationAmount(e.target.value)}
+                                                                        className="w-full h-16 pl-10 pr-4 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-xs font-black focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner"
+                                                                    />
+                                                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-[10px]">KES</div>
+                                                                </div>
+                                                                <button 
+                                                                    onClick={() => handleDonate(project)}
+                                                                    disabled={isDonating || !donationAmount}
+                                                                    className="px-10 h-16 bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 hover:scale-105 transition-all shadow-xl shadow-emerald-100 flex items-center justify-center gap-3"
+                                                                >
+                                                                    {isDonating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Heart className="w-5 h-5" />}
+                                                                    Fuel Legacy
+                                                                </button>
+                                                            </div>
+
                                                             <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-6 flex items-center gap-2">
                                                                 <div className="w-1 h-1 rounded-full bg-indigo-600"></div>
                                                                 Developmental Milestones
@@ -1225,10 +1513,178 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                 </div>
                             );
 
+                        case 'jobs':
+                            return (
+                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
+                                    <header className="px-8 py-10 bg-indigo-600 text-white rounded-b-[3rem] shadow-2xl mb-12">
+                                        <h2 className="text-3xl font-black uppercase tracking-tight mb-2">Legacy <span className="opacity-60 italic">Careers</span></h2>
+                                        <p className="text-[10px] text-indigo-100 font-bold uppercase tracking-[0.4em]">Exclusive opportunities within the network</p>
+                                    </header>
+                                    <div className="px-6 space-y-6">
+                                        {jobs.length === 0 ? (
+                                            <div className="py-20 text-center opacity-20">
+                                                <Briefcase className="w-16 h-16 mx-auto mb-6" />
+                                                <p className="text-xs font-black uppercase tracking-[0.3em]">No career posts yet.</p>
+                                            </div>
+                                        ) : (
+                                            jobs.map(job => (
+                                                <div key={job.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-100/50 hover:border-indigo-400 transition-all">
+                                                    <div className="flex justify-between items-start mb-6">
+                                                        <div>
+                                                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{job.title}</h3>
+                                                            <p className="text-xs font-black text-indigo-600 uppercase tracking-widest mt-1">{job.company}</p>
+                                                        </div>
+                                                        <div className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-xl text-[8px] font-black uppercase tracking-widest">
+                                                            {job.location}
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-8 line-clamp-3">{job.description}</p>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{job.salary_range}</span>
+                                                        <button 
+                                                            onClick={() => job.apply_url && window.open(job.apply_url, '_blank')}
+                                                            className="px-8 py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl"
+                                                        >
+                                                            Apply via Portal
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            );
+
+                        case 'marketplace':
+                            return (
+                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
+                                    <header className="px-8 py-10 bg-rose-500 text-white rounded-b-[3rem] shadow-2xl mb-12">
+                                        <h2 className="text-3xl font-black uppercase tracking-tight mb-2">Legacy <span className="opacity-60 italic">Market</span></h2>
+                                        <p className="text-[10px] text-rose-100 font-bold uppercase tracking-[0.4em]">Support Alumnae-owned businesses</p>
+                                    </header>
+                                    <div className="px-6 grid grid-cols-1 gap-6">
+                                        {businesses.length === 0 ? (
+                                            <div className="py-20 text-center opacity-20">
+                                                <ShoppingBag className="w-16 h-16 mx-auto mb-6" />
+                                                <p className="text-xs font-black uppercase tracking-[0.3em]">Marketplace is currently empty.</p>
+                                            </div>
+                                        ) : (
+                                            businesses.map(biz => (
+                                                <div key={biz.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl flex gap-6 hover:border-rose-400 transition-all">
+                                                    <div className="w-24 h-24 rounded-3xl bg-slate-50 dark:bg-slate-800 overflow-hidden shrink-0">
+                                                        {biz.logo_url ? <img src={biz.logo_url} className="w-full h-full object-cover" /> : <ShoppingBag className="w-full h-full p-6 text-slate-200" />}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{biz.business_name}</h3>
+                                                        <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest mt-1 mb-4">{biz.industry}</p>
+                                                        <div className="px-4 py-3 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-2xl text-[9px] font-black uppercase tracking-widest mb-6 inline-block">
+                                                            Exclusive: {biz.exclusive_discount}
+                                                        </div>
+                                                        <button 
+                                                            onClick={() => biz.website_url && window.open(biz.website_url, '_blank')}
+                                                            className="w-full py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all"
+                                                        >
+                                                            Visit Store
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            );
+
+                        case 'mentorship':
+                            return (
+                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
+                                    <header className="px-8 py-10 bg-indigo-900 text-white rounded-b-[3rem] shadow-2xl mb-12">
+                                        <h2 className="text-3xl font-black uppercase tracking-tight mb-2">Legacy <span className="opacity-40 italic">Mentors</span></h2>
+                                        <p className="text-[10px] text-indigo-300 font-bold uppercase tracking-[0.4em]">Connecting experience with ambition</p>
+                                    </header>
+                                    <div className="px-6 space-y-6">
+                                        {alumnaeMembers.filter(m => m.isMentorAvailable || m.is_mentor_available).length === 0 ? (
+                                            <div className="py-20 text-center opacity-20">
+                                                <Zap className="w-16 h-16 mx-auto mb-6" />
+                                                <p className="text-xs font-black uppercase tracking-[0.3em]">No mentors available yet.</p>
+                                            </div>
+                                        ) : (
+                                            alumnaeMembers.filter(m => (m.isMentorAvailable || m.is_mentor_available) && m.id !== currentAlumna.id).map(mentor => (
+                                                <div key={mentor.id} className="bg-white dark:bg-slate-900 rounded-[3rem] p-8 border border-slate-100 dark:border-slate-800 shadow-xl flex items-center gap-8 hover:border-indigo-400 transition-all group">
+                                                    <div className="w-24 h-24 rounded-[2rem] bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 group-hover:scale-105 transition-transform">
+                                                        {mentor.profilePhotoUrl ? <img src={mentor.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-6 text-slate-300" />}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{mentor.fullName}</h3>
+                                                        <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mt-1 mb-4">{mentor.currentJob} at {mentor.currentCompany}</p>
+                                                        <button 
+                                                            onClick={() => { setActiveConversationPartner(mentor); setActiveSection('messages'); }}
+                                                            className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-indigo-200"
+                                                        >
+                                                            Request Guidance
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            );
+
+                        case 'groups':
+                            return (
+                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
+                                    <header className="px-8 py-10 bg-slate-800 text-white rounded-b-[3rem] shadow-2xl mb-12">
+                                        <h2 className="text-3xl font-black uppercase tracking-tight mb-2">Interest <span className="opacity-40 italic">Circles</span></h2>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.4em]">Connect through shared passions</p>
+                                    </header>
+                                    <div className="px-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {groups.length === 0 ? (
+                                            <div className="py-20 text-center opacity-20 col-span-2">
+                                                <Globe className="w-16 h-16 mx-auto mb-6" />
+                                                <p className="text-xs font-black uppercase tracking-[0.3em]">No groups founded yet.</p>
+                                            </div>
+                                        ) : (
+                                            groups.map(group => (
+                                                <div key={group.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-xl hover:border-indigo-400 transition-all group">
+                                                    <div className="h-32 bg-slate-100 dark:bg-slate-800 relative overflow-hidden">
+                                                        {group.image_url ? <img src={group.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" /> : <div className="w-full h-full flex items-center justify-center opacity-10"><Globe className="w-12 h-12" /></div>}
+                                                    </div>
+                                                    <div className="p-6">
+                                                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">{group.name}</h3>
+                                                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mb-6">{group.category}</p>
+                                                        <button className="w-full py-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all">Join Circle</button>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            );
+
                         case 'feed':
                         default:
                             return (
                                 <>
+                                    {/* Success Story Spotlight */}
+                                    {successStories.filter(s => s.is_featured).length > 0 && (
+                                        <div className="px-8 pt-8">
+                                            <div className="bg-indigo-900 rounded-[3rem] p-10 text-white relative overflow-hidden group shadow-2xl">
+                                                <div className="absolute top-0 right-0 p-10 opacity-10 rotate-12 scale-150 transition-transform group-hover:scale-[1.7]"><Sparkles className="w-40 h-40" /></div>
+                                                <div className="relative z-10 flex flex-col md:flex-row gap-8 items-center text-center md:text-left">
+                                                    <div className="w-32 h-32 rounded-[2.5rem] bg-white/20 p-2 shrink-0 ring-4 ring-white/10">
+                                                        <img src={successStories.find(s => s.is_featured).image_url} className="w-full h-full object-cover rounded-[2rem]" />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-indigo-300 mb-2">Legacy Spotlight</p>
+                                                        <h3 className="text-2xl font-black uppercase tracking-tight mb-4">{successStories.find(s => s.is_featured).title}</h3>
+                                                        <p className="text-xs text-indigo-100/70 font-medium leading-relaxed mb-6 line-clamp-2">{successStories.find(s => s.is_featured).content}</p>
+                                                        <button className="px-8 py-3 bg-white text-indigo-900 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-400 hover:text-white transition-all shadow-xl">Full Narrative</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Header Tabs */}
                                     <header className="sticky top-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-3xl border-b border-slate-100 dark:border-slate-800 z-40 shadow-[0_10px_40px_rgba(79,70,229,0.05)]">
                                         <div className="px-8 py-6 flex justify-between items-center">
@@ -1619,6 +2075,20 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                 <span className="text-[10px] font-black uppercase tracking-widest">Funding</span>
                             </button>
                             <button 
+                                onClick={() => { setActiveSection('jobs'); setShowMoreMobileMenu(false); }}
+                                className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                            >
+                                <Briefcase className="w-5 h-5 text-indigo-600" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Jobs</span>
+                            </button>
+                            <button 
+                                onClick={() => { setActiveSection('marketplace'); setShowMoreMobileMenu(false); }}
+                                className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                            >
+                                <ShoppingBag className="w-5 h-5 text-indigo-600" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Marketplace</span>
+                            </button>
+                            <button 
                                 onClick={() => { setActiveSection('support' as any); setShowMoreMobileMenu(false); }}
                                 className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
                             >
@@ -1705,10 +2175,29 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                         <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Designation</label>
                                         <input type="text" value={profileData.currentJob} onChange={(e) => setProfileData({...profileData, currentJob: e.target.value})} className="w-full h-14 px-8 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner" />
                                     </div>
-                                    <div className="space-y-4">
-                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Organization</label>
                                         <input type="text" value={profileData.currentCompany} onChange={(e) => setProfileData({...profileData, currentCompany: e.target.value})} className="w-full h-14 px-8 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner" />
                                     </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between p-6 bg-indigo-50 dark:bg-indigo-900/20 rounded-3xl border border-indigo-100 dark:border-indigo-900/30">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
+                                                <Zap className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-xs font-black uppercase tracking-tight text-slate-900 dark:text-white">Mentorship Availability</h4>
+                                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Volunteer to guide junior alumnae</p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => setProfileData({...profileData, isMentorAvailable: !profileData.isMentorAvailable})}
+                                            className={`w-14 h-8 rounded-full transition-all relative ${profileData.isMentorAvailable ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                        >
+                                            <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${profileData.isMentorAvailable ? 'left-7 shadow-[0_0_10px_rgba(255,255,255,0.8)]' : 'left-1'}`} />
+                                        </button>
+                                    </div>
+                                </div>
                                 </div>
 
                                 <div className="space-y-4">
@@ -1867,8 +2356,11 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                         <h4 className="text-base font-black text-indigo-600 uppercase tracking-tight">{viewedProfileData?.graduationYear || viewedProfileData?.class_year}</h4>
                                     </div>
                                     <div className="space-y-2 text-right">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Pulse Impact</p>
-                                        <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">{(profilePosts.length * 23.4).toFixed(1)}k</h4>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Legacy Points</p>
+                                        <h4 className="text-base font-black text-indigo-600 uppercase tracking-tight flex items-center justify-end gap-2">
+                                            <Medal className="w-4 h-4" />
+                                            {viewedProfileData?.loyalty_points || viewedProfileData?.loyaltyPoints || 0}
+                                        </h4>
                                     </div>
                                 </div>
 

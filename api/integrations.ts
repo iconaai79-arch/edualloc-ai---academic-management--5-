@@ -346,7 +346,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!emailConfig) return res.status(400).json({ success: false, message: 'Email configuration is missing.' });
 
             const alumnaName = getParam('alumnaName');
-            const loginLink = getParam('loginLink') || `https://${req.headers.host}/?view=alumnae_social`;
+            const loginLink = getParam('loginLink') || `https://almamater.eduai.co.ke/?view=alumnae_social`;
 
             const transporter = nodemailer.createTransport({
                 host: emailConfig.host,

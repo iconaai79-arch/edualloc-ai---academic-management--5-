@@ -887,7 +887,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     )}
                                     {props.currentUser?.role === 'super_admin' && (
                                         <button
-                                            onClick={() => window.location.href = '/?view=alumnae_social'}
+                                            onClick={() => window.location.href = 'https://almamater.eduai.co.ke/?view=alumnae_social'}
                                             className="flex flex-col items-start p-6 bg-indigo-50 dark:bg-indigo-900/30 rounded-3xl border border-indigo-100 dark:border-indigo-800 hover:border-indigo-400 transition-all group text-left shadow-xl shadow-indigo-100/20"
                                         >
                                             <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-indigo-600 mb-4 group-hover:scale-110 transition-transform">

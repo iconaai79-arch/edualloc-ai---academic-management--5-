@@ -330,7 +330,7 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
                             </div>
                         ) : (
                             <div 
-                                onClick={() => window.location.href = '/?view=alumnae_register'}
+                                onClick={() => window.location.href = 'https://almamater.eduai.co.ke/?view=alumnae_register'}
                                 className="bg-indigo-700 rounded-[3rem] p-8 border border-indigo-600 shadow-2xl hover:-translate-y-2 transition-all group overflow-hidden relative cursor-pointer"
                             >
                                 <div className="absolute bottom-0 right-0 w-48 h-48 bg-white/5 rounded-full -mb-20 -mr-20 group-hover:scale-110 transition-transform"></div>

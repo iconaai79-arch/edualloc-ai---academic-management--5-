@@ -39,7 +39,7 @@ export const PortalLinksManager: React.FC<PortalLinksManagerProps> = ({ companyD
             key: 'showAlumnaeHub',
             label: 'Alumnae Network (Registration)',
             description: 'Independent registration portal for institutional graduates.',
-            url: `${baseUrl}/?view=alumnae_register`,
+            url: `https://almamater.eduai.co.ke/?view=alumnae_register`,
             icon: GraduationCap,
             color: 'text-indigo-600',
             bg: 'bg-indigo-50'
@@ -48,7 +48,7 @@ export const PortalLinksManager: React.FC<PortalLinksManagerProps> = ({ companyD
             key: 'showAlumnaeSocial',
             label: 'Alumnae Social Portal',
             description: 'Direct link to the social feed and networking hub.',
-            url: `${baseUrl}/?view=alumnae_social`,
+            url: `https://almamater.eduai.co.ke/?view=alumnae_social`,
             icon: Users,
             color: 'text-blue-600',
             bg: 'bg-blue-50'

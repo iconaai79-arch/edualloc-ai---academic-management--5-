@@ -6336,7 +6336,7 @@ export const App: React.FC = () => {
                                         apiService.sendAlumnaWelcomeEmail({
                                             recipient: registrationPayload.email,
                                             alumnaName: registrationPayload.fullName,
-                                            loginLink: `${window.location.origin}/?view=alumnae_register`
+                                            loginLink: `https://almamater.eduai.co.ke/?view=alumnae_register`
                                         }).catch(console.error);
                                     } catch (e: any) {
                                         alert("Registration Sync Error: " + e.message);

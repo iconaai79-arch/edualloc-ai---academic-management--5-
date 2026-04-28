@@ -349,7 +349,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                                             </div>
                                         </div>
                                         <button 
-                                            onClick={() => window.location.href = `/?view=register&claimSchoolId=${selectedSchool.id}`}
+                                            onClick={() => window.location.href = `https://almamater.eduai.co.ke/?view=register&claimSchoolId=${selectedSchool.id}`}
                                             className="px-6 py-3 bg-amber-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg hover:bg-amber-700 transition-all active:scale-95"
                                         >
                                             Claim Portal
@@ -661,7 +661,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                     {registry.map(school => (
                         <a 
                             key={school.id}
-                            href={`/?alumnae=${school.slug || school.id}`}
+                            href={`https://almamater.eduai.co.ke/?alumnae=${school.slug || school.id}`}
                             className="text-[9px] font-bold text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors uppercase whitespace-nowrap"
                         >
                             {school.name}
