@@ -128,6 +128,28 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
     const [showMoreMobileMenu, setShowMoreMobileMenu] = useState(false);
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+    const [showPostJobModal, setShowPostJobModal] = useState(false);
+    const [jobData, setJobData] = useState({
+        title: '',
+        company: '',
+        location: '',
+        description: '',
+        salaryRange: '',
+        applyUrl: ''
+    });
+    const [isSavingJob, setIsSavingJob] = useState(false);
+    
+    const [showPostBusinessModal, setShowPostBusinessModal] = useState(false);
+    const [businessData, setBusinessData] = useState({
+        businessName: '',
+        industry: '',
+        description: '',
+        websiteUrl: '',
+        exclusiveDiscount: '',
+        logoUrl: ''
+    });
+    const [businessLogoFile, setBusinessLogoFile] = useState<File | null>(null);
+    const [isSavingBusiness, setIsSavingBusiness] = useState(false);
 
     const COMMON_EMOJIS = ['😊', '🎓', '✨', '🙌', '🎉', '💙', '🏛️', '💼', '💪', '👩‍🎓', '🏫', '💡', '🥂', '🔥', '📚', '🤝'];
 
@@ -793,6 +815,85 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             loadNewModules();
         } catch (e: any) {
             alert("RSVP Error: " + e.message);
+        }
+    };
+
+    const handlePostJob = async () => {
+        if (!jobData.title || !jobData.company || !jobData.description) {
+            alert("Please fill in essential job details.");
+            return;
+        }
+        setIsSavingJob(true);
+        try {
+            const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
+            await apiService.saveModuleRecord('alumni_jobs', {
+                id: `job_${Date.now()}`,
+                title: jobData.title,
+                company: jobData.company,
+                location: jobData.location,
+                description: jobData.description,
+                salary_range: jobData.salaryRange,
+                apply_url: jobData.applyUrl,
+                institution_id: instId,
+                alumna_id: currentAlumna.id,
+                created_at: new Date().toISOString()
+            });
+            setShowPostJobModal(false);
+            setJobData({ title: '', company: '', location: '', description: '', salaryRange: '', applyUrl: '' });
+            loadNewModules();
+            alert("Job posted successfully to the network!");
+        } catch (e: any) {
+            alert("Post Job Error: " + e.message);
+        } finally {
+            setIsSavingJob(false);
+        }
+    };
+
+    const handlePostBusiness = async () => {
+        if (!businessData.businessName || !businessData.industry) {
+            alert("Please fill in business name and industry.");
+            return;
+        }
+        setIsSavingBusiness(true);
+        try {
+            let logoUrl = '';
+            if (businessLogoFile) {
+                const uploadRes = await apiService.uploadToGoogleDrive(businessLogoFile, 'Alumnae_Businesses', {
+                    institutionId: currentAlumna.institutionId,
+                    useGlobalConfig: !currentAlumna.institutionId
+                });
+                if (uploadRes.success) logoUrl = uploadRes.url;
+            }
+
+            const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
+            await apiService.saveModuleRecord('alumni_businesses', {
+                id: `biz_${Date.now()}`,
+                business_name: businessData.businessName,
+                industry: businessData.industry,
+                description: businessData.description,
+                website_url: businessData.websiteUrl,
+                exclusive_discount: businessData.exclusiveDiscount,
+                logo_url: logoUrl,
+                institution_id: instId,
+                alumna_id: currentAlumna.id,
+                created_at: new Date().toISOString()
+            });
+            setShowPostBusinessModal(false);
+            setBusinessData({
+                businessName: '',
+                industry: '',
+                description: '',
+                websiteUrl: '',
+                exclusiveDiscount: '',
+                logoUrl: ''
+            });
+            setBusinessLogoFile(null);
+            loadNewModules();
+            alert("Business added to Legacy Market successfully!");
+        } catch (e: any) {
+            alert("Market Post Error: " + e.message);
+        } finally {
+            setIsSavingBusiness(false);
         }
     };
 
@@ -1655,9 +1756,18 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         case 'jobs':
                             return (
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
-                                    <header className="px-8 py-10 bg-indigo-600 text-white rounded-b-[3rem] shadow-2xl mb-12">
-                                        <h2 className="text-3xl font-black uppercase tracking-tight mb-2">Legacy <span className="opacity-60 italic">Careers</span></h2>
-                                        <p className="text-[10px] text-indigo-100 font-bold uppercase tracking-[0.4em]">Exclusive opportunities within the network</p>
+                                    <header className="px-8 py-10 bg-indigo-600 text-white rounded-b-[3rem] shadow-2xl mb-12 flex justify-between items-center">
+                                        <div>
+                                            <h2 className="text-3xl font-black uppercase tracking-tight mb-2">Legacy <span className="opacity-60 italic">Careers</span></h2>
+                                            <p className="text-[10px] text-indigo-100 font-bold uppercase tracking-[0.4em]">Exclusive opportunities within the network</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => setShowPostJobModal(true)}
+                                            className="px-6 py-4 bg-white/20 hover:bg-white/30 backdrop-blur-xl rounded-2xl flex items-center gap-3 transition-all group"
+                                        >
+                                            <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
+                                            <span className="text-[10px] font-black uppercase tracking-widest">Post a Job</span>
+                                        </button>
                                     </header>
                                     <div className="px-6 space-y-6">
                                         {jobs.length === 0 ? (
@@ -1697,9 +1807,18 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         case 'marketplace':
                             return (
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
-                                    <header className="px-8 py-10 bg-rose-500 text-white rounded-b-[3rem] shadow-2xl mb-12">
-                                        <h2 className="text-3xl font-black uppercase tracking-tight mb-2">Legacy <span className="opacity-60 italic">Market</span></h2>
-                                        <p className="text-[10px] text-rose-100 font-bold uppercase tracking-[0.4em]">Support Alumnae-owned businesses</p>
+                                    <header className="px-8 py-10 bg-rose-500 text-white rounded-b-[3rem] shadow-2xl mb-12 flex justify-between items-center">
+                                        <div>
+                                            <h2 className="text-3xl font-black uppercase tracking-tight mb-2">Legacy <span className="opacity-60 italic">Market</span></h2>
+                                            <p className="text-[10px] text-rose-100 font-bold uppercase tracking-[0.4em]">Support Alumnae-owned businesses</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => setShowPostBusinessModal(true)}
+                                            className="px-6 py-4 bg-white/20 hover:bg-white/30 backdrop-blur-xl rounded-2xl flex items-center gap-3 transition-all group"
+                                        >
+                                            <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
+                                            <span className="text-[10px] font-black uppercase tracking-widest">Post Business</span>
+                                        </button>
                                     </header>
                                     <div className="px-6 grid grid-cols-1 gap-6">
                                         {businesses.length === 0 ? (
@@ -2267,6 +2386,188 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
             {/* Overlays & Modals */}
             
+            {/* Post Job Modal */}
+            {showPostJobModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
+                        <header className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-2xl font-black uppercase tracking-tight">Post <span className="text-indigo-600 italic">Opportunity</span></h2>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-1">Hire excellence from the network</p>
+                            </div>
+                            <button onClick={() => setShowPostJobModal(false)} className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </header>
+                        <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto no-scrollbar">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 px-1">Job Title</label>
+                                <input 
+                                    type="text" 
+                                    value={jobData.title}
+                                    onChange={(e) => setJobData({...jobData, title: e.target.value})}
+                                    placeholder="e.g. Senior Software Engineer"
+                                    className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 px-1">Company</label>
+                                    <input 
+                                        type="text" 
+                                        value={jobData.company}
+                                        onChange={(e) => setJobData({...jobData, company: e.target.value})}
+                                        placeholder="Company Name"
+                                        className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 px-1">Location</label>
+                                    <input 
+                                        type="text" 
+                                        value={jobData.location}
+                                        onChange={(e) => setJobData({...jobData, location: e.target.value})}
+                                        placeholder="e.g. Nairobi, Remote"
+                                        className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 px-1">Job Description</label>
+                                <textarea 
+                                    value={jobData.description}
+                                    onChange={(e) => setJobData({...jobData, description: e.target.value})}
+                                    placeholder="Describe the role and requirements..."
+                                    className="w-full h-32 p-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 resize-none"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 px-1">Salary Range</label>
+                                    <input 
+                                        type="text" 
+                                        value={jobData.salaryRange}
+                                        onChange={(e) => setJobData({...jobData, salaryRange: e.target.value})}
+                                        placeholder="e.g. 150k - 200k"
+                                        className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 px-1">Application URL/Email</label>
+                                    <input 
+                                        type="text" 
+                                        value={jobData.applyUrl}
+                                        onChange={(e) => setJobData({...jobData, applyUrl: e.target.value})}
+                                        placeholder="Link or email"
+                                        className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-8 bg-slate-50 dark:bg-slate-950/50">
+                            <button 
+                                onClick={handlePostJob}
+                                disabled={isSavingJob}
+                                className="w-full h-16 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all disabled:opacity-50 shadow-xl shadow-indigo-200"
+                            >
+                                {isSavingJob ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
+                                Publish Opportunity
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Post Business Modal */}
+            {showPostBusinessModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
+                        <header className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-2xl font-black uppercase tracking-tight text-rose-500">Legacy <span className="italic">Business</span></h2>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-1">Promote your brand to the circle</p>
+                            </div>
+                            <button onClick={() => setShowPostBusinessModal(false)} className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </header>
+                        <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto no-scrollbar">
+                            <div className="flex items-center gap-6">
+                                <div className="w-24 h-24 rounded-3xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center relative overflow-hidden group border-2 border-dashed border-slate-200">
+                                    {businessLogoFile ? (
+                                        <img src={URL.createObjectURL(businessLogoFile)} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <ShoppingBag className="w-8 h-8 text-slate-300" />
+                                    )}
+                                    <label className="absolute inset-0 bg-rose-500/80 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white cursor-pointer transition-all">
+                                        <Plus className="w-6 h-6" />
+                                        <input type="file" className="hidden" accept="image/*" onChange={(e) => setBusinessLogoFile(e.target.files?.[0] || null)} />
+                                    </label>
+                                </div>
+                                <div className="flex-1 space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 px-1">Business Name</label>
+                                    <input 
+                                        type="text" 
+                                        value={businessData.businessName}
+                                        onChange={(e) => setBusinessData({...businessData, businessName: e.target.value})}
+                                        className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-rose-500"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 px-1">Industry</label>
+                                    <input 
+                                        type="text" 
+                                        value={businessData.industry}
+                                        onChange={(e) => setBusinessData({...businessData, industry: e.target.value})}
+                                        placeholder="e.g. Tech, Fashion"
+                                        className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-rose-500"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 px-1">Website URL</label>
+                                    <input 
+                                        type="text" 
+                                        value={businessData.websiteUrl}
+                                        onChange={(e) => setBusinessData({...businessData, websiteUrl: e.target.value})}
+                                        className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-rose-500"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 px-1">Description</label>
+                                <textarea 
+                                    value={businessData.description}
+                                    onChange={(e) => setBusinessData({...businessData, description: e.target.value})}
+                                    className="w-full h-24 p-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-rose-500 resize-none"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 px-1">Exclusive Alumnae Discount</label>
+                                <input 
+                                    type="text" 
+                                    value={businessData.exclusiveDiscount}
+                                    onChange={(e) => setBusinessData({...businessData, exclusiveDiscount: e.target.value})}
+                                    placeholder="e.g. 15% off with code ALUMNI15"
+                                    className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-rose-500"
+                                />
+                            </div>
+                        </div>
+                        <div className="p-8 bg-slate-50 dark:bg-slate-950/50">
+                            <button 
+                                onClick={handlePostBusiness}
+                                disabled={isSavingBusiness}
+                                className="w-full h-16 bg-rose-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 hover:bg-rose-600 transition-all disabled:opacity-50 shadow-xl shadow-rose-200"
+                            >
+                                {isSavingBusiness ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
+                                Launch on Market
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Edit Profile Modal */}
             {isEditingProfile && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300">
