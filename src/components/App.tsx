@@ -4938,7 +4938,6 @@ export const App: React.FC = () => {
                                         await handleLogAction(`Sent bulk credentials to ${res.success_count} users via ${method}`);
                                         return res;
                                     }}
-                                    onImportSubjectsAndAssociate={handleImportSubjectsAndAssociate}
                                     onSwitchPerspective={(role) => setImpersonatedRole(role)}
                                     onAddParent={async (sid: string, p: any) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => ({ success: true, message: 'Parent added.' }))}
                                     onDeleteParent={() => { }}
