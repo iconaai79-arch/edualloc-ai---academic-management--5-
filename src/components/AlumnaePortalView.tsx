@@ -1951,6 +1951,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 </div>
                                             ))}
                                         </div>
+                                    </div>
                                 </>
                             );
                     }
