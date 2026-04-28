@@ -1522,7 +1522,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         case 'support':
                             return (
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen flex flex-col">
-                                    <header className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4 sticky top-0 bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl z-20">
+                                    <header className="px-6 py-5 border-b border-white/5 flex items-center gap-4 sticky top-0 bg-[#020617]/90 backdrop-blur-xl z-20">
                                         <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-200">
                                             <Building2 className="w-5 h-5" />
                                         </div>
@@ -1583,14 +1583,14 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                         )}
                                     </div>
 
-                                    <div className="sticky bottom-0 p-6 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 flex items-center gap-4">
+                                    <div className="sticky bottom-0 p-6 bg-[#020617]/95 backdrop-blur-md border-t border-white/5 flex items-center gap-4">
                                         <input 
                                             type="text" 
                                             value={newMessageToSchool}
                                             onChange={(e) => setNewMessageToSchool(e.target.value)}
                                             onKeyPress={(e) => e.key === 'Enter' && handleSendMessageToSchool()}
                                             placeholder="Type your official request..."
-                                            className="flex-1 h-14 px-8 bg-white/5 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner"
+                                            className="flex-1 h-14 px-8 bg-white/10 border-none rounded-2xl text-xs font-bold text-white placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner"
                                         />
                                         <button 
                                             onClick={handleSendMessageToSchool}
@@ -1853,7 +1853,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                                 value={newMessage}
                                                                 onChange={(e) => setNewMessage(e.target.value)}
                                                                 onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                                                                className="w-full h-16 pl-10 pr-20 bg-slate-100 dark:bg-slate-900 border-none rounded-[1.75rem] text-sm font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner font-display"
+                                                                className="w-full h-16 pl-10 pr-20 bg-white/10 border-none rounded-[1.75rem] text-sm font-bold text-white focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner font-display"
                                                             />
                                                             <button 
                                                                 onClick={handleSendMessage}
@@ -2095,7 +2095,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                                     value={newTeamMemberEmail}
                                                                     onChange={e => setNewTeamMemberEmail(e.target.value)}
                                                                     placeholder="member@email.com"
-                                                                    className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl h-12 px-4 text-[10px] font-bold uppercase tracking-widest focus:ring-2 ring-indigo-500"
+                                                                    className="w-full bg-white/10 border-none rounded-xl h-12 px-4 text-[10px] font-bold uppercase tracking-widest text-white focus:ring-2 ring-indigo-500"
                                                                 />
                                                             </div>
                                                             <div className="space-y-2">
