@@ -4307,6 +4307,8 @@ export interface AlumniPost {
     videoUrl?: string;
     hashtags?: string[];
     schoolId?: string;
+    groupId?: string;
+    groupName?: string;
 }
 
 export interface AlumniComment {

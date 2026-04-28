@@ -127,6 +127,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [alumniNotifications, setAlumniNotifications] = useState<any[]>([]);
     const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
     const [showMoreMobileMenu, setShowMoreMobileMenu] = useState(false);
+    const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
     const COMMON_EMOJIS = ['😊', '🎓', '✨', '🙌', '🎉', '💙', '🏛️', '💼', '💪', '👩‍🎓', '🏫', '💡', '🥂', '🔥', '📚', '🤝'];
 
@@ -774,6 +775,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 authorPhoto: currentAlumna.profilePhotoUrl,
                 institutionId: currentAlumna.institutionId || 'GLOBAL',
                 schoolId: (currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id || 'GLOBAL') as string,
+                groupId: selectedGroupId || undefined,
+                groupName: selectedGroupId ? groups.find(g => g.id === selectedGroupId)?.name : undefined,
                 content: newPostContent,
                 photoUrl: photoUrl,
                 videoUrl: videoUrl,
@@ -1794,6 +1797,19 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                                 <span className="text-[9px] font-black uppercase tracking-widest">Video</span>
                                                                 <input type="file" id="post-video-upload-main" className="hidden" accept="video/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setPostVideoFile(file); setPostVideoPreview(URL.createObjectURL(file)); setPostImageFile(null); setPostImagePreview(null); } }} />
                                                             </button>
+
+                                                            {groups.length > 0 && (
+                                                                <select 
+                                                                    value={selectedGroupId || ''} 
+                                                                    onChange={(e) => setSelectedGroupId(e.target.value || null)}
+                                                                    className="bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-[9px] font-black uppercase tracking-widest text-slate-500 focus:ring-2 focus:ring-indigo-600 transition-all cursor-pointer h-[44px] px-4"
+                                                                >
+                                                                    <option value="">Posting to Circle</option>
+                                                                    {groups.map(g => (
+                                                                        <option key={g.id} value={g.id}>{g.name}</option>
+                                                                    ))}
+                                                                </select>
+                                                            )}
                                                         </div>
                                                         
                                                         <button 
@@ -1808,6 +1824,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 </div>
                                             </div>
                                         </div>
+                                        )}
 
                                         <div className="bg-slate-50/30 dark:bg-slate-950/30">
                                             {loadingPosts ? (
@@ -1841,6 +1858,12 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                                     {post.authorName}
                                                                 </span>
                                                                 <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+                                                                {post.groupName && (
+                                                                    <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-lg text-[8px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700">
+                                                                        <Globe className="w-3 h-3 text-indigo-500" />
+                                                                        {post.groupName}
+                                                                    </div>
+                                                                )}
                                                                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(post.createdAt).toLocaleDateString()}</span>
                                                             </div>
                                                             <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-base mb-6 font-medium">{post.content}</p>
@@ -1996,10 +2019,10 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                 { tag: '#LegacyNetworking', stats: '890 active threads' }
                             ].map((topic, idx) => (
                                 <div key={topic.tag} className="group cursor-pointer">
-                                    <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                    <div className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mb-2 flex items-center gap-2">
                                         <div className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></div>
                                         {topic.stats}
-                                    </p>
+                                    </div>
                                     <p className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight group-hover:text-indigo-600 transition-colors">{topic.tag}</p>
                                 </div>
                             ))}
@@ -2404,6 +2427,12 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-3 mb-3">
                                                     <span className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-lg">{post.authorName}</span>
+                                                    {post.groupName && (
+                                                        <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-lg text-[8px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700">
+                                                            <Globe className="w-3 h-3 text-indigo-500" />
+                                                            {post.groupName}
+                                                        </div>
+                                                    )}
                                                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(post.createdAt).toLocaleDateString()}</span>
                                                 </div>
                                                 <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-base mb-6 font-medium">{post.content}</p>
