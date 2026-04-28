@@ -5008,13 +5008,6 @@ export const App: React.FC = () => {
                                     onApprovePayouts={handleApprovePayouts}
                                     onDisbursePayouts={handleDisbursePayouts}
                                     onAddPayouts={handleAddPayouts}
-                                    retailStores={retailStores}
-                                    inventory={retailInventory}
-                                    suppliers={suppliers}
-                                    retailExpenses={retailExpenses}
-                                    onAddRetailExpense={handleAddRetailExpense}
-                                    onAddRequisition={handleAddRequisition}
-                                    onUpdateRequisition={handleUpdateRequisition}
                                     vehicles={vehicles}
                                     transportOnboarding={transportOnboarding}
                                     vehicleLogs={vehicleLogs}
