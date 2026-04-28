@@ -84,16 +84,16 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [alumnaeMembers, setAlumnaeMembers] = useState<any[]>([]);
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [profileData, setProfileData] = useState({
-        fullName: currentAlumna?.fullName || '',
+        fullName: currentAlumna?.fullName || currentAlumna?.full_name || '',
         email: currentAlumna?.email || '',
-        currentJob: currentAlumna?.currentJob || '',
-        currentCompany: currentAlumna?.currentCompany || '',
+        currentJob: currentAlumna?.currentJob || currentAlumna?.current_job || '',
+        currentCompany: currentAlumna?.currentCompany || currentAlumna?.current_company || '',
         bio: currentAlumna?.bio || '',
-        linkedinUrl: currentAlumna?.linkedinUrl || '',
-        twitterUrl: currentAlumna?.twitterUrl || '',
-        profilePhotoUrl: currentAlumna?.profilePhotoUrl || '',
-        coverPhotoUrl: currentAlumna?.coverPhotoUrl || '',
-        isMentorAvailable: currentAlumna?.isMentorAvailable || false
+        linkedinUrl: currentAlumna?.linkedinUrl || currentAlumna?.linkedin_url || '',
+        twitterUrl: currentAlumna?.twitterUrl || currentAlumna?.twitter_url || '',
+        profilePhotoUrl: currentAlumna?.profilePhotoUrl || currentAlumna?.profile_photo || currentAlumna?.profile_photo_url || '',
+        coverPhotoUrl: currentAlumna?.coverPhotoUrl || currentAlumna?.cover_photo_url || '',
+        isMentorAvailable: currentAlumna?.isMentorAvailable || currentAlumna?.is_mentor_available || false
     });
     const [profilePhotoUrlFile, setProfilePhotoFile] = useState<File | null>(null);
     const [profileCoverPhotoFile, setProfileCoverPhotoFile] = useState<File | null>(null);
@@ -178,22 +178,41 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 filter: { institution_id: instId },
                 order: 'created_at.desc'
             });
-            setSchoolProjects(projects);
+            const mappedProjects = (projects || []).map((p: any) => ({
+                ...p,
+                currentAmount: p.current_amount || p.currentAmount,
+                targetAmount: p.target_amount || p.targetAmount,
+                institutionId: p.institution_id || p.institutionId
+            }));
+            setSchoolProjects(mappedProjects);
 
-            if (projects.length > 0) {
-                const projectIds = projects.map((p: any) => p.id);
+            if (mappedProjects.length > 0) {
+                const projectIds = mappedProjects.map((p: any) => p.id);
                 const updates = await apiService.fetchModuleRecords('project_updates', undefined, undefined, {
                     filter: { project_id: { in: projectIds } },
                     order: 'created_at.desc'
                 });
-                setProjectUpdates(updates);
+                const mappedUpdates = (updates || []).map((u: any) => ({
+                    ...u,
+                    projectId: u.project_id || u.projectId,
+                    updateTitle: u.update_title || u.updateTitle
+                }));
+                setProjectUpdates(mappedUpdates);
             }
 
             const messages = await apiService.fetchModuleRecords('alumni_school_inbox', undefined, undefined, {
                 filter: { alumna_id: currentAlumna.id, institution_id: instId },
                 order: 'created_at.asc'
             });
-            setSchoolInbox(messages);
+            const mappedMessages = (messages || []).map((m: any) => ({
+                id: m.id,
+                alumnaId: m.alumna_id || m.alumnaId,
+                institutionId: m.institution_id || m.institutionId,
+                content: m.content,
+                direction: m.direction,
+                createdAt: m.created_at || m.createdAt
+            }));
+            setSchoolInbox(mappedMessages);
         } catch (e) {
             console.error("Engagement load failed:", e);
         }
@@ -261,41 +280,66 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 filter: { institution_id: instId },
                 order: 'created_at.desc'
             });
-            setJobs(jobData);
+            setJobs((jobData || []).map((j: any) => ({
+                ...j,
+                applyUrl: j.apply_url || j.applyUrl,
+                salaryRange: j.salary_range || j.salaryRange
+            })));
 
             // Load Businesses
             const bizData = await apiService.fetchModuleRecords('alumni_businesses', undefined, undefined, {
                 filter: { institution_id: instId },
                 order: 'created_at.desc'
             });
-            setBusinesses(bizData);
+            setBusinesses((bizData || []).map((b: any) => ({
+                ...b,
+                businessName: b.business_name || b.businessName,
+                logoUrl: b.logo_url || b.logoUrl,
+                websiteUrl: b.website_url || b.websiteUrl,
+                exclusiveDiscount: b.exclusive_discount || b.exclusiveDiscount
+            })));
 
             // Load Groups
             const groupData = await apiService.fetchModuleRecords('alumni_groups', undefined, undefined, {
                 filter: { institution_id: instId },
                 order: 'created_at.desc'
             });
-            setGroups(groupData);
+            setGroups((groupData || []).map((g: any) => ({
+                ...g,
+                imageUrl: g.image_url || g.imageUrl
+            })));
 
             // Load Success Stories
             const storyData = await apiService.fetchModuleRecords('alumni_success_stories', undefined, undefined, {
                 filter: { institution_id: instId },
                 order: 'created_at.desc'
             });
-            setSuccessStories(storyData);
+            setSuccessStories((storyData || []).map((s: any) => ({
+                ...s,
+                imageUrl: s.image_url || s.imageUrl,
+                isFeatured: s.is_featured || s.isFeatured
+            })));
 
             // Load Doc Requests
             const reqData = await apiService.fetchModuleRecords('alumni_document_requests', undefined, undefined, {
                 filter: { alumna_id: currentAlumna.id },
                 order: 'created_at.desc'
             });
-            setDocRequests(reqData);
+            setDocRequests((reqData || []).map((r: any) => ({
+                ...r,
+                documentType: r.document_type || r.documentType,
+                alumnaId: r.alumna_id || r.alumnaId
+            })));
 
             // Load RSVPs
             const rsvpData = await apiService.fetchModuleRecords('alumni_event_rsvps', undefined, undefined, {
                 filter: { alumna_id: currentAlumna.id }
             });
-            setRsvps(rsvpData);
+            setRsvps((rsvpData || []).map((r: any) => ({
+                ...r,
+                eventId: r.event_id || r.eventId,
+                alumnaId: r.alumna_id || r.alumnaId
+            })));
 
         } catch (e) {
             console.error("New modules load failed:", e);
@@ -418,20 +462,38 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 order: 'created_at.desc'
             });
 
+            // Mapping database results (snake_case) to UI type (camelCase)
+            const mappedData: AlumniPost[] = (data || []).map((p: any) => ({
+                id: p.id,
+                authorId: p.author_id || p.authorId,
+                authorName: p.author_name || p.authorName,
+                authorPhoto: p.author_photo || p.authorPhoto,
+                institutionId: p.institution_id || p.institutionId,
+                schoolId: p.school_id || p.schoolId,
+                groupId: p.group_id || p.groupId,
+                groupName: p.group_name || p.groupName,
+                content: p.content,
+                photoUrl: p.photo_url || p.photoUrl,
+                videoUrl: p.video_url || p.videoUrl,
+                likes: p.likes || [],
+                commentsCount: p.comments_count ?? p.commentsCount ?? 0,
+                createdAt: p.created_at || p.createdAt
+            }));
+
             // Frontend Post-Filter for Edge Cases
-            let processedPosts = data || [];
+            let processedPosts = mappedData;
             if (activeTab === 'my-schools') {
-                processedPosts = (data || []).filter((p: any) => {
+                processedPosts = mappedData.filter((p: any) => {
                     if (currentAlumna.isSuperAdmin) return true; // Super admin sees all for this context
-                    return (p.institution_id === instId) || (p.school_id === schoolRegId);
+                    return (p.institutionId === instId) || (p.schoolId === schoolRegId);
                 });
             }
 
             setPosts(processedPosts);
             
             // Prefetch comments for these posts
-            if (data && data.length > 0) {
-                for (const post of data) {
+            if (mappedData.length > 0) {
+                for (const post of mappedData) {
                     fetchComments(post.id);
                 }
             }
@@ -448,7 +510,19 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 filter: { post_id: postId },
                 order: 'created_at.asc'
             });
-            setComments(prev => ({ ...prev, [postId]: data }));
+            
+            const mappedComments: AlumniComment[] = (data || []).map((c: any) => ({
+                id: c.id,
+                postId: c.post_id || c.postId,
+                authorId: c.author_id || c.authorId,
+                authorName: c.author_name || c.authorName,
+                authorPhoto: c.author_photo || c.authorPhoto,
+                institutionId: c.institution_id || c.institutionId,
+                content: c.content,
+                createdAt: c.created_at || c.createdAt
+            }));
+
+            setComments(prev => ({ ...prev, [postId]: mappedComments }));
         } catch (e) {}
     };
 
@@ -458,9 +532,20 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             const data = await apiService.fetchModuleRecords('alumni_messages', undefined, undefined, {
                 order: 'created_at.asc'
             });
+            
+            const mapped = (data || []).map((m: any) => ({
+                id: m.id,
+                senderId: m.sender_id || m.senderId,
+                recipientId: m.recipient_id || m.recipientId,
+                institutionId: m.institution_id || m.institutionId,
+                content: m.content,
+                isRead: m.is_read || m.isRead,
+                createdAt: m.created_at || m.createdAt
+            }));
+
             // Frontend filter as complex OR filters might be limited in standard fetch
-            const filtered = (data || []).filter((m: any) => 
-                m.sender_id === currentAlumna.id || m.recipient_id === currentAlumna.id
+            const filtered = mapped.filter((m: any) => 
+                m.senderId === currentAlumna.id || m.recipientId === currentAlumna.id
             );
             setMessages(filtered);
         } catch (e) {}
@@ -477,10 +562,26 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             // Fetch all members associated with this institution/school
             const data = await apiService.fetchModuleRecords('alumnae_members', instId);
             
+            // Mapping database results (snake_case) to UI type (camelCase)
+            const mappedMembers = (data || []).map((m: any) => ({
+                ...m,
+                id: m.id,
+                fullName: m.full_name || m.fullName || m.name,
+                profilePhotoUrl: m.profile_photo || m.profilePhotoUrl || m.profile_photo_url,
+                graduationYear: m.graduation_year || m.graduationYear,
+                institutionId: m.institution_id || m.institutionId,
+                schoolId: m.school_id || m.schoolId,
+                isMentorAvailable: m.is_mentor_available || m.isMentorAvailable,
+                currentJob: m.current_job || m.currentJob,
+                currentCompany: m.current_company || m.currentCompany,
+                bio: m.bio,
+                isFeatured: m.is_featured || m.isFeatured
+            }));
+
             // STRICT FILTER: Ensure they belong to THIS institution or school registry entry
-            const institutionMembers = (data || []).filter((m: any) => {
-                const memberInstId = m.institutionId || m.institution_id;
-                const memberSchoolRegId = m.schoolId || m.school_id;
+            const institutionMembers = mappedMembers.filter((m: any) => {
+                const memberInstId = m.institutionId;
+                const memberSchoolRegId = m.schoolId;
                 
                 // Match by Onboarded Institution ID
                 if (instId && memberInstId === instId) return true;
@@ -496,7 +597,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             // Scoped classmates: Same Institution + Same Year (OR All for Super Admin)
             const classmates = institutionMembers.filter((m: any) => 
                 currentAlumna.isSuperAdmin || 
-                (String(m.graduationYear) === String(gradYear) || String(m.graduation_year) === String(gradYear))
+                (String(m.graduationYear) === String(gradYear))
             );
             
             setAlumnaeMembers(classmates);
@@ -725,17 +826,28 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         
         const msg = {
             id: `msg_${Date.now()}`,
-            senderId: currentAlumna.id,
-            recipientId: activeConversationPartner.id,
-            institutionId: currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id,
+            sender_id: currentAlumna.id,
+            recipient_id: activeConversationPartner.id,
+            institution_id: currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id,
             content: newMessage,
-            isRead: false,
-            createdAt: new Date().toISOString()
+            is_read: false,
+            created_at: new Date().toISOString()
         };
 
         try {
             await apiService.saveModuleRecord('alumni_messages', msg);
-            setMessages([...messages, msg]);
+            // Update local state with camelCase for UI consistency if needed, 
+            // but let's be consistent with what the state expects
+            const uiMsg = {
+                id: msg.id,
+                senderId: msg.sender_id,
+                recipientId: msg.recipient_id,
+                institutionId: msg.institution_id,
+                content: msg.content,
+                isRead: msg.is_read,
+                createdAt: msg.created_at
+            };
+            setMessages([...messages, uiMsg]);
             setNewMessage('');
         } catch (e: any) {
             alert("Message Error: " + e.message);
@@ -768,25 +880,43 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 if (uploadRes.success) videoUrl = uploadRes.url || '';
             }
 
-            const post: AlumniPost = {
+            const post: any = {
                 id: `p_${Date.now()}`,
-                authorId: currentAlumna.id || 'anonymous',
-                authorName: currentAlumna.fullName || currentAlumna.name || 'Alumna',
-                authorPhoto: currentAlumna.profilePhotoUrl,
-                institutionId: currentAlumna.institutionId || 'GLOBAL',
-                schoolId: (currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id || 'GLOBAL') as string,
-                groupId: selectedGroupId || undefined,
-                groupName: selectedGroupId ? groups.find(g => g.id === selectedGroupId)?.name : undefined,
+                author_id: currentAlumna.id || 'anonymous',
+                author_name: currentAlumna.fullName || currentAlumna.name || 'Alumna',
+                author_photo: currentAlumna.profilePhotoUrl,
+                institution_id: currentAlumna.institutionId || 'GLOBAL',
+                school_id: (currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id || 'GLOBAL') as string,
+                group_id: selectedGroupId || undefined,
+                group_name: selectedGroupId ? groups.find(g => g.id === selectedGroupId)?.name : undefined,
                 content: newPostContent,
-                photoUrl: photoUrl,
-                videoUrl: videoUrl,
+                photo_url: photoUrl,
+                video_url: videoUrl,
                 likes: [],
-                commentsCount: 0,
-                createdAt: new Date().toISOString()
+                comments_count: 0,
+                created_at: new Date().toISOString()
             };
 
             await apiService.saveModuleRecord('alumni_posts', post);
-            setPosts([post, ...posts]);
+            
+            // Convert to AlumniPost type for local state
+            const uiPost: AlumniPost = {
+                id: post.id,
+                authorId: post.author_id,
+                authorName: post.author_name,
+                authorPhoto: post.author_photo,
+                institutionId: post.institution_id,
+                schoolId: post.school_id,
+                groupId: post.group_id,
+                groupName: post.group_name,
+                content: post.content,
+                photoUrl: post.photo_url,
+                videoUrl: post.video_url,
+                likes: post.likes,
+                commentsCount: post.comments_count,
+                createdAt: post.created_at
+            };
+            setPosts([uiPost, ...posts]);
             setNewPostContent('');
             setPostImageFile(null);
             setPostImagePreview(null);
@@ -822,15 +952,15 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const handleAddComment = async (postId: string, content: string) => {
         if (!content.trim()) return;
         
-        const comment: AlumniComment = {
+        const commentData = {
             id: `c_${Date.now()}`,
-            postId,
-            authorId: currentAlumna.id,
-            authorName: currentAlumna.fullName || currentAlumna.name,
-            authorPhoto: currentAlumna.profilePhotoUrl,
-            institutionId: currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id || 'GLOBAL',
+            post_id: postId,
+            author_id: currentAlumna.id,
+            author_name: currentAlumna.fullName || currentAlumna.name,
+            author_photo: currentAlumna.profilePhotoUrl,
+            institution_id: currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id || 'GLOBAL',
             content,
-            createdAt: new Date().toISOString()
+            created_at: new Date().toISOString()
         };
 
         const currentPost = posts.find(p => p.id === postId);
@@ -838,21 +968,26 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         const newCount = currentCount + 1;
 
         try {
-            await apiService.saveModuleRecord('alumni_comments', comment);
+            await apiService.saveModuleRecord('alumni_comments', commentData);
+            
+            const uiComment: AlumniComment = {
+                id: commentData.id,
+                postId: commentData.post_id,
+                authorId: commentData.author_id,
+                authorName: commentData.author_name as string,
+                authorPhoto: commentData.author_photo,
+                institutionId: commentData.institution_id,
+                content: commentData.content,
+                createdAt: commentData.created_at
+            };
+
             setComments(prev => ({
                 ...prev,
-                [postId]: [...(prev[postId] || []), comment]
+                [postId]: [...(prev[postId] || []), uiComment]
             }));
             
-            // Update local posts count
+            // Update local posts count (Trigger will handle DB side, we update UI)
             setPosts(prev => prev.map(p => p.id === postId ? { ...p, commentsCount: newCount, comments_count: newCount } : p));
-
-            // Update remote posts count
-            await apiService.saveModuleRecord('alumni_posts', { 
-                id: postId, 
-                comments_count: newCount,
-                commentsCount: newCount 
-            } as any);
 
             // Clear input
             setCommentInputs(prev => ({ ...prev, [postId]: '' }));

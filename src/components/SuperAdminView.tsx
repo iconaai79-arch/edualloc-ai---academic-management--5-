@@ -135,7 +135,8 @@ import {
     Hotel, 
     Filter,
     History,
-    Database
+    Database,
+    Zap
 } from 'lucide-react';
 
 export interface SuperAdminViewProps {
