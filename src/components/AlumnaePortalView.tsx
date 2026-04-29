@@ -44,7 +44,9 @@ import {
     Medal,
     Globe,
     Zap,
-    ShieldCheck
+    ShieldCheck,
+    MapPin,
+    Navigation
 } from 'lucide-react';
 import type { AlumniPost, AlumniComment, Institution } from '../types';
 import { apiService } from '../services/apiService';
@@ -101,7 +103,10 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         twitterUrl: currentAlumna?.twitterUrl || currentAlumna?.twitter_url || '',
         profilePhotoUrl: currentAlumna?.profilePhotoUrl || currentAlumna?.profile_photo || currentAlumna?.profile_photo_url || '',
         coverPhotoUrl: currentAlumna?.coverPhotoUrl || currentAlumna?.cover_photo_url || '',
-        isMentorAvailable: currentAlumna?.isMentorAvailable || currentAlumna?.is_mentor_available || false
+        isMentorAvailable: currentAlumna?.isMentorAvailable || currentAlumna?.is_mentor_available || false,
+        isLocationEnabled: currentAlumna?.isLocationEnabled || currentAlumna?.is_location_enabled || false,
+        latitude: currentAlumna?.latitude || null,
+        longitude: currentAlumna?.longitude || null
     });
     const [profilePhotoUrlFile, setProfilePhotoFile] = useState<File | null>(null);
     const [profileCoverPhotoFile, setProfileCoverPhotoFile] = useState<File | null>(null);
@@ -161,6 +166,53 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [isSavingBusiness, setIsSavingBusiness] = useState(false);
 
     const COMMON_EMOJIS = ['😊', '🎓', '✨', '🙌', '🎉', '💙', '🏛️', '💼', '💪', '👩‍🎓', '🏫', '💡', '🥂', '🔥', '📚', '🤝'];
+
+    const getDistance = (lat1: any, lon1: any, lat2: any, lon2: any) => {
+        if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    };
+
+    const handleUpdateLocation = async (enabled: boolean) => {
+        if (enabled) {
+            if (!navigator.geolocation) {
+                alert("Geolocation is not supported by your browser.");
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const { latitude, longitude } = pos.coords;
+                try {
+                    await apiService.updateModuleRecord('alumnae_members', currentAlumna.id, {
+                        is_location_enabled: true,
+                        latitude,
+                        longitude,
+                        location_updated_at: new Date().toISOString()
+                    });
+                    setProfileData(prev => ({ ...prev, isLocationEnabled: true, latitude, longitude }));
+                } catch (e) {
+                    console.error("Failed to update location:", e);
+                }
+            }, (err) => {
+                console.error("Location error:", err);
+                alert("Unable to retrieve your location. Please check your browser permissions.");
+            });
+        } else {
+            try {
+                await apiService.updateModuleRecord('alumnae_members', currentAlumna.id, {
+                    is_location_enabled: false,
+                    latitude: null,
+                    longitude: null
+                });
+                setProfileData(prev => ({ ...prev, isLocationEnabled: false, latitude: null, longitude: null }));
+            } catch (e) {
+                console.error("Failed to disable location:", e);
+            }
+        }
+    };
 
     const addEmoji = (emoji: string) => {
         setNewPostContent(prev => prev + emoji);
@@ -1810,6 +1862,23 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                                     <User className="w-12 h-12" />
                                                                 </div>
                                                             )}
+                                                            {profileData.isLocationEnabled && (member.is_location_enabled || member.isLocationEnabled) && (
+                                                                <div className="absolute -bottom-2 -right-2 bg-emerald-600 text-white p-2 rounded-xl shadow-xl border border-emerald-400 flex items-center gap-1">
+                                                                    <Navigation className="w-3 h-3 fill-white" />
+                                                                    <span className="text-[8px] font-black">
+                                                                        {(() => {
+                                                                            const dist = getDistance(
+                                                                                profileData.latitude, 
+                                                                                profileData.longitude, 
+                                                                                member.latitude || member.lat, 
+                                                                                member.longitude || member.lng
+                                                                            );
+                                                                            if (dist === null) return "?? km";
+                                                                            return dist < 1 ? "Under 1km" : `${Math.round(dist)}km`;
+                                                                        })()}
+                                                                    </span>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                         <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 border-4 border-[#020617] rounded-full animate-pulse"></div>
                                                     </div>
@@ -2046,6 +2115,12 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                     <div className="px-4 py-1.5 bg-indigo-500/10 border border-indigo-500/30 rounded-full">
                                                         <span className="text-[9px] font-black uppercase tracking-widest text-indigo-400">{allInstitutionMembers.length} Verified Nodes</span>
                                                     </div>
+                                                    {profileData.isLocationEnabled && (
+                                                        <div className="px-4 py-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center gap-2">
+                                                            <div className="w-1 h-1 bg-emerald-400 rounded-full animate-pulse"></div>
+                                                            <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Proximity Pulse Active</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -3374,6 +3449,24 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             className={`w-14 h-8 rounded-full transition-all relative ${profileData.isMentorAvailable ? 'bg-emerald-500' : 'bg-slate-300'}`}
                                         >
                                             <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${profileData.isMentorAvailable ? 'left-7 shadow-[0_0_10px_rgba(255,255,255,0.8)]' : 'left-1'}`} />
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center justify-between p-6 bg-rose-50 dark:bg-rose-900/20 rounded-3xl border border-rose-100 dark:border-rose-900/30">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-rose-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-rose-200">
+                                                <MapPin className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-xs font-black uppercase tracking-tight text-white">Nearby Networking</h4>
+                                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Allow peers to see your relative distance</p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => handleUpdateLocation(!profileData.isLocationEnabled)}
+                                            className={`w-14 h-8 rounded-full transition-all relative ${profileData.isLocationEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                        >
+                                            <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${profileData.isLocationEnabled ? 'left-7 shadow-[0_0_10px_rgba(255,255,255,0.8)]' : 'left-1'}`} />
                                         </button>
                                     </div>
                                 </div>
