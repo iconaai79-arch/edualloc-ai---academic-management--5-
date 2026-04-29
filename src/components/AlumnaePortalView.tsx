@@ -148,6 +148,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [isSavingJob, setIsSavingJob] = useState(false);
     
     const [showPostBusinessModal, setShowPostBusinessModal] = useState(false);
+    const [exploreSearch, setExploreSearch] = useState('');
     const [businessData, setBusinessData] = useState({
         businessName: '',
         industry: '',
@@ -2051,7 +2052,17 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                     </header>
 
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                        {allInstitutionMembers.filter(m => m.id !== currentAlumna.id).map(member => (
+                                        {allInstitutionMembers.filter(m => {
+                                            if (m.id === currentAlumna.id) return false;
+                                            if (!exploreSearch) return true;
+                                            const q = exploreSearch.toLowerCase();
+                                            return (
+                                                (m.fullName || m.full_name || '').toLowerCase().includes(q) ||
+                                                (m.institutionName || m.institution_name || '').toLowerCase().includes(q) ||
+                                                (m.graduationYear || m.graduation_year || '').toString().includes(q) ||
+                                                (m.profession || m.currentJob || m.current_job || '').toLowerCase().includes(q)
+                                            );
+                                        }).map(member => (
                                             <div key={member.id} className="group relative overflow-hidden p-8 bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[3rem] transition-all hover:scale-[1.02] hover:border-indigo-500/30 shadow-2xl">
                                                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                                                 
@@ -2924,6 +2935,11 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         <input 
                             type="text" 
                             placeholder="Explore Network..." 
+                            value={exploreSearch}
+                            onChange={(e) => {
+                                setExploreSearch(e.target.value);
+                                if (activeTab !== 'explore') setActiveTab('explore');
+                            }}
                             className="w-full h-14 pl-14 pr-8 bg-slate-100 dark:bg-slate-900 border-none rounded-[1.75rem] text-xs font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner"
                         />
                     </div>
