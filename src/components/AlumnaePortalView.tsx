@@ -106,8 +106,27 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         isMentorAvailable: currentAlumna?.isMentorAvailable || currentAlumna?.is_mentor_available || false,
         isLocationEnabled: currentAlumna?.isLocationEnabled || currentAlumna?.is_location_enabled || false,
         latitude: currentAlumna?.latitude || null,
-        longitude: currentAlumna?.longitude || null
+        longitude: currentAlumna?.longitude || null,
+        themePreference: currentAlumna?.themePreference || currentAlumna?.theme_preference || 'auto'
     });
+    
+    const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>('dark');
+
+    useEffect(() => {
+        const updateTheme = () => {
+            if (profileData.themePreference === 'auto') {
+                const hour = new Date().getHours();
+                const isNight = hour >= 18 || hour < 6;
+                setEffectiveTheme(isNight ? 'dark' : 'light');
+            } else {
+                setEffectiveTheme(profileData.themePreference as 'light' | 'dark');
+            }
+        };
+
+        updateTheme();
+        const interval = setInterval(updateTheme, 60000); 
+        return () => clearInterval(interval);
+    }, [profileData.themePreference]);
     const [profilePhotoUrlFile, setProfilePhotoFile] = useState<File | null>(null);
     const [profileCoverPhotoFile, setProfileCoverPhotoFile] = useState<File | null>(null);
     const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -612,10 +631,12 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 profilePhotoUrl: photoUrl,
                 cover_photo_url: coverUrl,
                 coverPhotoUrl: coverUrl,
+                theme_preference: profileData.themePreference,
+                themePreference: profileData.themePreference,
                 id: alumnaId
             });
             // Update local session
-            const updated = { ...currentAlumna, ...profileData, profilePhotoUrl: photoUrl, coverPhotoUrl: coverUrl };
+            const updated = { ...currentAlumna, ...profileData, profilePhotoUrl: photoUrl, coverPhotoUrl: coverUrl, themePreference: profileData.themePreference };
             localStorage.setItem('eduai_alumna_session', JSON.stringify(updated));
             setIsEditingProfile(false);
             window.location.reload(); // Refresh to propagate changes
@@ -1468,7 +1489,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     }, [institutions, currentAlumna, otherMemberships]);
 
     return (
-        <div className="min-h-screen bg-[#020617] flex flex-col md:flex-row font-sans selection:bg-indigo-500/30 text-slate-300 relative overflow-hidden">
+        <div className={effectiveTheme}>
+            <div className="min-h-screen bg-white dark:bg-[#020617] flex flex-col md:flex-row font-sans selection:bg-indigo-500/30 text-slate-900 dark:text-slate-300 relative overflow-hidden transition-colors duration-700">
             {/* Background Decorative Elements */}
             <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
                 <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 rounded-full blur-[120px] animate-pulse"></div>
@@ -3469,6 +3491,25 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${profileData.isLocationEnabled ? 'left-7 shadow-[0_0_10px_rgba(255,255,255,0.8)]' : 'left-1'}`} />
                                         </button>
                                     </div>
+
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Theme Preference</label>
+                                        <div className="grid grid-cols-3 gap-4">
+                                            {['auto', 'light', 'dark'].map((pref) => (
+                                                <button
+                                                    key={pref}
+                                                    onClick={() => setProfileData({ ...profileData, themePreference: pref as any })}
+                                                    className={`py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                                                        profileData.themePreference === pref 
+                                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/20' 
+                                                        : 'bg-white/5 text-slate-400 border-white/10 hover:border-white/20'
+                                                    }`}
+                                                >
+                                                    {pref}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
 
 
@@ -3782,6 +3823,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     </div>
                 </div>
             )}
+            </div>
         </div>
     );
 };
