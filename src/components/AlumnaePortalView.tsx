@@ -1775,7 +1775,11 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                     </header>
 
                                     <div className="px-8 grid grid-cols-1 md:grid-cols-2 gap-8 pb-32">
-                                        {alumnaeMembers.filter(m => (m.graduationYear || m.class_year) == currentAlumna.graduationYear && m.id !== currentAlumna.id).map(member => (
+                                        {alumnaeMembers.filter(m => 
+                                            (String(m.graduationYear || m.class_year) === String(currentAlumna.graduationYear || currentAlumna.class_year)) && 
+                                            (m.institutionId || m.schoolId || m.institution_id) === (currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id) &&
+                                            m.id !== currentAlumna.id
+                                        ).map(member => (
                                             <div key={member.id} className="group relative overflow-hidden p-8 bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[3rem] transition-all hover:scale-[1.02] hover:border-indigo-500/30 shadow-2xl">
                                                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                                                 
@@ -2691,12 +2695,33 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                     <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-8 border-t border-white/5 relative z-10">
                                                         <div className="flex items-center gap-3 w-full sm:w-auto">
                                                             <button 
-                                                                onClick={() => document.getElementById('post-photo-upload-main')?.click()} 
+                                                                onClick={() => document.getElementById('post-media-upload-main')?.click()} 
                                                                 className="flex items-center gap-3 px-6 py-4 bg-white/5 hover:bg-indigo-500/20 text-slate-400 hover:text-indigo-400 border border-white/5 hover:border-indigo-500/30 rounded-2xl transition-all group shrink-0 active:scale-95"
                                                             >
                                                                 <ImageIcon className="w-5 h-5 group-hover:scale-110 transition-transform" />
                                                                 <span className="text-[10px] font-black uppercase tracking-widest">Media Hub</span>
-                                                                <input type="file" id="post-photo-upload-main" className="hidden" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setPostImageFile(file); setPostImagePreview(URL.createObjectURL(file)); setPostVideoFile(null); setPostVideoPreview(null); } }} />
+                                                                <input 
+                                                                    type="file" 
+                                                                    id="post-media-upload-main" 
+                                                                    className="hidden" 
+                                                                    accept="image/*,video/*" 
+                                                                    onChange={(e) => { 
+                                                                        const file = e.target.files?.[0]; 
+                                                                        if (file) { 
+                                                                            if (file.type.startsWith('image/')) {
+                                                                                setPostImageFile(file); 
+                                                                                setPostImagePreview(URL.createObjectURL(file)); 
+                                                                                setPostVideoFile(null); 
+                                                                                setPostVideoPreview(null); 
+                                                                            } else if (file.type.startsWith('video/')) {
+                                                                                setPostVideoFile(file);
+                                                                                setPostVideoPreview(URL.createObjectURL(file));
+                                                                                setPostImageFile(null);
+                                                                                setPostImagePreview(null);
+                                                                            }
+                                                                        } 
+                                                                    }} 
+                                                                />
                                                             </button>
 
                                                             {groups.length > 0 && (
@@ -2781,6 +2806,15 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                                     onClick={() => setZoomedImage(post.photoUrl || null)}
                                                                 >
                                                                     <img src={post.photoUrl} className="w-full max-h-[500px] object-cover group-hover/post:scale-[1.02] transition-transform duration-1000" />
+                                                                </div>
+                                                            )}
+                                                            {post.videoUrl && (
+                                                                <div className="mb-6 rounded-[2.5rem] overflow-hidden border border-slate-100 dark:border-slate-800 shadow-xl">
+                                                                    <video 
+                                                                        src={post.videoUrl} 
+                                                                        controls 
+                                                                        className="w-full max-h-[500px] object-cover"
+                                                                    />
                                                                 </div>
                                                             )}
                                                             <div className="flex items-center justify-between max-w-sm ml-[-8px]">
