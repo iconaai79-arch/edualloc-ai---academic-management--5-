@@ -3013,7 +3013,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                             value={exploreSearch}
                             onChange={(e) => {
                                 setExploreSearch(e.target.value);
-                                if (activeTab !== 'explore') setActiveTab('explore');
+                                if (activeSection !== 'explore') setActiveSection('explore');
                             }}
                             className="w-full h-14 pl-14 pr-8 bg-slate-100 dark:bg-slate-900 border-none rounded-[1.75rem] text-xs font-bold focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner"
                         />
