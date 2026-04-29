@@ -42,12 +42,34 @@ export const InstitutionClaimView: React.FC<InstitutionClaimViewProps> = ({ regi
 
     const filteredSchools = useMemo(() => {
         if (!searchTerm || selectedSchool) return [];
-        const lower = searchTerm.toLowerCase();
-        return registry.filter(s => 
-            s.name.toLowerCase().includes(lower) || 
-            s.uic?.toLowerCase().includes(lower) || 
-            s.knecCode?.toLowerCase().includes(lower)
-        ).slice(0, 10);
+        const lower = searchTerm.toLowerCase().trim();
+        const searchTerms = lower.split(/\s+/).filter(t => t.length > 0);
+        
+        if (searchTerms.length === 0) return [];
+
+        const matches = registry.filter(s => {
+            const name = s.name.toLowerCase();
+            const uic = (s.uic || '').toLowerCase();
+            const knec = (s.knecCode || '').toLowerCase();
+            
+            return name.includes(lower) || uic.includes(lower) || knec.includes(lower) || 
+                   searchTerms.every(t => name.includes(t));
+        });
+
+        return matches.sort((a, b) => {
+            const aName = a.name.toLowerCase();
+            const bName = b.name.toLowerCase();
+            
+            if (aName === lower) return -1;
+            if (bName === lower) return 1;
+            
+            const aStarts = aName.startsWith(lower);
+            const bStarts = bName.startsWith(lower);
+            if (aStarts && !bStarts) return -1;
+            if (bStarts && !aStarts) return 1;
+
+            return aName.localeCompare(bName);
+        }).slice(0, 10);
     }, [registry, searchTerm, selectedSchool]);
 
     const handleClaim = async () => {

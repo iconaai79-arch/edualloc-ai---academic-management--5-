@@ -1631,8 +1631,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        );
+                            );
 
                         case 'funding':
                             return (
@@ -2163,6 +2162,9 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                 </div>
                             );
 
+                        case 'marketplace':
+                            return (
+                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
                                     <header className="relative px-10 py-12 mb-12 overflow-hidden rounded-b-[4rem] shadow-[0_30px_60px_rgba(0,0,0,0.5)]">
                                         <div className="absolute inset-0 bg-[#020617]/90 backdrop-blur-2xl border-b border-white/10"></div>
                                         <div className="absolute inset-0 opacity-20 animate-mesh"></div>
@@ -2238,9 +2240,12 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             ))
                                         )}
                                     </div>
+                                </div>
+                            );
 
                         case 'mentorship':
                             return (
+                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
                                     <header className="relative px-10 py-16 mb-16 overflow-hidden rounded-[3rem] shadow-[0_40px_80px_rgba(0,0,0,0.5)] group">
                                         <div className="absolute inset-0 bg-[#020617]/90 backdrop-blur-3xl border border-white/10"></div>
                                         <div className="absolute inset-0 opacity-20 animate-mesh"></div>
@@ -2310,6 +2315,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             ))
                                         )}
                                     </div>
+                                </div>
                             );
 
                         case 'management':

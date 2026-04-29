@@ -76,17 +76,47 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
     const institutionTypes = ['Primary', 'Secondary', 'TVET', 'University', 'College', 'Institute', 'Polytechnic', 'Driving School'];
 
     const filteredSchools = useMemo(() => {
-        const lower = searchTerm.toLowerCase();
-        return registry.filter(s => 
-            s.name.toLowerCase().includes(lower) || 
-            s.knecCode?.toLowerCase().includes(lower) ||
-            s.id.toLowerCase().includes(lower) ||
-            s.slug?.toLowerCase().includes(lower) ||
-            s.county?.toLowerCase().includes(lower) ||
-            s.region?.toLowerCase().includes(lower) ||
-            s.subCounty?.toLowerCase().includes(lower) ||
-            s.uic?.toLowerCase().includes(lower)
-        );
+        if (!searchTerm) return registry;
+        const lower = searchTerm.toLowerCase().trim();
+        const searchTerms = lower.split(/\s+/).filter(t => t.length > 0);
+        
+        if (searchTerms.length === 0) return registry;
+
+        const matches = registry.filter(s => {
+            const name = s.name.toLowerCase();
+            const knec = (s.knecCode || '').toLowerCase();
+            const uic = (s.uic || '').toLowerCase();
+            const county = (s.county || '').toLowerCase();
+            const region = (s.region || '').toLowerCase();
+            const id = s.id.toLowerCase();
+            
+            const schoolData = `${name} ${knec} ${uic} ${county} ${region} ${id}`;
+            
+            return searchTerms.every(term => schoolData.includes(term));
+        });
+
+        return matches.sort((a, b) => {
+            const aName = a.name.toLowerCase();
+            const bName = b.name.toLowerCase();
+            
+            // 1. Exact match on name
+            if (aName === lower) return -1;
+            if (bName === lower) return 1;
+            
+            // 2. Starts with match on name
+            const aStarts = aName.startsWith(lower);
+            const bStarts = bName.startsWith(lower);
+            if (aStarts && !bStarts) return -1;
+            if (bStarts && !aStarts) return 1;
+            
+            // 3. Name contains all terms
+            const aNameHasTerms = searchTerms.every(t => aName.includes(t));
+            const bNameHasTerms = searchTerms.every(t => bName.includes(t));
+            if (aNameHasTerms && !bNameHasTerms) return -1;
+            if (bNameHasTerms && !aNameHasTerms) return 1;
+
+            return aName.localeCompare(bName);
+        });
     }, [registry, searchTerm]);
 
     const [currentPage, setCurrentPage] = useState(1);

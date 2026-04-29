@@ -29,15 +29,43 @@ export const SchoolRegistryTable: React.FC<SchoolRegistryTableProps> = ({ school
     const [countyFilter, setCountyFilter] = useState<string>('All');
 
     const filteredSchools = useMemo(() => {
-        return schools.filter(school => {
-            const matchesSearch = school.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                 school.knecCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                 school.uic?.toLowerCase().includes(searchTerm.toLowerCase());
+        const lowerSearch = searchTerm.toLowerCase().trim();
+        const searchTerms = lowerSearch.split(/\s+/).filter(t => t.length > 0);
+
+        const filtered = schools.filter(school => {
+            const name = school.name.toLowerCase();
+            const knec = (school.knecCode || '').toLowerCase();
+            const uic = (school.uic || '').toLowerCase();
+
+            const matchesSearch = searchTerm === '' || 
+                                 name.includes(lowerSearch) || 
+                                 knec.includes(lowerSearch) ||
+                                 uic.includes(lowerSearch) ||
+                                 (searchTerms.length > 0 && searchTerms.every(t => name.includes(t)));
             
             const matchesType = typeFilter === 'All' || school.specialNeedType === typeFilter;
             const matchesCounty = countyFilter === 'All' || school.countyId === countyFilter;
 
             return matchesSearch && matchesType && matchesCounty;
+        });
+
+        if (searchTerm === '') return filtered;
+
+        return filtered.sort((a, b) => {
+            const aName = a.name.toLowerCase();
+            const bName = b.name.toLowerCase();
+
+            // 1. Exact match on name
+            if (aName === lowerSearch) return -1;
+            if (bName === lowerSearch) return 1;
+
+            // 2. Starts with match
+            const aStarts = aName.startsWith(lowerSearch);
+            const bStarts = bName.startsWith(lowerSearch);
+            if (aStarts && !bStarts) return -1;
+            if (bStarts && !aStarts) return 1;
+
+            return aName.localeCompare(bName);
         });
     }, [schools, searchTerm, typeFilter, countyFilter]);
 

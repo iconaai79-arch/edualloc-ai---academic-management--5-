@@ -76,17 +76,54 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
 
     const filteredSchools = useMemo(() => {
         if (!searchTerm || selectedSchool) return [];
-        const lower = searchTerm.toLowerCase();
-        const searchTerms = lower.split(' ').filter(t => t.length > 1);
+        const lower = searchTerm.toLowerCase().trim();
+        const searchTerms = lower.split(/\s+/).filter(t => t.length > 0);
         
-        return registry.filter(s => {
-            const schoolData = `${s.name} ${s.knecCode} ${s.county} ${s.region} ${s.uic}`.toLowerCase();
+        if (searchTerms.length === 0) return [];
+
+        const matches = registry.filter(s => {
+            const name = s.name.toLowerCase();
+            const code = (s.knecCode || '').toLowerCase();
+            const county = (s.county || '').toLowerCase();
+            const region = (s.region || '').toLowerCase();
+            const uic = (s.uic || '').toLowerCase();
+            const schoolData = `${name} ${code} ${county} ${region} ${uic}`;
             
-            // If very short, must be start of name or code
-            if (lower.length < 3) return schoolData.includes(lower);
+            if (lower.length < 3) {
+                return name.includes(lower) || code.includes(lower);
+            }
             
-            // Multi-word search
             return searchTerms.every(term => schoolData.includes(term));
+        });
+
+        // Rank and sort matches
+        return matches.sort((a, b) => {
+            const aName = a.name.toLowerCase();
+            const bName = b.name.toLowerCase();
+            
+            // 1. Exact match on name
+            if (aName === lower) return -1;
+            if (bName === lower) return 1;
+            
+            // 2. Starts with match on name
+            const aStarts = aName.startsWith(lower);
+            const bStarts = bName.startsWith(lower);
+            if (aStarts && !bStarts) return -1;
+            if (bStarts && !aStarts) return 1;
+            
+            // 3. All search terms present in name
+            const aNameHasTerms = searchTerms.every(t => aName.includes(t));
+            const bNameHasTerms = searchTerms.every(t => bName.includes(t));
+            if (aNameHasTerms && !bNameHasTerms) return -1;
+            if (bNameHasTerms && !aNameHasTerms) return 1;
+
+            // 4. Exact match on code (KNEC/UIC)
+            const aCode = (a.knecCode || '').toLowerCase();
+            const bCode = (b.knecCode || '').toLowerCase();
+            if (aCode === lower) return -1;
+            if (bCode === lower) return 1;
+
+            return a.name.localeCompare(b.name);
         }).slice(0, 15);
     }, [registry, searchTerm, selectedSchool]);
 
