@@ -428,7 +428,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
     const handleAddTeamMember = async () => {
         if (!newTeamMemberEmail.trim()) return;
-        const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
+        const institutionId = currentAlumna.institutionId || currentAlumna.institution_id || null;
+        const schoolId = currentAlumna.schoolId || currentAlumna.school_id || null;
         
         setIsSavingTeamMember(true);
         try {
@@ -447,7 +448,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             // 2. Add to staff table
             await apiService.saveModuleRecord('alumni_school_staff', {
                 id: `stf_${Date.now()}`,
-                institution_id: instId,
+                institution_id: institutionId,
+                school_id: schoolId,
                 member_id: member.id,
                 role: newTeamMemberRole,
                 added_by: currentAlumna.id,
@@ -494,13 +496,14 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
     const handleSendMessageToSchool = async () => {
         if (!newMessageToSchool.trim()) return;
-        const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
-        if (!instId) return;
-
+        const institutionId = currentAlumna.institutionId || currentAlumna.institution_id || null;
+        const schoolId = currentAlumna.schoolId || currentAlumna.school_id || null;
+        
         const msg = {
             id: `sm_${Date.now()}`,
             alumna_id: currentAlumna.id,
-            institution_id: instId,
+            institution_id: institutionId,
+            school_id: schoolId,
             content: newMessageToSchool,
             direction: 'to_school',
             created_at: new Date().toISOString()
@@ -512,6 +515,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 id: msg.id,
                 alumnaId: msg.alumna_id,
                 institutionId: msg.institution_id,
+                schoolId: msg.school_id,
                 content: msg.content,
                 direction: msg.direction,
                 createdAt: msg.created_at
@@ -886,7 +890,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     await apiService.saveModuleRecord('alumnae_contributions', {
                         id: `don_${Date.now()}`,
                         alumna_id: currentAlumna.id,
-                        institution_id: project.institution_id,
+                        institution_id: project.institution_id || null,
+                        school_id: project.school_id || null,
                         amount: Number(donationAmount),
                         purpose: project.title,
                         status: 'completed'
@@ -934,7 +939,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
         }
         setIsSavingJob(true);
         try {
-            const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
+        const institutionId = currentAlumna.institutionId || currentAlumna.institution_id || null;
+        const schoolId = currentAlumna.schoolId || currentAlumna.school_id || null;
             await apiService.saveModuleRecord('alumni_jobs', {
                 id: `job_${Date.now()}`,
                 title: jobData.title,
@@ -943,7 +949,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 description: jobData.description,
                 salary_range: jobData.salaryRange,
                 apply_url: jobData.applyUrl,
-                institution_id: instId,
+                institution_id: institutionId,
+                school_id: schoolId,
                 alumna_id: currentAlumna.id,
                 created_at: new Date().toISOString()
             });
@@ -974,7 +981,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 if (uploadRes.success) logoUrl = uploadRes.url || '';
             }
 
-            const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
+        const institutionId = currentAlumna.institutionId || currentAlumna.institution_id || null;
+        const schoolId = currentAlumna.schoolId || currentAlumna.school_id || null;
             await apiService.saveModuleRecord('alumni_businesses', {
                 id: `biz_${Date.now()}`,
                 business_name: businessData.businessName,
@@ -983,7 +991,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 website_url: businessData.websiteUrl,
                 exclusive_discount: businessData.exclusiveDiscount,
                 logo_url: logoUrl,
-                institution_id: instId,
+                institution_id: institutionId,
+                school_id: schoolId,
                 owner_id: currentAlumna.id,
                 created_at: new Date().toISOString()
             });
@@ -1008,11 +1017,13 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
     const handleRequestDoc = async (type: string) => {
         try {
-            const instId = currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id;
+            const institutionId = currentAlumna.institutionId || currentAlumna.institution_id || null;
+            const schoolId = currentAlumna.schoolId || currentAlumna.school_id || null;
             await apiService.saveModuleRecord('alumni_document_requests', {
                 id: `req_${Date.now()}`,
                 alumna_id: currentAlumna.id,
-                institution_id: instId,
+                institution_id: institutionId,
+                school_id: schoolId,
                 document_type: type,
                 status: 'pending'
             });
@@ -1066,8 +1077,10 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             recipientId: partnerId,
             receiver_id: partnerId,
             receiverId: partnerId,
-            institution_id: currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id || 'GLOBAL',
-            institutionId: currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id || 'GLOBAL',
+            institution_id: currentAlumna.institutionId || currentAlumna.institution_id || null,
+            institutionId: currentAlumna.institutionId || currentAlumna.institution_id || null,
+            school_id: currentAlumna.schoolId || currentAlumna.school_id || null,
+            schoolId: currentAlumna.schoolId || currentAlumna.school_id || null,
             content: newMessage,
             is_read: false,
             isRead: false,
@@ -1133,8 +1146,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                 author_id: alumnaId || 'anonymous',
                 author_name: currentAlumna.fullName || currentAlumna.name || 'Alumna',
                 author_photo: currentAlumna.profilePhotoUrl,
-                institution_id: currentAlumna.institutionId || 'GLOBAL',
-                school_id: (currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id || 'GLOBAL') as string,
+                institution_id: currentAlumna.institutionId || currentAlumna.institution_id || null,
+                school_id: currentAlumna.schoolId || currentAlumna.school_id || null,
                 group_id: selectedGroupId || undefined,
                 group_name: selectedGroupId ? groups.find(g => g.id === selectedGroupId)?.name : undefined,
                 content: newPostContent,
@@ -1208,7 +1221,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             author_id: alumnaId,
             author_name: currentAlumna.fullName || currentAlumna.name || 'Alumna',
             author_photo: currentAlumna.profilePhotoUrl,
-            institution_id: currentAlumna.institutionId || currentAlumna.schoolId || currentAlumna.institution_id || 'GLOBAL',
+            institution_id: currentAlumna.institutionId || currentAlumna.institution_id || null,
+            school_id: currentAlumna.schoolId || currentAlumna.school_id || null,
             content,
             created_at: new Date().toISOString()
         };
