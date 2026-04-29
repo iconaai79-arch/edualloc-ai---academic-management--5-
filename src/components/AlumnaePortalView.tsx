@@ -160,6 +160,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
     const [showMoreMobileMenu, setShowMoreMobileMenu] = useState(false);
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+    const [postsLimit, setPostsLimit] = useState(10);
     const [showPostJobModal, setShowPostJobModal] = useState(false);
     const [jobData, setJobData] = useState({
         title: '',
@@ -667,7 +668,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             
             const data = await apiService.fetchModuleRecords('alumni_posts', undefined, undefined, { 
                 filter: filters,
-                order: 'created_at.desc'
+                order: 'created_at.desc',
+                limit: postsLimit
             });
 
             // Mapping database results (snake_case) to UI type (camelCase)
@@ -1588,7 +1590,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             schoolProjects.map(event => ( // Assuming events are loaded into schoolProjects or similar
                                                 <div key={event.id} className="bg-white/5 border border-white/10 shadow-xl">
                                                     <div className="h-48 relative overflow-hidden">
-                                                        {event.image_url ? <img src={event.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" /> : <div className="w-full h-full bg-amber-50 flex items-center justify-center opacity-20"><Calendar className="w-12 h-12" /></div>}
+                                                        {event.image_url ? <img loading="lazy" src={event.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" /> : <div className="w-full h-full bg-amber-50 flex items-center justify-center opacity-20"><Calendar className="w-12 h-12" /></div>}
                                                     </div>
                                                     <div className="p-8">
                                                         <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">{event.title}</h3>
@@ -1745,7 +1747,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                     {/* Visual Hub */}
                                                     <div className="lg:w-2/5 h-80 lg:h-auto relative overflow-hidden">
                                                         {project.imageUrl ? (
-                                                            <img src={project.imageUrl} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
+                                                            <img loading="lazy" src={project.imageUrl} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
                                                         ) : (
                                                             <div className="w-full h-full bg-slate-900 flex items-center justify-center">
                                                                 <Building2 className="w-20 h-20 text-white/10 animate-pulse" />
@@ -1878,7 +1880,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                         <div className="absolute -inset-1 bg-gradient-to-tr from-indigo-500 to-rose-500 rounded-[2.5rem] blur opacity-20 group-hover:opacity-60 transition-opacity"></div>
                                                         <div className="relative w-32 h-32 rounded-[2.25rem] bg-[#020617] border border-white/10 p-1">
                                                             {member.profile_photo_url || member.profilePhotoUrl ? (
-                                                                <img src={member.profile_photo_url || member.profilePhotoUrl} className="w-full h-full object-cover rounded-[2rem]" />
+                                                                <img loading="lazy" src={member.profile_photo_url || member.profilePhotoUrl} className="w-full h-full object-cover rounded-[2rem]" />
                                                             ) : (
                                                                 <div className="w-full h-full flex items-center justify-center text-slate-600">
                                                                     <User className="w-12 h-12" />
@@ -2032,7 +2034,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                     >
                                                         <div className="relative">
                                                             <div className="w-14 h-14 rounded-2xl bg-white/10 overflow-hidden shrink-0 border border-slate-100 dark:border-slate-800 shadow-sm">
-                                                                {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
+                                                                {member.profilePhotoUrl ? <img loading="lazy" src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
                                                             </div>
                                                             <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-white dark:border-slate-950 rounded-full"></div>
                                                         </div>
@@ -2054,7 +2056,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                             <ArrowLeft className="w-5 h-5" />
                                                         </button>
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 rounded-lg bg-slate-100 overflow-hidden"><img src={activeConversationPartner.profilePhotoUrl} className="w-full h-full object-cover" /></div>
+                                                            <div className="w-8 h-8 rounded-lg bg-slate-100 overflow-hidden"><img loading="lazy" src={activeConversationPartner.profilePhotoUrl} className="w-full h-full object-cover" /></div>
                                                             <h5 className="text-[10px] font-black uppercase tracking-widest">{activeConversationPartner.fullName}</h5>
                                                         </div>
                                                         <div className="w-10"></div>
@@ -2168,7 +2170,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                         <div className="absolute -inset-1 bg-gradient-to-tr from-indigo-500 to-rose-500 rounded-[2.25rem] blur opacity-20 group-hover:opacity-60 transition-opacity"></div>
                                                         <div className="relative w-24 h-24 rounded-[2rem] bg-[#020617] border border-white/10 p-1">
                                                             {member.profilePhotoUrl ? (
-                                                                <img src={member.profilePhotoUrl} className="w-full h-full object-cover rounded-[1.75rem]" />
+                                                                <img loading="lazy" src={member.profilePhotoUrl} className="w-full h-full object-cover rounded-[1.75rem]" />
                                                             ) : (
                                                                 <div className="w-full h-full flex items-center justify-center text-slate-600">
                                                                     <User className="w-10 h-10" />
@@ -2322,7 +2324,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 <div key={biz.id} className="group relative overflow-hidden bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[3rem] transition-all hover:scale-[1.02] hover:border-rose-500/30 shadow-2xl">
                                                     <div className="h-64 relative overflow-hidden">
                                                         {biz.logo_url ? (
-                                                            <img src={biz.logo_url} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
+                                                            <img loading="lazy" src={biz.logo_url} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
                                                         ) : (
                                                             <div className="w-full h-full bg-[#020617] flex items-center justify-center text-slate-800">
                                                                 <ShoppingBag className="w-16 h-16" />
@@ -2407,7 +2409,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                             <div className="absolute -inset-1 bg-gradient-to-tr from-indigo-500 to-rose-500 rounded-[2.25rem] blur opacity-20 group-hover:opacity-60 transition-opacity"></div>
                                                             <div className="relative w-24 h-24 rounded-[2rem] bg-[#020617] border border-white/10 p-1">
                                                                 {mentor.profilePhotoUrl ? (
-                                                                    <img src={mentor.profilePhotoUrl} className="w-full h-full object-cover rounded-[1.75rem]" />
+                                                                    <img loading="lazy" src={mentor.profilePhotoUrl} className="w-full h-full object-cover rounded-[1.75rem]" />
                                                                 ) : (
                                                                     <div className="w-full h-full flex items-center justify-center text-slate-600">
                                                                         <User className="w-10 h-10" />
@@ -2528,7 +2530,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 schoolTeam.map(member => (
                                                     <div key={member.id} className="bg-white/5 border border-white/10">
                                                         <div className="w-16 h-16 rounded-2xl bg-white/10 overflow-hidden shrink-0 border border-slate-100 dark:border-slate-800 shadow-sm relative">
-                                                            {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
+                                                            {member.profilePhotoUrl ? <img loading="lazy" src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
                                                             <div className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 ${member.role === 'Admin' ? 'bg-amber-400' : member.role === 'Moderator' ? 'bg-indigo-400' : 'bg-emerald-400'}`}></div>
                                                         </div>
                                                         <div className="flex-1">
@@ -2594,7 +2596,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 <div key={group.id} className="group relative overflow-hidden bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[3rem] transition-all hover:scale-[1.02] hover:border-emerald-500/30 shadow-2xl">
                                                     <div className="h-48 relative overflow-hidden">
                                                         {group.image_url ? (
-                                                            <img src={group.image_url} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
+                                                            <img loading="lazy" src={group.image_url} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
                                                         ) : (
                                                             <div className="w-full h-full bg-[#020617] flex items-center justify-center text-slate-800">
                                                                 <Globe className="w-12 h-12" />
@@ -2641,7 +2643,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                     <div className="relative shrink-0">
                                                         <div className="absolute -inset-2 bg-gradient-to-tr from-indigo-500 via-purple-500 to-rose-500 rounded-[2.8rem] opacity-30 animate-pulse group-hover:opacity-100 transition-opacity duration-1000"></div>
                                                         <div className="w-40 h-40 rounded-[2.5rem] bg-slate-900 border-4 border-white/10 p-1 relative z-10 overflow-hidden shadow-2xl group-hover:scale-105 transition-transform duration-700">
-                                                            <img src={successStories.find(s => s.is_featured).image_url} className="w-full h-full object-cover rounded-[2.1rem]" />
+                                                            <img loading="lazy" src={successStories.find(s => s.is_featured).image_url} className="w-full h-full object-cover rounded-[2.1rem]" />
                                                         </div>
                                                     </div>
                                                     
@@ -2773,7 +2775,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 <div className="relative group shrink-0 hidden sm:block">
                                                     <div className="absolute -inset-1 bg-gradient-to-tr from-indigo-500 to-rose-500 rounded-3xl blur opacity-20 group-hover:opacity-40 transition-opacity"></div>
                                                     <div className="w-16 h-16 rounded-3xl bg-[#020617] border border-white/10 p-1 relative z-10 shadow-2xl">
-                                                        {currentAlumna.profilePhotoUrl ? <img src={currentAlumna.profilePhotoUrl} className="w-full h-full object-cover rounded-2xl" /> : <User className="w-full h-full p-4 text-slate-500" />}
+                                                        {currentAlumna.profilePhotoUrl ? <img loading="lazy" src={currentAlumna.profilePhotoUrl} className="w-full h-full object-cover rounded-2xl" /> : <User className="w-full h-full p-4 text-slate-500" />}
                                                     </div>
                                                     <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 border-4 border-[#020617] rounded-full animate-pulse"></div>
                                                 </div>
@@ -2792,7 +2794,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                     {postImagePreview && (
                                                         <div className="relative rounded-[3rem] overflow-hidden border border-white/10 shadow-[0_30px_60px_rgba(0,0,0,0.4)] group/preview animate-in zoom-in-95 duration-500">
                                                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover/preview:opacity-100 transition-opacity duration-500"></div>
-                                                            <img src={postImagePreview} className="w-full h-full object-cover max-h-[500px]" />
+                                                            <img loading="lazy" src={postImagePreview} className="w-full h-full object-cover max-h-[500px]" />
                                                             <button 
                                                                 onClick={() => { setPostImageFile(null); setPostImagePreview(null); }}
                                                                 className="absolute top-8 right-8 p-4 bg-black/40 hover:bg-rose-500 text-white rounded-full backdrop-blur-xl transition-all shadow-2xl active:scale-90"
@@ -2902,7 +2904,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                             className="w-14 h-14 rounded-2xl bg-white/10 overflow-hidden shrink-0 cursor-pointer shadow-sm group-hover/post:scale-105 transition-transform" 
                                                             onClick={post.authorId ? () => setViewedProfileId(post.authorId) : undefined}
                                                         >
-                                                            {post.authorPhoto ? <img src={post.authorPhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
+                                                            {post.authorPhoto ? <img loading="lazy" src={post.authorPhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
                                                         </div>
                                                         <div className="flex-1">
                                                             <div className="flex items-center gap-3 mb-2">
@@ -2927,12 +2929,13 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                                     className="mb-6 rounded-[2.5rem] overflow-hidden border border-slate-100 dark:border-slate-800 cursor-zoom-in shadow-xl hover:shadow-2xl transition-all duration-500" 
                                                                     onClick={() => setZoomedImage(post.photoUrl || null)}
                                                                 >
-                                                                    <img src={post.photoUrl} className="w-full max-h-[500px] object-cover group-hover/post:scale-[1.02] transition-transform duration-1000" />
+                                                                    <img loading="lazy" src={post.photoUrl} className="w-full max-h-[500px] object-cover group-hover/post:scale-[1.02] transition-transform duration-1000" />
                                                                 </div>
                                                             )}
                                                             {post.videoUrl && (
                                                                 <div className="mb-6 rounded-[2.5rem] overflow-hidden border border-slate-100 dark:border-slate-800 shadow-xl">
                                                                     <video 
+                                                                        preload="none"
                                                                         src={post.videoUrl} 
                                                                         controls 
                                                                         className="w-full max-h-[500px] object-cover"
@@ -2965,7 +2968,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                                         {(comments[post.id] || []).map((comment) => (
                                                                             <div key={comment.id} className="flex gap-4 group/comment">
                                                                                 <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-50">
-                                                                                    {comment.authorPhoto ? <img src={comment.authorPhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-300" />}
+                                                                                    {comment.authorPhoto ? <img loading="lazy" src={comment.authorPhoto} className="w-full h-full object-cover" /> : <User className="w-full h-full p-2 text-slate-300" />}
                                                                                 </div>
                                                                                 <div className="bg-white/5 rounded-[1.75rem] px-6 py-4 flex-1 shadow-sm group-hover/comment:bg-white/10 transition-colors">
                                                                                     <div className="flex justify-between items-center mb-1">
@@ -2981,7 +2984,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                                         )}
                                                                     </div>
                                                                     <div className="flex gap-4 items-center">
-                                                                        <div className="w-10 h-10 rounded-xl bg-slate-100 shrink-0 overflow-hidden"><img src={currentAlumna.profilePhotoUrl} className="w-full h-full object-cover" /></div>
+                                                                        <div className="w-10 h-10 rounded-xl bg-slate-100 shrink-0 overflow-hidden"><img loading="lazy" src={currentAlumna.profilePhotoUrl} className="w-full h-full object-cover" /></div>
                                                                         <div className="relative flex-1">
                                                                             <input 
                                                                                 type="text" 
@@ -3015,6 +3018,16 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                     </div>
                                                 </div>
                                             ))}
+                                            {posts.length >= postsLimit && (
+                                                <div className="flex justify-center mt-12 pb-20">
+                                                    <button 
+                                                        onClick={() => setPostsLimit(prev => prev + 10)}
+                                                        className="px-10 py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white hover:border-indigo-500 transition-all active:scale-95"
+                                                    >
+                                                        Sync More Feed Data
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </>
@@ -3110,7 +3123,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                 {featuredMembers.map((member) => (
                                     <div key={member.id} className="flex items-center gap-5 p-3 rounded-3xl hover:bg-white/10 transition-all cursor-pointer" onClick={() => member.id && setViewedProfileId(member.id)}>
                                         <div className="w-14 h-14 rounded-2xl bg-white/20 p-1 ring-2 ring-white/50">
-                                            {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover rounded-xl" /> : <User className="w-full h-full p-2 text-white/50" />}
+                                            {member.profilePhotoUrl ? <img loading="lazy" src={member.profilePhotoUrl} className="w-full h-full object-cover rounded-xl" /> : <User className="w-full h-full p-2 text-white/50" />}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-black uppercase truncate tracking-tight">{member.fullName}</p>
@@ -3310,7 +3323,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                             <div className="flex items-center gap-6">
                                 <div className="w-24 h-24 rounded-3xl bg-white/10 flex items-center justify-center relative overflow-hidden group border-2 border-dashed border-slate-200">
                                     {businessLogoFile ? (
-                                        <img src={URL.createObjectURL(businessLogoFile)} className="w-full h-full object-cover" />
+                                        <img loading="lazy" src={URL.createObjectURL(businessLogoFile)} className="w-full h-full object-cover" />
                                     ) : (
                                         <ShoppingBag className="w-8 h-8 text-slate-300" />
                                     )}
@@ -3404,9 +3417,9 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                 <div className="flex flex-col items-center gap-8">
                                     <div className="w-full h-40 bg-white/10 rounded-[2.5rem] relative overflow-hidden group shadow-inner">
                                         {profileCoverPhotoFile ? (
-                                            <img src={URL.createObjectURL(profileCoverPhotoFile)} className="w-full h-full object-cover" />
+                                            <img loading="lazy" src={URL.createObjectURL(profileCoverPhotoFile)} className="w-full h-full object-cover" />
                                         ) : profileData.coverPhotoUrl ? (
-                                            <img src={profileData.coverPhotoUrl} className="w-full h-full object-cover" />
+                                            <img loading="lazy" src={profileData.coverPhotoUrl} className="w-full h-full object-cover" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center opacity-10"><Building2 className="w-16 h-16" /></div>
                                         )}
@@ -3422,9 +3435,9 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                         <div className="w-32 h-32 rounded-[2.5rem] bg-white dark:bg-slate-900 p-2 shadow-2xl">
                                             <div className="w-full h-full rounded-[2.25rem] bg-white/10 overflow-hidden ring-4 ring-indigo-500/10 transition-transform group-hover:scale-105">
                                                 {profilePhotoUrlFile ? (
-                                                    <img src={URL.createObjectURL(profilePhotoUrlFile)} className="w-full h-full object-cover" />
+                                                    <img loading="lazy" src={URL.createObjectURL(profilePhotoUrlFile)} className="w-full h-full object-cover" />
                                                 ) : profileData.profilePhotoUrl ? (
-                                                    <img src={profileData.profilePhotoUrl} className="w-full h-full object-cover" />
+                                                    <img loading="lazy" src={profileData.profilePhotoUrl} className="w-full h-full object-cover" />
                                                 ) : (
                                                     <User className="w-full h-full p-8 text-slate-300" />
                                                 )}
@@ -3614,7 +3627,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         <div className="relative">
                             <div className="h-64 md:h-80 bg-white/10 relative overflow-hidden group">
                                 {viewedProfileData?.coverPhotoUrl ? (
-                                    <img src={viewedProfileData.coverPhotoUrl} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
+                                    <img loading="lazy" src={viewedProfileData.coverPhotoUrl} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
                                 ) : (
                                     <div className="w-full h-full bg-gradient-to-br from-indigo-700 via-indigo-600 to-indigo-900 relative">
                                         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
@@ -3627,7 +3640,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                 <div className="w-40 h-40 md:w-56 md:h-56 rounded-[4rem] bg-[#020617] p-3 shadow-2xl border border-white/10">
                                     <div className="w-full h-full rounded-[3.5rem] bg-white/5 overflow-hidden ring-1 ring-indigo-500/20 shadow-inner">
                                         {viewedProfileData?.profilePhotoUrl ? (
-                                            <img src={viewedProfileData.profilePhotoUrl} className="w-full h-full object-cover" />
+                                            <img loading="lazy" src={viewedProfileData.profilePhotoUrl} className="w-full h-full object-cover" />
                                         ) : (
                                             <User className="w-full h-full p-12 text-slate-200" />
                                         )}
@@ -3734,7 +3747,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                 <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-base mb-6 font-medium">{post.content}</p>
                                                 {post.photoUrl && (
                                                     <div className="mb-6 rounded-[3rem] overflow-hidden border-4 border-white dark:border-slate-900 shadow-2xl shadow-slate-200/50 group cursor-zoom-in" onClick={() => setZoomedImage(post.photoUrl || null)}>
-                                                        <img src={post.photoUrl} className="w-full max-h-[500px] object-cover group-hover:scale-[1.03] transition-transform duration-1000" />
+                                                        <img loading="lazy" src={post.photoUrl} className="w-full max-h-[500px] object-cover group-hover:scale-[1.03] transition-transform duration-1000" />
                                                     </div>
                                                 )}
                                                 <div className="flex items-center gap-10 text-slate-400 ml-[-8px]">
@@ -3758,7 +3771,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                     {profilePosts.filter(p => p.photoUrl || p.videoUrl).map((post, idx) => (
                                         <div key={idx} className="aspect-square rounded-[3rem] overflow-hidden bg-slate-100 group cursor-pointer relative shadow-2xl shadow-slate-200/50 hover:scale-105 transition-all duration-500 ring-1 ring-slate-100 group">
                                             {post.photoUrl ? (
-                                                <img src={post.photoUrl} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
+                                                <img loading="lazy" src={post.photoUrl} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
                                             ) : (
                                                 <div className="w-full h-full bg-slate-950 flex items-center justify-center"><Video className="w-10 h-10 text-white/50" /></div>
                                             )}
@@ -3798,6 +3811,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     
                     <div className="relative max-w-full max-h-full flex items-center justify-center animate-in zoom-in-95 duration-700 group">
                         <img 
+                            loading="lazy" 
                             src={zoomedImage} 
                             className="max-w-full max-h-full object-contain rounded-[3rem] shadow-[0_40px_100px_rgba(0,0,0,0.6)] ring-1 ring-white/10 transition-transform duration-500 group-hover:scale-105" 
                             onClick={(e) => e.stopPropagation()}
