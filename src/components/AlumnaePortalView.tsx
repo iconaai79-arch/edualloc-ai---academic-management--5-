@@ -33,6 +33,7 @@ import {
     Atom,
     Crown,
     ChevronRight,
+    ChevronDown,
     Mail,
     Lock,
     Eye,
@@ -1478,9 +1479,15 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         case 'events':
                             return (
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
-                                    <header className="px-8 py-10 bg-amber-500 text-white rounded-b-[3rem] shadow-2xl mb-12">
-                                        <h2 className="text-3xl font-black uppercase tracking-tight mb-2">Legacy <span className="opacity-40 italic">Events</span></h2>
-                                        <p className="text-[10px] text-amber-100 font-bold uppercase tracking-[0.4em]">Reunions & Networking Assemblies</p>
+                                    <header className="relative px-10 py-12 mb-12 overflow-hidden rounded-b-[4rem] shadow-[0_30px_60px_rgba(0,0,0,0.5)]">
+                                        <div className="absolute inset-0 bg-indigo-600/90 backdrop-blur-2xl"></div>
+                                        <div className="absolute inset-0 opacity-20 animate-mesh"></div>
+                                        <div className="absolute -right-20 -top-20 w-80 h-80 bg-white/10 rounded-full blur-[80px] animate-pulse-slow"></div>
+                                        
+                                        <div className="relative z-10">
+                                            <h2 className="text-4xl font-black uppercase tracking-tight text-white leading-none">Legacy <span className="text-indigo-200 italic opacity-80">Events</span></h2>
+                                            <p className="text-[10px] text-indigo-100/60 font-black uppercase tracking-[0.5em] mt-4">Verified Social & Professional Gatherings</p>
+                                        </div>
                                     </header>
                                     <div className="px-6 space-y-8">
                                         {schoolProjects.length === 0 ? ( // Reusing variable name if needed or using a new one if I loaded it
@@ -1522,82 +1529,106 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         case 'support':
                             return (
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen flex flex-col">
-                                    <header className="px-6 py-5 border-b border-white/5 flex items-center gap-4 sticky top-0 bg-[#020617]/90 backdrop-blur-xl z-20">
-                                        <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-200">
-                                            <Building2 className="w-5 h-5" />
-                                        </div>
-                                        <div>
-                                            <h4 className="text-sm font-black text-white uppercase tracking-tight">Institutional Response Network</h4>
-                                            <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-widest flex items-center gap-1">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                                Priority Line Active
-                                            </p>
+                                    <header className="relative px-10 py-12 mb-12 overflow-hidden rounded-b-[4rem] shadow-[0_30px_60px_rgba(0,0,0,0.5)]">
+                                        <div className="absolute inset-0 bg-indigo-600/90 backdrop-blur-2xl"></div>
+                                        <div className="absolute inset-0 opacity-30 animate-mesh"></div>
+                                        <div className="absolute -right-20 -top-20 w-80 h-80 bg-white/10 rounded-full blur-[80px] animate-pulse-slow"></div>
+                                        
+                                        <div className="relative z-10">
+                                            <h2 className="text-4xl font-black uppercase tracking-tight text-white leading-none">Institutional <span className="text-indigo-200 italic opacity-80">Support</span></h2>
+                                            <p className="text-[10px] text-indigo-100/60 font-black uppercase tracking-[0.5em] mt-4">Direct Administrative & Document Assistance</p>
                                         </div>
                                     </header>
 
-                                    <div className="flex-1 overflow-y-auto p-6 space-y-10 flex flex-col no-scrollbar">
+                                    <div className="flex-1 overflow-y-auto p-8 space-y-12 flex flex-col no-scrollbar relative z-10">
                                         {/* Document Request Section */}
-                                        <div className="space-y-6">
-                                            <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 flex items-center gap-3">
-                                                <div className="w-8 h-px bg-slate-100" />
-                                                Digital Document Vault
-                                            </h4>
-                                            <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-8">
+                                            <div className="flex items-center gap-4">
+                                                <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-indigo-500/50"></div>
+                                                <h4 className="text-[11px] font-black uppercase tracking-[0.4em] text-indigo-400/80">Digital Document Vault</h4>
+                                                <div className="h-[1px] flex-1 bg-gradient-to-r from-indigo-500/50 to-transparent"></div>
+                                            </div>
+                                            
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                                 {['Transcript', 'Certificate', 'Recommendation', 'ID Card'].map(type => (
                                                     <button 
                                                         key={type}
                                                         onClick={() => handleRequestDoc(type)}
-                                                        className="p-6 bg-white/5 border border-slate-100 dark:border-slate-800 rounded-[2rem] hover:bg-white hover:border-indigo-400 transition-all text-left group"
+                                                        className="relative group overflow-hidden p-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2.5rem] transition-all hover:scale-[1.02] active:scale-95 text-left"
                                                     >
-                                                        <Building2 className="w-6 h-6 text-slate-300 mb-4 group-hover:text-indigo-600 group-hover:scale-110 transition-all" />
-                                                        <p className="text-[10px] font-black uppercase tracking-tight text-white">{type}</p>
-                                                        <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-1">Formal Request</p>
+                                                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/10 via-transparent to-rose-600/10 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                                                        <div className="relative z-10">
+                                                            <div className="w-14 h-14 bg-indigo-600/10 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-indigo-600 transition-colors duration-500">
+                                                                <Building2 className="w-6 h-6 text-indigo-400 group-hover:text-white group-hover:scale-110 transition-all duration-500" />
+                                                            </div>
+                                                            <h5 className="text-sm font-black uppercase tracking-tight text-white mb-2">{type} Request</h5>
+                                                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">Secure protocol for official registry documentation</p>
+                                                            
+                                                            <div className="mt-6 flex items-center gap-2 text-indigo-400 opacity-0 group-hover:opacity-100 transition-all transform translate-x-[-10px] group-hover:translate-x-0 duration-500">
+                                                                <span className="text-[9px] font-black uppercase tracking-widest">Initialize Protocol</span>
+                                                                <ArrowRight className="w-3 h-3" />
+                                                            </div>
+                                                        </div>
                                                     </button>
                                                 ))}
                                             </div>
                                         </div>
 
-                                        <div className="space-y-6">
-                                            <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 flex items-center gap-3">
-                                                <div className="w-8 h-px bg-slate-100" />
-                                                Official Correspondence
-                                            </h4>
-                                            {schoolInbox.length === 0 ? (
-                                            <div className="flex-1 flex flex-col items-center justify-center opacity-30 mt-20">
-                                                <MessageSquare className="w-16 h-16 mb-6" />
-                                                <p className="text-xs font-black uppercase tracking-[0.3em] text-center max-w-xs">
-                                                    Start an official conversation with your alma mater's administration.
-                                                </p>
+                                        <div className="space-y-8">
+                                            <div className="flex items-center gap-4">
+                                                <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-rose-500/50"></div>
+                                                <h4 className="text-[11px] font-black uppercase tracking-[0.4em] text-rose-400/80">Official Correspondence</h4>
+                                                <div className="h-[1px] flex-1 bg-gradient-to-r from-rose-500/50 to-transparent"></div>
                                             </div>
-                                        ) : (
-                                            schoolInbox.map((msg, idx) => (
-                                                <div key={idx} className={`flex flex-col ${msg.direction === 'to_school' ? 'items-end' : 'items-start'}`}>
-                                                    <div className={`max-w-[85%] p-5 rounded-3xl text-sm font-medium leading-relaxed shadow-sm ${msg.direction === 'to_school' ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white/10 text-white rounded-tl-none'}`}>
-                                                        {msg.content}
+
+                                            <div className="space-y-6 min-h-[300px]">
+                                                {schoolInbox.length === 0 ? (
+                                                    <div className="flex-1 flex flex-col items-center justify-center opacity-20 py-20">
+                                                        <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-8 border border-white/10">
+                                                            <MessageSquare className="w-8 h-8 text-white" />
+                                                        </div>
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white text-center max-w-xs leading-loose">
+                                                            Establish high-priority sync with institutional administration.
+                                                        </p>
                                                     </div>
-                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-2 px-2">
-                                                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                    </span>
-                                                </div>
-                                            ))
-                                        )}
+                                                ) : (
+                                                    schoolInbox.map((msg, idx) => (
+                                                        <div key={idx} className={`flex flex-col ${msg.direction === 'to_school' ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2`}>
+                                                            <div className={`max-w-[85%] p-6 rounded-[2rem] text-sm font-medium leading-relaxed shadow-2xl relative overflow-hidden ${msg.direction === 'to_school' ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white/5 border border-white/10 text-white rounded-tl-none backdrop-blur-xl'}`}>
+                                                                {msg.direction === 'to_school' && <div className="absolute inset-0 opacity-20 animate-mesh pointer-events-none"></div>}
+                                                                <p className="relative z-10">{msg.content}</p>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 mt-3 px-4">
+                                                                <div className={`w-1 h-1 rounded-full ${msg.direction === 'to_school' ? 'bg-indigo-400' : 'bg-slate-500'}`}></div>
+                                                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                                                                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <div className="sticky bottom-0 p-6 bg-[#020617]/95 backdrop-blur-md border-t border-white/5 flex items-center gap-4">
-                                        <input 
-                                            type="text" 
-                                            value={newMessageToSchool}
-                                            onChange={(e) => setNewMessageToSchool(e.target.value)}
-                                            onKeyPress={(e) => e.key === 'Enter' && handleSendMessageToSchool()}
-                                            placeholder="Type your official request..."
-                                            className="flex-1 h-14 px-8 bg-white/10 border-none rounded-2xl text-xs font-bold text-white placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner"
-                                        />
-                                        <button 
-                                            onClick={handleSendMessageToSchool}
-                                            className="w-14 h-14 bg-indigo-600 text-white rounded-2xl flex items-center justify-center hover:scale-105 transition-all shadow-xl shadow-indigo-100 dark:shadow-none"
-                                        >
-                                            <Send className="w-5 h-5" />
-                                        </button>
+                                    <div className="sticky bottom-0 p-8 bg-[#020617]/80 backdrop-blur-3xl border-t border-white/10 z-30">
+                                        <div className="max-w-4xl mx-auto flex items-center gap-6 relative">
+                                            <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-rose-500 rounded-2xl blur opacity-20 group-focus-within:opacity-40 transition-opacity"></div>
+                                            <input 
+                                                type="text" 
+                                                value={newMessageToSchool}
+                                                onChange={(e) => setNewMessageToSchool(e.target.value)}
+                                                onKeyPress={(e) => e.key === 'Enter' && handleSendMessageToSchool()}
+                                                placeholder="Initialize encrypted channel message..."
+                                                className="relative flex-1 h-16 px-8 bg-[#020617] border border-white/10 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white placeholder:text-slate-600 focus:ring-2 focus:ring-indigo-600 transition-all outline-none"
+                                            />
+                                            <button 
+                                                onClick={handleSendMessageToSchool}
+                                                className="relative h-16 w-16 bg-indigo-600 text-white rounded-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-indigo-500/20 group"
+                                            >
+                                                <Send className="w-5 h-5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1606,81 +1637,114 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         case 'funding':
                             return (
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
-                                    <header className="px-8 py-10 bg-indigo-600 text-white rounded-b-[3rem] shadow-2xl mb-12 relative overflow-hidden">
-                                        <div className="absolute top-0 right-0 p-10 opacity-10 rotate-12"><Building2 className="w-40 h-40" /></div>
-                                        <h2 className="text-3xl font-black uppercase tracking-tight mb-3">Institutional <span className="opacity-60 italic text-indigo-200">Projects</span></h2>
-                                        <p className="text-[10px] text-indigo-100 font-bold uppercase tracking-[0.4em]">Propelling growth through collective legacy</p>
+                                    <header className="relative px-10 py-12 mb-12 overflow-hidden rounded-b-[4rem] shadow-[0_30px_60px_rgba(0,0,0,0.5)]">
+                                        <div className="absolute inset-0 bg-emerald-600/90 backdrop-blur-2xl"></div>
+                                        <div className="absolute inset-0 opacity-20 animate-mesh"></div>
+                                        <div className="absolute -right-20 -top-20 w-80 h-80 bg-white/10 rounded-full blur-[80px] animate-pulse-slow"></div>
+
+                                        <div className="relative z-10">
+                                            <h2 className="text-4xl font-black uppercase tracking-tight text-white leading-none">Endowment <span className="text-emerald-100 italic opacity-80">Vault</span></h2>
+                                            <p className="text-[10px] text-emerald-50 font-black uppercase tracking-[0.5em] mt-4">Empowering Institutional Longevity</p>
+                                        </div>
                                     </header>
 
-                                    <div className="px-6 space-y-12">
+                                    <div className="px-8 space-y-16 pb-32">
                                         {schoolProjects.map((project) => (
-                                            <div key={project.id} className="bg-white/5 border border-white/10 shadow-2xl">
-                                                <div className="h-64 relative overflow-hidden group">
-                                                    {project.imageUrl ? <img src={project.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" /> : <div className="w-full h-full bg-slate-100 items-center justify-center flex"><Building2 className="w-12 h-12 opacity-20" /></div>}
-                                                    <div className="absolute top-6 left-6 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[8px] font-black uppercase tracking-widest shadow-xl">
-                                                        {project.status === 'active' ? 'Developmental' : 'Legacy Project'}
-                                                    </div>
-                                                </div>
-                                                <div className="p-10">
-                                                    <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-4">{project.title}</h3>
-                                                    <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-8">{project.description}</p>
-                                                    <div className="space-y-8">
-                                                        <div>
-                                                            <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-3">
-                                                                <span className="text-slate-400">Raised: KES {project.current_amount || project.currentAmount || 0}</span>
-                                                                <span className="text-indigo-600">{Math.round(((project.current_amount || project.currentAmount || 0) / (project.target_amount || project.targetAmount)) * 100)}% Complete</span>
+                                            <div key={project.id} className="relative group rounded-[4rem] overflow-hidden bg-white/5 backdrop-blur-3xl border border-white/10 shadow-[0_40px_80px_rgba(0,0,0,0.5)] transition-all hover:border-emerald-500/30">
+                                                <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/5 via-transparent to-rose-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
+                                                
+                                                <div className="flex flex-col lg:flex-row">
+                                                    {/* Visual Hub */}
+                                                    <div className="lg:w-2/5 h-80 lg:h-auto relative overflow-hidden">
+                                                        {project.imageUrl ? (
+                                                            <img src={project.imageUrl} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
+                                                        ) : (
+                                                            <div className="w-full h-full bg-slate-900 flex items-center justify-center">
+                                                                <Building2 className="w-20 h-20 text-white/10 animate-pulse" />
                                                             </div>
-                                                            <div className="w-full h-4 bg-white/10 rounded-full overflow-hidden p-1 shadow-inner">
-                                                                <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${Math.min(100, ((project.current_amount || project.currentAmount || 0) / (project.target_amount || project.targetAmount)) * 100)}%` }}></div>
+                                                        )}
+                                                        <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-transparent to-transparent lg:bg-gradient-to-r"></div>
+                                                        
+                                                        <div className="absolute top-8 left-8">
+                                                            <div className="px-5 py-2 bg-emerald-500 text-white rounded-full text-[9px] font-black uppercase tracking-widest shadow-2xl flex items-center gap-2">
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></div>
+                                                                {project.status === 'active' ? 'Active Endowment' : 'Legacy Archive'}
                                                             </div>
                                                         </div>
-                                                        
-                                                        <div className="pt-8 border-t border-slate-50 dark:border-slate-800">
-                                                            <div className="flex flex-col sm:flex-row gap-4 mb-10">
-                                                                <div className="flex-1 relative">
-                                                                    <input 
-                                                                        type="number" 
-                                                                        placeholder="Legacy Amount (KES)..."
-                                                                        value={donationAmount}
-                                                                        onChange={(e) => setDonationAmount(e.target.value)}
-                                                                        className="w-full h-16 pl-10 pr-4 bg-white/5 border-none rounded-2xl text-xs font-black focus:ring-2 focus:ring-indigo-600 transition-all shadow-inner"
-                                                                    />
-                                                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-[10px]">KES</div>
-                                                                </div>
-                                                                <button 
-                                                                    onClick={() => handleDonate(project)}
-                                                                    disabled={isDonating || !donationAmount}
-                                                                    className="px-10 h-16 bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 hover:scale-105 transition-all shadow-xl shadow-emerald-100 flex items-center justify-center gap-3"
-                                                                >
-                                                                    {isDonating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Heart className="w-5 h-5" />}
-                                                                    Fuel Legacy
-                                                                </button>
-                                                            </div>
+                                                    </div>
 
-                                                            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-6 flex items-center gap-2">
-                                                                <div className="w-1 h-1 rounded-full bg-indigo-600"></div>
-                                                                Developmental Milestones
-                                                            </h4>
+                                                    {/* Content Nexus */}
+                                                    <div className="lg:w-3/5 p-12 lg:p-16 flex flex-col justify-between relative z-10">
+                                                        <div>
+                                                            <h3 className="text-3xl font-black text-white uppercase tracking-tight mb-6 leading-tight group-hover:text-emerald-400 transition-colors">{project.title}</h3>
+                                                            <p className="text-sm text-slate-400 leading-relaxed mb-10 font-medium">{project.description}</p>
+                                                            
                                                             <div className="space-y-8">
-                                                                {projectUpdates.filter(u => u.project_id === project.id).map(update => (
-                                                                    <div key={update.id} className="flex gap-6 group">
-                                                                        <div className="w-px bg-white/10 relative">
-                                                                            <div className="absolute top-0 -left-1.5 w-3 h-3 rounded-full bg-indigo-600 ring-8 ring-white dark:ring-slate-950"></div>
-                                                                        </div>
-                                                                        <div className="pb-4 flex-1">
-                                                                            <h5 className="text-[12px] font-black uppercase text-white tracking-tight">{update.title}</h5>
-                                                                            <p className="text-xs text-slate-500 mt-2 leading-relaxed">{update.content}</p>
-                                                                            <p className="text-[8px] text-slate-400 uppercase font-black mt-3 flex items-center gap-2">
-                                                                                <Calendar className="w-3 h-3" />
-                                                                                {new Date(update.created_at).toLocaleDateString()}
-                                                                            </p>
-                                                                        </div>
+                                                                <div>
+                                                                    <div className="flex justify-between text-[11px] font-black uppercase tracking-widest mb-4">
+                                                                        <span className="text-emerald-400">Raised: KES {project.current_amount || project.currentAmount || 0}</span>
+                                                                        <span className="text-slate-500">Goal: KES {project.target_amount || project.targetAmount}</span>
                                                                     </div>
-                                                                ))}
-                                                                {projectUpdates.filter(u => u.project_id === project.id).length === 0 && (
-                                                                    <div className="py-6 text-center bg-white/5 rounded-3xl">
-                                                                        <p className="text-[10px] italic font-bold text-slate-400 uppercase tracking-widest px-4">Initial planning phase in progress. Updates arriving shortly.</p>
+                                                                    <div className="relative h-4 bg-white/5 rounded-full overflow-hidden p-1 shadow-inner ring-1 ring-white/10">
+                                                                        <div 
+                                                                            className="h-full bg-gradient-to-r from-emerald-600 to-indigo-600 rounded-full transition-all duration-1000 ease-out" 
+                                                                            style={{ width: `${Math.min(100, ((project.current_amount || project.currentAmount || 0) / (project.target_amount || project.targetAmount)) * 100)}%` }}
+                                                                        ></div>
                                                                     </div>
+                                                                </div>
+
+                                                                <div className="flex flex-col sm:flex-row gap-4">
+                                                                    <div className="flex-1 relative group/input">
+                                                                        <div className="absolute inset-0 bg-white/5 rounded-2xl opacity-0 group-focus-within/input:opacity-100 transition-opacity"></div>
+                                                                        <input 
+                                                                            type="number" 
+                                                                            placeholder="Legacy Amount (KES)..."
+                                                                            value={donationAmount}
+                                                                            onChange={(e) => setDonationAmount(e.target.value)}
+                                                                            className="relative w-full h-16 pl-10 pr-4 bg-white/5 border border-white/10 rounded-2xl text-xs font-black text-white focus:ring-2 focus:ring-emerald-500 transition-all outline-none"
+                                                                        />
+                                                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 font-black text-[9px]">KES</div>
+                                                                    </div>
+                                                                    <button 
+                                                                        onClick={() => handleDonate(project)}
+                                                                        disabled={isDonating || !donationAmount}
+                                                                        className="px-10 h-16 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] hover:bg-emerald-500 hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-emerald-500/20 disabled:opacity-20 flex items-center justify-center gap-3 group/btn"
+                                                                    >
+                                                                        {isDonating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5 group-hover/btn:animate-pulse" />}
+                                                                        Fuel Legacy
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Milestones Terminal */}
+                                                        <div className="mt-12 pt-12 border-t border-white/5">
+                                                            <div className="flex items-center gap-3 mb-8">
+                                                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                                                <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">Strategic Milestones</h4>
+                                                            </div>
+                                                            <div className="space-y-8">
+                                                                {projectUpdates.filter(u => u.project_id === project.id).length === 0 ? (
+                                                                    <div className="p-6 bg-white/5 rounded-3xl border border-dashed border-white/10">
+                                                                        <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest text-center">Initial protocol initialized. Synchronization pending.</p>
+                                                                    </div>
+                                                                ) : (
+                                                                    projectUpdates.filter(u => u.project_id === project.id).map(update => (
+                                                                        <div key={update.id} className="flex gap-8 group/update">
+                                                                            <div className="relative">
+                                                                                <div className="w-[2px] h-full bg-emerald-500/20 group-last/update:h-0"></div>
+                                                                                <div className="absolute top-0 -left-[5px] w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]"></div>
+                                                                            </div>
+                                                                            <div className="pb-8">
+                                                                                <h5 className="text-[11px] font-black uppercase text-white tracking-tight mb-2 group-hover/update:text-emerald-400 transition-colors">{update.title}</h5>
+                                                                                <p className="text-[11px] text-slate-500 leading-relaxed font-medium mb-4">{update.content}</p>
+                                                                                <div className="flex items-center gap-2 text-[8px] font-black text-slate-600 uppercase tracking-widest">
+                                                                                    <Calendar className="w-3 h-3" />
+                                                                                    {new Date(update.created_at).toLocaleDateString()}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))
                                                                 )}
                                                             </div>
                                                         </div>
@@ -1694,49 +1758,69 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 
                         case 'classmates':
                             return (
-                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 p-8 pb-32">
-                                    <header className="mb-12 flex flex-col gap-8">
-                                        <div className="relative">
-                                            <div className="absolute -left-12 top-0 w-2 h-20 bg-indigo-600 rounded-full blur-lg opacity-40"></div>
-                                            <h2 className="text-4xl font-black uppercase tracking-tight text-white">Class of <span className="text-indigo-400 italic drop-shadow-[0_0_15px_rgba(129,140,248,0.4)]">{currentAlumna.graduationYear}</span></h2>
-                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.4em] mt-3">Your Verified Alumnae Circle</p>
-                                            <div 
-                                                className="text-[12px] font-black uppercase tracking-[0.6em] text-indigo-500 mt-4 drop-shadow-xl"
-                                                style={{ 
-                                                    textShadow: '1px 1px 0px #4f46e5, 2px 2px 0px #3730a3, 0 0 25px rgba(79,70,229,0.3)',
-                                                    transform: 'perspective(500px) rotateX(5deg)'
-                                                }}
-                                            >
-                                                {currentAlumna.institutionName || currentAlumna.schoolName || 'Global Network'}
+                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
+                                    <header className="relative px-10 py-12 mb-12 overflow-hidden rounded-b-[4rem] shadow-[0_30px_60px_rgba(0,0,0,0.5)]">
+                                        <div className="absolute inset-0 bg-[#020617]/90 backdrop-blur-2xl border-b border-white/5"></div>
+                                        <div className="absolute inset-0 opacity-10 animate-mesh"></div>
+                                        <div className="absolute -left-20 -top-20 w-80 h-80 bg-indigo-600/10 rounded-full blur-[100px] animate-pulse-slow"></div>
+
+                                        <div className="relative z-10 flex justify-between items-center">
+                                            <div>
+                                                <h2 className="text-4xl font-black uppercase tracking-tight text-white leading-none">Classmate <span className="text-indigo-400 italic opacity-80">Registry</span></h2>
+                                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.5em] mt-4">Verified Professional Network Directory</p>
+                                            </div>
+                                            <div className="px-5 py-2 bg-indigo-500/10 border border-indigo-500/30 rounded-full">
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-indigo-400">{alumnaeMembers.length} Verified</span>
                                             </div>
                                         </div>
-                                        <button 
-                                            onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent('Reconnect with our classmates at the Alumnae Circle! Join here: ' + window.location.origin)}`, '_blank')}
-                                            className="w-full py-6 bg-emerald-500 text-white rounded-[2rem] font-black uppercase text-[11px] tracking-[0.3em] shadow-[0_20px_40px_rgba(16,185,129,0.2)] dark:shadow-none flex items-center justify-center gap-4 hover:scale-[1.02] active:scale-95 transition-all group overflow-hidden relative"
-                                        >
-                                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-                                            <Share2 className="w-5 h-5 group-hover:rotate-12 transition-transform" /> Recall My Classmates
-                                        </button>
                                     </header>
 
-                                    <div className="space-y-6">
+                                    <div className="px-8 grid grid-cols-1 md:grid-cols-2 gap-8 pb-32">
                                         {alumnaeMembers.filter(m => (m.graduationYear || m.class_year) == currentAlumna.graduationYear && m.id !== currentAlumna.id).map(member => (
-                                            <div key={member.id} className="p-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2.5rem] flex items-center gap-6 shadow-2xl hover:border-indigo-400 transition-all group">
-                                                <div className="w-20 h-20 rounded-[1.75rem] bg-white/10 overflow-hidden shrink-0 group-hover:scale-105 transition-transform">
-                                                    {member.profile_photo_url || member.profilePhotoUrl ? <img src={member.profile_photo_url || member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-6 text-slate-300" />}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <h3 className="text-lg font-black text-white uppercase tracking-tight truncate">{member.fullName || member.full_name}</h3>
-                                                        <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+                                            <div key={member.id} className="group relative overflow-hidden p-8 bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[3rem] transition-all hover:scale-[1.02] hover:border-indigo-500/30 shadow-2xl">
+                                                <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                                
+                                                <div className="relative z-10 flex flex-col items-center text-center">
+                                                    {/* Profile Hub */}
+                                                    <div className="relative mb-8">
+                                                        <div className="absolute -inset-1 bg-gradient-to-tr from-indigo-500 to-rose-500 rounded-[2.5rem] blur opacity-20 group-hover:opacity-60 transition-opacity"></div>
+                                                        <div className="relative w-32 h-32 rounded-[2.25rem] bg-[#020617] border border-white/10 p-1">
+                                                            {member.profile_photo_url || member.profilePhotoUrl ? (
+                                                                <img src={member.profile_photo_url || member.profilePhotoUrl} className="w-full h-full object-cover rounded-[2rem]" />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-slate-600">
+                                                                    <User className="w-12 h-12" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 border-4 border-[#020617] rounded-full animate-pulse"></div>
                                                     </div>
-                                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.15em] mb-4 truncate">{member.currentJob || 'Premium Alumna'} at {member.currentCompany || 'EduAI Network'}</p>
-                                                    <button 
-                                                        onClick={() => { setActiveConversationPartner(member); setActiveSection('messages'); }}
-                                                        className="px-6 py-2.5 bg-white/5 text-indigo-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all flex items-center justify-center gap-2"
-                                                    >
-                                                        <MessageSquare className="w-3.5 h-3.5" /> Start Thread
-                                                    </button>
+
+                                                    <div className="mb-8">
+                                                        <div className="flex items-center justify-center gap-2 mb-2">
+                                                            <h3 className="text-xl font-black text-white uppercase tracking-tight">{member.fullName || member.full_name}</h3>
+                                                            <CheckCircle2 className="w-4 h-4 text-indigo-500" />
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] leading-relaxed">
+                                                            {member.currentJob || 'Institutional Associate'} <br/>
+                                                            <span className="text-indigo-400/80">@ {member.currentCompany || 'EduAI Circle'}</span>
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="w-full flex gap-3">
+                                                        <button 
+                                                            onClick={() => { setActiveConversationPartner(member); setActiveSection('messages'); }}
+                                                            className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-500 active:scale-95 transition-all shadow-xl shadow-indigo-500/20"
+                                                        >
+                                                            Establish Link
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => setViewedProfileId(member.id)}
+                                                            className="px-6 py-4 bg-white/5 text-slate-400 rounded-2xl hover:text-white hover:bg-white/10 transition-all"
+                                                        >
+                                                            <User className="w-5 h-5" />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}
@@ -1747,32 +1831,55 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         case 'notifications':
                             return (
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen">
-                                    <header className="px-8 py-10 bg-slate-900 text-white rounded-b-[3rem] shadow-2xl mb-12 relative overflow-hidden">
-                                        <div className="absolute top-0 right-0 p-10 opacity-10 rotate-12 scale-150"><Bell className="w-40 h-40" /></div>
-                                        <h2 className="text-3xl font-black uppercase tracking-tight mb-2">Legacy <span className="opacity-60 italic text-indigo-400">Pulse</span></h2>
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.4em]">Real-time engagement across the network</p>
+                                    <header className="relative px-10 py-12 mb-12 overflow-hidden rounded-b-[4rem] shadow-[0_30px_60px_rgba(0,0,0,0.5)]">
+                                        <div className="absolute inset-0 bg-[#020617]/90 backdrop-blur-2xl"></div>
+                                        <div className="absolute inset-0 opacity-20 animate-mesh"></div>
+                                        <div className="absolute top-0 right-0 p-12 opacity-10 rotate-12 group-hover:rotate-45 transition-transform duration-1000">
+                                            <Bell className="w-48 h-48 text-indigo-500" />
+                                        </div>
+                                        
+                                        <div className="relative z-10">
+                                            <h2 className="text-4xl font-black uppercase tracking-tight text-white leading-none">Legacy <span className="text-indigo-400 italic opacity-80">Pulse</span></h2>
+                                            <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.5em] mt-4">Real-time engagement across the network</p>
+                                        </div>
                                     </header>
 
-                                    <div className="px-6 space-y-4 pb-32">
+                                    <div className="px-8 space-y-4 pb-32">
                                         {alumniNotifications.length === 0 ? (
-                                            <div className="py-20 text-center opacity-30">
-                                                <Bell className="w-20 h-20 mx-auto mb-6 text-slate-200" />
-                                                <p className="text-xs font-black uppercase tracking-[0.3em]">No pulse activity detected.</p>
+                                            <div className="py-32 text-center opacity-10">
+                                                <div className="relative inline-block mb-8">
+                                                    <Bell className="w-20 h-20 mx-auto" />
+                                                    <div className="absolute inset-0 bg-indigo-500 blur-3xl opacity-20"></div>
+                                                </div>
+                                                <p className="text-[10px] font-black uppercase tracking-[0.5em]">Network Silence</p>
                                             </div>
                                         ) : (
                                             alumniNotifications.map((notif) => (
-                                                <div key={notif.id} className={`p-8 rounded-[2.5rem] border transition-all flex items-start gap-6 ${notif.is_read ? 'bg-white/5 border-white/10' : 'bg-indigo-500/10 border-indigo-500/30 ring-2 ring-indigo-500/10'}`}>
-                                                    <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-indigo-200">
-                                                        <Sparkles className="w-7 h-7" />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <p className="text-sm font-medium text-white leading-relaxed">
-                                                            <span className="font-black uppercase tracking-tight mr-2">{notif.actor_name}</span> {notif.content}
-                                                        </p>
-                                                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-3 flex items-center gap-2">
-                                                            <Calendar className="w-3 h-3" />
-                                                            {new Date(notif.created_at).toLocaleDateString()}
-                                                        </p>
+                                                <div key={notif.id} className={`group relative overflow-hidden p-8 rounded-[2.5rem] border transition-all hover:scale-[1.01] ${notif.is_read ? 'bg-white/5 border-white/5' : 'bg-indigo-600/10 border-indigo-500/30 shadow-[0_20px_40px_rgba(79,70,229,0.1)]'}`}>
+                                                    {!notif.is_read && <div className="absolute inset-0 opacity-10 animate-mesh pointer-events-none"></div>}
+                                                    
+                                                    <div className="relative z-10 flex items-start gap-8">
+                                                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 shadow-2xl transition-transform group-hover:scale-110 ${notif.is_read ? 'bg-slate-900 border border-white/10 text-slate-500' : 'bg-indigo-600 text-white shadow-indigo-500/40'}`}>
+                                                            <Sparkles className="w-7 h-7" />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <div className="flex justify-between items-start mb-2">
+                                                                <p className="text-sm font-medium text-white leading-relaxed">
+                                                                    <span className="font-black uppercase tracking-tight text-indigo-400 mr-2">{notif.actor_name}</span> {notif.content}
+                                                                </p>
+                                                                {!notif.is_read && (
+                                                                    <div className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_10px_#6366f1] animate-pulse"></div>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-4 mt-4">
+                                                                <div className="flex items-center gap-2 text-[9px] text-slate-500 font-black uppercase tracking-widest">
+                                                                    <Calendar className="w-3.5 h-3.5" />
+                                                                    {new Date(notif.created_at).toLocaleDateString()}
+                                                                </div>
+                                                                <div className="h-[1px] w-6 bg-white/10"></div>
+                                                                <div className="text-[8px] text-slate-600 font-black uppercase tracking-[0.2em]">Institutional Pulse Alert</div>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))
@@ -1784,8 +1891,24 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         case 'messages':
                             return (
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen flex flex-col pb-32 md:pb-0">
-                                    <header className="px-6 py-5 border-b border-white/10 bg-[#020617]/80 backdrop-blur-xl sticky top-0 z-30 flex items-center justify-between">
-                                        <h2 className="text-xl font-black uppercase tracking-tight text-white font-display">Secure <span className="text-indigo-400 italic">Inbox</span></h2>
+                                    <header className="sticky top-0 z-30">
+                                        <div className="absolute inset-0 bg-[#020617]/80 backdrop-blur-3xl border-b border-white/10 shadow-2xl"></div>
+                                        <div className="absolute inset-0 opacity-10 animate-mesh pointer-events-none"></div>
+                                        <div className="px-8 py-8 flex items-center justify-between relative z-10">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 bg-indigo-600/20 rounded-2xl flex items-center justify-center border border-indigo-500/30">
+                                                    <Mail className="w-6 h-6 text-indigo-400" />
+                                                </div>
+                                                <div>
+                                                    <h2 className="text-2xl font-black uppercase tracking-tight text-white">Secure <span className="text-indigo-400 italic">Inbox</span></h2>
+                                                    <p className="text-[8px] font-black uppercase tracking-[0.4em] text-slate-400 mt-1">Encrypted Social Infrastructure</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                                <span className="text-[8px] font-black uppercase tracking-widest text-emerald-400/60">System Online</span>
+                                            </div>
+                                        </div>
                                     </header>
 
                                     <div className="flex-1 flex overflow-hidden">
@@ -1882,40 +2005,77 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         case 'explore':
                             return (
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 p-8 pb-32 flex flex-col min-h-screen">
-                                    <header className="mb-12 relative">
-                                        <div className="flex items-center gap-4 mb-4">
-                                            <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white"><Hash className="w-7 h-7" /></div>
-                                            <h2 className="text-3xl font-black uppercase tracking-tight text-white">Explore <span className="text-indigo-600 italic">Net</span></h2>
+                                    <header className="relative px-10 py-16 mb-16 overflow-hidden rounded-[3rem] shadow-[0_40px_80px_rgba(0,0,0,0.5)] group">
+                                        <div className="absolute inset-0 bg-[#020617]/80 backdrop-blur-3xl border border-white/10"></div>
+                                        <div className="absolute inset-0 opacity-20 animate-mesh"></div>
+                                        <div className="absolute -left-20 -top-20 w-80 h-80 bg-indigo-600/10 rounded-full blur-[100px] animate-pulse-slow"></div>
+                                        <div className="absolute -right-20 -bottom-20 w-80 h-80 bg-rose-600/10 rounded-full blur-[100px] animate-pulse-slow delay-700"></div>
+
+                                        <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
+                                            <div className="relative">
+                                                <div className="absolute inset-0 bg-indigo-500 rounded-[2.5rem] blur-2xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                                                <div className="relative w-24 h-24 bg-[#020617] border border-white/20 rounded-[2.5rem] flex items-center justify-center text-white shadow-2xl transition-transform group-hover:scale-110 duration-700">
+                                                    <Hash className="w-10 h-10 text-indigo-400 group-hover:rotate-12 transition-transform" />
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 text-center md:text-left">
+                                                <h2 className="text-5xl font-black uppercase tracking-tighter text-white leading-none">
+                                                    Global <span className="text-indigo-400 italic opacity-80">Sync</span>
+                                                </h2>
+                                                <div className="flex items-center justify-center md:justify-start gap-4 mt-6">
+                                                    <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.6em]">Encrypted Network Directory</p>
+                                                    <div className="h-[1px] w-8 bg-white/10"></div>
+                                                    <div className="px-4 py-1.5 bg-indigo-500/10 border border-indigo-500/30 rounded-full">
+                                                        <span className="text-[9px] font-black uppercase tracking-widest text-indigo-400">{allInstitutionMembers.length} Verified Nodes</span>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em]">Discover talent across the global alumni infrastructure</p>
                                     </header>
 
-                                    <div className="grid grid-cols-1 gap-6">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                         {allInstitutionMembers.filter(m => m.id !== currentAlumna.id).map(member => (
-                                            <div key={member.id} className="bg-white/5 backdrop-blur-3xl rounded-[3rem] p-10 border border-white/10 shadow-2xl flex flex-col sm:flex-row items-center gap-8 text-center sm:text-left transition-all hover:border-indigo-400 group">
-                                                <div className="w-32 h-32 rounded-[2.5rem] bg-white/10 overflow-hidden shrink-0 ring-12 ring-slate-50 dark:ring-slate-950 group-hover:scale-105 transition-transform">
-                                                    {member.profilePhotoUrl ? <img src={member.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-10 text-slate-300" />}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
-                                                        <h3 className="text-2xl font-black text-white uppercase tracking-tight truncate">{member.fullName}</h3>
-                                                        <div className="hidden sm:block w-1.5 h-1.5 rounded-full bg-slate-200"></div>
-                                                        <span className="text-[11px] font-black text-indigo-600 uppercase tracking-widest">Class of {member.graduationYear || member.class_year}</span>
+                                            <div key={member.id} className="group relative overflow-hidden p-8 bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[3rem] transition-all hover:scale-[1.02] hover:border-indigo-500/30 shadow-2xl">
+                                                <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                                
+                                                <div className="relative z-10 flex items-center gap-8">
+                                                    <div className="relative shrink-0">
+                                                        <div className="absolute -inset-1 bg-gradient-to-tr from-indigo-500 to-rose-500 rounded-[2.25rem] blur opacity-20 group-hover:opacity-60 transition-opacity"></div>
+                                                        <div className="relative w-24 h-24 rounded-[2rem] bg-[#020617] border border-white/10 p-1">
+                                                            {member.profilePhotoUrl ? (
+                                                                <img src={member.profilePhotoUrl} className="w-full h-full object-cover rounded-[1.75rem]" />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-slate-600">
+                                                                    <User className="w-10 h-10" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 border-4 border-[#020617] rounded-full"></div>
                                                     </div>
-                                                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-8 leading-relaxed">{member.currentJob || 'Social Alumna'} at {member.currentCompany || 'EduAI Network'}</p>
-                                                    <div className="flex flex-wrap gap-4 justify-center sm:justify-start">
-                                                        <button 
-                                                            onClick={member.id ? () => setViewedProfileId(member.id) : undefined}
-                                                            className="px-10 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-950 transition-all shadow-xl shadow-indigo-500/20"
-                                                        >
-                                                            View Profile
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => { setActiveConversationPartner(member); setActiveSection('messages'); }}
-                                                            className="p-4 bg-white/5 rounded-2xl text-slate-400 hover:text-indigo-400 transition-all"
-                                                        >
-                                                            <MessageSquare className="w-7 h-7" />
-                                                        </button>
+
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <h3 className="text-xl font-black text-white uppercase tracking-tight truncate">{member.fullName}</h3>
+                                                            <CheckCircle2 className="w-4 h-4 text-indigo-500" />
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mb-4 truncate">
+                                                            Class of {member.graduationYear || member.class_year} <span className="text-indigo-400 mx-1">/</span> {member.currentJob || 'Institutional Lead'}
+                                                        </p>
+                                                        
+                                                        <div className="flex gap-2">
+                                                            <button 
+                                                                onClick={() => { setActiveConversationPartner(member); setActiveSection('messages'); }}
+                                                                className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-500/20"
+                                                            >
+                                                                Establish Link
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => setViewedProfileId(member.id)}
+                                                                className="p-2.5 bg-white/5 text-slate-400 rounded-xl hover:text-white hover:bg-white/10 transition-all"
+                                                            >
+                                                                <User className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1927,45 +2087,73 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         case 'jobs':
                             return (
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
-                                    <header className="px-8 py-10 bg-indigo-600 text-white rounded-b-[3rem] shadow-2xl mb-12 flex justify-between items-center">
-                                        <div>
-                                            <h2 className="text-3xl font-black uppercase tracking-tight mb-2">Legacy <span className="opacity-60 italic">Careers</span></h2>
-                                            <p className="text-[10px] text-indigo-100 font-bold uppercase tracking-[0.4em]">Exclusive opportunities within the network</p>
+                                    <header className="relative px-10 py-12 mb-12 overflow-hidden rounded-b-[4rem] shadow-[0_30px_60px_rgba(0,0,0,0.5)]">
+                                        <div className="absolute inset-0 bg-[#020617]/90 backdrop-blur-2xl border-b border-white/10"></div>
+                                        <div className="absolute inset-0 opacity-20 animate-mesh"></div>
+                                        <div className="absolute -right-20 -top-20 w-80 h-80 bg-indigo-600/10 rounded-full blur-[100px] animate-pulse-slow"></div>
+                                        
+                                        <div className="relative z-10 flex justify-between items-center">
+                                            <div>
+                                                <h2 className="text-4xl font-black uppercase tracking-tight text-white leading-none">Legacy <span className="text-indigo-400 italic opacity-80">Board</span></h2>
+                                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.5em] mt-4">Exclusive network opportunities</p>
+                                            </div>
+                                            <button 
+                                                onClick={() => setShowPostJobModal(true)}
+                                                className="px-8 py-5 bg-indigo-600 text-white rounded-2xl flex items-center gap-4 transition-all hover:scale-105 hover:bg-indigo-500 shadow-2xl active:scale-95 group"
+                                            >
+                                                <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-500" />
+                                                <span className="text-[10px] font-black uppercase tracking-widest">Publish Brief</span>
+                                            </button>
                                         </div>
-                                        <button 
-                                            onClick={() => setShowPostJobModal(true)}
-                                            className="px-6 py-4 bg-white/20 hover:bg-white/30 backdrop-blur-xl rounded-2xl flex items-center gap-3 transition-all group"
-                                        >
-                                            <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
-                                            <span className="text-[10px] font-black uppercase tracking-widest">Post a Job</span>
-                                        </button>
                                     </header>
-                                    <div className="px-6 space-y-6">
+
+                                    <div className="px-8 space-y-6 pb-32">
                                         {jobs.length === 0 ? (
-                                            <div className="py-20 text-center opacity-20">
-                                                <Briefcase className="w-16 h-16 mx-auto mb-6" />
-                                                <p className="text-xs font-black uppercase tracking-[0.3em]">No career posts yet.</p>
+                                            <div className="py-32 text-center opacity-10">
+                                                <Briefcase className="w-20 h-20 mx-auto mb-8" />
+                                                <p className="text-[10px] font-black uppercase tracking-[0.5em]">No Opportunities Found</p>
                                             </div>
                                         ) : (
                                             jobs.map(job => (
-                                                <div key={job.id} className="bg-white/5 backdrop-blur-xl border border-white/10">
-                                                    <div className="flex justify-between items-start mb-6">
-                                                        <div>
-                                                            <h3 className="text-xl font-black text-white uppercase tracking-tight">{job.title}</h3>
-                                                            <p className="text-xs font-black text-indigo-600 uppercase tracking-widest mt-1">{job.company}</p>
+                                                <div key={job.id} className="group relative overflow-hidden p-8 bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[3rem] transition-all hover:scale-[1.01] hover:border-indigo-500/30 shadow-2xl">
+                                                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                                    
+                                                    <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center gap-3 mb-3">
+                                                                <h3 className="text-xl font-black text-white uppercase tracking-tight">{job.title}</h3>
+                                                                <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-full">
+                                                                    <span className="text-[8px] font-black uppercase tracking-widest text-emerald-400">Verified</span>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div className="flex flex-wrap items-center gap-4 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Building2 className="w-3.5 h-3.5 text-indigo-400" />
+                                                                    {job.company}
+                                                                </div>
+                                                                <div className="h-1 w-1 rounded-full bg-slate-700"></div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <Globe className="w-3.5 h-3.5 text-indigo-400" />
+                                                                    {job.location}
+                                                                </div>
+                                                                {job.salary_range && (
+                                                                    <>
+                                                                        <div className="h-1 w-1 rounded-full bg-slate-700"></div>
+                                                                        <div className="flex items-center gap-2 text-emerald-400">
+                                                                            <Zap className="w-3.5 h-3.5" />
+                                                                            {job.salary_range}
+                                                                        </div>
+                                                                    </>
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                        <div className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-xl text-[8px] font-black uppercase tracking-widest">
-                                                            {job.location}
-                                                        </div>
-                                                    </div>
-                                                    <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-8 line-clamp-3">{job.description}</p>
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{job.salary_range}</span>
+                                                        
                                                         <button 
                                                             onClick={() => job.apply_url && window.open(job.apply_url, '_blank')}
-                                                            className="px-8 py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl"
+                                                            className="w-full md:w-auto px-10 py-5 bg-white text-indigo-950 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] hover:bg-indigo-600 hover:text-white transition-all shadow-2xl shadow-indigo-500/10 group/btn"
                                                         >
-                                                            Apply via Portal
+                                                            Access Brief <ArrowRight className="inline-block w-4 h-4 ml-3 group-hover/btn:translate-x-1 transition-transform" />
                                                         </button>
                                                     </div>
                                                 </div>
@@ -1975,98 +2163,168 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                 </div>
                             );
 
-                        case 'marketplace':
-                            return (
-                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
-                                    <header className="px-8 py-10 bg-rose-500 text-white rounded-b-[3rem] shadow-2xl mb-12 flex justify-between items-center">
-                                        <div>
-                                            <h2 className="text-3xl font-black uppercase tracking-tight mb-2">Legacy <span className="opacity-60 italic">Market</span></h2>
-                                            <p className="text-[10px] text-rose-100 font-bold uppercase tracking-[0.4em]">Support Alumnae-owned businesses</p>
+                                    <header className="relative px-10 py-12 mb-12 overflow-hidden rounded-b-[4rem] shadow-[0_30px_60px_rgba(0,0,0,0.5)]">
+                                        <div className="absolute inset-0 bg-[#020617]/90 backdrop-blur-2xl border-b border-white/10"></div>
+                                        <div className="absolute inset-0 opacity-20 animate-mesh"></div>
+                                        <div className="absolute -left-20 -bottom-20 w-80 h-80 bg-rose-600/10 rounded-full blur-[80px] animate-pulse-slow"></div>
+
+                                        <div className="relative z-10 flex justify-between items-center">
+                                            <div>
+                                                <h2 className="text-4xl font-black uppercase tracking-tight text-white leading-none">Legacy <span className="text-rose-400 italic opacity-80">Market</span></h2>
+                                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.5em] mt-4">Support Alumnae-owned excellence</p>
+                                            </div>
+                                            <button 
+                                                onClick={() => setShowPostBusinessModal(true)}
+                                                className="px-8 py-5 bg-rose-600 text-white rounded-2xl flex items-center gap-4 transition-all hover:scale-105 hover:bg-rose-500 shadow-2xl active:scale-95 group"
+                                            >
+                                                <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-500" />
+                                                <span className="text-[10px] font-black uppercase tracking-widest">Register Venture</span>
+                                            </button>
                                         </div>
-                                        <button 
-                                            onClick={() => setShowPostBusinessModal(true)}
-                                            className="px-6 py-4 bg-white/20 hover:bg-white/30 backdrop-blur-xl rounded-2xl flex items-center gap-3 transition-all group"
-                                        >
-                                            <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
-                                            <span className="text-[10px] font-black uppercase tracking-widest">Post Business</span>
-                                        </button>
                                     </header>
-                                    <div className="px-6 grid grid-cols-1 gap-6">
+
+                                    <div className="px-8 grid grid-cols-1 md:grid-cols-2 gap-8 pb-32">
                                         {businesses.length === 0 ? (
-                                            <div className="py-20 text-center opacity-20">
-                                                <ShoppingBag className="w-16 h-16 mx-auto mb-6" />
-                                                <p className="text-xs font-black uppercase tracking-[0.3em]">Marketplace is currently empty.</p>
+                                            <div className="py-32 text-center opacity-10 col-span-full">
+                                                <ShoppingBag className="w-20 h-20 mx-auto mb-8" />
+                                                <p className="text-[10px] font-black uppercase tracking-[0.5em]">No Ventures Active</p>
                                             </div>
                                         ) : (
                                             businesses.map(biz => (
-                                                <div key={biz.id} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8 shadow-xl flex gap-6 hover:border-rose-400 transition-all">
-                                                    <div className="w-24 h-24 rounded-3xl bg-slate-50 dark:bg-slate-800 overflow-hidden shrink-0">
-                                                        {biz.logo_url ? <img src={biz.logo_url} className="w-full h-full object-cover" /> : <ShoppingBag className="w-full h-full p-6 text-slate-200" />}
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <h3 className="text-xl font-black text-white uppercase tracking-tight">{biz.business_name}</h3>
-                                                        <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest mt-1 mb-4">{biz.industry}</p>
-                                                        <div className="px-4 py-3 bg-rose-500/10 text-rose-400 rounded-2xl text-[9px] font-black uppercase tracking-widest mb-6 inline-block">
-                                                            Exclusive: {biz.exclusive_discount}
+                                                <div key={biz.id} className="group relative overflow-hidden bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[3rem] transition-all hover:scale-[1.02] hover:border-rose-500/30 shadow-2xl">
+                                                    <div className="h-64 relative overflow-hidden">
+                                                        {biz.logo_url ? (
+                                                            <img src={biz.logo_url} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
+                                                        ) : (
+                                                            <div className="w-full h-full bg-[#020617] flex items-center justify-center text-slate-800">
+                                                                <ShoppingBag className="w-16 h-16" />
+                                                            </div>
+                                                        )}
+                                                        <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-transparent to-transparent"></div>
+                                                        
+                                                        <div className="absolute top-6 right-6">
+                                                            <div className="px-4 py-2 bg-rose-600 text-white rounded-full text-[8px] font-black uppercase tracking-widest shadow-2xl">
+                                                                Institutional Partner
+                                                            </div>
                                                         </div>
+                                                    </div>
+
+                                                    <div className="p-8">
+                                                        <div className="flex justify-between items-start mb-6">
+                                                            <div>
+                                                                <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-2 leading-none group-hover:text-rose-400 transition-colors">{biz.business_name}</h3>
+                                                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{biz.industry}</p>
+                                                            </div>
+                                                            <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-rose-500 shadow-inner group-hover:scale-110 transition-transform">
+                                                                <Crown className="w-6 h-6" />
+                                                            </div>
+                                                        </div>
+
+                                                        {biz.exclusive_discount && (
+                                                            <div className="mb-8 p-4 bg-rose-600/10 border border-rose-500/20 rounded-2xl">
+                                                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-400 mb-1">Circle Privilege</p>
+                                                                <p className="text-xs text-white font-bold">{biz.exclusive_discount}</p>
+                                                            </div>
+                                                        )}
+
                                                         <button 
-                                                            onClick={() => biz.website_url && window.open(biz.website_url, '_blank')}
-                                                            className="w-full py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all"
+                                                            onClick={() => biz.website_url && window.open(biz.website_url, '_blank')} 
+                                                            className="w-full py-5 bg-[#020617] text-white border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] hover:bg-rose-600 hover:border-rose-600 transition-all shadow-2xl group/btn"
                                                         >
-                                                            Visit Store
+                                                            Visit Headquarters <ArrowRight className="inline-block w-4 h-4 ml-3 group-hover/btn:translate-x-1 transition-transform" />
                                                         </button>
                                                     </div>
                                                 </div>
                                             ))
                                         )}
                                     </div>
-                                </div>
-                            );
 
                         case 'mentorship':
                             return (
-                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
-                                    <header className="px-8 py-10 bg-indigo-900 text-white rounded-b-[3rem] shadow-2xl mb-12">
-                                        <h2 className="text-3xl font-black uppercase tracking-tight mb-2">Legacy <span className="opacity-40 italic">Mentors</span></h2>
-                                        <p className="text-[10px] text-indigo-300 font-bold uppercase tracking-[0.4em]">Connecting experience with ambition</p>
+                                    <header className="relative px-10 py-16 mb-16 overflow-hidden rounded-[3rem] shadow-[0_40px_80px_rgba(0,0,0,0.5)] group">
+                                        <div className="absolute inset-0 bg-[#020617]/90 backdrop-blur-3xl border border-white/10"></div>
+                                        <div className="absolute inset-0 opacity-20 animate-mesh"></div>
+                                        <div className="absolute -right-20 -top-20 w-80 h-80 bg-indigo-600/10 rounded-full blur-[100px] animate-pulse-slow"></div>
+                                        
+                                        <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
+                                            <div className="relative">
+                                                <div className="absolute inset-0 bg-indigo-500 rounded-[2.5rem] blur-2xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                                                <div className="relative w-24 h-24 bg-[#020617] border border-white/20 rounded-[2.5rem] flex items-center justify-center text-white shadow-2xl transition-transform group-hover:scale-110 duration-700">
+                                                    <Zap className="w-10 h-10 text-indigo-400 group-hover:rotate-12 transition-transform" />
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 text-center md:text-left">
+                                                <h2 className="text-4xl font-black uppercase tracking-tight text-white leading-none">Legacy <span className="text-indigo-400 italic opacity-80">Mentors</span></h2>
+                                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.5em] mt-4">Connecting experience with ambition</p>
+                                            </div>
+                                        </div>
                                     </header>
-                                    <div className="px-6 space-y-6">
+
+                                    <div className="px-8 grid grid-cols-1 lg:grid-cols-2 gap-8 pb-32">
                                         {alumnaeMembers.filter(m => m.isMentorAvailable || m.is_mentor_available).length === 0 ? (
-                                            <div className="py-20 text-center opacity-20">
-                                                <Zap className="w-16 h-16 mx-auto mb-6" />
-                                                <p className="text-xs font-black uppercase tracking-[0.3em]">No mentors available yet.</p>
+                                            <div className="py-32 text-center opacity-10 col-span-full">
+                                                <Zap className="w-20 h-20 mx-auto mb-8" />
+                                                <p className="text-[10px] font-black uppercase tracking-[0.5em]">No Mentors Active</p>
                                             </div>
                                         ) : (
                                             alumnaeMembers.filter(m => (m.isMentorAvailable || m.is_mentor_available) && m.id !== currentAlumna.id).map(mentor => (
-                                                <div key={mentor.id} className="bg-white/5 backdrop-blur-md border border-white/10">
-                                                    <div className="w-24 h-24 rounded-[2rem] bg-white/10 overflow-hidden shrink-0 group-hover:scale-105 transition-transform">
-                                                        {mentor.profilePhotoUrl ? <img src={mentor.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-6 text-slate-300" />}
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <h3 className="text-xl font-black text-white uppercase tracking-tight">{mentor.fullName}</h3>
-                                                        <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mt-1 mb-4">{mentor.currentJob} at {mentor.currentCompany}</p>
-                                                        <button 
-                                                            onClick={() => { setActiveConversationPartner(mentor); setActiveSection('messages'); }}
-                                                            className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-indigo-200"
-                                                        >
-                                                            Request Guidance
-                                                        </button>
+                                                <div key={mentor.id} className="group relative overflow-hidden p-8 bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[3rem] transition-all hover:scale-[1.02] hover:border-indigo-500/30 shadow-2xl">
+                                                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                                    
+                                                    <div className="relative z-10 flex items-center gap-8">
+                                                        <div className="relative shrink-0">
+                                                            <div className="absolute -inset-1 bg-gradient-to-tr from-indigo-500 to-rose-500 rounded-[2.25rem] blur opacity-20 group-hover:opacity-60 transition-opacity"></div>
+                                                            <div className="relative w-24 h-24 rounded-[2rem] bg-[#020617] border border-white/10 p-1">
+                                                                {mentor.profilePhotoUrl ? (
+                                                                    <img src={mentor.profilePhotoUrl} className="w-full h-full object-cover rounded-[1.75rem]" />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center text-slate-600">
+                                                                        <User className="w-10 h-10" />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 border-4 border-[#020617] rounded-full animate-pulse"></div>
+                                                        </div>
+
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <h3 className="text-xl font-black text-white uppercase tracking-tight truncate">{mentor.fullName}</h3>
+                                                                <div className="px-3 py-1 bg-indigo-500/10 border border-indigo-500/30 rounded-full">
+                                                                    <span className="text-[7px] font-black uppercase tracking-widest text-indigo-400">Mentor</span>
+                                                                </div>
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mb-4 truncate">
+                                                                {mentor.currentJob} <span className="text-indigo-400 mx-1">@</span> {mentor.currentCompany}
+                                                            </p>
+                                                            
+                                                            <button 
+                                                                onClick={() => { setActiveConversationPartner(mentor); setActiveSection('messages'); }}
+                                                                className="w-full py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-500/20 flex items-center justify-center gap-3 group/btn"
+                                                            >
+                                                                <MessageSquare className="w-4 h-4 group-hover/btn:scale-110 transition-transform" />
+                                                                Request Guidance
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))
                                         )}
                                     </div>
-                                </div>
                             );
 
                         case 'management':
                             return (
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
-                                    <header className="px-8 py-10 bg-slate-900 text-white rounded-b-[3rem] shadow-2xl mb-12 relative overflow-hidden">
-                                        <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12"><ShieldCheck className="w-32 h-32" /></div>
+                                    <header className="relative px-10 py-12 mb-12 overflow-hidden rounded-b-[4rem] shadow-[0_30px_60px_rgba(0,0,0,0.5)]">
+                                        <div className="absolute inset-0 bg-[#020617]/90 backdrop-blur-2xl"></div>
+                                        <div className="absolute inset-0 opacity-20 animate-mesh"></div>
+                                        <div className="absolute top-0 right-0 p-12 opacity-10 rotate-12 group-hover:rotate-45 transition-transform duration-1000">
+                                            <ShieldCheck className="w-48 h-48 text-indigo-500" />
+                                        </div>
+                                        
                                         <div className="relative z-10">
-                                            <h2 className="text-3xl font-black uppercase tracking-tight mb-2">School <span className="opacity-40 italic">Control</span></h2>
-                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.4em]">Manage profile administrators & delegates</p>
+                                            <h2 className="text-4xl font-black uppercase tracking-tight text-white leading-none">School <span className="text-indigo-400 italic opacity-80">Control</span></h2>
+                                            <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.5em] mt-4">Administrative Delegation Infrastructure</p>
                                         </div>
                                     </header>
 
@@ -2174,26 +2432,56 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                         case 'groups':
                             return (
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
-                                    <header className="px-8 py-10 bg-slate-800 text-white rounded-b-[3rem] shadow-2xl mb-12">
-                                        <h2 className="text-3xl font-black uppercase tracking-tight mb-2">Interest <span className="opacity-40 italic">Circles</span></h2>
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.4em]">Connect through shared passions</p>
+                                    <header className="relative px-10 py-16 mb-16 overflow-hidden rounded-[3rem] shadow-[0_40px_80px_rgba(0,0,0,0.5)] group">
+                                        <div className="absolute inset-0 bg-[#020617]/90 backdrop-blur-3xl border border-white/10"></div>
+                                        <div className="absolute inset-0 opacity-20 animate-mesh"></div>
+                                        <div className="absolute -left-20 -top-20 w-80 h-80 bg-emerald-600/10 rounded-full blur-[80px] animate-pulse-slow"></div>
+
+                                        <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
+                                            <div className="relative">
+                                                <div className="absolute inset-0 bg-emerald-500 rounded-[2.5rem] blur-2xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                                                <div className="relative w-24 h-24 bg-[#020617] border border-white/20 rounded-[2.5rem] flex items-center justify-center text-white shadow-2xl transition-transform group-hover:scale-110 duration-700">
+                                                    <Globe className="w-10 h-10 text-emerald-400 group-hover:rotate-12 transition-transform" />
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 text-center md:text-left">
+                                                <h2 className="text-4xl font-black uppercase tracking-tight text-white leading-none">Interest <span className="text-emerald-400 italic opacity-80">Circles</span></h2>
+                                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.5em] mt-4">Connect through shared passions</p>
+                                            </div>
+                                        </div>
                                     </header>
-                                    <div className="px-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                                    <div className="px-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-32">
                                         {groups.length === 0 ? (
-                                            <div className="py-20 text-center opacity-20 col-span-2">
-                                                <Globe className="w-16 h-16 mx-auto mb-6" />
-                                                <p className="text-xs font-black uppercase tracking-[0.3em]">No groups founded yet.</p>
+                                            <div className="py-32 text-center opacity-10 col-span-full">
+                                                <Globe className="w-20 h-20 mx-auto mb-8" />
+                                                <p className="text-[10px] font-black uppercase tracking-[0.5em]">No Circles Active</p>
                                             </div>
                                         ) : (
                                             groups.map(group => (
-                                                <div key={group.id} className="bg-white/5 backdrop-blur-md border border-white/10">
-                                                    <div className="h-32 bg-white/10 relative overflow-hidden">
-                                                        {group.image_url ? <img src={group.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" /> : <div className="w-full h-full flex items-center justify-center opacity-10"><Globe className="w-12 h-12" /></div>}
+                                                <div key={group.id} className="group relative overflow-hidden bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[3rem] transition-all hover:scale-[1.02] hover:border-emerald-500/30 shadow-2xl">
+                                                    <div className="h-48 relative overflow-hidden">
+                                                        {group.image_url ? (
+                                                            <img src={group.image_url} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
+                                                        ) : (
+                                                            <div className="w-full h-full bg-[#020617] flex items-center justify-center text-slate-800">
+                                                                <Globe className="w-12 h-12" />
+                                                            </div>
+                                                        )}
+                                                        <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-transparent to-transparent"></div>
+                                                        
+                                                        <div className="absolute top-6 left-6">
+                                                            <div className="px-4 py-1.5 bg-emerald-600/20 backdrop-blur-md border border-emerald-500/30 rounded-full text-[8px] font-black uppercase tracking-widest text-emerald-400">
+                                                                {group.category}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <div className="p-6">
-                                                        <h3 className="text-sm font-black text-white uppercase tracking-tight mb-2">{group.name}</h3>
-                                                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mb-6">{group.category}</p>
-                                                        <button className="w-full py-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all">Join Circle</button>
+
+                                                    <div className="p-8">
+                                                        <h3 className="text-xl font-black text-white uppercase tracking-tight mb-6 leading-tight group-hover:text-emerald-400 transition-colors">{group.name}</h3>
+                                                        <button className="w-full py-4 bg-white text-[#020617] rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] hover:bg-emerald-600 hover:text-white transition-all shadow-2xl active:scale-95">
+                                                            Join Circle
+                                                        </button>
                                                     </div>
                                                 </div>
                                             ))
@@ -2209,17 +2497,32 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                     {/* Success Story Spotlight */}
                                     {successStories.filter(s => s.is_featured).length > 0 && (
                                         <div className="px-8 pt-8">
-                                            <div className="bg-indigo-900 rounded-[3rem] p-10 text-white relative overflow-hidden group shadow-2xl">
-                                                <div className="absolute top-0 right-0 p-10 opacity-10 rotate-12 scale-150 transition-transform group-hover:scale-[1.7]"><Sparkles className="w-40 h-40" /></div>
-                                                <div className="relative z-10 flex flex-col md:flex-row gap-8 items-center text-center md:text-left">
-                                                    <div className="w-32 h-32 rounded-[2.5rem] bg-white/20 p-2 shrink-0 ring-4 ring-white/10">
-                                                        <img src={successStories.find(s => s.is_featured).image_url} className="w-full h-full object-cover rounded-[2rem]" />
+                                            <div className="relative group rounded-[3.5rem] overflow-hidden shadow-[0_40px_80px_rgba(0,0,0,0.5)] border border-white/10">
+                                                <div className="absolute inset-0 bg-[#020617]/90 backdrop-blur-3xl"></div>
+                                                <div className="absolute inset-0 opacity-40 animate-mesh"></div>
+                                                <div className="absolute -right-20 -top-20 w-80 h-80 bg-indigo-600/30 rounded-full blur-[100px] animate-pulse-slow"></div>
+                                                <div className="absolute top-0 right-0 p-12 opacity-10 rotate-12 scale-150 transition-transform group-hover:scale-[1.8] group-hover:rotate-45 duration-1000">
+                                                    <Sparkles className="w-48 h-48 text-indigo-400" />
+                                                </div>
+                                                
+                                                <div className="relative z-10 p-12 flex flex-col md:flex-row gap-12 items-center text-center md:text-left">
+                                                    <div className="relative shrink-0">
+                                                        <div className="absolute -inset-2 bg-gradient-to-tr from-indigo-500 via-purple-500 to-rose-500 rounded-[2.8rem] opacity-30 animate-pulse group-hover:opacity-100 transition-opacity duration-1000"></div>
+                                                        <div className="w-40 h-40 rounded-[2.5rem] bg-slate-900 border-4 border-white/10 p-1 relative z-10 overflow-hidden shadow-2xl group-hover:scale-105 transition-transform duration-700">
+                                                            <img src={successStories.find(s => s.is_featured).image_url} className="w-full h-full object-cover rounded-[2.1rem]" />
+                                                        </div>
                                                     </div>
+                                                    
                                                     <div className="flex-1">
-                                                        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-indigo-300 mb-2">Legacy Spotlight</p>
-                                                        <h3 className="text-2xl font-black uppercase tracking-tight mb-4">{successStories.find(s => s.is_featured).title}</h3>
-                                                        <p className="text-xs text-indigo-100/70 font-medium leading-relaxed mb-6 line-clamp-2">{successStories.find(s => s.is_featured).content}</p>
-                                                        <button className="px-8 py-3 bg-white text-indigo-900 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-400 hover:text-white transition-all shadow-xl">Full Narrative</button>
+                                                        <div className="flex items-center gap-3 mb-4 justify-center md:justify-start">
+                                                            <div className="px-4 py-1.5 bg-indigo-500/20 border border-indigo-400/30 rounded-full">
+                                                                <p className="text-[10px] font-black uppercase tracking-[0.5em] text-indigo-300">Legacy Spotlight</p>
+                                                            </div>
+                                                            <div className="h-1 w-12 bg-white/10 rounded-full"></div>
+                                                        </div>
+                                                        <h3 className="text-4xl font-black uppercase tracking-tight mb-6 text-white leading-[1.1]">{successStories.find(s => s.is_featured).title}</h3>
+                                                        <p className="text-sm text-slate-300/80 font-medium leading-relaxed mb-10 line-clamp-3 max-w-2xl">{successStories.find(s => s.is_featured).content}</p>
+                                                        <button className="px-10 py-5 bg-white text-indigo-950 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.3em] hover:bg-indigo-400 hover:text-white transition-all shadow-[0_20px_40px_rgba(255,255,255,0.1)] hover:shadow-indigo-500/40 active:scale-95">Read Full Narrative</button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -2227,77 +2530,140 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                     )}
 
                                     {/* Header Tabs */}
-                                    <header className="sticky top-0 bg-white/80 dark:bg-slate-950/80 backdrop-blur-3xl border-b border-slate-100 dark:border-slate-800 z-40 shadow-[0_10px_40px_rgba(79,70,229,0.05)]">
-                                        <div className="px-8 py-6 flex justify-between items-center">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-[0_0_20px_rgba(79,70,229,0.4)]"><Atom className="w-6 h-6 animate-spin-slow" /></div>
+                                    {/* Redesigned High-Fidelity Pulse Header */}
+                                    <header className="sticky top-0 z-40">
+                                        {/* Glassmorphic Base with Mesh Background Overlay */}
+                                        <div className="absolute inset-0 bg-[#020617]/80 backdrop-blur-3xl border-b border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.4)]"></div>
+                                        <div className="absolute inset-0 opacity-20 animate-mesh pointer-events-none"></div>
+                                        
+                                        <div className="px-8 py-10 flex justify-between items-center relative overflow-hidden z-10">
+                                            {/* Advanced Decorative Background Glows */}
+                                            <div className="absolute -left-20 -top-20 w-60 h-60 bg-indigo-600/30 rounded-full blur-[100px] animate-pulse-slow"></div>
+                                            <div className="absolute -right-20 -bottom-20 w-60 h-60 bg-rose-600/20 rounded-full blur-[100px] animate-pulse-slow delay-700"></div>
+                                            
+                                            <div className="flex items-center gap-8 relative z-10">
+                                                {/* Hyper-Dynamic Logo Infrastructure */}
+                                                <div className="relative group">
+                                                    <div className="absolute inset-0 bg-indigo-600 rounded-[2rem] blur-2xl opacity-40 animate-pulse group-hover:opacity-80 transition-opacity duration-700"></div>
+                                                    <div className="absolute -inset-1 bg-gradient-to-tr from-indigo-500 via-purple-500 to-rose-500 rounded-[2.25rem] opacity-20 group-hover:opacity-100 animate-spin-slow transition-opacity duration-1000"></div>
+                                                    
+                                                    <div className="relative w-16 h-16 bg-[#020617] border border-white/20 rounded-[2rem] flex items-center justify-center text-white shrink-0 shadow-2xl transition-transform group-hover:scale-110 duration-700">
+                                                        <div className="absolute inset-0 bg-indigo-600/10 rounded-[2rem] animate-pulse"></div>
+                                                        <Atom className="w-9 h-9 text-indigo-400 animate-spin-slow" />
+                                                        
+                                                        {/* Status Orbital */}
+                                                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-[#020617] border border-white/10 rounded-full flex items-center justify-center shadow-lg">
+                                                            <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></div>
+                                                            <div className="absolute w-2.5 h-2.5 bg-emerald-500 rounded-full"></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
                                                 <div className="flex flex-col">
-                                                    <h2 className="text-2xl font-black uppercase tracking-tighter text-white leading-none">EduAI <span className="text-indigo-400 italic drop-shadow-[0_0_10px_rgba(129,140,248,0.5)]">Pulse</span></h2>
-                                                    <div 
-                                                        className="text-[9px] font-black uppercase tracking-[0.4em] text-indigo-500 mt-1.5"
-                                                        style={{ 
-                                                            textShadow: '0.5px 0.5px 0px #4f46e5, 1px 1px 0px #3730a3, 0 0 15px rgba(99,102,241,0.3)',
-                                                            transform: 'skewX(-5deg)'
-                                                        }}
-                                                    >
-                                                        {currentAlumna.institutionName || currentAlumna.schoolName || 'Global Network'}
+                                                    <div className="flex items-center gap-2">
+                                                        <h2 className="text-4xl font-black uppercase tracking-tighter text-white leading-none">
+                                                            EduAI <span className="relative inline-block">
+                                                                <span className="bg-gradient-to-r from-indigo-400 via-white to-rose-400 bg-clip-text text-transparent italic drop-shadow-[0_0_15px_rgba(129,140,248,0.6)]">Pulse</span>
+                                                                <div className="absolute -bottom-1 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50"></div>
+                                                            </span>
+                                                        </h2>
+                                                    </div>
+                                                    
+                                                    <div className="flex items-center gap-4 mt-3">
+                                                        <div 
+                                                            className="px-3 py-1 bg-white/5 rounded-lg border border-white/10 text-[9px] font-black uppercase tracking-[0.4em] text-indigo-300 shadow-inner"
+                                                            style={{ textShadow: '0 0 10px rgba(99,102,241,0.4)' }}
+                                                        >
+                                                            {currentAlumna.institutionName || currentAlumna.schoolName || 'Global Network'}
+                                                        </div>
+                                                        <div className="h-[1px] w-6 bg-white/10"></div>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981]"></div>
+                                                            <span className="text-[8px] font-black uppercase tracking-[0.2em] text-emerald-400/80">Active Infrastructure</span>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="flex gap-3">
+
+                                            <div className="flex gap-4 relative z-10">
                                                 {otherMemberships.length > 0 && (
                                                     <button 
                                                         onClick={() => setShowSwitcher(true)}
-                                                        className="md:hidden p-3 bg-indigo-600 text-white rounded-2xl transition-all hover:scale-105 shadow-lg shadow-indigo-200 dark:shadow-none"
+                                                        className="p-4 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/20 rounded-[1.25rem] transition-all hover:scale-105 active:scale-95 group"
                                                     >
-                                                        <Repeat2 className="w-5 h-5" />
+                                                        <Repeat2 className="w-5 h-5 group-hover:rotate-180 transition-transform duration-700" />
                                                     </button>
                                                 )}
-                                                <button onClick={onBack} className="md:hidden p-3 bg-white dark:bg-slate-900 text-rose-500 border border-rose-100 dark:border-rose-900/30 rounded-2xl transition-all hover:scale-105 shadow-sm">
-                                                   <LogOut className="w-5 h-5" />
+                                                <button 
+                                                    onClick={onBack} 
+                                                    className="p-4 bg-white/5 hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 border border-white/10 hover:border-rose-500/20 rounded-[1.25rem] transition-all hover:scale-105 active:scale-95 group"
+                                                >
+                                                   <LogOut className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
                                                 </button>
                                             </div>
                                         </div>
-                                        <div className="flex px-4 overflow-x-auto no-scrollbar scroll-smooth border-t border-white/5">
-                                            <button 
-                                                onClick={() => setActiveTab('for-you')}
-                                                className={`flex-1 py-5 text-[11px] font-black uppercase tracking-[0.3em] relative transition-all whitespace-nowrap min-w-[120px] ${activeTab === 'for-you' ? 'text-indigo-500' : 'text-slate-400 hover:text-slate-600'}`}
-                                            >
-                                                Global Circle
-                                                {activeTab === 'for-you' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-1.5 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.6)] animate-in slide-in-from-bottom-1" />}
-                                            </button>
-                                            <button 
-                                                onClick={() => setActiveTab('my-schools')}
-                                                className={`flex-1 py-5 text-[11px] font-black uppercase tracking-[0.3em] relative transition-all whitespace-nowrap min-w-[120px] ${activeTab === 'my-schools' ? 'text-indigo-500' : 'text-slate-400 hover:text-slate-600'}`}
-                                            >
-                                                Institutional
-                                                {activeTab === 'my-schools' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-1.5 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.6)] animate-in slide-in-from-bottom-1" />}
-                                            </button>
+
+                                        {/* Premium Tab Navigation */}
+                                        <div className="flex px-6 bg-black/20 backdrop-blur-md border-t border-white/5 overflow-x-auto no-scrollbar scroll-smooth">
+                                            {[
+                                                { id: 'for-you', label: 'Global Circle', icon: Globe },
+                                                { id: 'my-schools', label: 'Institutional', icon: Building2 }
+                                            ].map((tab) => (
+                                                <button 
+                                                    key={tab.id}
+                                                    onClick={() => setActiveTab(tab.id as any)}
+                                                    className={`group relative flex-1 min-w-[160px] py-6 flex items-center justify-center gap-3 transition-all duration-500 ${activeTab === tab.id ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                                                >
+                                                    <tab.icon className={`w-4 h-4 transition-transform duration-500 ${activeTab === tab.id ? 'scale-110 text-indigo-400' : 'group-hover:scale-110'}`} />
+                                                    <span className={`text-[10px] font-black uppercase tracking-[0.3em] transition-all ${activeTab === tab.id ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'}`}>
+                                                        {tab.label}
+                                                    </span>
+                                                    
+                                                    {/* Active Indicator Infrastructure */}
+                                                    {activeTab === tab.id && (
+                                                        <>
+                                                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-24 h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent shadow-[0_0_20px_rgba(99,102,241,0.8)] animate-in fade-in slide-in-from-bottom-2"></div>
+                                                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-white rounded-full blur-[2px] animate-pulse"></div>
+                                                        </>
+                                                    )}
+                                                </button>
+                                            ))}
                                         </div>
                                     </header>
 
                                     {/* Feed Content */}
                                     <div className="pb-32 divide-y divide-slate-100 dark:divide-slate-900">
                                         {/* Post Composer */}
-                                        <div className="p-4 md:p-8 bg-white/5 backdrop-blur-xl">
-                                            <div className="flex gap-4 md:gap-6">
-                                                <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5">
-                                                    {currentAlumna.profilePhotoUrl ? <img src={currentAlumna.profilePhotoUrl} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
+                                        <div className="p-4 md:p-10 relative">
+                                            <div className="absolute inset-0 bg-[#020617]/40 backdrop-blur-3xl border-y border-white/5 shadow-2xl pointer-events-none"></div>
+                                            
+                                            <div className="relative z-10 flex gap-6 md:gap-8 max-w-5xl mx-auto">
+                                                <div className="relative group shrink-0 hidden sm:block">
+                                                    <div className="absolute -inset-1 bg-gradient-to-tr from-indigo-500 to-rose-500 rounded-3xl blur opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                                                    <div className="w-16 h-16 rounded-3xl bg-[#020617] border border-white/10 p-1 relative z-10 shadow-2xl">
+                                                        {currentAlumna.profilePhotoUrl ? <img src={currentAlumna.profilePhotoUrl} className="w-full h-full object-cover rounded-2xl" /> : <User className="w-full h-full p-4 text-slate-500" />}
+                                                    </div>
+                                                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 border-4 border-[#020617] rounded-full animate-pulse"></div>
                                                 </div>
-                                                <div className="flex-1 space-y-6">
-                                                    <textarea 
-                                                        placeholder="What's your institutional legacy today?"
-                                                        value={newPostContent}
-                                                        onChange={(e) => setNewPostContent(e.target.value)}
-                                                        className="w-full bg-transparent border-none focus:ring-0 text-lg md:text-xl font-medium placeholder:text-slate-300 resize-none min-h-[120px] md:min-h-[140px] text-white font-display px-0"
-                                                    />
+                                                
+                                                <div className="flex-1 space-y-8">
+                                                    <div className="relative group/input">
+                                                        <div className="absolute -inset-4 bg-white/5 rounded-[2.5rem] opacity-0 group-focus-within/input:opacity-100 transition-opacity duration-500"></div>
+                                                        <textarea 
+                                                            placeholder="Broadcast your institutional legacy..."
+                                                            value={newPostContent}
+                                                            onChange={(e) => setNewPostContent(e.target.value)}
+                                                            className="relative w-full bg-transparent border-none focus:ring-0 text-xl md:text-2xl font-black placeholder:text-slate-600 resize-none min-h-[140px] md:min-h-[160px] text-white font-display px-0 uppercase tracking-tight leading-snug"
+                                                        />
+                                                    </div>
                                                     
                                                     {postImagePreview && (
-                                                        <div className="relative rounded-[2.5rem] overflow-hidden border-4 border-slate-50 dark:border-slate-900 shadow-2xl group">
-                                                            <img src={postImagePreview} className="w-full h-full object-cover max-h-96" />
+                                                        <div className="relative rounded-[3rem] overflow-hidden border border-white/10 shadow-[0_30px_60px_rgba(0,0,0,0.4)] group/preview animate-in zoom-in-95 duration-500">
+                                                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover/preview:opacity-100 transition-opacity duration-500"></div>
+                                                            <img src={postImagePreview} className="w-full h-full object-cover max-h-[500px]" />
                                                             <button 
                                                                 onClick={() => { setPostImageFile(null); setPostImagePreview(null); }}
-                                                                className="absolute top-6 right-6 p-3 bg-black/60 text-white rounded-full hover:bg-rose-600 backdrop-blur-xl transition-all shadow-xl"
+                                                                className="absolute top-8 right-8 p-4 bg-black/40 hover:bg-rose-500 text-white rounded-full backdrop-blur-xl transition-all shadow-2xl active:scale-90"
                                                             >
                                                                 <X className="w-6 h-6" />
                                                             </button>
@@ -2305,58 +2671,57 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                                     )}
 
                                                     {postVideoPreview && (
-                                                        <div className="relative rounded-[2.5rem] overflow-hidden border-4 border-slate-50 dark:border-slate-900 shadow-2xl group">
-                                                            <video src={postVideoPreview} controls className="w-full h-full object-cover max-h-96" />
+                                                        <div className="relative rounded-[3rem] overflow-hidden border border-white/10 shadow-[0_30px_60px_rgba(0,0,0,0.4)] group/preview animate-in zoom-in-95 duration-500">
+                                                            <video src={postVideoPreview} controls className="w-full h-full object-cover max-h-[500px]" />
                                                             <button 
                                                                 onClick={() => { setPostVideoFile(null); setPostVideoPreview(null); }}
-                                                                className="absolute top-6 right-6 p-3 bg-black/60 text-white rounded-full hover:bg-rose-600 backdrop-blur-xl transition-all shadow-xl z-10"
+                                                                className="absolute top-8 right-8 p-4 bg-black/40 hover:bg-rose-500 text-white rounded-full backdrop-blur-xl transition-all shadow-2xl z-10 active:scale-90"
                                                             >
                                                                 <X className="w-6 h-6" />
                                                             </button>
                                                         </div>
                                                     )}
 
-                                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-white/5">
-                                                        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto overflow-x-auto no-scrollbar">
+                                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-8 border-t border-white/5 relative z-10">
+                                                        <div className="flex items-center gap-3 w-full sm:w-auto">
                                                             <button 
                                                                 onClick={() => document.getElementById('post-photo-upload-main')?.click()} 
-                                                                className="flex items-center gap-2 px-4 py-3 bg-white/5 hover:bg-indigo-900/30 text-slate-400 hover:text-indigo-600 rounded-2xl transition-all group shrink-0"
+                                                                className="flex items-center gap-3 px-6 py-4 bg-white/5 hover:bg-indigo-500/20 text-slate-400 hover:text-indigo-400 border border-white/5 hover:border-indigo-500/30 rounded-2xl transition-all group shrink-0 active:scale-95"
                                                             >
                                                                 <ImageIcon className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                                                                <span className="text-[9px] font-black uppercase tracking-widest">Photo</span>
+                                                                <span className="text-[10px] font-black uppercase tracking-widest">Media Hub</span>
                                                                 <input type="file" id="post-photo-upload-main" className="hidden" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setPostImageFile(file); setPostImagePreview(URL.createObjectURL(file)); setPostVideoFile(null); setPostVideoPreview(null); } }} />
                                                             </button>
 
-                                                            <button 
-                                                                onClick={() => document.getElementById('post-video-upload-main')?.click()} 
-                                                                className="flex items-center gap-2 px-4 py-3 bg-white/5 hover:bg-indigo-900/30 text-slate-400 hover:text-indigo-600 rounded-2xl transition-all group shrink-0"
-                                                            >
-                                                                <Video className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                                                                <span className="text-[9px] font-black uppercase tracking-widest">Video</span>
-                                                                <input type="file" id="post-video-upload-main" className="hidden" accept="video/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setPostVideoFile(file); setPostVideoPreview(URL.createObjectURL(file)); setPostImageFile(null); setPostImagePreview(null); } }} />
-                                                            </button>
-
                                                             {groups.length > 0 && (
-                                                                <select 
-                                                                    value={selectedGroupId || ''} 
-                                                                    onChange={(e) => setSelectedGroupId(e.target.value || null)}
-                                                                    className="bg-white/5 border-none rounded-2xl text-[9px] font-black uppercase tracking-widest text-slate-500 focus:ring-2 focus:ring-indigo-600 transition-all cursor-pointer h-[44px] px-4"
-                                                                >
-                                                                    <option value="">Posting to Circle</option>
-                                                                    {groups.map(g => (
-                                                                        <option key={g.id} value={g.id}>{g.name}</option>
-                                                                    ))}
-                                                                </select>
+                                                                <div className="relative group/select">
+                                                                    <select 
+                                                                        value={selectedGroupId || ''} 
+                                                                        onChange={(e) => setSelectedGroupId(e.target.value || null)}
+                                                                        className="appearance-none bg-white/5 border border-white/5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white hover:bg-white/10 focus:ring-2 focus:ring-indigo-600 transition-all cursor-pointer h-[56px] px-8 pr-12 min-w-[200px]"
+                                                                    >
+                                                                        <option value="">Global Broadcast</option>
+                                                                        {groups.map(g => (
+                                                                            <option key={g.id} value={g.id}>{g.name}</option>
+                                                                        ))}
+                                                                    </select>
+                                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600 group-hover/select:text-indigo-400 transition-colors">
+                                                                        <ChevronDown className="w-4 h-4" />
+                                                                    </div>
+                                                                </div>
                                                             )}
                                                         </div>
                                                         
                                                         <button 
                                                             onClick={handleCreatePost}
                                                             disabled={(!newPostContent.trim() && !postImageFile && !postVideoFile) || isPosting}
-                                                            className="w-full sm:w-auto bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.25em] shadow-2xl shadow-indigo-500/20 disabled:opacity-20 transition-all flex items-center justify-center gap-3 hover:scale-105 active:scale-95 group/broadcast"
+                                                            className="w-full sm:w-auto relative group/broadcast overflow-hidden px-12 py-5 bg-indigo-600 text-white rounded-[1.5rem] shadow-[0_20px_40px_rgba(79,70,229,0.3)] disabled:opacity-20 transition-all active:scale-95"
                                                         >
-                                                            {isPosting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />} 
-                                                            Broadcast
+                                                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover/broadcast:translate-x-full transition-transform duration-1000"></div>
+                                                            <div className="relative flex items-center justify-center gap-4">
+                                                                {isPosting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 group-hover/broadcast:translate-x-1 group-hover/broadcast:-translate-y-1 transition-transform" />} 
+                                                                <span className="text-[11px] font-black uppercase tracking-[0.4em]">Initialize Broadcast</span>
+                                                            </div>
                                                         </button>
                                                     </div>
                                                 </div>
