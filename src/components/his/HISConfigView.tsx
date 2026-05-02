@@ -225,3 +225,4 @@ export const HISConfigView: React.FC<HISConfigProps> = ({ demoStaff }) => {
         </div>
     );
 };
+

@@ -366,7 +366,7 @@ export const CarWashCustomerPortal: React.FC<CarWashCustomerPortalProps> = ({ cu
                         <h2 className="text-xs font-black uppercase opacity-70 tracking-widest mb-6">Customer Profile</h2>
                         <div className="flex items-center gap-4 mb-8">
                             <div className="w-16 h-16 bg-white/20 rounded-2xl backdrop-blur-md flex items-center justify-center overflow-hidden border border-white/30">
-                                {currentUser.profilePhotoUrl ? <img src={currentUser.profilePhotoUrl} className="w-full h-full object-cover" /> : <UserIcon className="w-8 h-8" />}
+                                {currentUser.profilePhotoUrl ? <img loading="lazy" src={currentUser.profilePhotoUrl} className="w-full h-full object-cover" /> : <UserIcon className="w-8 h-8" />}
                             </div>
                             <div>
                                 <h3 className="text-xl font-black leading-tight">{currentUser.name}</h3>
@@ -440,3 +440,4 @@ export const CarWashCustomerPortal: React.FC<CarWashCustomerPortalProps> = ({ cu
         </div>
     );
 };
+

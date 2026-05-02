@@ -63,6 +63,8 @@ interface ReportsDashboardProps {
     visitors: Visitor[];
     activityLog: ActivityLog[];
     courseSizes: Map<string, number>;
+    activityLogLimit?: number;
+    setActivityLogLimit?: React.Dispatch<React.SetStateAction<number>>;
 }
 
 const ProgressBar: React.FC<{ value: number; max: number }> = ({ value, max }) => {
@@ -780,7 +782,11 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                         />
                     )}
                     {subTab === 'audit' && (
-                        <ActivityLogView activityLog={activityLog} />
+                        <ActivityLogView 
+                            activityLog={activityLog} 
+                            activityLogLimit={props.activityLogLimit}
+                            setActivityLogLimit={props.setActivityLogLimit}
+                        />
                     )}
                     {subTab === 'distance' && (
                         <RoomDistanceReport
@@ -934,3 +940,4 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         </div>
     );
 };
+

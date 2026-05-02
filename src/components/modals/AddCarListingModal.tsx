@@ -138,7 +138,7 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                                 <div className="aspect-video bg-slate-50 dark:bg-slate-800 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 overflow-hidden relative group">
                                     {formData.mainImageUrl ? (
                                         <>
-                                            <img src={formData.mainImageUrl} className="w-full h-full object-cover" alt="Main" />
+                                            <img loading="lazy" src={formData.mainImageUrl} className="w-full h-full object-cover" alt="Main" />
                                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                 <label className="cursor-pointer bg-white text-slate-900 px-6 py-2 rounded-full font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
                                                     <Plus className="w-4 h-4" /> Change Image
@@ -170,7 +170,7 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                                 <div className="grid grid-cols-4 gap-3">
                                     {formData.galleryUrls?.map((url: string, i: number) => (
                                         <div key={i} className="aspect-square bg-slate-100 dark:bg-slate-800 rounded-xl relative group overflow-hidden">
-                                            <img src={url} className="w-full h-full object-cover" alt={`Gallery ${i}`} />
+                                            <img loading="lazy" src={url} className="w-full h-full object-cover" alt={`Gallery ${i}`} />
                                             <button 
                                                 onClick={() => removeGalleryImage(i)}
                                                 className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 flex items-center justify-center scale-75 group-hover:scale-100 transition-all shadow-lg"
@@ -329,3 +329,4 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
         </div>
     );
 };
+

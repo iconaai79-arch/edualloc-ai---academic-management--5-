@@ -12,6 +12,8 @@ interface TransactionsManagerProps {
     onVerifyTransaction?: (transaction: Transaction) => Promise<void>;
     logoUrl: string | null;
     title?: string;
+    transactionLimit?: number;
+    setTransactionLimit?: React.Dispatch<React.SetStateAction<number>>;
 }
 
 const TransactionStatusBadge: React.FC<{ status: TransactionStatus }> = ({ status }) => {
@@ -187,6 +189,17 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
                     </tbody>
                 </table>
             </div>
+            {transactions.length >= (transactionLimit || 50) && (
+                <div className="flex justify-center mt-6">
+                    <button 
+                        onClick={() => setTransactionLimit?.(prev => prev + 50)}
+                        className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg hover:bg-indigo-700 transition-all flex items-center gap-2"
+                    >
+                        Sync More Transactions
+                    </button>
+                </div>
+            )}
         </section>
     );
 };
+

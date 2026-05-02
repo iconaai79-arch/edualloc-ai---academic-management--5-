@@ -295,3 +295,4 @@ export const BookSponsorManager: React.FC<BookSponsorManagerProps> = ({
         </div>
     );
 };
+

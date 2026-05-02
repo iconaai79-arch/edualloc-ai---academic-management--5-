@@ -569,3 +569,4 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
         </div>
     );
 };
+

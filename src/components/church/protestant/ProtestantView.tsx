@@ -414,3 +414,4 @@ const RehearsalEvent: React.FC<{ team: string, time: string, location: string, p
         </div>
     </div>
 );
+

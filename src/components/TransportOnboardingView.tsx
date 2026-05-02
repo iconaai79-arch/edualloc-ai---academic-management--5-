@@ -246,3 +246,4 @@ export const TransportOnboardingView: React.FC<TransportOnboardingViewProps> = (
         </div>
     );
 };
+

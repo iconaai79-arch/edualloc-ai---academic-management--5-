@@ -150,3 +150,4 @@ export const CBCReportCard: React.FC<CBCReportCardProps> = ({
         </div>
     );
 };
+

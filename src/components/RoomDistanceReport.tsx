@@ -360,3 +360,4 @@ export const RoomDistanceReport: React.FC<RoomDistanceReportProps> = ({
         </div>
     );
 };
+

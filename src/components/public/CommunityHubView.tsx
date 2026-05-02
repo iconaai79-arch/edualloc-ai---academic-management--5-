@@ -173,7 +173,7 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
                                                     <div className="flex items-center gap-5 mb-8">
                                                         <div className="relative">
                                                             {aspirant.profilePicture ? (
-                                                                <img 
+                                                                <img loading="lazy" 
                                                                     src={aspirant.profilePicture} 
                                                                     alt={aspirant.candidateName}
                                                                     className="w-20 h-20 rounded-[2rem] object-cover shadow-xl ring-4 ring-white"
@@ -454,3 +454,4 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
         </div>
     );
 };
+

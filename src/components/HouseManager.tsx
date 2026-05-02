@@ -445,3 +445,4 @@ const HouseManager: React.FC<HouseManagerProps> = ({
 };
 
 export default HouseManager;
+

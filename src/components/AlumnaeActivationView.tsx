@@ -167,3 +167,4 @@ export const AlumnaeActivationView: React.FC<AlumnaeActivationViewProps> = ({ on
         </div>
     );
 };
+

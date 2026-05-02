@@ -143,3 +143,4 @@ export const ExamInsights: React.FC<ExamInsightsProps> = ({
         </div>
     );
 };
+

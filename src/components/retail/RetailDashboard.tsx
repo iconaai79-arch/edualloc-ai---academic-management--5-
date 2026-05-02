@@ -336,3 +336,4 @@ export function RetailDashboard({ institutionId, onNavigate }: RetailDashboardPr
         </div>
     );
 }
+

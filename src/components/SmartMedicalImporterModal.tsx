@@ -326,3 +326,4 @@ export const SmartMedicalImporterModal: React.FC<SmartMedicalImporterModalProps>
         </div>
     );
 };
+

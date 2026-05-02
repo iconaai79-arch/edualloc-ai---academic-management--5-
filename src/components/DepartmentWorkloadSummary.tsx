@@ -42,3 +42,4 @@ export const DepartmentWorkloadSummary: React.FC<DepartmentWorkloadSummaryProps>
         </div>
     );
 };
+

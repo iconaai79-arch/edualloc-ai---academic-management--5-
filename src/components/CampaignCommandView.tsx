@@ -55,6 +55,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
     const [politicalCounties, setPoliticalCounties] = useState<County[]>([]);
     const [politicalConstituencies, setPoliticalConstituencies] = useState<Constituency[]>([]);
     const [politicalWards, setPoliticalWards] = useState<Ward[]>([]);
+    const [voterLimit, setVoterLimit] = useState(20);
 
     const stats = useMemo(() => {
         // Calculate total electorate based on position from geographical metadata
@@ -133,7 +134,10 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                     setProfile(profiles[0]);
                     
                     // Load related data
-                    const voterData = await apiService.fetchModuleRecords<VoterOutreach>('voter_outreach', user.institutionId, undefined, { filter: { campaign_id: profiles[0].id } });
+                    const voterData = await apiService.fetchModuleRecords<VoterOutreach>('voter_outreach', user.institutionId, undefined, { 
+                        filter: { campaign_id: profiles[0].id },
+                        limit: voterLimit 
+                    });
                     setVoters(voterData);
                     
                     const eventData = await apiService.fetchModuleRecords<CampaignEvent>('campaign_events', user.institutionId, undefined, { filter: { campaign_id: profiles[0].id } });
@@ -160,7 +164,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
             }
         };
         loadData();
-    }, []);
+    }, [voterLimit]);
 
     const generateManifesto = async () => {
         if (!profile) return;
@@ -740,7 +744,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                 
                                 <div className="flex flex-col items-center gap-6">
                                     <div className="w-48 h-48 rounded-[3rem] bg-white dark:bg-slate-900 border-4 border-white dark:border-slate-800 shadow-2xl overflow-hidden relative group">
-                                        <img 
+                                        <img loading="lazy" 
                                             src={profile.profilePicture || 'https://images.unsplash.com/photo-1540910419892-f013c773998b?q=80&w=300&h=300&auto=format&fit=crop'} 
                                             alt="Candidate" 
                                             className="w-full h-full object-cover"
@@ -782,7 +786,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                 <div className="grid grid-cols-2 gap-4">
                                     {(profile.campaignPosters || []).map((p: string, i: number) => (
                                         <div key={i} className="aspect-[3/4] rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden group relative">
-                                            <img src={p} className="w-full h-full object-cover" />
+                                            <img loading="lazy" src={p} className="w-full h-full object-cover" />
                                             <button 
                                                 onClick={async () => {
                                                     const updated = { ...profile, campaignPosters: profile.campaignPosters?.filter((_: string, idx: number) => idx !== i) };
@@ -1033,6 +1037,70 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                         <div className="mb-12">
                             <LeadScoutManager defaultNiche={profile?.constituencyWard + " Political Campaign"} />
                         </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="border-b border-slate-50 dark:border-slate-800">
+                                        <th className="text-left py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest px-4">Supporter</th>
+                                        <th className="text-left py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest px-4">Contact</th>
+                                        <th className="text-left py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest px-4">Center</th>
+                                        <th className="text-left py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest px-4">Status</th>
+                                        <th className="text-right py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest px-4">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                    {voters.map((voter) => (
+                                        <tr key={voter.id} className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                            <td className="py-4 px-4">
+                                                <p className="font-black text-slate-900 dark:text-white uppercase text-xs">{voter.voterName}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">ID: {voter.idNumber || 'N/A'}</p>
+                                            </td>
+                                            <td className="py-4 px-4">
+                                                <p className="text-xs font-bold text-indigo-600">{voter.phoneNumber}</p>
+                                            </td>
+                                            <td className="py-4 px-4 text-xs font-medium text-slate-500 uppercase">{voter.votingCenter || 'Unspecified'}</td>
+                                            <td className="py-4 px-4">
+                                                <span className={`text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${
+                                                    voter.status === 'supporter' ? 'bg-emerald-50 text-emerald-600' :
+                                                    voter.status === 'opposed' ? 'bg-red-50 text-red-600' :
+                                                    voter.status === 'undecided' ? 'bg-amber-50 text-amber-600' :
+                                                    'bg-slate-100 text-slate-500'
+                                                }`}>
+                                                    {voter.status}
+                                                </span>
+                                            </td>
+                                            <td className="py-4 px-4 text-right">
+                                                <button 
+                                                    onClick={() => { if(confirm('Delete contact?')) apiService.deleteModuleRecord('voter_outreach', voter.id).then(() => setVoters(prev => prev.filter(v => v.id !== voter.id))) }}
+                                                    className="p-2 text-slate-300 hover:text-red-500 transition-colors"
+                                                >
+                                                    <TrashIcon className="w-4 h-4" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {voters.length === 0 && (
+                                        <tr>
+                                            <td colSpan={5} className="py-20 text-center text-slate-300 font-black uppercase text-[10px] tracking-widest italic">
+                                                No supporter data synchronized yet
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {voters.length >= voterLimit && (
+                            <div className="mt-10 flex justify-center">
+                                <button 
+                                    onClick={() => setVoterLimit(prev => prev + 20)}
+                                    className="px-10 py-4 bg-indigo-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-indigo-100 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                                >
+                                    <ArrowPathIcon className="w-4 h-4" /> Sync More Supporters
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {showVoterImportModal && profile && (
@@ -2163,3 +2231,4 @@ const CampaignVoterModal: React.FC<CampaignVoterModalProps> = ({ campaignId, ins
         </div>
     );
 };
+

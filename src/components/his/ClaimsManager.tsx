@@ -160,3 +160,4 @@ export const ClaimsManager: React.FC<ClaimsManagerProps> = ({ institutionId }) =
         </div>
     );
 };
+

@@ -339,7 +339,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                             {/* Product Image Stage */}
                             <div className="h-72 bg-slate-50 dark:bg-slate-900 relative overflow-hidden">
                                 {item.imageUrl ? (
-                                    <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-125" />
+                                    <img loading="lazy" src={item.imageUrl} alt={item.name} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-125" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
                                         <Package className="w-20 h-20 text-slate-300 dark:text-slate-700" />
@@ -438,7 +438,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                                         <div className="flex items-center gap-5">
                                             <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-900 overflow-hidden flex-shrink-0">
                                                 {item.imageUrl ? (
-                                                    <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                                                    <img loading="lazy" src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
                                                 ) : (
                                                     <Package className="w-full h-full p-4 text-slate-300" />
                                                 )}
@@ -497,7 +497,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                                     <div className="aspect-square bg-slate-50 dark:bg-slate-900 rounded-[3rem] border-2 border-dashed border-slate-200 dark:border-slate-700 relative group overflow-hidden flex flex-col items-center justify-center">
                                         {formData.imageUrl ? (
                                             <>
-                                                <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                                                <img loading="lazy" src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
                                                 <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
                                                     <button type="button" onClick={() => setFormData({ ...formData, imageUrl: '' })} className="p-3 bg-rose-600 text-white rounded-2xl shadow-xl hover:scale-110 transition-transform"><Trash className="w-5 h-5" /></button>
                                                 </div>
@@ -680,3 +680,4 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
         </div>
     );
 }
+

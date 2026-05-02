@@ -5,6 +5,7 @@ import { CurrencyIcon } from '../icons/CurrencyIcon';
 import { ArrowTrendingUpIcon } from '../icons/ArrowTrendingUpIcon';
 import { ArrowDownRightIcon } from '../icons/ArrowDownRightIcon';
 import { ChartBarIcon } from '../icons/ChartBarIcon';
+import { ArrowPathIcon } from '../icons/ArrowPathIcon';
 
 interface RevenueWarRoomProps {
     invoices: Invoice[];
@@ -13,6 +14,8 @@ interface RevenueWarRoomProps {
     goals: FinancialGoal[];
     students: User[];
     institution: Institution;
+    receiptLimit?: number;
+    setReceiptLimit?: React.Dispatch<React.SetStateAction<number>>;
 }
 
 export const RevenueWarRoom: React.FC<RevenueWarRoomProps> = ({
@@ -21,7 +24,9 @@ export const RevenueWarRoom: React.FC<RevenueWarRoomProps> = ({
     expenses,
     goals,
     students,
-    institution
+    institution,
+    receiptLimit,
+    setReceiptLimit
 }) => {
     const stats = useMemo(() => {
         const totalBilled = invoices.reduce((acc, inv) => acc + inv.totalAmount, 0);
@@ -192,7 +197,18 @@ export const RevenueWarRoom: React.FC<RevenueWarRoomProps> = ({
                         </tbody>
                     </table>
                 </div>
+                {receipts.length >= (receiptLimit || 50) && (
+                    <div className="p-8 flex justify-center bg-slate-50/30">
+                        <button 
+                            onClick={() => setReceiptLimit?.(prev => prev + 50)}
+                            className="px-8 py-3 bg-white text-slate-900 border border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all shadow-sm flex items-center gap-3"
+                        >
+                            <ArrowPathIcon className="w-4 h-4" /> Sync More History
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
 };
+

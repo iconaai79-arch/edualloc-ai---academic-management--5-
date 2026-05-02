@@ -483,3 +483,4 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
         </div>
     );
 };
+

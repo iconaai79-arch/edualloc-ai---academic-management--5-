@@ -420,3 +420,4 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
         </div>
     );
 };
+

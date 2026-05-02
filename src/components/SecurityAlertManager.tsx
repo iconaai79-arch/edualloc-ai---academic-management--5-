@@ -229,3 +229,4 @@ export const SecurityAlertManager: React.FC<SecurityAlertManagerProps> = ({ aler
         </div>
     );
 };
+

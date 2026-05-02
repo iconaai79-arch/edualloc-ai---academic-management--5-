@@ -234,3 +234,4 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         </div>
     );
 };
+

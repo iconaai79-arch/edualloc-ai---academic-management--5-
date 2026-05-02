@@ -759,3 +759,4 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
         </div>
     );
 };
+

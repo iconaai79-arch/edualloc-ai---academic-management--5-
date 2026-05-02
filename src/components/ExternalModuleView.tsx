@@ -67,3 +67,4 @@ export const ExternalModuleView: React.FC<ExternalModuleViewProps> = ({ url, tit
         </div>
     );
 };
+

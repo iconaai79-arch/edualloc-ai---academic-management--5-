@@ -586,3 +586,4 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
         </div>
     );
 };
+

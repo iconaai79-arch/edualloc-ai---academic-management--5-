@@ -492,3 +492,4 @@ const GeneralMedicineView = ({ activePatient, vitals, events, onOpenVitals, onOp
         )}
     </div>
 );
+

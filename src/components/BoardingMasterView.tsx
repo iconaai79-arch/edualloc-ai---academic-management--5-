@@ -533,3 +533,4 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
 };
 
 export default BoardingMasterView;
+

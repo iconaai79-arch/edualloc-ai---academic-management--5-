@@ -529,3 +529,4 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         </div>
     );
 };
+

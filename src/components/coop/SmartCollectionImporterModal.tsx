@@ -606,3 +606,4 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
         </div>
     );
 };
+

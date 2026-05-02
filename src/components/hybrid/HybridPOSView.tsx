@@ -169,7 +169,7 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
                                             {/* Image Section */}
                                             <div className="relative aspect-[4/3] w-full bg-slate-100 dark:bg-slate-900 overflow-hidden">
                                                 {imageUrl ? (
-                                                    <img src={imageUrl} alt={item.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                                    <img loading="lazy" src={imageUrl} alt={item.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
                                                 ) : (
                                                     <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
                                                         <span className="text-4xl">{isCafe ? '🍔' : '📦'}</span>
@@ -299,3 +299,4 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
         </div>
     );
 };
+

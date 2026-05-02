@@ -132,3 +132,4 @@ export const NearbyClassesView: React.FC<NearbyClassesViewProps> = ({ timetable,
         </div>
     );
 };
+

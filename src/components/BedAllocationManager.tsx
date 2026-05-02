@@ -541,3 +541,4 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
 };
 
 export default BedAllocationManager;
+

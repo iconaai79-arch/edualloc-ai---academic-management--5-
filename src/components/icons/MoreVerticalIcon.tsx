@@ -16,3 +16,4 @@ export const MoreVerticalIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props)
     <circle cx="12" cy="19" r="1" />
   </svg>
 );
+

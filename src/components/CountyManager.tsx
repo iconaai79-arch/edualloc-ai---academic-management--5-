@@ -396,7 +396,7 @@ export const CountyManager: React.FC<CountyManagerProps> = ({
                                         <label className="block text-sm font-bold mb-2">County Logo</label>
                                         <div className="flex items-center gap-4">
                                             {formData.logoUrl && (
-                                                <img src={formData.logoUrl} alt="Logo" className="w-12 h-12 object-contain rounded-lg border border-slate-200 p-1 bg-white" />
+                                                <img loading="lazy" src={formData.logoUrl} alt="Logo" className="w-12 h-12 object-contain rounded-lg border border-slate-200 p-1 bg-white" />
                                             )}
                                             <label className="flex-1">
                                                 <div className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl hover:bg-slate-200 transition-colors cursor-pointer text-center text-xs font-bold uppercase tracking-widest border-2 border-dashed border-slate-300 dark:border-slate-700">
@@ -410,7 +410,7 @@ export const CountyManager: React.FC<CountyManagerProps> = ({
                                         <label className="block text-sm font-bold mb-2">Letterhead Image</label>
                                         <div className="flex items-center gap-4">
                                             {formData.letterheadUrl && (
-                                                <img src={formData.letterheadUrl} alt="Letterhead" className="w-12 h-12 object-contain rounded-lg border border-slate-200 p-1 bg-white" />
+                                                <img loading="lazy" src={formData.letterheadUrl} alt="Letterhead" className="w-12 h-12 object-contain rounded-lg border border-slate-200 p-1 bg-white" />
                                             )}
                                             <label className="flex-1">
                                                 <div className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl hover:bg-slate-200 transition-colors cursor-pointer text-center text-xs font-bold uppercase tracking-widest border-2 border-dashed border-slate-300 dark:border-slate-700">
@@ -452,3 +452,4 @@ export const CountyManager: React.FC<CountyManagerProps> = ({
         </div>
     );
 };
+

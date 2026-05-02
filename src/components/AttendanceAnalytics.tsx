@@ -218,3 +218,4 @@ export const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({
         </div>
     );
 };
+

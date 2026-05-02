@@ -55,7 +55,7 @@ export const BookQrCodeModal: React.FC<BookQrCodeModalProps> = ({ book, onClose 
                 </head>
                 <body>
                     <div class="label-container">
-                        <img src="${qrUrl}" class="qr-code" />
+                        <img loading="lazy" src="${qrUrl}" class="qr-code" />
                         <div class="title">${book.title}</div>
                         <div class="isbn">ISBN: ${book.isbn}</div>
                         <div class="institution">SCHOOL LIBRARY ASSET</div>
@@ -84,7 +84,7 @@ export const BookQrCodeModal: React.FC<BookQrCodeModalProps> = ({ book, onClose 
 
                 <div className="bg-slate-50 dark:bg-slate-900 p-8 rounded-[2rem] border-2 border-dashed border-slate-200 dark:border-slate-700 mb-8 inline-block mx-auto">
                     {qrUrl ? (
-                        <img src={qrUrl} alt="QR Code" className="w-48 h-48 mx-auto mix-blend-multiply dark:mix-blend-normal rounded-xl" />
+                        <img loading="lazy" src={qrUrl} alt="QR Code" className="w-48 h-48 mx-auto mix-blend-multiply dark:mix-blend-normal rounded-xl" />
                     ) : (
                         <div className="w-48 h-48 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse flex items-center justify-center">
                             <span className="text-[10px] font-black uppercase text-slate-400">Gen Syncing...</span>
@@ -119,3 +119,4 @@ export const BookQrCodeModal: React.FC<BookQrCodeModalProps> = ({ book, onClose 
         </div>
     );
 };
+

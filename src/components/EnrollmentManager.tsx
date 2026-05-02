@@ -101,3 +101,4 @@ export const EnrollmentManager: React.FC<EnrollmentManagerProps> = ({
         </section>
     );
 };
+

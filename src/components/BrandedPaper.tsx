@@ -27,7 +27,7 @@ export const BrandedPaper: React.FC<BrandedPaperProps> = ({
             <div className="p-8 border-b border-slate-100">
                 {letterheadConfig?.headerImageUrl ? (
                     <div className="w-full h-32 flex items-center justify-center overflow-hidden">
-                        <img 
+                        <img loading="lazy" 
                             src={letterheadConfig.headerImageUrl} 
                             alt="Institution Header" 
                             className="max-w-full max-h-full object-contain"
@@ -48,7 +48,7 @@ export const BrandedPaper: React.FC<BrandedPaperProps> = ({
                            {subtitle && <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{subtitle}</p>}
                         </div>
                         {institution?.logoUrl && (
-                            <img src={institution.logoUrl} alt="Logo" className="h-16 w-16 object-contain" />
+                            <img loading="lazy" src={institution.logoUrl} alt="Logo" className="h-16 w-16 object-contain" />
                         )}
                     </div>
                 )}
@@ -63,7 +63,7 @@ export const BrandedPaper: React.FC<BrandedPaperProps> = ({
             <div className="p-8 mt-auto">
                 {footerImageUrl ? (
                     <div className="w-full h-20 flex items-center justify-center overflow-hidden border-t border-slate-50 pt-4">
-                        <img 
+                        <img loading="lazy" 
                             src={footerImageUrl} 
                             alt="Report Footer" 
                             className="max-w-full max-h-full object-contain"

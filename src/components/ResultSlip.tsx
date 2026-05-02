@@ -115,3 +115,4 @@ export const ResultSlip: React.FC<ResultSlipProps> = ({
         </BrandedPaper>
     );
 };
+

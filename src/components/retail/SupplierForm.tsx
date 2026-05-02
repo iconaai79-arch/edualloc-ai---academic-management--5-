@@ -129,3 +129,4 @@ export function SupplierForm({ editingSupplier, onSave, onClose }: SupplierFormP
         </div>
     );
 }
+

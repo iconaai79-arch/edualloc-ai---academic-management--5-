@@ -300,7 +300,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 <div className="max-w-md w-full space-y-6 md:space-y-8 bg-white dark:bg-slate-800 p-6 md:p-10 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-700">
                     <div className="text-center">
                         {logoUrl ? (
-                            <img className="mx-auto h-16 w-auto mb-4" src={logoUrl} alt="Logo" />
+                            <img loading="lazy" className="mx-auto h-16 w-auto mb-4" src={logoUrl} alt="Logo" />
                         ) : (
                             <div className="mx-auto h-16 w-16 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg bg-blue-600">
                                 <AcademicCapIcon className="w-10 h-10" />
@@ -963,3 +963,4 @@ export const LoginView: React.FC<LoginViewProps> = ({
         </div>
     );
 };
+

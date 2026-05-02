@@ -25,6 +25,10 @@ BEGIN
     IF EXISTS (SELECT 1 FROM pg_views WHERE viewname = 'v_pending_reminders') THEN
         ALTER VIEW public.v_pending_reminders SET (security_invoker = true);
     END IF;
+    
+    IF EXISTS (SELECT 1 FROM pg_views WHERE viewname = 'car_listings') THEN
+        ALTER VIEW public.car_listings SET (security_invoker = true);
+    END IF;
 
     -- 2. HARDEN SECURITY DEFINER FUNCTIONS (Enforce search_path = public)
     

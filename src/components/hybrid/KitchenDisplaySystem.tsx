@@ -176,3 +176,4 @@ export const KitchenDisplaySystem: React.FC<KitchenDisplaySystemProps> = ({
         </div>
     );
 };
+

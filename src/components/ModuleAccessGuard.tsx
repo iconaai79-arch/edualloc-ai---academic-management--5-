@@ -70,3 +70,4 @@ export const ModuleAccessGuard: React.FC<ModuleAccessGuardProps> = ({
 
     return <>{children}</>;
 };
+

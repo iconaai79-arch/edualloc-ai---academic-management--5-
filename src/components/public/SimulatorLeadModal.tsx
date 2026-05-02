@@ -188,3 +188,4 @@ export const SimulatorLeadModal: React.FC<SimulatorLeadModalProps> = ({ onClose,
     </div>
   );
 };
+

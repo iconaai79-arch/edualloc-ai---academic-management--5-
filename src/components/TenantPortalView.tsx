@@ -399,3 +399,4 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = ({ currentUser,
         </div>
     );
 };
+

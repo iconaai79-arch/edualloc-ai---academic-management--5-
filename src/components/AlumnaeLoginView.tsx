@@ -368,7 +368,7 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
                 <div className="relative group cursor-default">
                     {/* Glow effect behind logo */}
                     <div className="absolute inset-0 bg-indigo-500/20 rounded-full blur-3xl group-hover:bg-indigo-500/30 transition-all duration-700"></div>
-                    <img 
+                    <img loading="lazy" 
                         src="/alumnae_logo_3d.png" 
                         alt="Alumnae 3D Emblem"
                         className="w-[450px] h-auto relative z-10 drop-shadow-[0_35px_35px_rgba(0,0,0,0.5)] animate-float"
@@ -400,7 +400,7 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
                 <div className="w-full max-w-md animate-in fade-in slide-in-from-right-12 duration-1000">
                     {/* Mobile Branding (only visible on small screens) */}
                     <div className="lg:hidden flex flex-col items-center mb-12 text-center">
-                        <img src="/alumnae_logo_3d.png" className="w-40 h-auto mb-6 drop-shadow-2xl" />
+                        <img loading="lazy" src="/alumnae_logo_3d.png" className="w-40 h-auto mb-6 drop-shadow-2xl" />
                         <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Alumnae <span className="text-indigo-500">Circle</span></h2>
                     </div>
 
@@ -519,3 +519,4 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
 
     );
 };
+

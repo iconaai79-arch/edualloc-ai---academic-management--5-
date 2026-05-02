@@ -185,3 +185,4 @@ export const OphthalmologyView: React.FC<OphthalmologyViewProps> = ({ onAddVisit
         </div>
     );
 };
+

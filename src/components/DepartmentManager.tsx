@@ -376,3 +376,4 @@ export const DepartmentManager: React.FC<DepartmentManagerProps> = ({
         </div>
     );
 };
+

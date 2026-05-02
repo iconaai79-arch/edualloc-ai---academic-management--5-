@@ -15,3 +15,4 @@ export const DropletsIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => 
     <path d="M17 20.3c2.2 0 4-1.8 4-4 0-3.3-4-8-4-8s-4 4.7-4 8c0 2.2 1.8 4 4 4z" />
   </svg>
 );
+

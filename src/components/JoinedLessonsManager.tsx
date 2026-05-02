@@ -112,3 +112,4 @@ export const JoinedLessonsManager: React.FC<JoinedLessonsManagerProps> = ({ user
         </div>
     );
 };
+

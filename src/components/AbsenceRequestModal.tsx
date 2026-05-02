@@ -74,3 +74,4 @@ export const AbsenceRequestModal: React.FC<AbsenceRequestModalProps> = ({ timeta
     </div>
   );
 };
+

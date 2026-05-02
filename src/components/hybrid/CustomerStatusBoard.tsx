@@ -120,3 +120,4 @@ export const CustomerStatusBoard: React.FC<CustomerStatusBoardProps> = ({
         </div>
     );
 };
+

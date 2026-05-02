@@ -253,3 +253,4 @@ export const SchoolRegistryTable: React.FC<SchoolRegistryTableProps> = ({ school
         </div>
     );
 };
+

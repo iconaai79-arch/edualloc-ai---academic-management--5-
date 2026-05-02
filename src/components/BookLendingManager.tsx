@@ -398,7 +398,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                                                 <EyeIcon className="w-4 h-4" />
                                                             </button>
                                                             <div className="absolute bottom-full right-0 mb-2 p-2 bg-white dark:bg-slate-800 border rounded-xl shadow-xl hidden group-hover:block z-50">
-                                                                <img src={transaction.memberSignature} className="w-32 h-16 object-contain" alt="Signature" />
+                                                                <img loading="lazy" src={transaction.memberSignature} className="w-32 h-16 object-contain" alt="Signature" />
                                                                 <p className="text-[8px] font-black uppercase text-center text-slate-400 mt-1">Receipt Confirm</p>
                                                             </div>
                                                         </div>
@@ -509,7 +509,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                     <div className="flex items-center gap-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800 animate-fade-in">
                                         <div className="flex-shrink-0">
                                             {member.profilePhotoUrl ? (
-                                                <img
+                                                <img loading="lazy"
                                                     src={member.profilePhotoUrl}
                                                     alt={member.name}
                                                     className="w-16 h-16 rounded-2xl object-cover border-2 border-white dark:border-slate-700 shadow-lg"
@@ -751,3 +751,4 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
         </div>
     );
 };
+

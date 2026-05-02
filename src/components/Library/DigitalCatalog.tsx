@@ -113,3 +113,4 @@ export const DigitalCatalog: React.FC<DigitalCatalogProps> = ({
         </div>
     );
 };
+

@@ -46,6 +46,12 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
     const [credits, setCredits] = useState<AgrovetCreditNote[]>([]);
     const [loading, setLoading] = useState(true);
 
+    // Pagination limits
+    const [productLimit, setProductLimit] = useState(20);
+    const [saleLimit, setSaleLimit] = useState(20);
+    const [farmerLimit, setFarmerLimit] = useState(20);
+    const [consultationLimit, setConsultationLimit] = useState(20);
+
     // POS State
     const [cart, setCart] = useState<{ product: AgrovetProduct; quantity: number; price: number }[]>([]);
     const [cartSearch, setCartSearch] = useState('');
@@ -62,12 +68,12 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
         setLoading(true);
         try {
             const [prodList, batchList, saleList, farmerList, animalList, consultList, creditList] = await Promise.all([
-                apiService.fetchModuleRecords<AgrovetProduct>('agrovet_products', institutionId),
+                apiService.fetchModuleRecords<AgrovetProduct>('agrovet_products', institutionId, productLimit),
                 apiService.fetchModuleRecords<AgrovetBatch>('agrovet_batches', institutionId),
-                apiService.fetchModuleRecords<AgrovetSale>('agrovet_sales', institutionId),
-                apiService.fetchModuleRecords<AgrovetFarmer>('agrovet_customers', institutionId),
+                apiService.fetchModuleRecords<AgrovetSale>('agrovet_sales', institutionId, saleLimit),
+                apiService.fetchModuleRecords<AgrovetFarmer>('agrovet_customers', institutionId, farmerLimit),
                 apiService.fetchModuleRecords<AgrovetAnimal>('agrovet_animals', institutionId),
-                apiService.fetchModuleRecords<AgrovetConsultation>('agrovet_consultations', institutionId),
+                apiService.fetchModuleRecords<AgrovetConsultation>('agrovet_consultations', institutionId, consultationLimit),
                 apiService.fetchModuleRecords<AgrovetCreditNote>('agrovet_credit', institutionId),
             ]);
             setProducts(prodList || []);
@@ -82,7 +88,7 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
         setLoading(false);
     };
 
-    useEffect(() => { loadData(); }, [institutionId]);
+    useEffect(() => { loadData(); }, [institutionId, productLimit, saleLimit, farmerLimit, consultationLimit]);
 
     // Derived Data
     const lowStock = products.filter(p => p.currentStock <= p.reorderLevel);
@@ -409,6 +415,14 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
                                     ))
                                 )}
                             </div>
+                            {sales.length >= saleLimit && (
+                                <button 
+                                    onClick={() => setSaleLimit(prev => prev + 20)}
+                                    className="w-full mt-6 py-4 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border border-emerald-500/10"
+                                >
+                                    Sync More Activity
+                                </button>
+                            )}
                         </div>
 
                         {/* Quick Actions */}
@@ -639,6 +653,16 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
                                 </tbody>
                             </table>
                         </div>
+                        {products.length >= productLimit && (
+                            <div className="mt-8 flex justify-center">
+                                <button 
+                                    onClick={() => setProductLimit(prev => prev + 20)}
+                                    className="px-10 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                                >
+                                    <ArrowPathIcon className="w-4 h-4" /> Sync More Products
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -785,6 +809,16 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
                                 </tbody>
                             </table>
                         </div>
+                        {consultations.length >= consultationLimit && (
+                            <div className="mt-8 flex justify-center">
+                                <button 
+                                    onClick={() => setConsultationLimit(prev => prev + 20)}
+                                    className="px-10 py-4 bg-purple-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                                >
+                                    <ArrowPathIcon className="w-4 h-4" /> Sync More Consultations
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -1083,3 +1117,4 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
         </div>
     );
 };
+

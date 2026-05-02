@@ -21,7 +21,7 @@ import {
     ArchiveBoxIcon, CurrencyIcon, Cog8ToothIcon, SparklesIcon, 
     ArrowRightOnRectangleIcon, ShieldIcon, PencilIcon, TruckIcon, 
     CheckCircleIcon, ChevronRightIcon, UserIcon, MapPinIcon, QrCodeIcon,
-    PlusIcon, XIcon as CloseIcon
+    PlusIcon, XIcon as CloseIcon, ArrowPathIcon
 } from './icons';
 
 import { ExternalModuleView } from './ExternalModuleView';
@@ -127,6 +127,12 @@ interface CountyAdminViewProps {
     onDisbursePayouts: (ids: string[]) => void;
     onAddPayouts: (data: any) => void;
     onAccessAlumnaPortal: (school: SchoolRegistry) => void;
+    activityLogLimit?: number;
+    setActivityLogLimit?: React.Dispatch<React.SetStateAction<number>>;
+    receiptLimit?: number;
+    setReceiptLimit?: React.Dispatch<React.SetStateAction<number>>;
+    transactionLimit?: number;
+    setTransactionLimit?: React.Dispatch<React.SetStateAction<number>>;
 }
 
 export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
@@ -269,7 +275,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                 <div className="flex items-center gap-3 mb-10 px-2">
                     <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shadow-lg shadow-black/20 overflow-hidden border border-white/10">
                         {myCounty.logoUrl ? (
-                            <img src={myCounty.logoUrl} alt="Logo" className="w-full h-full object-contain p-1" />
+                            <img loading="lazy" src={myCounty.logoUrl} alt="Logo" className="w-full h-full object-contain p-1" />
                         ) : (
                             <BuildingOfficeIcon className="w-6 h-6 text-white" />
                         )}
@@ -406,7 +412,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                     <div className="space-y-6 animate-fade-in-up">
                         <div className="mb-8">
                             <div className="flex items-center gap-4 mb-2">
-                                {myCounty.logoUrl && <img src={myCounty.logoUrl} className="h-12 w-12 object-contain" alt="County Logo" />}
+                                {myCounty.logoUrl && <img loading="lazy" src={myCounty.logoUrl} className="h-12 w-12 object-contain" alt="County Logo" />}
                                 <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900">
                                     {myCounty.name} Overview
                                 </h2>
@@ -488,24 +494,36 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                     </div>
                                     <div className="divide-y divide-slate-50">
                                         {activityLog.length > 0 ? (
-                                            activityLog.slice(0, 8).map(log => (
-                                                <div key={log.id} className="p-6 flex items-center gap-4 hover:bg-slate-50/50 transition-colors">
-                                                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0 font-bold border border-slate-200">
-                                                        {(log.userName || 'U').charAt(0)}
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <p className="text-xs font-bold text-slate-900">{log.action}</p>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: 'var(--brand-primary, #4f46e5)' }}>{log.userName || 'System'}</span>
-                                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">[{log.institutionName || 'SYSTEM'}]</span>
-                                                            <span className="text-[9px] text-slate-400">•</span>
-                                                            <span className="text-[9px] text-slate-400 uppercase font-medium">
-                                                                {log.timestamp ? new Date(log.timestamp).toLocaleString() : 'Recent'}
-                                                            </span>
+                                            <>
+                                                {activityLog.slice(0, props.activityLogLimit || 8).map(log => (
+                                                    <div key={log.id} className="p-6 flex items-center gap-4 hover:bg-slate-50/50 transition-colors">
+                                                        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0 font-bold border border-slate-200">
+                                                            {(log.userName || 'U').charAt(0)}
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <p className="text-xs font-bold text-slate-900">{log.action}</p>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: 'var(--brand-primary, #4f46e5)' }}>{log.userName || 'System'}</span>
+                                                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">[{log.institutionName || 'SYSTEM'}]</span>
+                                                                <span className="text-[9px] text-slate-400">•</span>
+                                                                <span className="text-[9px] text-slate-400 uppercase font-medium">
+                                                                    {log.timestamp ? new Date(log.timestamp).toLocaleString() : 'Recent'}
+                                                                </span>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            ))
+                                                ))}
+                                                {activityLog.length >= (props.activityLogLimit || 8) && (
+                                                    <div className="p-6 text-center bg-slate-50/30">
+                                                        <button 
+                                                            onClick={() => props.setActivityLogLimit?.(prev => prev + 20)}
+                                                            className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-700 flex items-center justify-center gap-2 mx-auto"
+                                                        >
+                                                            <ArrowPathIcon className="w-3 h-3" /> Sync More Activity
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </>
                                         ) : (
                                             <div className="p-12 text-center">
                                                 <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">No recent activity recorded.</p>
@@ -1219,3 +1237,4 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
         </div>
     );
 };
+

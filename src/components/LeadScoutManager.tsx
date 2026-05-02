@@ -263,3 +263,4 @@ export const LeadScoutManager: React.FC<LeadScoutManagerProps> = ({ defaultNiche
         </div>
     );
 };
+

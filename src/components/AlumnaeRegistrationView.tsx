@@ -277,7 +277,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
             {/* Branding */}
             <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6 mb-10 md:mb-16 animate-fade-in text-center md:text-left">
                 <div className="w-20 h-20 md:w-24 md:h-24 bg-white dark:bg-slate-900 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-indigo-100 dark:shadow-none border border-slate-100 dark:border-slate-800 p-2 group overflow-hidden">
-                    <img 
+                    <img loading="lazy" 
                         src="/alumnae_logo_3d.png" 
                         alt="Alumnae Logo" 
                         className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700" 
@@ -404,7 +404,7 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
                                 <div className="relative group">
                                     <div className="w-32 h-32 rounded-3xl bg-slate-50 dark:bg-slate-800 border-4 border-white dark:border-slate-700 shadow-xl overflow-hidden flex items-center justify-center relative">
                                         {imagePreview ? (
-                                            <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                            <img loading="lazy" src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
                                         ) : (
                                             <User className="w-12 h-12 text-slate-300" />
                                         )}
@@ -699,3 +699,4 @@ export const AlumnaeRegistrationView: React.FC<AlumnaeRegistrationViewProps> = (
         </div>
     );
 };
+

@@ -1629,7 +1629,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({
                     <div key={listing.id} className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden group hover:-translate-y-2 transition-all duration-500">
                         <div className="h-48 bg-slate-100 dark:bg-slate-900 relative">
                             {listing.images && listing.images[0] ? (
-                                <img src={listing.images[0]} alt={listing.title} className="w-full h-full object-cover" />
+                                <img loading="lazy" src={listing.images[0]} alt={listing.title} className="w-full h-full object-cover" />
                             ) : (
                                 <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
                                     <HomeIcon className="w-12 h-12 mb-2" />
@@ -2970,7 +2970,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({
                             <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200">
                                 {newListingImages.map((img, idx) => (
                                     <div key={idx} className="relative flex-none w-24 h-24 rounded-2xl overflow-hidden border border-slate-200 shadow-sm group">
-                                        <img src={img} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                                        <img loading="lazy" src={img} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
                                         <button
                                             type="button"
                                             onClick={() => setNewListingImages(prev => prev.filter((_, i) => i !== idx))}
@@ -3077,3 +3077,4 @@ const dataURItoBlob = (dataURI: string) => {
     }
     return new Blob([ab], { type: mimeString });
 };
+

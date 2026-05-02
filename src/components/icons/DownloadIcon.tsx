@@ -16,3 +16,4 @@ export const DownloadIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => 
     <line x1="12" y1="15" x2="12" y2="3" />
   </svg>
 );
+

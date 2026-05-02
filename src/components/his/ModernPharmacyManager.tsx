@@ -282,8 +282,7 @@ export const ModernPharmacyManager: React.FC<{
                     recordedBy: currentUser.id
                 });
 
-                await apiService.saveModuleRecord('his_pharmacy_inventory', {
-                    id: item.id,
+                await apiService.updateModuleRecord('his_pharmacy_inventory', item.id, {
                     stockQuantity: item.stockQuantity - item.quantity
                 });
             }
@@ -393,9 +392,8 @@ export const ModernPharmacyManager: React.FC<{
     const handleAddInventory = async (itemData: any) => {
         try {
             if (editingInventory) {
-                await apiService.saveModuleRecord('his_pharmacy_inventory', {
+                await apiService.updateModuleRecord('his_pharmacy_inventory', editingInventory.id, {
                     ...itemData,
-                    id: editingInventory.id,
                     updatedAt: new Date().toISOString()
                 });
                 alert("Inventory item updated!");
@@ -485,8 +483,7 @@ export const ModernPharmacyManager: React.FC<{
                 // Get current stock
                 const invItem = inventory.find(i => i.id === item.medicationId);
                 if (invItem) {
-                    await apiService.saveModuleRecord('his_pharmacy_inventory', {
-                        id: item.medicationId,
+                    await apiService.updateModuleRecord('his_pharmacy_inventory', item.medicationId, {
                         stockQuantity: invItem.stockQuantity - item.quantity,
                         updatedAt: new Date().toISOString(),
                         recordedBy: currentUser.id
@@ -495,8 +492,7 @@ export const ModernPharmacyManager: React.FC<{
             }
 
             // 3. Update Prescription status and clinical notes
-            await apiService.saveModuleRecord('his_prescriptions', {
-                id: prescriptionId,
+            await apiService.updateModuleRecord('his_prescriptions', prescriptionId, {
                 status: 'dispensed',
                 clinicalNotes: dispenseData.clinicalNotes,
                 medicationImage: dispenseData.medicationImage,
@@ -1931,7 +1927,7 @@ export const ModernPharmacyManager: React.FC<{
 
                          {selectedPrescriptionForAudit.medicationImage && (
                              <div className="rounded-[2rem] overflow-hidden border border-white/10 bg-black/60 aspect-video relative group">
-                                 <img src={selectedPrescriptionForAudit.medicationImage} alt="Dispensing Proof" className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all" />
+                                 <img loading="lazy" src={selectedPrescriptionForAudit.medicationImage} alt="Dispensing Proof" className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all" />
                                  <div className="absolute inset-0 flex items-center justify-center">
                                      <p className="text-[9px] font-black uppercase tracking-[0.5em] text-white opacity-40 group-hover:opacity-0 transition-all">Visual Proof Node</p>
                                  </div>
@@ -1963,3 +1959,4 @@ export const ModernPharmacyManager: React.FC<{
         </div>
     );
 };
+

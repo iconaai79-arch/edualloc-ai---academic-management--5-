@@ -164,7 +164,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ currentUser, onClose
               <div className="flex flex-col md:flex-row items-center gap-8">
                 <div className="relative group">
                   {profilePhotoUrl ? (
-                    <img src={profilePhotoUrl} alt="Profile" className="w-32 h-32 rounded-[2rem] object-cover border-4 border-white dark:border-slate-800 shadow-xl" />
+                    <img loading="lazy" src={profilePhotoUrl} alt="Profile" className="w-32 h-32 rounded-[2rem] object-cover border-4 border-white dark:border-slate-800 shadow-xl" />
                   ) : (
                     <div className="w-32 h-32 rounded-[2rem] bg-slate-100 dark:bg-slate-800 flex items-center justify-center border-4 border-white dark:border-slate-800 shadow-xl">
                       <UserCircleIcon />
@@ -268,3 +268,4 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ currentUser, onClose
     </div>
   );
 };
+

@@ -608,6 +608,58 @@ export const apiService = {
         }
         return data;
     },
+    async invokeRpc(functionName: string, params: any): Promise<any> {
+        if (!_supabase) {
+            console.warn(`RPC ${functionName} called in offline mode. Returning null.`);
+            return null;
+        }
+        try {
+            const token = await apiService.getAuthToken();
+            const response = await fetch(`${window.location.origin}/api/system?action=rpc`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    function: functionName,
+                    params: params
+                })
+            });
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error || `RPC ${functionName} failed with status ${response.status}`);
+            }
+
+            return await response.json();
+        } catch (e) {
+            console.error(`RPC Exception [${functionName}]:`, e);
+            throw e;
+        }
+    },
+    async fetchTodayTeacherCheckIn(teacherId: string): Promise<TeacherCheckInWithDetails | null> {
+        const records = await apiService.fetchModuleRecords<TeacherCheckInWithDetails>('v_today_teacher_checkins', undefined, undefined, {
+            filter: { teacher_id: teacherId },
+            limit: 1
+        });
+        return records.length > 0 ? records[0] : null;
+    },
+    async processTeacherCheckIn(payload: {
+        teacher_id: string;
+        institution_id: string;
+        checkin_type: string;
+        location?: string;
+        notes?: string;
+    }): Promise<any> {
+        return apiService.invokeRpc('process_teacher_checkin', {
+            p_teacher_id: payload.teacher_id,
+            p_institution_id: payload.institution_id,
+            p_checkin_type: payload.checkin_type,
+            p_location: payload.location || '',
+            p_notes: payload.notes || ''
+        });
+    },
     async updateModuleRecord<T = any>(module: string, id: string, data: Partial<T>): Promise<T | null> {
         const payload = toSnakeCase(data);
 

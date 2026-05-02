@@ -2290,3 +2290,4 @@ const SubjectStructureEditorModal = ({ course, level, subject, rooms, onClose, o
         </div>
     );
 };
+

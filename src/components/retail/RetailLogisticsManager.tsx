@@ -438,3 +438,4 @@ export function RetailLogisticsManager({ institutionId }: Props) {
         </div>
     );
 }
+

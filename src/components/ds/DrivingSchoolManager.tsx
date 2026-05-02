@@ -588,3 +588,4 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         </div>
     );
 };
+

@@ -628,3 +628,4 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
         </div>
     );
 };
+

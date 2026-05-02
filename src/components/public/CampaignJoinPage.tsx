@@ -116,7 +116,7 @@ export const CampaignJoinPage: React.FC<CampaignJoinPageProps> = ({ campaignId, 
                             
                             <div className="relative w-[280px] h-[380px] md:w-[400px] md:h-[540px] rounded-[3.5rem] overflow-hidden shadow-[30px_50px_100px_rgba(0,0,0,0.5)] border-4 border-white/10">
                                 {profile.profilePicture ? (
-                                    <img 
+                                    <img loading="lazy" 
                                         src={profile.profilePicture} 
                                         alt={profile.candidateName} 
                                         className="w-full h-full object-cover transform scale-105 group-hover:scale-110 transition-transform duration-1000" 
@@ -283,3 +283,4 @@ export const CampaignJoinPage: React.FC<CampaignJoinPageProps> = ({ campaignId, 
         </div>
     );
 };
+

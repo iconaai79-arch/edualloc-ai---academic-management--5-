@@ -15,3 +15,4 @@ export const WalletIcon: React.FC<{ className?: string }> = ({ className = "w-6 
         <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
     </svg>
 );
+

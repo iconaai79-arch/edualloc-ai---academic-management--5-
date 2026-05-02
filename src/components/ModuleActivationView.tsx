@@ -92,3 +92,4 @@ export const ModuleActivationView: React.FC<ModuleActivationViewProps> = ({
         </div>
     );
 };
+

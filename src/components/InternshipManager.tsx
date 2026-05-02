@@ -202,3 +202,4 @@ export const InternshipManager: React.FC<InternshipManagerProps> = ({
         </div>
     );
 };
+

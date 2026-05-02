@@ -225,3 +225,4 @@ export const GuestFeedbackView: React.FC<GuestFeedbackViewProps> = ({ onClose, o
         </div>
     );
 };
+

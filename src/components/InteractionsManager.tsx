@@ -160,3 +160,4 @@ export const InteractionsManager: React.FC<InteractionsManagerProps> = (props) =
     </div>
     );
 };
+

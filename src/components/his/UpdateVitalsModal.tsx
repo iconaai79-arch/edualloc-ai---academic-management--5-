@@ -107,3 +107,4 @@ export const UpdateVitalsModal: React.FC<UpdateVitalsModalProps> = ({ isOpen, on
         </div>
     );
 };
+

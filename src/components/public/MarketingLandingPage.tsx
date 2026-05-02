@@ -52,7 +52,7 @@ const ModuleCard: React.FC<ModuleProps> = (props) => {
   <div className="module-card animate-in">
     <div className="module-image-container">
       {imageUrl ? (
-        <img
+        <img loading="lazy"
           src={imageUrl}
           alt={title}
           className="hover-target"
@@ -303,7 +303,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
               {/* Double the array for infinite scroll */}
               {[...platformModules, ...platformModules].map((m, i) => (
                 <div key={i} className="marquee-item">
-                   <img src={m.imageUrl} alt={m.title} className="marquee-asset floating-3d" />
+                   <img loading="lazy" src={m.imageUrl} alt={m.title} className="marquee-asset floating-3d" />
                    <div className="marquee-label">{m.title}</div>
                    <div className="marquee-item-glow"></div>
                 </div>
@@ -328,7 +328,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
           
           <div className="hero-visual relative mb-16 animate-in">
              <div className="absolute inset-0 bg-indigo-500/20 blur-[120px] rounded-full"></div>
-             <img src="/marketing/marketing_hero_render_1776312304333.png" alt="EduAI Ecosystem" className="relative z-10 w-full max-w-4xl mx-auto rounded-[3rem] shadow-2xl border border-white/10" />
+             <img loading="lazy" src="/marketing/marketing_hero_render_1776312304333.png" alt="EduAI Ecosystem" className="relative z-10 w-full max-w-4xl mx-auto rounded-[3rem] shadow-2xl border border-white/10" />
           </div>
 
           <div className="flex flex-wrap justify-center gap-6">
@@ -456,7 +456,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
               {/* Left Side: Image/Screenshot */}
               <div className="w-full md:w-2/3 bg-slate-900/50 p-6 flex items-center justify-center relative overflow-hidden min-h-[300px]">
                  <div className="absolute inset-0 bg-indigo-500/5 blur-3xl"></div>
-                 <img 
+                 <img loading="lazy" 
                    src={activeTutorial.tutorial.steps[tutorialStep].image} 
                    alt={activeTutorial.tutorial.steps[tutorialStep].title}
                    className="relative z-10 max-w-full max-h-full rounded-2xl shadow-2xl object-contain animate-in"
@@ -530,3 +530,4 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
     </div>
   );
 };
+

@@ -139,7 +139,7 @@ export const LicensePlateScanner: React.FC<LicensePlateScannerProps> = ({ onPlat
                             </div>
                         </>
                     ) : (
-                        lastScannedImage && <img src={lastScannedImage} alt="Captured" className="w-full h-full object-cover opacity-50" />
+                        lastScannedImage && <img loading="lazy" src={lastScannedImage} alt="Captured" className="w-full h-full object-cover opacity-50" />
                     )}
                     
                     {!scanning && capturedText && (
@@ -196,3 +196,4 @@ export const LicensePlateScanner: React.FC<LicensePlateScannerProps> = ({ onPlat
         </div>
     );
 };
+

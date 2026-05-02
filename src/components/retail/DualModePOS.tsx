@@ -839,3 +839,4 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
         </div>
     );
 }
+

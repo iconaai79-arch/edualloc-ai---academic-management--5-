@@ -265,7 +265,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                         <div className="w-px h-6 bg-slate-200 dark:bg-slate-800"></div>
                         <div className="flex items-center gap-3">
                             {tenant.logoUrl ? (
-                                <img src={tenant.logoUrl} alt={tenant.name} className="w-10 h-10 object-contain rounded-lg" />
+                                <img loading="lazy" src={tenant.logoUrl} alt={tenant.name} className="w-10 h-10 object-contain rounded-lg" />
                             ) : (
                                 <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-black text-lg shadow-lg rotate-3 transition-transform hover:rotate-0" style={{ backgroundColor: themeColor }}>
                                     {tenant.name.charAt(0)}
@@ -298,7 +298,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                                 className={`absolute inset-0 transition-all duration-1000 ease-out transform ${index === currentSlide ? 'opacity-100 scale-100 translate-x-0' : 'opacity-0 scale-110 translate-x-full'}`}
                             >
                                 <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/40 to-transparent z-10"></div>
-                                <img 
+                                <img loading="lazy" 
                                     src={(item as any).imageUrl || (item as any).images?.[0]} 
                                     className="w-full h-full object-cover"
                                     alt="Slide"
@@ -360,7 +360,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                 <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-10 shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-8">
                     <div className="flex items-center gap-6">
                         <div className="w-20 h-20 rounded-[2rem] flex items-center justify-center text-white text-2xl font-black shadow-2xl rotate-3" style={{ backgroundColor: themeColor }}>
-                             {tenant.logoUrl ? <img src={tenant.logoUrl} className="w-full h-full object-contain p-2" /> : tenant.name.charAt(0)}
+                             {tenant.logoUrl ? <img loading="lazy" src={tenant.logoUrl} className="w-full h-full object-contain p-2" /> : tenant.name.charAt(0)}
                         </div>
                         <div>
                             <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">{tenant.name}</h3>
@@ -430,7 +430,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                             >
                                 <div className="h-60 relative overflow-hidden bg-slate-50 dark:bg-slate-800">
                                     {product.imageUrl ? (
-                                        <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" />
+                                        <img loading="lazy" src={product.imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-slate-200">
                                             <ShoppingCartIcon className="w-16 h-16 opacity-20" />
@@ -470,7 +470,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                             >
                                 <div className="h-60 relative overflow-hidden bg-slate-50 dark:bg-slate-800">
                                     {listing.images && listing.images[0] ? (
-                                        <img src={listing.images[0]} alt={listing.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" />
+                                        <img loading="lazy" src={listing.images[0]} alt={listing.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-slate-200">
                                             <BuildingOfficeIcon className="w-16 h-16 opacity-20" />
@@ -560,7 +560,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                             <XIcon className="w-6 h-6" />
                         </button>
                         <div className="h-[45vh] relative bg-slate-900">
-                            {selectedListing.images?.[0] && <img src={selectedListing.images[0]} className="w-full h-full object-cover" />}
+                            {selectedListing.images?.[0] && <img loading="lazy" src={selectedListing.images[0]} className="w-full h-full object-cover" />}
                         </div>
                         <div className="p-12 space-y-12">
                              <div>
@@ -592,7 +592,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                             <XIcon className="w-6 h-6" />
                         </button>
                         <div className="h-80 bg-slate-100 dark:bg-slate-800">
-                            {selectedProduct.imageUrl && <img src={selectedProduct.imageUrl} className="w-full h-full object-cover" />}
+                            {selectedProduct.imageUrl && <img loading="lazy" src={selectedProduct.imageUrl} className="w-full h-full object-cover" />}
                         </div>
                         <div className="p-12 space-y-10">
                             <div>
@@ -679,3 +679,4 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
         </div>
     );
 };
+

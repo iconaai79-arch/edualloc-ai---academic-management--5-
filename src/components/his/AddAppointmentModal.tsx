@@ -155,3 +155,4 @@ export const AddAppointmentModal: React.FC<AddAppointmentModalProps> = ({ isOpen
         </div>
     );
 };
+

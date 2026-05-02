@@ -261,3 +261,4 @@ export const StudentAbsenceRequestModal: React.FC<StudentAbsenceRequestModalProp
         </div>
     );
 };
+

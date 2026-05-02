@@ -17,3 +17,4 @@ export const ArrowDownRightIcon = ({ className }: { className?: string }) => (
     <path d="M17 7v10H7" />
   </svg>
 );
+

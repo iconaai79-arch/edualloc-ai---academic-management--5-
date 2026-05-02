@@ -245,3 +245,4 @@ export const SuperAdminReports: React.FC<SuperAdminReportsProps> = ({
         </div>
     );
 };
+

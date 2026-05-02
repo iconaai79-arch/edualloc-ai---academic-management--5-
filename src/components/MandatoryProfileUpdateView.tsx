@@ -36,7 +36,7 @@ export const MandatoryProfileUpdateView: React.FC<MandatoryProfileUpdateViewProp
         <div className="p-6 sm:p-8">
           <div className="text-center mb-8">
             {logoUrl && (
-                <img src={logoUrl} alt="Logo" className="h-12 w-auto mx-auto mb-4" />
+                <img loading="lazy" src={logoUrl} alt="Logo" className="h-12 w-auto mx-auto mb-4" />
             )}
             <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Action Required</h2>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
@@ -105,3 +105,4 @@ export const MandatoryProfileUpdateView: React.FC<MandatoryProfileUpdateViewProp
     </div>
   );
 };
+

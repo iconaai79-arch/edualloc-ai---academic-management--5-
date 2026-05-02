@@ -16,3 +16,4 @@ export const TargetIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <circle cx="12" cy="12" r="2" />
   </svg>
 );
+

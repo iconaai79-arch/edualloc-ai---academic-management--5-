@@ -148,3 +148,4 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
         </div>
     );
 };
+

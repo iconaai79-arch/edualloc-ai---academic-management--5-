@@ -199,7 +199,7 @@ export const ContractModal: React.FC<ContractModalProps> = ({ contract, user, in
                     Lecturer's Signature
                 </label>
                 <div className="mt-2 p-2 bg-slate-100 dark:bg-slate-700 rounded-md inline-block">
-                    <img src={contract.signatureUrl} alt="Lecturer's signature" className="h-24 w-auto" />
+                    <img loading="lazy" src={contract.signatureUrl} alt="Lecturer's signature" className="h-24 w-auto" />
                 </div>
              </div>
         )}

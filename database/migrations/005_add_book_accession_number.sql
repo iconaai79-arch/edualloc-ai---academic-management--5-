@@ -14,7 +14,9 @@ BEGIN
 END $$;
 
 -- Update the library statistics view to ensure it's current
-CREATE OR REPLACE VIEW v_library_statistics AS
+CREATE OR REPLACE VIEW v_library_statistics 
+WITH (security_invoker = true)
+AS
 SELECT 
     institution_id,
     COUNT(id) as total_books,

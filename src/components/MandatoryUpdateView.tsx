@@ -61,7 +61,7 @@ export const MandatoryUpdateView: React.FC<MandatoryUpdateViewProps> = ({ user, 
                 <div className="p-8 sm:p-10">
                     <div className="text-center mb-8">
                         {logoUrl ? (
-                            <img src={logoUrl} alt="Logo" className="mx-auto h-16 w-auto mb-4" />
+                            <img loading="lazy" src={logoUrl} alt="Logo" className="mx-auto h-16 w-auto mb-4" />
                         ) : (
                             <div className="mx-auto h-16 w-16 bg-indigo-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
                                 <ShieldExclamationIcon className="w-10 h-10" />
@@ -171,3 +171,4 @@ export const MandatoryUpdateView: React.FC<MandatoryUpdateViewProps> = ({ user, 
         </div>
     );
 };
+

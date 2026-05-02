@@ -15,3 +15,4 @@ export const PlayCircleIcon: React.FC<{ className?: string }> = ({ className = "
         <polygon points="10 8 16 12 10 16 10 8" />
     </svg>
 );
+

@@ -339,3 +339,4 @@ export function RetailVendors({ institutionId }: RetailVendorsProps) {
         </div>
     );
 }
+

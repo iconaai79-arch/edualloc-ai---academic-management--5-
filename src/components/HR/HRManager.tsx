@@ -166,3 +166,4 @@ export const HRManager: React.FC<HRManagerProps> = ({
         </div>
     );
 };
+

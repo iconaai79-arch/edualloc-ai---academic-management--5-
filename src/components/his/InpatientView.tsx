@@ -179,3 +179,4 @@ export const InpatientView: React.FC<InpatientViewProps> = ({ institutionId, onA
         </div>
     );
 };
+

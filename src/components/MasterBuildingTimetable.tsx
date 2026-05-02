@@ -294,3 +294,4 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
         </div>
     );
 };
+

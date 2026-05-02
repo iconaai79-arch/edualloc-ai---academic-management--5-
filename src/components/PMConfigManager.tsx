@@ -181,7 +181,7 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
                             <div className="flex items-center gap-4 p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/50">
                                 {settings.branding?.logoUrl ? (
                                     <div className="relative group">
-                                        <img
+                                        <img loading="lazy"
                                             src={settings.branding.logoUrl}
                                             alt="Logo Preview"
                                             className="w-16 h-16 object-contain rounded-lg bg-white p-1 border border-slate-200"
@@ -301,4 +301,5 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
 };
 
 export default PMConfigManager;
+
 

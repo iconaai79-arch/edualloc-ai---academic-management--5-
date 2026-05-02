@@ -21,3 +21,4 @@ export const PalmTreeIcon: React.FC<{ className?: string }> = ({ className = "w-
     <path d="M11 15c-5.5 0-9 2.5-9 5.5" />
   </svg>
 );
+

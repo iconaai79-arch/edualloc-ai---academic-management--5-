@@ -84,3 +84,4 @@ export const LecturerTimetableList: React.FC<LecturerTimetableListProps> = ({
         </div>
     );
 };
+

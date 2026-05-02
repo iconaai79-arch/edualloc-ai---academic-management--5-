@@ -15,3 +15,4 @@ export const VideoCameraIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) 
     <rect width="14" height="12" x="2" y="6" rx="2" ry="2" />
   </svg>
 );
+

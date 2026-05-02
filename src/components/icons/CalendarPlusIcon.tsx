@@ -9,3 +9,4 @@ export const CalendarPlusIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props)
     <path strokeLinecap="round" strokeLinejoin="round" d="M18 15v3m0 3v-3m-3-3h3m3 0h-3" transform="scale(0.6) translate(14, 14)"/>
   </svg>
 );
+

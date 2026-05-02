@@ -688,3 +688,4 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
         </div>
     );
 }
+

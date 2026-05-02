@@ -392,3 +392,4 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     </div>
   );
 };
+

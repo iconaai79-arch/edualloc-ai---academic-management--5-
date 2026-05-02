@@ -225,3 +225,4 @@ export const DentalView: React.FC<DentalViewProps> = ({ onAddVisit }) => {
         </div>
     );
 };
+

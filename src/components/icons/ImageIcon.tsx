@@ -16,3 +16,4 @@ export const ImageIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
   </svg>
 );
+

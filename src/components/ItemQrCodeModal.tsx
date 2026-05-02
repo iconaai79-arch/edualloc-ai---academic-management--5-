@@ -24,7 +24,7 @@ export const ItemQrCodeModal: React.FC<ItemQrCodeModalProps> = ({ item, onClose 
             <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-sm w-full text-center" onClick={e => e.stopPropagation()}>
                 <h3 className="text-lg font-bold mb-4">{item.name}</h3>
                 {qrUrl ? (
-                    <img src={qrUrl} alt="QR Code" className="mx-auto mb-4" />
+                    <img loading="lazy" src={qrUrl} alt="QR Code" className="mx-auto mb-4" />
                 ) : (
                     <div className="w-48 h-48 bg-slate-200 mx-auto mb-4 animate-pulse flex items-center justify-center">Generating...</div>
                 )}
@@ -35,3 +35,4 @@ export const ItemQrCodeModal: React.FC<ItemQrCodeModalProps> = ({ item, onClose 
         </div>
     );
 };
+

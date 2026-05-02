@@ -180,6 +180,14 @@ export interface SuperAdminViewProps {
     currentInstitution?: Institution | null;
     onRefreshData?: () => void;
     currentUser: User;
+    activityLogLimit?: number;
+    setActivityLogLimit?: React.Dispatch<React.SetStateAction<number>>;
+    transactionLimit?: number;
+    setTransactionLimit?: React.Dispatch<React.SetStateAction<number>>;
+    receiptLimit?: number;
+    setReceiptLimit?: React.Dispatch<React.SetStateAction<number>>;
+    notificationLimit?: number;
+    setNotificationLimit?: React.Dispatch<React.SetStateAction<number>>;
 
     onAddUser?: (userData: any) => Promise<void>;
     onEditUser: (id: string, data: any) => Promise<void>;
@@ -425,6 +433,11 @@ const PoliticalMetadataManager: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [showAdd, setShowAdd] = useState(false);
     
+    // Pagination states
+    const [partyLimit, setPartyLimit] = useState(20);
+    const [constituencyLimit, setConstituencyLimit] = useState(20);
+    const [wardLimit, setWardLimit] = useState(20);
+    
     // Form states
     const [newName, setNewName] = useState('');
     const [newAcronym, setNewAcronym] = useState('');
@@ -438,9 +451,9 @@ const PoliticalMetadataManager: React.FC = () => {
         try {
             const [cData, pData, conData, wData] = await Promise.all([
                 apiService.fetchModuleRecords<County>('counties'),
-                apiService.fetchModuleRecords<PoliticalParty>('political_parties'),
-                apiService.fetchModuleRecords<Constituency>('constituencies'),
-                apiService.fetchModuleRecords<Ward>('wards')
+                apiService.fetchModuleRecords<PoliticalParty>('political_parties', undefined, partyLimit),
+                apiService.fetchModuleRecords<Constituency>('constituencies', undefined, constituencyLimit),
+                apiService.fetchModuleRecords<Ward>('wards', undefined, wardLimit)
             ]);
             setCounties(cData);
             setParties(pData);
@@ -455,7 +468,7 @@ const PoliticalMetadataManager: React.FC = () => {
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [partyLimit, constituencyLimit, wardLimit]);
 
     const getConstituencyVoters = (conId: string) => {
         return wards
@@ -709,6 +722,33 @@ const PoliticalMetadataManager: React.FC = () => {
                             ))
                     )}
                 </div>
+                
+                <div className="mt-12 flex justify-center gap-6">
+                    {tab === 'parties' && parties.length >= partyLimit && (
+                        <button 
+                            onClick={() => setPartyLimit(prev => prev + 20)}
+                            className="px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                        >
+                            <ArrowPathIcon className="w-4 h-4" /> Sync More Parties
+                        </button>
+                    )}
+                    {tab === 'constituencies' && constituencies.filter(c => !selectedCounty || String(c.countyId) === String(selectedCounty)).length >= constituencyLimit && (
+                        <button 
+                            onClick={() => setConstituencyLimit(prev => prev + 20)}
+                            className="px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                        >
+                            <ArrowPathIcon className="w-4 h-4" /> Sync More Constituencies
+                        </button>
+                    )}
+                    {tab === 'wards' && wards.length >= wardLimit && (
+                        <button 
+                            onClick={() => setWardLimit(prev => prev + 20)}
+                            className="px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                        >
+                            <ArrowPathIcon className="w-4 h-4" /> Sync More Wards
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -720,6 +760,7 @@ const MedicalRegistryManager: React.FC = () => {
     const [isImporterOpen, setIsImporterOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [showAddManual, setShowAddManual] = useState(false);
+    const [limit, setLimit] = useState(20);
     
     // Manual form
     const [newCode, setNewCode] = useState('');
@@ -730,7 +771,7 @@ const MedicalRegistryManager: React.FC = () => {
     const loadData = async () => {
         setLoading(true);
         try {
-            const data = await apiService.fetchModuleRecords<ICDCode>('icd_codes');
+            const data = await apiService.fetchModuleRecords<ICDCode>('icd_codes', undefined, limit);
             setIcdCodes(data);
         } catch (e) {
             console.error(e);
@@ -741,7 +782,7 @@ const MedicalRegistryManager: React.FC = () => {
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [limit]);
 
     const handleAddManual = async () => {
         if (!newCode || !newDesc) return;
@@ -874,6 +915,17 @@ const MedicalRegistryManager: React.FC = () => {
                     <p className="mt-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
                         Showing first 50 of {filteredCodes.length} matching records
                     </p>
+                )}
+                
+                {icdCodes.length >= limit && (
+                    <div className="mt-12 flex justify-center">
+                        <button 
+                            onClick={() => setLimit(prev => prev + 50)}
+                            className="px-10 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                        >
+                            <ArrowPathIcon className="w-4 h-4" /> Sync More ICD Codes
+                        </button>
+                    </div>
                 )}
             </div>
         </div>
@@ -2979,6 +3031,8 @@ Please change it after login.`;
                                     onGenerateReceipt={onGenerateReceipt}
                                     onVerifyTransaction={handleVerifyTransaction}
                                     logoUrl={logoUrl}
+                                    transactionLimit={props.transactionLimit}
+                                    setTransactionLimit={props.setTransactionLimit}
                                 />
                             </div>
                         )}
@@ -3549,7 +3603,11 @@ Please change it after login.`;
 
                 {activeTab === 'user_activity' && (
                     <div className="animate-fade-in-up">
-                        <ActivityLogView activityLog={activityLog || []} />
+                        <ActivityLogView 
+                            activityLog={activityLog || []} 
+                            activityLogLimit={props.activityLogLimit}
+                            setActivityLogLimit={props.setActivityLogLimit}
+                        />
                     </div>
                 )}
 
@@ -3741,7 +3799,7 @@ Please change it after login.`;
                                             <button onClick={handleSaveGlobalConfigs} disabled={isSavingConfigs} className="btn-primary w-full h-12 shadow-indigo-100">{isSavingConfigs ? 'Synchronizing...' : 'Update System Profile'}</button>
                                         </div>
                                         <label className="p-6 bg-slate-50 dark:bg-slate-900 rounded-[2rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 transition-colors">
-                                            {localCompanyInfo.logoUrl ? <img src={localCompanyInfo.logoUrl} className="h-20 object-contain mb-4" alt="Logo" /> : <BuildingOfficeIcon className="w-10 h-10 text-slate-200 mb-2" />}
+                                            {localCompanyInfo.logoUrl ? <img loading="lazy" src={localCompanyInfo.logoUrl} className="h-20 object-contain mb-4" alt="Logo" /> : <BuildingOfficeIcon className="w-10 h-10 text-slate-200 mb-2" />}
                                             <p className="text-[10px] font-bold text-slate-400 uppercase">System Logo</p>
                                             <input type="file" accept="image/*" className="hidden" onChange={(e) => handleLocalImageUpload(e, 'logo')} />
                                         </label>
@@ -3851,7 +3909,7 @@ Please change it after login.`;
                                                     </label>
                                                     {localCompanyInfo.letterheadConfig?.headerImageUrl && (
                                                         <div className="mt-2 h-16 w-full rounded-lg bg-slate-100 overflow-hidden relative">
-                                                            <img src={localCompanyInfo.letterheadConfig.headerImageUrl} alt="Header" className="w-full h-full object-cover opacity-50" />
+                                                            <img loading="lazy" src={localCompanyInfo.letterheadConfig.headerImageUrl} alt="Header" className="w-full h-full object-cover opacity-50" />
                                                             <div className="absolute inset-0 flex items-center justify-center">
                                                                 <span className="text-[10px] font-black uppercase bg-white/80 px-2 py-1 rounded">Preview</span>
                                                             </div>
@@ -3873,7 +3931,7 @@ Please change it after login.`;
                                                     </label>
                                                     {localCompanyInfo.footerImageUrl && (
                                                         <div className="mt-2 h-10 w-full rounded-lg bg-slate-100 overflow-hidden relative">
-                                                            <img src={localCompanyInfo.footerImageUrl} alt="Footer" className="w-full h-full object-cover opacity-50" />
+                                                            <img loading="lazy" src={localCompanyInfo.footerImageUrl} alt="Footer" className="w-full h-full object-cover opacity-50" />
                                                         </div>
                                                     )}
                                                 </div>
@@ -4789,7 +4847,7 @@ Please change it after login.`;
                                                 <div key={item.id} className="group relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden hover:shadow-xl transition-all duration-300">
                                                     <div className="h-32 bg-slate-100 dark:bg-slate-800 relative">
                                                         {item.imageUrl ? (
-                                                            <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
+                                                            <img loading="lazy" src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
                                                         ) : (
                                                             <div className="flex items-center justify-center h-full text-slate-400">
                                                                 <EyeIcon className="w-8 h-8 opacity-20" />
@@ -5814,7 +5872,7 @@ Please change it after login.`;
                                 <div className="flex flex-col gap-3">
                                     {editingShowcaseItem.imageUrl && (
                                         <div className="w-full h-32 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 group relative">
-                                            <img src={editingShowcaseItem.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                                            <img loading="lazy" src={editingShowcaseItem.imageUrl} alt="Preview" className="w-full h-full object-cover" />
                                             <button 
                                                 onClick={() => setEditingShowcaseItem({ ...editingShowcaseItem, imageUrl: '' })}
                                                 className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity"
@@ -5895,6 +5953,7 @@ Please change it after login.`;
         </div>
     );
 };
+
 
 
 

@@ -146,3 +146,4 @@ export const ChatBot: React.FC<ChatBotProps> = ({ welcomeMessage, currentInstitu
         </div>
     );
 };
+

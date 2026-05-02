@@ -59,7 +59,7 @@ export const PasswordExpiryView: React.FC<PasswordExpiryViewProps> = ({ user, on
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
             {logoUrl && (
-                <img src={logoUrl} alt="Application Logo" className="mx-auto h-12 w-auto mb-4" />
+                <img loading="lazy" src={logoUrl} alt="Application Logo" className="mx-auto h-12 w-auto mb-4" />
             )}
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
                 Password Expired
@@ -136,3 +136,4 @@ export const PasswordExpiryView: React.FC<PasswordExpiryViewProps> = ({ user, on
     </div>
   );
 };
+

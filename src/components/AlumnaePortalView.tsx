@@ -184,6 +184,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
     });
     const [businessLogoFile, setBusinessLogoFile] = useState<File | null>(null);
     const [isSavingBusiness, setIsSavingBusiness] = useState(false);
+    const [memberLimit, setMemberLimit] = useState(20);
 
     const COMMON_EMOJIS = ['😊', '🎓', '✨', '🙌', '🎉', '💙', '🏛️', '💼', '💪', '👩‍🎓', '🏫', '💡', '🥂', '🔥', '📚', '🤝'];
 
@@ -770,8 +771,8 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             const gradYear = currentAlumna.graduationYear || currentAlumna.graduation_year;
             const schoolRegId = currentAlumna.schoolId || currentAlumna.school_id;
             
-            // Fetch all members associated with this institution/school
-            const data = await apiService.fetchModuleRecords('alumnae_members', instId);
+            // Fetch members associated with this institution/school with limit
+            const data = await apiService.fetchModuleRecords('alumnae_members', instId, undefined, { limit: memberLimit });
             
             // Mapping database results (snake_case) to UI type (camelCase)
             const mappedMembers = (data || []).map((m: any) => ({
@@ -819,6 +820,10 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
             console.error("Failed to load alumnae members:", e);
         }
     };
+
+    useEffect(() => {
+        loadAlumnaeMembers();
+    }, [memberLimit]);
 
     const handleBeFeatured = async () => {
         if (!window.confirm(`Become a Featured Alumna for KES ${featureFee}? This will boost your profile visibility.`)) return;
@@ -2208,6 +2213,17 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                                             </div>
                                         ))}
                                     </div>
+
+                                    {allInstitutionMembers.length >= memberLimit && (
+                                        <div className="mt-16 flex justify-center">
+                                            <button 
+                                                onClick={() => setMemberLimit(prev => prev + 20)}
+                                                className="px-12 py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-[0.3em] shadow-2xl shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-4"
+                                            >
+                                                <Sparkles className="w-5 h-5" /> Sync More Members
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             );
 
@@ -3810,7 +3826,7 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     </button>
                     
                     <div className="relative max-w-full max-h-full flex items-center justify-center animate-in zoom-in-95 duration-700 group">
-                        <img 
+                        <img loading="lazy" 
                             loading="lazy" 
                             src={zoomedImage} 
                             className="max-w-full max-h-full object-contain rounded-[3rem] shadow-[0_40px_100px_rgba(0,0,0,0.6)] ring-1 ring-white/10 transition-transform duration-500 group-hover:scale-105" 
@@ -3843,3 +3859,4 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
 };
 
 export default AlumnaePortalView;
+

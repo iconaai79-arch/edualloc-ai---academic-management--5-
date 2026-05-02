@@ -227,3 +227,4 @@ export const RegisterPatientModal: React.FC<RegisterPatientModalProps> = ({ isOp
         </div>
     );
 };
+

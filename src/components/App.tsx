@@ -142,7 +142,7 @@ const SystemPulseLoader: React.FC<{ message: string; onRetry?: () => void; statu
             <div className="relative mb-12">
                 <div className="absolute inset-0 bg-indigo-500 rounded-3xl blur-2xl opacity-20 animate-pulse"></div>
                 <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center text-white shadow-2xl relative border border-white/10 animate-float overflow-hidden">
-                    <img 
+                    <img loading="lazy" 
                         src="/logo.png" 
                         alt="EduAI Logo" 
                         className="w-16 h-16 object-contain drop-shadow-[0_0_10px_rgba(79,70,229,0.4)]" 
@@ -269,7 +269,7 @@ const SchemaInitializationView: React.FC<{ onComplete: () => void }> = ({ onComp
 
                     <div className="relative text-center">
                         <div className="inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-white mb-8 shadow-2xl shadow-indigo-500/20 animate-float border border-white/20 overflow-hidden relative">
-                            <img 
+                            <img loading="lazy" 
                                 src="/logo.png" 
                                 alt="EduAI Logo" 
                                 className="w-16 h-16 object-contain" 
@@ -482,6 +482,10 @@ export const App: React.FC = () => {
     const [vehicleLogs, setVehicleLogs] = useState<VehicleLog[]>([]);
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
     const [jobs, setJobs] = useState<CarWashJob[]>([]);
+    const [activityLogLimit, setActivityLogLimit] = useState(50);
+    const [transactionLimit, setTransactionLimit] = useState(50);
+    const [receiptLimit, setReceiptLimit] = useState(50);
+    const [notificationLimit, setNotificationLimit] = useState(20);
 
     // Agricultural & Cooperative State
     const [coopFarmers, setCoopFarmers] = useState<CoopFarmer[]>([]);
@@ -729,10 +733,10 @@ export const App: React.FC = () => {
                     (isAcademic || isSuper) ? apiService.fetchModuleRecords<Building>('buildings', instId).catch(() => []) : Promise.resolve([]),
                     (isAcademic || isSuper) ? apiService.fetchAcademicLevels(instId).catch(() => []) : Promise.resolve([]),
                     apiService.fetchModuleRecords<UserTask>('tasks', instId).catch(() => []),
-                    apiService.fetchTransactions(instId).catch(() => []),
-                    apiService.fetchModuleRecords<Receipt>('receipts', instId).catch(() => []),
-                    apiService.fetchModuleRecords<ActivityLog>('activity_log', instId).catch(() => []),
-                    apiService.fetchNotifications(currentUser.id).catch(() => []),
+                    apiService.fetchTransactions(instId, { limit: transactionLimit }).catch(() => []),
+                    apiService.fetchModuleRecords<Receipt>('receipts', instId, undefined, { limit: receiptLimit }).catch(() => []),
+                    apiService.fetchModuleRecords<ActivityLog>('activity_log', instId, undefined, { limit: activityLogLimit }).catch(() => []),
+                    apiService.fetchNotifications(currentUser.id, { limit: notificationLimit }).catch(() => []),
                 ]);
             }
 
@@ -1046,7 +1050,7 @@ export const App: React.FC = () => {
             setAppInitializing(false);
             isRefreshingRef.current = false;
         }
-    }, [currentUser?.id, currentUser?.role, currentUser?.institutionId, currentUser?.countyId]);
+    }, [currentUser?.id, currentUser?.role, currentUser?.institutionId, currentUser?.countyId, activityLogLimit, transactionLimit, receiptLimit, notificationLimit]);
 
 
     const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(() => {
@@ -1313,9 +1317,9 @@ export const App: React.FC = () => {
 
 
     useEffect(() => {
-        // Trigger a hard reload when identity, scope, or perspective changes
+        // Trigger a hard reload when identity, scope, or perspective changes, or limits change
         loadData(true);
-    }, [currentUser?.id, currentUser?.institutionId, currentUser?.countyId, impersonatedRole]);
+    }, [currentUser?.id, currentUser?.institutionId, currentUser?.countyId, impersonatedRole, activityLogLimit, transactionLimit, receiptLimit, notificationLimit]);
 
     const handleAddRequisition = async (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => {
         if (!activeInstitution || !currentUser) return;
@@ -1397,6 +1401,14 @@ export const App: React.FC = () => {
         setIsPharmacySystemOpen(false);
         localStorage.removeItem('eduai_super_admin_session');
     };
+
+    // Reset pagination limits when user or institution context changes
+    useEffect(() => {
+        setActivityLogLimit(50);
+        setTransactionLimit(50);
+        setReceiptLimit(50);
+        setNotificationLimit(20);
+    }, [currentUser?.id, activeInstitution?.id]);
 
     // Inactivity Watcher: Auto-logout after 90 minutes of total inactivity
     useEffect(() => {
@@ -3328,6 +3340,14 @@ export const App: React.FC = () => {
                                         demoRequests={demoRequests}
                                         onUpdateDemoStatus={onUpdateDemoStatus}
                                         receipts={receipts}
+                                         activityLogLimit={activityLogLimit}
+                                         setActivityLogLimit={setActivityLogLimit}
+                                         transactionLimit={transactionLimit}
+                                         setTransactionLimit={setTransactionLimit}
+                                         receiptLimit={receiptLimit}
+                                         setReceiptLimit={setReceiptLimit}
+                                         notificationLimit={notificationLimit}
+                                         setNotificationLimit={setNotificationLimit}
                                         activityLog={activityLog}
                                         onImportUsers={onImportUsers}
                                         onImportStudents={onImportStudents}
@@ -3820,6 +3840,12 @@ export const App: React.FC = () => {
                                         onAddBursaryFund={async (data) => { await apiService.saveModuleRecord('county_bursary_funds', { ...data, id: `fund_${Date.now()}`, createdAt: new Date().toISOString() }); loadData(); }}
                                         onUpdateBursaryApplicationStatus={async (id, status, notes) => { const app = bursaryApplications.find(a => a.id === id); if (app) { await apiService.saveModuleRecord('bursary_applications', { ...app, status, internalNotes: notes, updatedAt: new Date().toISOString() }); loadData(); } }}
                                         onLogAction={handleLogAction}
+                                        activityLogLimit={activityLogLimit}
+                                        setActivityLogLimit={setActivityLogLimit}
+                                        receiptLimit={receiptLimit}
+                                        setReceiptLimit={setReceiptLimit}
+                                        transactionLimit={transactionLimit}
+                                        setTransactionLimit={setTransactionLimit}
                                     />
                                 ) : activeRole === 'academics_officer' ? (
                                     <AcademicsOfficerView
@@ -4055,6 +4081,10 @@ export const App: React.FC = () => {
                                         onAddTransaction={apiService.onAddTransaction.bind(apiService)}
                                         onGenerateReceipt={onGenerateReceipt}
                                         onLogAction={handleLogAction}
+                                        receiptLimit={receiptLimit}
+                                        setReceiptLimit={setReceiptLimit}
+                                        transactionLimit={transactionLimit}
+                                        setTransactionLimit={setTransactionLimit}
                                     />
                                 ) : activeRole === 'hr_officer' ? (
                                     <HROfficerView
@@ -4146,10 +4176,18 @@ export const App: React.FC = () => {
                                             onLogAction={handleLogAction}
                                         />
                                     ) : (
-                                        <AdminView
+                                         <AdminView
                                             currentUser={currentUser}
                                             activeRole={activeRole}
                                             onLogAction={handleLogAction}
+                                            activityLogLimit={activityLogLimit}
+                                            setActivityLogLimit={setActivityLogLimit}
+                                            transactionLimit={transactionLimit}
+                                            setTransactionLimit={setTransactionLimit}
+                                            receiptLimit={receiptLimit}
+                                            setReceiptLimit={setReceiptLimit}
+                                            notificationLimit={notificationLimit}
+                                            setNotificationLimit={setNotificationLimit}
                                             {...({} as any)} 
                                         />
                                     )
@@ -4174,6 +4212,12 @@ export const App: React.FC = () => {
                                     onDeleteBursaryFund={async (id) => { await apiService.deleteModuleRecord('county_bursary_funds', id); await loadData(); }}
                                     activityLog={activityLog}
                                     onLogAction={handleLogAction}
+                                    activityLogLimit={activityLogLimit}
+                                    setActivityLogLimit={setActivityLogLimit}
+                                    receiptLimit={receiptLimit}
+                                    setReceiptLimit={setReceiptLimit}
+                                    transactionLimit={transactionLimit}
+                                    setTransactionLimit={setTransactionLimit}
                                     countyAgrovetInventory={coopAgrovetInventory}
                                     countyAgrovetSales={coopAgrovetSales}
                                     saccoAccounts={saccoAccounts}
@@ -4417,6 +4461,10 @@ export const App: React.FC = () => {
                                          await apiService.saveModuleRecord('expenses', { ...exp, id: `exp_${Date.now()}`, institutionId: currentUser.institutionId });
                                          loadData();
                                      }}
+                                    receiptLimit={receiptLimit}
+                                    setReceiptLimit={setReceiptLimit}
+                                    transactionLimit={transactionLimit}
+                                    setTransactionLimit={setTransactionLimit}
                                  />
                             ) : activeRole === 'hr_officer' ? (
                                 <HROfficerView
@@ -4775,6 +4823,12 @@ export const App: React.FC = () => {
                                 <AdminView
                                     currentUser={currentUser}
                                     activeRole={activeRole || undefined}
+                                    activityLogLimit={activityLogLimit}
+                                    setActivityLogLimit={setActivityLogLimit}
+                                    transactionLimit={transactionLimit}
+                                    setTransactionLimit={setTransactionLimit}
+                                    receiptLimit={receiptLimit}
+                                    setReceiptLimit={setReceiptLimit}
                                     users={users}
                                     requests={requests}
                                     allocations={allocations}
@@ -5283,6 +5337,12 @@ export const App: React.FC = () => {
                                         loadData();
                                     }}
                                     onAddPayouts={handleAddPayouts}
+                                    activityLogLimit={activityLogLimit}
+                                    setActivityLogLimit={setActivityLogLimit}
+                                    receiptLimit={receiptLimit}
+                                    setReceiptLimit={setReceiptLimit}
+                                    transactionLimit={transactionLimit}
+                                    setTransactionLimit={setTransactionLimit}
                                 />
                             ) : activeRole === 'academics_officer' ? (
                                 <AcademicsOfficerView
@@ -5464,6 +5524,10 @@ export const App: React.FC = () => {
                                          await apiService.saveModuleRecord('expenses', { ...exp, id: `exp_${Date.now()}`, institutionId: currentUser.institutionId });
                                          loadData();
                                      }}
+                                    receiptLimit={receiptLimit}
+                                    setReceiptLimit={setReceiptLimit}
+                                    transactionLimit={transactionLimit}
+                                    setTransactionLimit={setTransactionLimit}
                                  />
                             ) : activeRole === 'hr_officer' ? (
                                 <HROfficerView
@@ -6161,3 +6225,4 @@ export const App: React.FC = () => {
         </AppErrorBoundary>
     );
 };
+

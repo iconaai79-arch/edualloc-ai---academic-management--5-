@@ -467,3 +467,4 @@ export const SmartFarmerImporterModal: React.FC<SmartFarmerImporterModalProps> =
         </div>
     );
 };
+

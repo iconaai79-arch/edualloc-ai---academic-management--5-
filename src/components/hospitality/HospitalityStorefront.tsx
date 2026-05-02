@@ -152,7 +152,7 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                 <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
                     <div className="flex items-center gap-2 md:gap-3 overflow-hidden">
                         {tenant.logoUrl ? (
-                            <img src={getGoogleDriveDirectUrl(tenant.logoUrl)} alt={tenant.name} className="h-8 md:h-10 w-auto object-contain flex-shrink-0" />
+                            <img loading="lazy" src={getGoogleDriveDirectUrl(tenant.logoUrl)} alt={tenant.name} className="h-8 md:h-10 w-auto object-contain flex-shrink-0" />
                         ) : (
                             <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black text-sm md:text-xl shadow-lg flex-shrink-0">
                                 {tenant.name.charAt(0)}
@@ -255,7 +255,7 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                                     <div className="w-full h-full flex items-center justify-center text-slate-200 group-hover:scale-110 transition-transform duration-700">
                                         {item.category === 'Safari' ? <Compass className="w-16 h-16" /> : <Hotel className="w-16 h-16" />}
                                         {getFirstImage(item.images) && (
-                                            <img 
+                                            <img loading="lazy" 
                                                 src={getGoogleDriveDirectUrl(getFirstImage(item.images))} 
                                                 alt={item.name} 
                                                 className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
@@ -310,7 +310,7 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                                                 <div key={dish.id} className="flex gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-transparent hover:border-indigo-100 transition-all group">
                                                     <div className="w-24 h-24 bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-sm flex-shrink-0">
                                                         {dish.imageUrl ? (
-                                                            <img src={getGoogleDriveDirectUrl(dish.imageUrl)} alt={dish.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                            <img loading="lazy" src={getGoogleDriveDirectUrl(dish.imageUrl)} alt={dish.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                                         ) : (
                                                             <div className="w-full h-full flex items-center justify-center text-slate-200">
                                                                 <ChefHat className="w-8 h-8" />
@@ -533,7 +533,7 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
                                 <div className="w-full h-full flex items-center justify-center text-slate-300">
                                     {selectedItem.category === 'Safari' ? <Compass className="w-16 h-16" /> : <Hotel className="w-16 h-16" />}
                                     {selectedItem.images && selectedItem.images.length > 0 && (
-                                        <img 
+                                        <img loading="lazy" 
                                             src={getGoogleDriveDirectUrl(getFirstImage(selectedItem.images))} 
                                             className="absolute inset-0 w-full h-full object-cover" 
                                             alt={selectedItem.name} 
@@ -655,3 +655,4 @@ export const HospitalityStorefront: React.FC<HospitalityStorefrontProps> = ({ in
         </div>
     );
 };
+

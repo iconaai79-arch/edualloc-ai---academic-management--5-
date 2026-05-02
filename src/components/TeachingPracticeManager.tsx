@@ -143,3 +143,4 @@ export const TeachingPracticeManager: React.FC<TeachingPracticeManagerProps> = (
         </div>
     );
 };
+

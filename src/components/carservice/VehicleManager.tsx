@@ -91,3 +91,4 @@ export const VehicleManager: React.FC<VehicleManagerProps> = ({ vehicles }) => {
         </div>
     );
 };
+

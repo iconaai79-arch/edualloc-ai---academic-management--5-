@@ -116,7 +116,7 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
                             onClick={() => window.location.href = '/'}
                         >
                             {school.logoUrl ? (
-                                <img src={school.logoUrl} alt={school.name} className="w-10 h-10 object-contain rounded-xl group-hover:scale-110 transition-transform" />
+                                <img loading="lazy" src={school.logoUrl} alt={school.name} className="w-10 h-10 object-contain rounded-xl group-hover:scale-110 transition-transform" />
                             ) : (
                                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-xl rotate-3 group-hover:rotate-0 transition-all" style={{ backgroundColor: themeColor }}>
                                     {school.name.charAt(0)}
@@ -230,7 +230,7 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
                             <div className="relative group">
                                 <div className="absolute -inset-4 bg-gradient-to-tr from-indigo-500/20 to-purple-500/20 rounded-[4rem] blur-2xl group-hover:scale-110 transition-transform"></div>
                                 <div className="relative h-[600px] bg-slate-200 dark:bg-slate-800 rounded-[4rem] overflow-hidden border border-white/20">
-                                    <img src="https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200" className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-1000" alt="Students" />
+                                    <img loading="lazy" src="https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200" className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-1000" alt="Students" />
                                     <div className="absolute inset-x-0 bottom-0 p-12 bg-gradient-to-t from-slate-900 to-transparent">
                                         <p className="text-white text-3xl font-black italic uppercase tracking-tighter leading-tight">
                                            "Innovation is at the heart of our curriculum."
@@ -298,7 +298,7 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
                                 <div key={item.id} className="group flex flex-col md:flex-row gap-8 bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-xl hover:shadow-2xl transition-all">
                                     <div className="md:w-1/3 aspect-square rounded-[2rem] overflow-hidden bg-slate-100 dark:bg-slate-800 relative">
                                         {item.imageUrl ? (
-                                            <img src={item.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={item.title} />
+                                            <img loading="lazy" src={item.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={item.title} />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-slate-200 dark:text-slate-700">
                                                 <CalendarIcon className="w-16 h-16 opacity-20" />
@@ -377,7 +377,7 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                             {gallery.length > 0 ? gallery.map((item) => (
                                 <div key={item.id} className="group relative aspect-[4/3] bg-white dark:bg-slate-900 rounded-[3rem] overflow-hidden border border-slate-100 dark:border-slate-800 shadow-xl">
-                                    <img src={item.imageUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={item.caption} />
+                                    <img loading="lazy" src={item.imageUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={item.caption} />
                                     <div className="absolute inset-x-0 bottom-0 p-8 bg-gradient-to-t from-slate-900/90 to-transparent translate-y-full group-hover:translate-y-0 transition-transform">
                                         <p className="text-white text-[10px] font-black uppercase tracking-widest mb-2">{new Date(item.eventDate || '').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</p>
                                         <h4 className="text-white text-xl font-bold italic truncate">{item.caption}</h4>
@@ -447,3 +447,4 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
         </div>
     );
 };
+

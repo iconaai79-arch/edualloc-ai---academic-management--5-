@@ -18,3 +18,4 @@ export const ScaleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <path d="M3 7h18" />
   </svg>
 );
+

@@ -465,3 +465,4 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
     );
 }
 
+

@@ -346,3 +346,4 @@ export const PublicAppointmentView: React.FC<PublicAppointmentViewProps> = ({ us
         </div>
     );
 };
+

@@ -40,6 +40,7 @@ export const CampaignSocialPortal: React.FC<CampaignSocialPortalProps> = ({ curr
     const [loadingPosts, setLoadingPosts] = useState(true);
     const [newPostContent, setNewPostContent] = useState('');
     const [isPosting, setIsPosting] = useState(false);
+    const [postsLimit, setPostsLimit] = useState(10);
     
     const [conversations, setConversations] = useState<any[]>([]);
     const [activeConversationPartner, setActiveConversationPartner] = useState<any | null>(null);
@@ -54,7 +55,8 @@ export const CampaignSocialPortal: React.FC<CampaignSocialPortalProps> = ({ curr
             // Use institution_id of the campaign to filter relevant political posts
             const data = await apiService.fetchModuleRecords('alumni_posts', undefined, undefined, { 
                 filter: { institution_id: campaignProfile.institutionId },
-                order: 'created_at.desc'
+                order: 'created_at.desc',
+                limit: postsLimit
             });
             setPosts(data || []);
         } catch (e) {
@@ -127,7 +129,7 @@ export const CampaignSocialPortal: React.FC<CampaignSocialPortalProps> = ({ curr
                         </div>
                         <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 overflow-hidden shadow-xl">
                             {currentMember.profilePhotoUrl || currentMember.profile_photo ? (
-                                <img src={currentMember.profilePhotoUrl || currentMember.profile_photo} className="w-full h-full object-cover" />
+                                <img loading="lazy" src={currentMember.profilePhotoUrl || currentMember.profile_photo} className="w-full h-full object-cover" />
                             ) : (
                                 <User className="w-full h-full p-2 text-indigo-400" />
                             )}
@@ -195,7 +197,7 @@ export const CampaignSocialPortal: React.FC<CampaignSocialPortalProps> = ({ curr
                         <div className="flex items-center gap-4 mb-8">
                             <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 overflow-hidden flex items-center justify-center">
                                 {currentMember.profilePhotoUrl || currentMember.profile_photo ? (
-                                    <img src={currentMember.profilePhotoUrl || currentMember.profile_photo} className="w-full h-full object-cover" />
+                                    <img loading="lazy" src={currentMember.profilePhotoUrl || currentMember.profile_photo} className="w-full h-full object-cover" />
                                 ) : (
                                     <User className="w-6 h-6 text-indigo-400" />
                                 )}
@@ -246,7 +248,7 @@ export const CampaignSocialPortal: React.FC<CampaignSocialPortalProps> = ({ curr
                                 <div className="flex items-start justify-between mb-8">
                                     <div className="flex gap-4">
                                         <div className="w-14 h-14 rounded-2xl bg-indigo-600/10 border border-white/5 overflow-hidden">
-                                            {post.author_photo ? <img src={post.author_photo} className="w-full h-full object-cover" /> : <User className="w-full h-full p-3 text-slate-600" />}
+                                            {post.author_photo ? <img loading="lazy" src={post.author_photo} className="w-full h-full object-cover" /> : <User className="w-full h-full p-3 text-slate-600" />}
                                         </div>
                                         <div>
                                             <div className="flex items-center gap-2">
@@ -287,6 +289,16 @@ export const CampaignSocialPortal: React.FC<CampaignSocialPortalProps> = ({ curr
                                 </div>
                             </div>
                         ))}
+                        {posts.length >= postsLimit && (
+                            <div className="flex justify-center py-12">
+                                <button 
+                                    onClick={() => setPostsLimit(prev => prev + 10)}
+                                    className="px-10 py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white hover:border-indigo-500 transition-all active:scale-95"
+                                >
+                                    Sync More Intel
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </main>
 
@@ -363,3 +375,4 @@ export const CampaignSocialPortal: React.FC<CampaignSocialPortalProps> = ({ curr
         </div>
     );
 };
+

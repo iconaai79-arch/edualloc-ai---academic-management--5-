@@ -280,3 +280,4 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
         </div>
     );
 };
+

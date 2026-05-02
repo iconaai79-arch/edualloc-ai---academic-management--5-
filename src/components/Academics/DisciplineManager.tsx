@@ -149,3 +149,4 @@ export const DisciplineManager: React.FC<DisciplineManagerProps> = ({
         </div>
     );
 };
+

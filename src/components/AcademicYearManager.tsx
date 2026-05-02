@@ -504,3 +504,4 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
         </div>
     );
 };
+

@@ -246,3 +246,4 @@ export const HospitalitySettings: React.FC<HospitalitySettingsProps> = ({ instit
         </div>
     );
 };
+

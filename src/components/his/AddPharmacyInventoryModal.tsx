@@ -199,3 +199,4 @@ export const AddPharmacyInventoryModal: React.FC<AddPharmacyInventoryModalProps>
         </div>
     );
 };
+

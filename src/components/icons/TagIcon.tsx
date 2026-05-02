@@ -6,3 +6,4 @@ export const TagIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6Z" />
     </svg>
 );
+

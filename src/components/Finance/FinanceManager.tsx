@@ -20,6 +20,10 @@ interface FinanceManagerProps {
     institution: Institution;
     onGenerateInvoices: (invoices: any[]) => Promise<void>;
     onAddExpense: (expense: any) => Promise<void>;
+    receiptLimit?: number;
+    setReceiptLimit?: React.Dispatch<React.SetStateAction<number>>;
+    transactionLimit?: number;
+    setTransactionLimit?: React.Dispatch<React.SetStateAction<number>>;
 }
 
 export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
@@ -70,6 +74,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         goals={props.goals}
                         students={props.students}
                         institution={props.institution}
+                        receiptLimit={props.receiptLimit}
+                        setReceiptLimit={props.setReceiptLimit}
                     />
                 )}
 
@@ -163,3 +169,4 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         </div>
     );
 };
+

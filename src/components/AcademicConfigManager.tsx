@@ -348,3 +348,4 @@ export const AcademicConfigManager: React.FC<AcademicConfigManagerProps> = ({ cu
         </div>
     );
 };
+

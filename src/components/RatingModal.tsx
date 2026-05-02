@@ -96,3 +96,4 @@ export const RatingModal: React.FC<RatingModalProps> = ({ lesson, subject, lectu
     </div>
   );
 };
+

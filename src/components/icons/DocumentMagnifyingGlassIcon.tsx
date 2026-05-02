@@ -17,3 +17,4 @@ export const DocumentMagnifyingGlassIcon: React.FC<React.SVGProps<SVGSVGElement>
     <line x1="13.1" y1="16.1" x2="16" y2="19" />
   </svg>
 );
+

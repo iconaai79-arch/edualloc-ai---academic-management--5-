@@ -117,7 +117,7 @@ export const ConstructionProjectView: React.FC<ConstructionProjectViewProps> = (
                         <div key={proj.id} className="group bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all cursor-pointer" onClick={() => setSelectedProject(proj)}>
                             <div className="h-64 bg-slate-100 dark:bg-slate-800 relative">
                                 {proj.images && proj.images.length > 0 ? (
-                                    <img src={proj.images[0]} alt={proj.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                    <img loading="lazy" src={proj.images[0]} alt={proj.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-slate-200">
                                         <Construction className="w-16 h-16" />
@@ -183,7 +183,7 @@ export const ConstructionProjectView: React.FC<ConstructionProjectViewProps> = (
                                             <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center"><Activity className="w-4 h-4 text-indigo-600" /></div>
                                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Site Entry #{idx + 1} • {new Date().toLocaleDateString()}</p>
                                         </div>
-                                        <img src={img} alt="Live Site Progress" className="w-full rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-xl" />
+                                        <img loading="lazy" src={img} alt="Live Site Progress" className="w-full rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-xl" />
                                         <p className="text-xs text-slate-500 italic px-4 leading-relaxed font-medium capitalize">Progress Check: structural reinforcement ongoing at zone {idx + 1}.</p>
                                     </div>
                                 ))}
@@ -227,3 +227,4 @@ export const ConstructionProjectView: React.FC<ConstructionProjectViewProps> = (
         </div>
     );
 };
+

@@ -19,3 +19,4 @@ export const DigitalInspectionManager: React.FC<DigitalInspectionManagerProps> =
         </div>
     );
 };
+

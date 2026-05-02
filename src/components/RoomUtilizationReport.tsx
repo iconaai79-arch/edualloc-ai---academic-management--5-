@@ -300,3 +300,4 @@ export const RoomUtilizationReport: React.FC<RoomUtilizationReportPropsFixed> = 
         </div>
     );
 };
+

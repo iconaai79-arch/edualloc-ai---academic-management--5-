@@ -653,3 +653,4 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
         </div>
     );
 };
+

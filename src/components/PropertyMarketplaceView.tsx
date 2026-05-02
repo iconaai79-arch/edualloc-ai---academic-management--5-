@@ -45,6 +45,9 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
     const [inquiryData, setInquiryData] = useState({ name: '', email: '', phone: '', message: '' });
     const [inquirySubmitting, setInquirySubmitting] = useState(false);
     const [inquirySuccess, setInquirySuccess] = useState(false);
+    const [propertyLimit, setPropertyLimit] = useState(12);
+    const [retailLimit, setRetailLimit] = useState(12);
+    const [vehicleLimit, setVehicleLimit] = useState(12);
 
     // Logistics & Checkout State
     const [deliveryRates, setDeliveryRates] = useState<any[]>([]);
@@ -331,17 +334,27 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             setLoading(true);
             try {
                 // Fetch all active/published property listings across all institutions
-                const allListings = await apiService.fetchModuleRecords<PMListing>('pm_listings', 'ALL');
+                const allListings = await apiService.fetchModuleRecords<PMListing>('pm_listings', 'ALL', undefined, {
+                    limit: propertyLimit
+                });
                 const activeListings = allListings.filter(l => l.status === 'Active' || l.status === 'Published');
 
                 // Fetch all retail inventory items that are marked as live on market
-                const allRetailItems = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', 'ALL');
+                const allRetailItems = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', 'ALL', undefined, {
+                    limit: retailLimit
+                });
                 const liveRetailItems = allRetailItems.filter(item => item.marketplaceEnabled === true);
 
-                // Fetch vehicle listings
-                const cars = carListings && carListings.length > 0 
-                    ? carListings 
-                    : await apiService.fetchCarListings('ALL', 'all');
+                // Fetch vehicle listings - Always fetch global for the unified marketplace
+                const globalCars = await apiService.fetchCarListings('ALL', 'all', { limit: vehicleLimit });
+                
+                // Merge with institutional listings if provided, ensuring no duplicates
+                let cars = globalCars;
+                if (carListings && carListings.length > 0) {
+                    const globalIds = new Set(globalCars.map(c => c.id));
+                    const uniqueInstitutional = carListings.filter(c => !globalIds.has(c.id));
+                    cars = [...uniqueInstitutional, ...globalCars];
+                }
 
                 // Fetch institution details to show seller info
                 const instList = await apiService.fetchModuleRecords<Institution>('institutions', 'ALL');
@@ -363,7 +376,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             setLoading(false);
         };
         loadMarketplace();
-    }, []);
+    }, [propertyLimit, retailLimit, vehicleLimit, carListings]);
 
     // Handle deep linking to specific items
     useEffect(() => {
@@ -494,7 +507,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                             >
                                 <div className="absolute inset-0 bg-black/40 z-[2]"></div>
                                 {item.images?.[0] || item.imageUrl ? (
-                                    <img 
+                                    <img loading="lazy" 
                                         src={item.images?.[0] || item.imageUrl} 
                                         alt={item.title || item.name}
                                         className="w-full h-full object-cover"
@@ -646,7 +659,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
                                 <div className="flex flex-col items-center gap-4 p-8 glass-card rounded-[2.5rem] group">
                                     <div className="w-16 h-16 rounded-[1.5rem] bg-emerald-500/10 flex items-center justify-center text-emerald-500 overflow-hidden relative">
-                                        <img 
+                                        <img loading="lazy" 
                                             src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${window.location.origin}/?view=marketplace&item=${sharingItem.id}`)}`} 
                                             alt="QR Code"
                                             className="w-full h-full object-cover scale-110"
@@ -780,7 +793,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                         <div className="h-72 relative overflow-hidden">
                                             <div className="absolute inset-0 bg-slate-200 dark:bg-slate-800 animate-pulse"></div>
                                             {listing.images && listing.images[0] ? (
-                                                <img
+                                                <img loading="lazy"
                                                     src={listing.images[0]}
                                                     alt={listing.title}
                                                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
@@ -853,6 +866,17 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                             </div>
                         )}
                     </div>
+
+                    {filteredListings.length >= propertyLimit && (
+                        <div className="flex justify-center mt-20">
+                            <button 
+                                onClick={() => setPropertyLimit(prev => prev + 12)}
+                                className="px-12 py-5 glass-card rounded-[2.5rem] text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white hover:border-orange-500 transition-all active:scale-95 border border-white/5"
+                            >
+                                Sync More Properties
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -887,7 +911,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                     <div className="relative glass-card rounded-[3rem] overflow-hidden transition-all duration-700 group-hover:-translate-y-3 group-hover:shadow-[0_40px_80px_-20px_rgba(79,70,229,0.15)]">
                                         <div className="h-60 relative overflow-hidden bg-slate-100 dark:bg-slate-800">
                                             {product.imageUrl ? (
-                                                <img
+                                                <img loading="lazy"
                                                     src={product.imageUrl}
                                                     alt={product.name}
                                                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
@@ -956,6 +980,17 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                         )}
                     </div>
 
+                    {filteredRetailProducts.length >= retailLimit && (
+                        <div className="flex justify-center mt-20">
+                            <button 
+                                onClick={() => setRetailLimit(prev => prev + 12)}
+                                className="px-12 py-5 glass-card rounded-[2.5rem] text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white hover:border-indigo-500 transition-all active:scale-95 border border-white/5"
+                            >
+                                Sync More Products
+                            </button>
+                        </div>
+                    )}
+
                     <div className="mt-40 relative group overflow-hidden rounded-[4rem] bg-indigo-900 min-h-[400px] flex items-center p-12 md:p-20">
                         {/* Background Decoration */}
                         <div className="absolute top-0 right-0 w-1/2 h-full bg-indigo-800/30 -skew-x-12 translate-x-1/4"></div>
@@ -1010,6 +1045,17 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                         }}
                         currentInstitution={null}
                     />
+
+                    {vehicleListings.length >= vehicleLimit && (
+                        <div className="flex justify-center mt-12 pb-20">
+                            <button 
+                                onClick={() => setVehicleLimit(prev => prev + 12)}
+                                className="px-12 py-5 glass-card rounded-[2.5rem] text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white hover:border-emerald-500 transition-all active:scale-95 border border-white/5"
+                            >
+                                Sync More Vehicles
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -1032,7 +1078,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
                         <div className="h-[55vh] relative group overflow-hidden">
                             {selectedListing.images && selectedListing.images[0] ? (
-                                <img src={selectedListing.images[0]} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" />
+                                <img loading="lazy" src={selectedListing.images[0]} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" />
                             ) : (
                                 <div className="w-full h-full bg-slate-900 flex items-center justify-center">
                                     <BuildingOfficeIcon className="w-32 h-32 text-slate-800 animate-pulse" />
@@ -1166,7 +1212,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
                         <div className="h-80 relative group overflow-hidden bg-slate-100 dark:bg-slate-900">
                             {selectedProduct.imageUrl ? (
-                                <img src={selectedProduct.imageUrl} alt={selectedProduct.name} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" />
+                                <img loading="lazy" src={selectedProduct.imageUrl} alt={selectedProduct.name} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" />
                             ) : (
                                 <div className="w-full h-full bg-indigo-900/10 flex items-center justify-center">
                                     <ShoppingCartIcon className="w-24 h-24 text-indigo-500 animate-pulse" />
@@ -1472,3 +1518,4 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
         </div>
     );
 };
+

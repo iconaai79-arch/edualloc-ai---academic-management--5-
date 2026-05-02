@@ -62,3 +62,4 @@ export const StudentAbsenceRequestManager: React.FC<StudentAbsenceRequestManager
         </section>
     );
 };
+

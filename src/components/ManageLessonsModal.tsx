@@ -310,3 +310,4 @@ export const ManageLessonsModal: React.FC<ManageLessonsModalProps> = ({ teacher,
         </div>
     );
 };
+

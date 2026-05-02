@@ -270,3 +270,4 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
         </div>
     );
 };
+

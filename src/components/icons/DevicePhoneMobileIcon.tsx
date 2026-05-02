@@ -15,3 +15,4 @@ export const DevicePhoneMobileIcon: React.FC<React.SVGProps<SVGSVGElement>> = (p
     <path d="M12 18h.01" />
   </svg>
 );
+

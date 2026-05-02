@@ -688,3 +688,4 @@ export const LandlordPortalView: React.FC<LandlordPortalViewProps> = ({ currentU
         </div >
     );
 };
+

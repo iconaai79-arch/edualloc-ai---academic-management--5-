@@ -586,7 +586,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                     {treeMembers.map((m) => (
                                         <div key={m.id} className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-transparent hover:border-amber-100 transition-all">
                                             {m.profilePhotoUrl ? (
-                                                <img 
+                                                <img loading="lazy" 
                                                     src={m.profilePhotoUrl} 
                                                     alt={m.name} 
                                                     className="w-10 h-10 rounded-xl object-cover flex-shrink-0"
@@ -704,7 +704,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                 ) : (
                                     heritageGallery.map((item, i) => (
                                         <div key={item.id || i} className="aspect-square bg-slate-100 dark:bg-slate-900 rounded-3xl overflow-hidden group relative cursor-pointer">
-                                            <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                            <img loading="lazy" src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                 <Sparkles className="w-8 h-8 text-white scale-0 group-hover:scale-100 transition-transform duration-500" />
                                             </div>
@@ -1032,7 +1032,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                             
                                             <div className="flex flex-col items-center text-center space-y-5">
                                                 <div className="w-24 h-24 rounded-[2.5rem] bg-slate-100 dark:bg-slate-900 border-4 border-white dark:border-slate-800 shadow-xl overflow-hidden">
-                                                    <img 
+                                                    <img loading="lazy" 
                                                         src={candidate.profilePicture || 'https://images.unsplash.com/photo-1540910419892-f013c773998b?q=80&w=200&h=200&auto=format&fit=crop'} 
                                                         className="w-full h-full object-cover"
                                                         alt={candidate.candidateName}
@@ -1156,7 +1156,7 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
                                     <div className="flex items-center gap-4">
                                         <div className="relative group overflow-hidden w-20 h-20 bg-slate-100 dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center">
                                             {newMember.profilePhotoUrl ? (
-                                                <img 
+                                                <img loading="lazy" 
                                                     src={newMember.profilePhotoUrl} 
                                                     alt="Preview" 
                                                     className="w-full h-full object-cover"
@@ -1236,3 +1236,4 @@ export const CommunityManager: React.FC<CommunityManagerProps> = ({ currentInsti
         </div>
     );
 };
+

@@ -116,3 +116,4 @@ export const AttendanceTakerModal: React.FC<AttendanceTakerModalProps> = ({ onCl
     </div>
   );
 };
+

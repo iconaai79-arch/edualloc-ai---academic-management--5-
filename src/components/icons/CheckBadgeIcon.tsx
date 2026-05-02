@@ -15,3 +15,4 @@ export const CheckBadgeIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) =
     <path d="m9 12 2 2 4-4" />
   </svg>
 );
+

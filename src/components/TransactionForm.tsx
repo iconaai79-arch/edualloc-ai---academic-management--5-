@@ -111,3 +111,4 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ inventory, use
         </div>
     );
 };
+

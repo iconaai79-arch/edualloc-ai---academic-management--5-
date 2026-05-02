@@ -202,3 +202,4 @@ export const TrialExpiredView: React.FC<TrialExpiredViewProps> = ({
         </div>
     );
 };
+

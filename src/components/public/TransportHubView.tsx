@@ -293,3 +293,4 @@ export const TransportHubView: React.FC<TransportHubViewProps> = ({ institutions
         </div>
     );
 };
+

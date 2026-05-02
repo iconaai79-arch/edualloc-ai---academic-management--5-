@@ -331,3 +331,4 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
         </div>
     );
 };
+

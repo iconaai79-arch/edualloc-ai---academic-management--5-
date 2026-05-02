@@ -617,3 +617,4 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
         </div>
     );
 };
+

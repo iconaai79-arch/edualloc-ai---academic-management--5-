@@ -282,3 +282,4 @@ export const HISReportsView: React.FC<HISReportsProps> = ({ activeRole }) => {
         </div>
     );
 };
+

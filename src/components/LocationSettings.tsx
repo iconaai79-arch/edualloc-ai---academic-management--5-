@@ -231,3 +231,4 @@ export const LocationSettings: React.FC<LocationSettingsProps> = ({ institution,
         </section>
     );
 };
+

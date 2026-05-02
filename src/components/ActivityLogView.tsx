@@ -11,7 +11,11 @@ const formatTimestamp = (timestamp: string): string => {
     });
 };
 
-export const ActivityLogView: React.FC<{ activityLog: ActivityLog[] }> = ({ activityLog }) => {
+export const ActivityLogView: React.FC<{ 
+    activityLog: ActivityLog[],
+    activityLogLimit?: number,
+    setActivityLogLimit?: React.Dispatch<React.SetStateAction<number>>
+}> = ({ activityLog, activityLogLimit, setActivityLogLimit }) => {
     const [searchQuery, setSearchQuery] = useState('');
 
     const sortedLog = useMemo(() => {
@@ -104,6 +108,16 @@ export const ActivityLogView: React.FC<{ activityLog: ActivityLog[] }> = ({ acti
                     </table>
                 </div>
             </div>
+            {activityLog.length >= (activityLogLimit || 50) && (
+                <div className="flex justify-center pt-4">
+                    <button 
+                        onClick={() => setActivityLogLimit?.(prev => prev + 50)}
+                        className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg hover:bg-indigo-700 transition-all flex items-center gap-2"
+                    >
+                        Sync More Audit Logs
+                    </button>
+                </div>
+            )}
             <style>{`
                 .form-input { display: block; border-radius: 0.375rem; border: 1px solid #d1d5db; padding: 0.5rem 0.75rem; background-color: white; }
                 .dark .form-input { border-color: #4b5563; background-color: #374151; color: white; }

@@ -247,3 +247,4 @@ export const SmartInventoryImporterModal: React.FC<SmartInventoryImporterModalPr
         </div>
     );
 };
+

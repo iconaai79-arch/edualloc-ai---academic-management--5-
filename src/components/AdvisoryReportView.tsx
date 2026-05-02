@@ -194,3 +194,4 @@ export const AdvisoryReportView: React.FC<AdvisoryReportViewProps> = ({
         </div>
     );
 };
+

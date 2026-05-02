@@ -262,7 +262,7 @@ export const AlumniManager: React.FC<AlumniManagerProps> = ({ currentInstitution
                                     <div key={a.id} className="flex items-center gap-4 p-3 hover:bg-slate-50 dark:hover:bg-slate-900/50 rounded-2xl transition-all cursor-pointer group">
                                         <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white flex items-center justify-center font-black text-lg group-hover:scale-105 transition-transform overflow-hidden">
                                             {a.profilePhotoUrl ? (
-                                                <img src={a.profilePhotoUrl} alt={a.name} className="w-full h-full object-cover" />
+                                                <img loading="lazy" src={a.profilePhotoUrl} alt={a.name} className="w-full h-full object-cover" />
                                             ) : a.name.charAt(0)}
                                         </div>
                                         <div className="flex-1 min-w-0">
@@ -375,7 +375,7 @@ export const AlumniManager: React.FC<AlumniManagerProps> = ({ currentInstitution
                                     <div className="absolute bottom-0 left-8 translate-y-1/2">
                                         <div className="w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 border-4 border-white shadow-xl flex items-center justify-center text-2xl font-black text-indigo-600 overflow-hidden">
                                             {a.profilePhotoUrl ? (
-                                                <img src={a.profilePhotoUrl} alt={a.name} className="w-full h-full object-cover" />
+                                                <img loading="lazy" src={a.profilePhotoUrl} alt={a.name} className="w-full h-full object-cover" />
                                             ) : a.name.charAt(0)}
                                         </div>
                                     </div>
@@ -675,7 +675,7 @@ export const AlumniManager: React.FC<AlumniManagerProps> = ({ currentInstitution
                                 <div key={a.id} className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
                                     <div className="flex gap-4">
                                         <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black overflow-hidden">
-                                            {a.profilePhotoUrl ? <img src={a.profilePhotoUrl} className="w-full h-full object-cover" /> : a.name.charAt(0)}
+                                            {a.profilePhotoUrl ? <img loading="lazy" src={a.profilePhotoUrl} className="w-full h-full object-cover" /> : a.name.charAt(0)}
                                         </div>
                                         <div className="flex-1">
                                             <p className="font-black text-slate-800 dark:text-white uppercase text-xs">{a.name}</p>
@@ -708,7 +708,7 @@ export const AlumniManager: React.FC<AlumniManagerProps> = ({ currentInstitution
                                 <div key={a.id} className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm group">
                                     <div className="flex gap-4">
                                         <div className="w-12 h-12 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center font-black overflow-hidden">
-                                            {a.profilePhotoUrl ? <img src={a.profilePhotoUrl} className="w-full h-full object-cover" /> : a.name.charAt(0)}
+                                            {a.profilePhotoUrl ? <img loading="lazy" src={a.profilePhotoUrl} className="w-full h-full object-cover" /> : a.name.charAt(0)}
                                         </div>
                                         <div className="flex-1">
                                             <div className="flex justify-between items-start">
@@ -756,3 +756,4 @@ export const AlumniManager: React.FC<AlumniManagerProps> = ({ currentInstitution
         </div>
     );
 };
+

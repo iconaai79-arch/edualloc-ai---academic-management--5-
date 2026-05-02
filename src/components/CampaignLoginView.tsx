@@ -68,7 +68,7 @@ export const CampaignLoginView: React.FC<CampaignLoginViewProps> = ({ onLoginSuc
             <div className="hidden lg:flex lg:w-1/2 flex-col justify-center items-center p-20 relative border-r border-white/5 bg-gradient-to-br from-slate-950 via-[#0a0f1e] to-slate-950">
                 <div className="relative group cursor-default">
                     <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-3xl group-hover:bg-blue-500/30 transition-all duration-700"></div>
-                    <img 
+                    <img loading="lazy" 
                         src="/campaign_command_3d_logo_1777007425977.png" 
                         alt="Campaign Command Emblem"
                         className="w-[450px] h-auto relative z-10 drop-shadow-[0_35px_35px_rgba(0,0,0,0.5)] animate-float"
@@ -99,7 +99,7 @@ export const CampaignLoginView: React.FC<CampaignLoginViewProps> = ({ onLoginSuc
             <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 relative z-10">
                 <div className="w-full max-w-md animate-in fade-in slide-in-from-right-12 duration-1000">
                     <div className="lg:hidden flex flex-col items-center mb-12 text-center">
-                        <img src="/campaign_command_3d_logo_1777007425977.png" className="w-40 h-auto mb-6 drop-shadow-2xl" />
+                        <img loading="lazy" src="/campaign_command_3d_logo_1777007425977.png" className="w-40 h-auto mb-6 drop-shadow-2xl" />
                         <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Command <span className="text-blue-500">Circle</span></h2>
                     </div>
 
@@ -198,3 +198,4 @@ export const CampaignLoginView: React.FC<CampaignLoginViewProps> = ({ onLoginSuc
         </div>
     );
 };
+

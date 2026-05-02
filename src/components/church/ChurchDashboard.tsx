@@ -64,3 +64,4 @@ const StatCard: React.FC<{ icon: React.ReactNode, label: string, value: string, 
         {trend && <div className="text-[10px] font-bold text-indigo-600 mt-1 uppercase tracking-wider">{trend}</div>}
     </div>
 );
+

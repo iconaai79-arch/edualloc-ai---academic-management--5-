@@ -619,7 +619,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
 
                             <div className="bg-slate-50 dark:bg-slate-900 p-10 rounded-[2.5rem] mb-8 relative border border-slate-100 dark:border-slate-800">
                                 {qrUrl ? (
-                                    <img src={qrUrl} alt="Gate Pass QR" className="mx-auto w-full max-w-[250px] mix-blend-multiply dark:mix-blend-normal" />
+                                    <img loading="lazy" src={qrUrl} alt="Gate Pass QR" className="mx-auto w-full max-w-[250px] mix-blend-multiply dark:mix-blend-normal" />
                                 ) : (
                                     <div className="w-48 h-48 bg-slate-200 mx-auto animate-pulse flex items-center justify-center rounded-3xl">Generating QR...</div>
                                 )}
@@ -656,3 +656,4 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
         </div>
     );
 };
+

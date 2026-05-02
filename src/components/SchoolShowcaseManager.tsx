@@ -231,7 +231,7 @@ export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ sc
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
                             {gallery.map((item) => (
                                 <div key={item.id} className="group relative aspect-square bg-slate-100 dark:bg-slate-800 rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-md">
-                                    <img src={item.imageUrl} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="Gallery" />
+                                    <img loading="lazy" src={item.imageUrl} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="Gallery" />
                                     <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-4 text-center">
                                         <p className="text-white text-[9px] font-black uppercase truncate w-full mb-3">{item.caption}</p>
                                         <button 
@@ -274,7 +274,7 @@ export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ sc
                             {ads.map((ad) => (
                                 <div key={ad.id} className="relative bg-slate-50 dark:bg-slate-800 rounded-[2.5rem] overflow-hidden border border-slate-100 dark:border-slate-700 group">
                                     <div className="h-40 bg-slate-200 dark:bg-slate-700 overflow-hidden relative">
-                                        <img src={ad.imageUrl} className="w-full h-full object-cover" alt="Advertisement" />
+                                        <img loading="lazy" src={ad.imageUrl} className="w-full h-full object-cover" alt="Advertisement" />
                                         <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent flex items-end p-6">
                                             <h5 className="text-white font-black uppercase text-xs tracking-tight">{ad.title || 'Institutional Event'}</h5>
                                         </div>
@@ -353,3 +353,4 @@ export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ sc
         </div>
     );
 };
+

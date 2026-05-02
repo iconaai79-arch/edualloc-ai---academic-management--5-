@@ -213,3 +213,4 @@ export const CafeMenuManager: React.FC<CafeMenuManagerProps> = ({ institutionId,
         </div>
     );
 };
+

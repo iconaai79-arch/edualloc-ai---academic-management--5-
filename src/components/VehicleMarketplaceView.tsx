@@ -62,7 +62,7 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
             className="group relative bg-white dark:bg-slate-900 rounded-[3rem] overflow-hidden border border-slate-100 dark:border-slate-800 hover:shadow-2xl transition-all duration-500 cursor-pointer"
         >
             <div className="aspect-[4/3] relative overflow-hidden">
-                <img 
+                <img loading="lazy" 
                     src={listing.mainImageUrl || 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&q=80'} 
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                     alt={listing.model}
@@ -127,7 +127,7 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                 {/* Visual Section */}
                 <div className="space-y-8">
                     <div className="relative rounded-[4rem] overflow-hidden shadow-2xl aspect-[4/3] group">
-                        <img src={vehicle.mainImageUrl} className="w-full h-full object-cover" />
+                        <img loading="lazy" src={vehicle.mainImageUrl} className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-12">
                             <div className="flex gap-4">
                                 <button className="bg-white/10 backdrop-blur-xl border border-white/20 text-white px-8 py-4 rounded-3xl font-black uppercase text-[11px] hover:bg-white/20 transition-all flex items-center gap-2">
@@ -143,7 +143,7 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                     <div className="grid grid-cols-4 gap-4">
                         {vehicle.galleryUrls?.slice(0, 4).map((url, i) => (
                             <div key={i} className="aspect-square rounded-3xl overflow-hidden border-2 border-slate-100 hover:border-indigo-600 transition-all cursor-pointer">
-                                <img src={url} className="w-full h-full object-cover" />
+                                <img loading="lazy" src={url} className="w-full h-full object-cover" />
                             </div>
                         ))}
                     </div>
@@ -312,3 +312,4 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
         </div>
     );
 };
+

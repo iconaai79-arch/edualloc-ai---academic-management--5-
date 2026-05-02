@@ -45,7 +45,7 @@ const AssignmentItem: React.FC<{
         }
 
         if (fileType.startsWith('image/')) {
-            printWindow.document.write(`<html><head><title>Print</title></head><body><img src="${assignment.fileDataUrl}" style="max-width: 100%;" onload="window.print(); window.close();" /></body></html>`);
+            printWindow.document.write(`<html><head><title>Print</title></head><body><img loading="lazy" src="${assignment.fileDataUrl}" style="max-width: 100%;" onload="window.print(); window.close();" /></body></html>`);
         } else if (fileType === 'application/pdf') {
             printWindow.document.write(`<html><head><title>Print</title></head><body style="margin:0;"><iframe src="${assignment.fileDataUrl}" style="border:none; width:100%; height:100%;" title="PDF Print"></iframe></body></html>`);
         } else {
@@ -227,3 +227,4 @@ export const StudentAssignmentManager: React.FC<StudentAssignmentManagerProps> =
         </div>
     );
 };
+

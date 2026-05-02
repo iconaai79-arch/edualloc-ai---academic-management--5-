@@ -290,3 +290,4 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
         </div>
     );
 };
+

@@ -2035,7 +2035,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                 return (
                                     <div key={att.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
                                         <div className="flex items-center gap-3 mb-4">
-                                            {att.profilePhotoUrl ? <img src={att.profilePhotoUrl} className="w-12 h-12 rounded-2xl object-cover" alt={att.name} /> : <div className="w-12 h-12 rounded-2xl bg-cyan-600 flex items-center justify-center text-white text-lg font-black">{att.name.charAt(0)}</div>}
+                                            {att.profilePhotoUrl ? <img loading="lazy" src={att.profilePhotoUrl} className="w-12 h-12 rounded-2xl object-cover" alt={att.name} /> : <div className="w-12 h-12 rounded-2xl bg-cyan-600 flex items-center justify-center text-white text-lg font-black">{att.name.charAt(0)}</div>}
                                             <div><p className="font-black">{att.name}</p><p className="text-xs text-slate-400 capitalize">{formatRoleDisplayName(att.role, currentInstitution)}</p></div>
                                         </div>
                                         <div className="grid grid-cols-2 gap-2">
@@ -3378,7 +3378,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                             <div className="flex gap-4 items-center">
                                                 <input value={settingsForm.logoUrl || ''} onChange={e => setSettingsForm({ ...settingsForm, logoUrl: e.target.value })} className={inputCls + ' bg-white dark:bg-slate-900'} placeholder="https://..." />
                                                 <div className="w-16 h-16 rounded-2xl bg-white border border-slate-100 p-2 flex items-center justify-center shadow-sm">
-                                                    {settingsForm.logoUrl ? <img src={settingsForm.logoUrl} className="max-h-full max-w-full object-contain" alt="Logo" /> : <SparklesIcon className="w-6 h-6 text-slate-200" />}
+                                                    {settingsForm.logoUrl ? <img loading="lazy" src={settingsForm.logoUrl} className="max-h-full max-w-full object-contain" alt="Logo" /> : <SparklesIcon className="w-6 h-6 text-slate-200" />}
                                                 </div>
                                             </div>
                                         </div>
@@ -3386,14 +3386,14 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                         <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 transition-all hover:border-blue-200">
                                             <label className={labelCls}>Receipt Header Image URL</label>
                                             <input value={settingsForm.receiptHeader || ''} onChange={e => setSettingsForm({ ...settingsForm, receiptHeader: e.target.value })} className={inputCls + ' bg-white dark:bg-slate-900 mb-3'} placeholder="Banner for official invoices" />
-                                            {settingsForm.receiptHeader && <img src={settingsForm.receiptHeader} className="h-24 w-full object-cover rounded-2xl border border-slate-200 shadow-sm" alt="Header" />}
+                                            {settingsForm.receiptHeader && <img loading="lazy" src={settingsForm.receiptHeader} className="h-24 w-full object-cover rounded-2xl border border-slate-200 shadow-sm" alt="Header" />}
                                         </div>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 transition-all hover:border-blue-200">
                                                 <label className={labelCls}>Receipt Footer Image URL</label>
                                                 <input value={settingsForm.receiptFooter || ''} onChange={e => setSettingsForm({ ...settingsForm, receiptFooter: e.target.value })} className={inputCls + ' bg-white dark:bg-slate-900 mb-3'} placeholder="Small footer graphic" />
-                                                {settingsForm.receiptFooter && <img src={settingsForm.receiptFooter} className="h-12 w-full object-contain rounded-xl bg-white" alt="Footer" />}
+                                                {settingsForm.receiptFooter && <img loading="lazy" src={settingsForm.receiptFooter} className="h-12 w-full object-contain rounded-xl bg-white" alt="Footer" />}
                                             </div>
                                             <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 transition-all hover:border-blue-200 opacity-50 cursor-not-allowed">
                                                 <label className={labelCls}>Branch Stamp (Institution Global Only)</label>
@@ -3712,3 +3712,4 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         </div>
     );
 };
+

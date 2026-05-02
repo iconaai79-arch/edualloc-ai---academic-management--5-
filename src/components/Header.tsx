@@ -152,7 +152,7 @@ export const Header: React.FC<HeaderProps> = ({
                                         className="flex-shrink-0 h-7 w-7 bg-indigo-50 dark:bg-slate-800 rounded shadow-sm overflow-hidden border border-indigo-100 dark:border-slate-700 p-0.5"
                                         style={{ borderColor: primaryColor ? `${primaryColor}20` : undefined, backgroundColor: primaryColor ? `${primaryColor}10` : undefined }}
                                     >
-                                        <img src={systemLogoUrl} alt="System Logo" className="h-full w-full object-contain" />
+                                        <img loading="lazy" src={systemLogoUrl} alt="System Logo" className="h-full w-full object-contain" />
                                     </div>
                                 )}
 
@@ -162,7 +162,7 @@ export const Header: React.FC<HeaderProps> = ({
 
                                 {logoUrl && (
                                     <div className="flex-shrink-0 h-8 w-8 bg-white dark:bg-slate-800 rounded shadow-sm overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5">
-                                        <img src={logoUrl} alt="Institution Logo" className="h-full w-full object-contain" />
+                                        <img loading="lazy" src={logoUrl} alt="Institution Logo" className="h-full w-full object-contain" />
                                     </div>
                                 )}
                             </div>
@@ -240,7 +240,7 @@ export const Header: React.FC<HeaderProps> = ({
                             >
                                 <div className="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold overflow-hidden border border-slate-300 dark:border-slate-600">
                                     {currentUser.profilePhotoUrl ? (
-                                        <img src={currentUser.profilePhotoUrl} alt="Profile" className="h-full w-full object-cover" />
+                                        <img loading="lazy" src={currentUser.profilePhotoUrl} alt="Profile" className="h-full w-full object-cover" />
                                     ) : (
                                         <span className="text-xs">{getInitials(currentUser.name)}</span>
                                     )}
@@ -291,3 +291,4 @@ export const Header: React.FC<HeaderProps> = ({
         </header>
     );
 };
+

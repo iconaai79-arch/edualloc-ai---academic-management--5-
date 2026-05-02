@@ -100,3 +100,4 @@ export const SyncCalendarModal: React.FC<SyncCalendarModalProps> = ({ onClose, t
         </div>
     );
 };
+

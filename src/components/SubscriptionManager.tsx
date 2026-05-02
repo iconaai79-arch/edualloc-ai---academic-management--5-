@@ -563,3 +563,4 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
         </div>
     );
 };
+

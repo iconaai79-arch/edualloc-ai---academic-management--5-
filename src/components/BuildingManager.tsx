@@ -102,7 +102,7 @@ const RoomQrCodeModal: React.FC<{
                                 <p className="text-red-700 dark:text-red-300 text-sm">{error}</p>
                             </div>
                         ) : qrCodeUrl ? (
-                            <img src={qrCodeUrl} alt={`QR Code for ${room.name}`} className="w-64 h-64 bg-white shadow-sm rounded-lg" />
+                            <img loading="lazy" src={qrCodeUrl} alt={`QR Code for ${room.name}`} className="w-64 h-64 bg-white shadow-sm rounded-lg" />
                         ) : (
                             <div className="w-64 h-64 bg-slate-200 animate-pulse rounded-md flex items-center justify-center text-slate-500 text-xs text-center p-4">
                                 Loading QR Library...
@@ -146,7 +146,7 @@ const RoomQrCodeModal: React.FC<{
             <div className="print-only hidden">
                 <div className="flex flex-col items-center justify-center min-h-screen text-center p-8 bg-white">
                     <h2 className="text-3xl font-bold mb-8 text-black">{institutionName}</h2>
-                    {qrCodeUrl && <img src={qrCodeUrl} alt={`QR Code for ${room.name}`} className="w-80 h-80 bg-white mb-8 border border-slate-100" />}
+                    {qrCodeUrl && <img loading="lazy" src={qrCodeUrl} alt={`QR Code for ${room.name}`} className="w-80 h-80 bg-white mb-8 border border-slate-100" />}
                     <h3 className="text-4xl font-black text-black">{room.name}</h3>
                     <p className="text-xl text-slate-600 uppercase font-bold mt-2">{buildingName}</p>
                     <p className="text-sm text-slate-400 mt-6 pt-10 border-t border-slate-100 w-full max-w-md">Facility Access QR • {new Date().toLocaleDateString()}</p>
@@ -324,7 +324,7 @@ const BulkRoomQrPrintModal: React.FC<{
                                     const bldg = buildings.find(b => b.id === room.buildingId)?.name || 'Unknown';
                                     return (
                                         <div key={room.id} className="p-4 border border-slate-100 dark:border-slate-700 rounded-xl flex flex-col items-center text-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
-                                            {qrCodes[room.id] && <img src={qrCodes[room.id]} alt={room.name} className="w-32 h-32 bg-white rounded-lg shadow-sm" />}
+                                            {qrCodes[room.id] && <img loading="lazy" src={qrCodes[room.id]} alt={room.name} className="w-32 h-32 bg-white rounded-lg shadow-sm" />}
                                             <div className="mt-2 text-slate-900 dark:text-white">
                                                 <p className="text-sm font-bold truncate w-full">{room.name}</p>
                                                 <p className="text-[10px] text-slate-500 uppercase font-black">{bldg}</p>
@@ -343,7 +343,7 @@ const BulkRoomQrPrintModal: React.FC<{
                     {filteredRooms.map(room => (
                         <div key={room.id} className="qr-print-card bg-white">
                             <h2 className="text-xl font-bold mb-2 text-black">{institutionName}</h2>
-                            {qrCodes[room.id] && <img src={qrCodes[room.id]} alt={room.name} className="w-48 h-48 mb-4" />}
+                            {qrCodes[room.id] && <img loading="lazy" src={qrCodes[room.id]} alt={room.name} className="w-48 h-48 mb-4" />}
                             <h3 className="text-2xl font-black text-black">{room.name}</h3>
                             <p className="text-lg text-slate-600 uppercase font-bold">
                                 {buildings.find(b => b.id === room.buildingId)?.name || 'Unknown'}
@@ -940,3 +940,4 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
         </div>
     );
 };
+

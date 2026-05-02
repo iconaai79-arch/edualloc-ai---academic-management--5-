@@ -23,3 +23,4 @@ export const CalculatorIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) =
     <path d="M8 18h.01" />
   </svg>
 );
+

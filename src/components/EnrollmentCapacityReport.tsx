@@ -243,3 +243,4 @@ export const EnrollmentCapacityReport: React.FC<EnrollmentCapacityReportProps> =
         </div>
     );
 };
+

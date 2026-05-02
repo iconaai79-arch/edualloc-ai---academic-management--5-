@@ -148,6 +148,14 @@ export interface AdminViewProps {
     institutions?: Institution[];
     counties: County[];
     schoolRegistry?: SchoolRegistry[];
+    activityLogLimit?: number;
+    setActivityLogLimit?: React.Dispatch<React.SetStateAction<number>>;
+    transactionLimit?: number;
+    setTransactionLimit?: React.Dispatch<React.SetStateAction<number>>;
+    receiptLimit?: number;
+    setReceiptLimit?: React.Dispatch<React.SetStateAction<number>>;
+    notificationLimit?: number;
+    setNotificationLimit?: React.Dispatch<React.SetStateAction<number>>;
     
     // Academic Lifecycle Props
     incidents?: DisciplineIncident[];
@@ -1438,6 +1446,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         smsConfig={props.smsConfig}
                         onWithdrawRequest={props.onWithdrawRequest}
                         onAddExtensionRequest={props.onAddExtensionRequest}
+                        activityLogLimit={props.activityLogLimit}
+                        setActivityLogLimit={props.setActivityLogLimit}
                     />
                 )}
 
@@ -1616,7 +1626,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             ))}
                         </div>
 
-                    <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 p-12 flex flex-col items-center justify-center text-center shadow-xl">
+                        <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 p-12 flex flex-col items-center justify-center text-center shadow-xl">
                             <CarIcon className="w-20 h-20 text-indigo-600 mb-6 opacity-80" />
                             <h2 className="text-2xl font-black uppercase tracking-tighter mb-4 text-slate-800 dark:text-white">Inventory Management Hub</h2>
                             <p className="text-slate-500 max-w-lg mb-8 text-[13px] leading-relaxed">
@@ -1632,6 +1642,55 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 <PlusIcon className="w-4 h-4 mr-2 inline" /> Add New Vehicle Listing
                             </button>
                         </div>
+
+                        {props.carListings && props.carListings.length > 0 && (
+                            <div className="space-y-6">
+                                <div className="flex justify-between items-center px-4">
+                                    <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">Current Inventory</h3>
+                                    <span className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">{props.carListings.length} Total</span>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    {props.carListings.map((car) => (
+                                        <div key={car.id} className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden group hover:shadow-xl transition-all">
+                                            <div className="aspect-video relative overflow-hidden bg-slate-50 dark:bg-slate-900">
+                                                {car.mainImageUrl ? (
+                                                    <img loading="lazy" src={car.mainImageUrl} alt={car.model} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center">
+                                                        <CarIcon className="w-10 h-10 text-slate-200" />
+                                                    </div>
+                                                )}
+                                                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-[8px] font-black uppercase text-slate-900">{car.year}</div>
+                                                <div className="absolute top-4 right-4 bg-indigo-600 text-white px-3 py-1 rounded-full text-[8px] font-black uppercase shadow-lg">{car.status}</div>
+                                            </div>
+                                            <div className="p-6">
+                                                <h4 className="text-sm font-black uppercase tracking-tighter text-slate-900 dark:text-white truncate">
+                                                    {car.make} <span className="text-indigo-600">{car.model}</span>
+                                                </h4>
+                                                <div className="flex justify-between items-center mt-4">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{car.mileage.toLocaleString()} KM</span>
+                                                    <span className="text-xs font-black text-slate-900 dark:text-white italic">KES {car.price.toLocaleString()}</span>
+                                                </div>
+                                                <div className="flex gap-2 mt-6">
+                                                    <button 
+                                                        onClick={() => {
+                                                            setSelectedListingForEdit(car);
+                                                            setIsAddListingModalOpen(true);
+                                                        }}
+                                                        className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button className="p-3 bg-slate-50 dark:bg-slate-900 text-slate-400 hover:text-red-500 rounded-xl transition-all">
+                                                        <XIcon className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -1669,6 +1728,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 assessments={assessments}
                                 assessmentMarks={assessmentMarks}
                                 visitors={visitors}
+                                activityLogLimit={props.activityLogLimit}
+                                setActivityLogLimit={props.setActivityLogLimit}
                             />
                         )}
                     </div>
@@ -1757,7 +1818,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         institution={props.currentInstitution!}
                         onClose={() => { setIsAddListingModalOpen(false); setSelectedListingForEdit(null); }}
                         onSave={async (data) => {
-                            await apiService.saveModuleRecord('car_listings', {
+                            await apiService.saveModuleRecord('car_sales_listings', {
                                 ...data,
                                 institutionId: props.currentInstitution!.id,
                                 id: data.id || `car_${Date.now()}`,
@@ -1773,3 +1834,4 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         </div>
     );
 };
+

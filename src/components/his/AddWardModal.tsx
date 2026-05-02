@@ -132,3 +132,4 @@ export const AddWardModal: React.FC<AddWardModalProps> = ({ isOpen, onClose, onA
         </div>
     );
 };
+

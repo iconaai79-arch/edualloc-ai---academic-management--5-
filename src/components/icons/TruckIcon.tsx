@@ -17,3 +17,4 @@ export const TruckIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <circle cx="18.5" cy="18.5" r="2.5" />
   </svg>
 );
+

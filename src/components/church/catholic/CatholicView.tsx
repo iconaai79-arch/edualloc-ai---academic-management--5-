@@ -342,3 +342,4 @@ const JumuiaCard: React.FC<{ name: string, members: number, leader: string, next
         </button>
     </div>
 );
+

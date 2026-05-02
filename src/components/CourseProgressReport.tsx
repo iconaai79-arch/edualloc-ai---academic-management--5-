@@ -216,3 +216,4 @@ export const CourseProgressReport: React.FC<CourseProgressReportProps> = ({
         </div>
     );
 };
+

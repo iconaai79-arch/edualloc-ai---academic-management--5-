@@ -364,3 +364,4 @@ export const InstitutionClaimView: React.FC<InstitutionClaimViewProps> = ({ regi
         </div>
     );
 };
+

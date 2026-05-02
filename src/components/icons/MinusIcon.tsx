@@ -5,3 +5,4 @@ export const MinusIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
         <path strokeLinecap="round" strokeLinejoin="round" d="M18 12H6" />
     </svg>
 );
+

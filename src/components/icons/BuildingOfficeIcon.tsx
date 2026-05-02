@@ -5,3 +5,4 @@ export const BuildingOfficeIcon: React.FC<React.SVGProps<SVGSVGElement>> = (prop
     <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h6M9 11.25h6M9 15.75h6M4.5 21V3m0 18h-1.5m1.5 0h1.5m13.5 0h-1.5m1.5 0h1.5" />
   </svg>
 );
+

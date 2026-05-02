@@ -358,3 +358,4 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
         </div>
     );
 };
+

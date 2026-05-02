@@ -18,3 +18,4 @@ export const CoffeeIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <line x1="14" y1="2" x2="14" y2="4" />
   </svg>
 );
+

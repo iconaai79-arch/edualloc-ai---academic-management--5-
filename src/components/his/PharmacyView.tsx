@@ -112,8 +112,7 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
                         if (remainingToDispense <= 0) break;
                         const take = Math.min(batch.currentQuantity, remainingToDispense);
                         
-                        await apiService.saveModuleRecord('his_pharmacy_batches', {
-                            id: batch.id,
+                        await apiService.updateModuleRecord('his_pharmacy_batches', batch.id, {
                             currentQuantity: batch.currentQuantity - take
                         });
                         remainingToDispense -= take;
@@ -137,8 +136,7 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
                 }
 
                 // 4. Update Global Inventory
-                await apiService.saveModuleRecord('his_pharmacy_inventory', {
-                    id: drug.id,
+                await apiService.updateModuleRecord('his_pharmacy_inventory', drug.id, {
                     stockQuantity: Math.max(0, drug.stockQuantity - item.quantity)
                 });
 
@@ -171,8 +169,7 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
             }
 
             // 7. Mark Prescription as Dispensed
-            await apiService.saveModuleRecord('his_prescriptions', {
-                id: presc.id,
+            await apiService.updateModuleRecord('his_prescriptions', presc.id, {
                 status: 'dispensed'
             });
 
@@ -611,3 +608,4 @@ export const PharmacyView: React.FC<{ institutionId?: string }> = ({ institution
         </div>
     );
 };
+

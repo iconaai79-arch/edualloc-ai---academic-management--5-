@@ -1550,7 +1550,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                                             <td className="px-6 py-5 text-center font-mono font-black text-indigo-600">{t.quantity}</td>
                                                             <td className="px-6 py-5 text-center">
                                                                 {t.signature ? (
-                                                                    <img src={t.signature} alt="Sign" className="h-6 w-auto mx-auto border border-slate-100 rounded bg-white shadow-sm" />
+                                                                    <img loading="lazy" src={t.signature} alt="Sign" className="h-6 w-auto mx-auto border border-slate-100 rounded bg-white shadow-sm" />
                                                                 ) : (
                                                                     <span className="text-[8px] text-slate-300 font-black uppercase">None</span>
                                                                 )}
@@ -2579,3 +2579,4 @@ export const TransportAssistantView: React.FC<SupportStaffViewProps> = (props) =
         />
     );
 };
+

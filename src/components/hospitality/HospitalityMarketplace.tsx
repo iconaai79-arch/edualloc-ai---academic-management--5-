@@ -99,12 +99,14 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
         return [...allPackages].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 6);
     }, [allPackages]);
 
+    const [limit, setLimit] = useState(12);
+
     React.useEffect(() => {
         const loadData = async () => {
             setLoadingItems(true);
             try {
-                // Fetch packages from all active hospitality partners
-                const items = await apiService.fetchModuleRecords('hospitality_items');
+                // Fetch packages with limit
+                const items = await apiService.fetchModuleRecords('hospitality_items', undefined, limit);
                 setAllPackages(items);
             } catch (err) {
                 console.error("Marketplace Data Load Error:", err);
@@ -113,7 +115,7 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
             }
         };
         loadData();
-    }, []);
+    }, [limit]);
 
 
     const handleNavbarClick = (item: string) => {
@@ -272,7 +274,7 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                             <div className="grid grid-cols-2 gap-6 rotate-3 group-hover:rotate-0 transition-transform duration-1000">
                                 <div className="space-y-6 translate-y-12">
                                     <div className="h-48 lg:h-64 bg-slate-200 dark:bg-slate-800 rounded-[3rem] shadow-2xl overflow-hidden relative">
-                                        <img src="https://images.unsplash.com/photo-1516426122078-c23e76319801?auto=format&fit=crop&q=80&w=800" className="w-full h-full object-cover opacity-80" alt="Safari" />
+                                        <img loading="lazy" src="https://images.unsplash.com/photo-1516426122078-c23e76319801?auto=format&fit=crop&q=80&w=800" className="w-full h-full object-cover opacity-80" alt="Safari" />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
                                         <p className="absolute bottom-8 left-8 text-white font-black uppercase tracking-widest text-[10px]">Maasai Mara</p>
                                     </div>
@@ -285,7 +287,7 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                                         <Plane className="w-16 h-16 text-white opacity-20" />
                                     </div>
                                     <div className="h-64 bg-slate-200 dark:bg-slate-800 rounded-[3rem] shadow-2xl overflow-hidden relative">
-                                        <img src="https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&q=80&w=800" className="w-full h-full object-cover opacity-80" alt="Beach" />
+                                        <img loading="lazy" src="https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&q=80&w=800" className="w-full h-full object-cover opacity-80" alt="Beach" />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
                                         <p className="absolute bottom-8 left-8 text-white font-black uppercase tracking-widest text-[10px]">Diani Shore</p>
                                     </div>
@@ -320,7 +322,7 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                                     <div className="w-full h-full flex items-center justify-center text-slate-200">
                                         <Compass className="w-12 h-12" />
                                         {getFirstImage(item.images) && (
-                                            <img 
+                                            <img loading="lazy" 
                                                 src={getGoogleDriveDirectUrl(getFirstImage(item.images))} 
                                                 className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
                                                 alt={item.name} 
@@ -424,7 +426,7 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                                                     const displayUrl = inst.footerImageUrl || inst.logoUrl || institutionPackageImages[inst.id];
                                                     if (displayUrl && displayUrl !== 'null' && displayUrl !== 'undefined') {
                                                         return (
-                                                            <img 
+                                                            <img loading="lazy" 
                                                                 src={getGoogleDriveDirectUrl(displayUrl)} 
                                                                 className="absolute inset-0 w-full h-full object-cover" 
                                                                 alt={inst.name} 
@@ -488,6 +490,18 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
                         </div>
                     )}
                 </div>
+
+                {allPackages.length >= limit && (
+                    <div className="mt-20 flex justify-center">
+                        <button 
+                            onClick={() => setLimit(prev => prev + 12)}
+                            className="px-12 py-5 bg-indigo-600 text-white rounded-[2.5rem] font-black uppercase tracking-[0.2em] text-[10px] shadow-2xl shadow-indigo-100 hover:bg-slate-900 transition-all active:scale-95 flex items-center gap-3"
+                        >
+                            <Menu className="w-5 h-5 animate-spin-slow" />
+                            Sync More Destinations
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Newsletter Side Panel / Call to Action */}
@@ -535,3 +549,4 @@ export const HospitalityMarketplace: React.FC<HospitalityMarketplaceProps> = ({ 
         </div>
     );
 };
+

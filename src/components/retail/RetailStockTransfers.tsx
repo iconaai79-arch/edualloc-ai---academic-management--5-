@@ -432,3 +432,4 @@ export function RetailStockTransfers({ institutionId, currentUser }: RetailStock
         </div>
     );
 }
+

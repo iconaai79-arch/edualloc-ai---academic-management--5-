@@ -241,7 +241,7 @@ export const ConstructionManager: React.FC<ConstructionManagerProps> = ({ curren
                     <div key={p.id} className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden group hover:shadow-2xl transition-all flex flex-col">
                         <div className="h-56 bg-slate-100 dark:bg-slate-950 relative overflow-hidden">
                             {p.images && p.images.length > 0 ? (
-                                <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                <img loading="lazy" src={p.images[0]} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center text-slate-200">
                                     <Building2 className="w-16 h-16" />
@@ -314,7 +314,7 @@ export const ConstructionManager: React.FC<ConstructionManagerProps> = ({ curren
                                 <div className="grid grid-cols-4 gap-4">
                                     {newProject.images.map((img, idx) => (
                                         <div key={idx} className="aspect-square bg-slate-100 dark:bg-slate-800 rounded-3xl overflow-hidden border-2 border-slate-50 dark:border-white/5 relative group shadow-sm">
-                                            <img src={img} alt="Preview" className="w-full h-full object-cover" />
+                                            <img loading="lazy" src={img} alt="Preview" className="w-full h-full object-cover" />
                                         </div>
                                     ))}
                                     <label className="aspect-square border-4 border-dotted border-slate-100 dark:border-slate-800 rounded-3xl flex flex-col items-center justify-center text-slate-300 hover:text-indigo-600 hover:border-indigo-600 cursor-pointer transition-all">
@@ -390,3 +390,4 @@ export const ConstructionManager: React.FC<ConstructionManagerProps> = ({ curren
         </div>
     );
 };
+

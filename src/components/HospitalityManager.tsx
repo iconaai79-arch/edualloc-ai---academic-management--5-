@@ -70,21 +70,26 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
     });
     const [editingId, setEditingId] = useState<string | null>(null);
     const [orders, setOrders] = useState<any[]>([]);
+    const [itemLimit, setItemLimit] = useState(20);
+    const [orderLimit, setOrderLimit] = useState(20);
 
     const loadItems = async () => {
-        const records = await apiService.fetchModuleRecords<any>('hospitality_items', currentInstitution.id);
+        const records = await apiService.fetchModuleRecords<any>('hospitality_items', currentInstitution.id, undefined, { limit: itemLimit });
         setItems(records);
     };
 
     const loadOrders = async () => {
-        const records = await apiService.fetchModuleRecords<any>('hospitality_orders', currentInstitution.id);
+        const records = await apiService.fetchModuleRecords<any>('hospitality_orders', currentInstitution.id, undefined, { limit: orderLimit });
         setOrders(records);
     };
 
     React.useEffect(() => {
         loadItems();
+    }, [currentInstitution.id, itemLimit]);
+
+    React.useEffect(() => {
         loadOrders();
-    }, [currentInstitution.id]);
+    }, [currentInstitution.id, orderLimit]);
 
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -310,6 +315,16 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                     </tbody>
                 </table>
             </div>
+            {orders.length >= orderLimit && (
+                <div className="mt-8 flex justify-center">
+                    <button 
+                        onClick={() => setOrderLimit(prev => prev + 20)}
+                        className="px-10 py-4 bg-indigo-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                    >
+                        <History className="w-4 h-4" /> Sync More Bookings
+                    </button>
+                </div>
+            )}
         </div>
     );
 
@@ -339,7 +354,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                         <div className="aspect-video bg-slate-100 dark:bg-slate-900 relative flex items-center justify-center text-slate-200 overflow-hidden">
                             {isAgency ? <Plane className="w-12 h-12" /> : <Bed className="w-12 h-12" />}
                             {getFirstImage(item.images) && (
-                                <img 
+                                <img loading="lazy" 
                                     src={getGoogleDriveDirectUrl(getFirstImage(item.images))} 
                                     alt={item.name} 
                                     className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
@@ -390,6 +405,17 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                 ))}
             </div>
 
+            {items.length >= itemLimit && (
+                <div className="mt-12 flex justify-center">
+                    <button 
+                        onClick={() => setItemLimit(prev => prev + 20)}
+                        className="px-10 py-4 bg-indigo-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                    >
+                        <ArrowRight className="w-4 h-4" /> Sync More Catalog
+                    </button>
+                </div>
+            )}
+
             {/* Add Item Modal */}
             {isAddingItem && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
@@ -437,7 +463,7 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
                                 <div className="grid grid-cols-4 gap-4">
                                     {newItem.images.map((img, idx) => (
                                         <div key={idx} className="aspect-square bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 relative group">
-                                            <img src={getGoogleDriveDirectUrl(img)} alt="Preview" className="w-full h-full object-cover" />
+                                            <img loading="lazy" src={getGoogleDriveDirectUrl(img)} alt="Preview" className="w-full h-full object-cover" />
                                             <button 
                                                 onClick={() => setNewItem(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }))}
                                                 className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
@@ -544,3 +570,4 @@ export const HospitalityManager: React.FC<HospitalityManagerProps> = ({ currentI
         </div>
     );
 };
+

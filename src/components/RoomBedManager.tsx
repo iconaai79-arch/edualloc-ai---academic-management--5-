@@ -811,3 +811,4 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
 };
 
 export default RoomBedManager;
+

@@ -15,3 +15,4 @@ export const ArrowUpRightIcon: React.FC<{ className?: string }> = ({ className =
         <path d="M7 17 17 7" />
     </svg>
 );
+

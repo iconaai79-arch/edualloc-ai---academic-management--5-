@@ -154,3 +154,4 @@ export const HISBillingView: React.FC<{ institutionId?: string }> = ({ instituti
             </div>
     );
 };
+

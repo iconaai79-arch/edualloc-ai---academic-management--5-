@@ -6,6 +6,7 @@ import { XCircleIcon } from './icons/XCircleIcon';
 import { SearchIcon } from './icons/SearchIcon';
 import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
 import { UsersIcon } from './icons/UsersIcon';
+import { apiService } from '../services/apiService';
 
 
 interface TeacherCheckInAdminViewProps {
@@ -31,18 +32,15 @@ const TeacherCheckInAdminView: React.FC<TeacherCheckInAdminViewProps> = ({
     const loadCheckIns = async () => {
         setLoading(true);
         try {
-            // TODO: Implement Supabase query
-            // const { data, error } = await supabase
-            //   .from('v_today_teacher_checkins')
-            //   .select('*')
-            //   .eq('institution_id', currentInstitution.id)
-            //   .eq('check_in_date', selectedDate)
-            //   .order('teacher_name');
+            const data = await apiService.fetchModuleRecords<TeacherCheckInWithDetails>('v_today_teacher_checkins', undefined, undefined, {
+                filter: { 
+                    institution_id: currentInstitution.id,
+                    check_in_date: selectedDate
+                },
+                order: 'teacher_name'
+            });
 
-            // if (error) throw error;
-            // setCheckIns(data || []);
-
-            setCheckIns([]);
+            setCheckIns(data || []);
             await onLogAction('Viewed teacher check-ins (admin)');
         } catch (error) {
             console.error('Error loading check-ins:', error);
@@ -257,3 +255,4 @@ const TeacherCheckInAdminView: React.FC<TeacherCheckInAdminViewProps> = ({
 };
 
 export default TeacherCheckInAdminView;
+

@@ -139,3 +139,4 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ notification
         </div>
     );
 };
+

@@ -6,6 +6,7 @@ import { XCircleIcon } from './icons/XCircleIcon';
 import { BellIcon } from './icons/BellIcon';
 import { MapPinIcon } from './icons/MapPinIcon';
 import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { apiService } from '../services/apiService';
 
 
 interface TeacherCheckInViewProps {
@@ -36,17 +37,8 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
     const loadTodayCheckIn = async () => {
         setLoading(true);
         try {
-            // TODO: Implement Supabase query
-            // const { data, error } = await supabase
-            //   .from('v_today_teacher_checkins')
-            //   .select('*')
-            //   .eq('teacher_id', currentUser.id)
-            //   .single();
-
-            // if (error && error.code !== 'PGRST116') throw error;
-            // setTodayCheckIn(data);
-
-            setTodayCheckIn(null);
+            const data = await apiService.fetchTodayTeacherCheckIn(currentUser.id);
+            setTodayCheckIn(data);
             await onLogAction('Viewed teacher check-in');
         } catch (error) {
             console.error('Error loading check-in:', error);
@@ -103,16 +95,13 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
             const now = new Date();
             const currentTime = now.toTimeString().split(' ')[0];
 
-            // TODO: Implement Supabase function call
-            // const { data, error } = await supabase.rpc('process_teacher_checkin', {
-            //   p_teacher_id: currentUser.id,
-            //   p_institution_id: currentInstitution.id,
-            //   p_checkin_type: checkInType,
-            //   p_location: location,
-            //   p_notes: notes
-            // });
-
-            // if (error) throw error;
+            await apiService.processTeacherCheckIn({
+                teacher_id: currentUser.id,
+                institution_id: currentInstitution.id,
+                checkin_type: checkInType,
+                location: location,
+                notes: notes
+            });
 
             await onLogAction(`Checked in: ${checkInType} at ${currentTime}`);
             alert(`${checkInType} check-in successful!`);
@@ -448,3 +437,4 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
 };
 
 export default TeacherCheckInView;
+

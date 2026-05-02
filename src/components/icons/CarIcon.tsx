@@ -17,3 +17,4 @@ export const CarIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <circle cx="17" cy="17" r="2" />
   </svg>
 );
+

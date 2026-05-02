@@ -534,3 +534,4 @@ export const LawManager: React.FC<LawManagerProps> = ({
         </div>
     );
 };
+
