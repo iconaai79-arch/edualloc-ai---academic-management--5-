@@ -97,7 +97,7 @@ import type {
     InstitutionModuleState,
     LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction, LawAgreementTemplate, LawAgreement,
     DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
-    CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry,
+    CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry,
     DisciplineIncident, Expense, FinancialGoal, PayrollRecord, CampaignProfile
 } from '../types';
 import { XIcon } from './icons/XIcon';
@@ -522,6 +522,8 @@ export const App: React.FC = () => {
     const [carListings, setCarListings] = useState<CarListing[]>([]);
     const [carTestDrives, setCarTestDrives] = useState<TestDriveBooking[]>([]);
     const [carAppraisals, setCarAppraisals] = useState<CarAppraisal[]>([]);
+    const [carInvoices, setCarInvoices] = useState<CarInvoice[]>([]);
+    const [carPayments, setCarPayments] = useState<CarPayment[]>([]);
 
     const [showCarSales, setShowCarSales] = useState(() => {
         try {
@@ -827,7 +829,7 @@ export const App: React.FC = () => {
             setReceipts(recs || []);
             setActivityLog(logs || []);
             setNotifications(notifs || []);
-            let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [], sar: any[] = [], enr: any[] = [], abs: any[] = [], con: any[] = [], att: any[] = [], item: any[] = [], tt: any[] = [], et: any[] = [], asg: any[] = [], subm: any[] = [], rat: any[] = [], ta: any[] = [], asmt: any[] = [], asmtMarks: any[] = [], bks: any[] = [], ltx: any[] = [], apts: any[] = [], sups: any[] = [], stx: any[] = [], cinv: any[] = [], ccats: any[] = [], cstores: any[] = [], bApps: any[] = [], bFunds: any[] = [], lo: any[] = [], obs: any[] = [], vis: any[] = [], sec: any[] = [], reqRecords: any[] = [], retExp: any[] = [], rStores: any[] = [], rInv: any[] = [], tor: any[] = [], fBulletin: any[] = [], fDocs: any[] = [], fWatch: any[] = [], fMaint: any[] = [], fCheckIn: any[] = [], vhcls: any[] = [], tonb: any[] = [], vlogs: any[] = [], cafe: any[] = [], cOrders: any[] = [], rSales: any[] = [], cwJobs: any[] = [], cFarmers: any[] = [], cColls: any[] = [], cRiders: any[] = [], cAgroInv: any[] = [], cAgroSales: any[] = [], cSaccoAcc: any[] = [], cSaccoTx: any[] = [], cPayouts: any[] = [], cExps: any[] = [], cInc: any[] = [], lClients: any[] = [], lMatters: any[] = [], lDocs: any[] = [], lTime: any[] = [], lInvs: any[] = [], lTrust: any[] = [], lTemplates: any[] = [], lAgreements: any[] = [], dsInst: any[] = [], dsVeh: any[] = [], dsStud: any[] = [], dsLess: any[] = [], dsMast: any[] = [], dsSet: any[] = [];
+            let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [], sar: any[] = [], enr: any[] = [], abs: any[] = [], con: any[] = [], att: any[] = [], item: any[] = [], tt: any[] = [], et: any[] = [], asg: any[] = [], subm: any[] = [], rat: any[] = [], ta: any[] = [], asmt: any[] = [], asmtMarks: any[] = [], bks: any[] = [], ltx: any[] = [], apts: any[] = [], sups: any[] = [], stx: any[] = [], cinv: any[] = [], ccats: any[] = [], cstores: any[] = [], bApps: any[] = [], bFunds: any[] = [], lo: any[] = [], obs: any[] = [], vis: any[] = [], sec: any[] = [], reqRecords: any[] = [], retExp: any[] = [], rStores: any[] = [], rInv: any[] = [], tor: any[] = [], fBulletin: any[] = [], fDocs: any[] = [], fWatch: any[] = [], fMaint: any[] = [], fCheckIn: any[] = [], vhcls: any[] = [], tonb: any[] = [], vlogs: any[] = [], cafe: any[] = [], cOrders: any[] = [], rSales: any[] = [], cwJobs: any[] = [], cFarmers: any[] = [], cColls: any[] = [], cRiders: any[] = [], cAgroInv: any[] = [], cAgroSales: any[] = [], cSaccoAcc: any[] = [], cSaccoTx: any[] = [], cPayouts: any[] = [], cExps: any[] = [], cInc: any[] = [], lClients: any[] = [], lMatters: any[] = [], lDocs: any[] = [], lTime: any[] = [], lInvs: any[] = [], lTrust: any[] = [], lTemplates: any[] = [], lAgreements: any[] = [], dsInst: any[] = [], dsVeh: any[] = [], dsStud: any[] = [], dsLess: any[] = [], dsMast: any[] = [], dsSet: any[] = [], cInvs: any[] = [], cPay: any[] = [];
             let ims: any[] = [];
             let demoLeads: any[] = [];
             let csList: any[] = [], csTest: any[] = [], csAppr: any[] = [];
@@ -846,7 +848,7 @@ export const App: React.FC = () => {
                     ? apiService.fetchDemoRequests().catch(() => []) 
                     : Promise.resolve([]);
 
-                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements, dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, csList, csTest, csAppr, ims, disc, fExps, fGoals, fPayroll, demoLeads] = await Promise.all([
+                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements, dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, csList, csTest, csAppr, cInvs, cPay, ims, disc, fExps, fGoals, fPayroll, demoLeads] = await Promise.all([
 
                     apiService.fetchInvoices(effectiveInstId).catch(() => []),
                     apiService.fetchExtensionRequests(isSuper ? 'ALL' : effectiveInstId).catch(() => []),
@@ -926,6 +928,8 @@ export const App: React.FC = () => {
                     isBusiness ? apiService.fetchCarListings(effectiveInstId, 'all').catch(() => []) : Promise.resolve([]),
                     isBusiness ? apiService.fetchCarTestDrives(effectiveInstId).catch(() => []) : Promise.resolve([]),
                     isBusiness ? apiService.fetchCarAppraisals(effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchCarInvoices(effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchCarPayments(undefined, effectiveInstId).catch(() => []) : Promise.resolve([]),
                     apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', effectiveInstId).catch(() => []),
                     isAcademic ? apiService.fetchModuleRecords<DisciplineIncident>('discipline_incidents', effectiveInstId).catch(() => []) : Promise.resolve([]),
                     apiService.fetchModuleRecords<Expense>('expenses', effectiveInstId).catch(() => []),
@@ -1000,6 +1004,8 @@ export const App: React.FC = () => {
             setCarListings(csList || []);
             setCarTestDrives(csTest || []);
             setCarAppraisals(csAppr || []);
+            setCarInvoices(cInvs || []);
+            setCarPayments(cPay || []);
 
             setRetailExpenses(retExp || []);
             setRetailStores(rStores || []);

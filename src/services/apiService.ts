@@ -2501,6 +2501,21 @@ export const apiService = {
     },
     async saveCarAppraisal(data: Partial<CarAppraisal>): Promise<void> {
         await apiService.saveModuleRecord('car_appraisals', data);
+    },
+    async fetchCarInvoices(institutionId?: string): Promise<CarInvoice[]> {
+        return apiService.fetchModuleRecords('car_sales_invoices', institutionId);
+    },
+    async saveCarInvoice(data: Partial<CarInvoice>): Promise<void> {
+        await apiService.saveModuleRecord('car_sales_invoices', data);
+    },
+    async fetchCarPayments(invoiceId?: string, institutionId?: string): Promise<CarPayment[]> {
+        return apiService.fetchModuleRecords('car_sales_payments', institutionId, undefined, {
+            filter: invoiceId ? { invoiceId } : undefined,
+            order: 'payment_date.desc'
+        });
+    },
+    async saveCarPayment(data: Partial<CarPayment>): Promise<void> {
+        await apiService.saveModuleRecord('car_sales_payments', data);
     }
 };
 

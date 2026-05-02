@@ -3951,6 +3951,38 @@ export interface CarAppraisal {
     createdAt?: string;
 }
 
+export interface CarInvoice {
+    id: string;
+    listingId: string;
+    institutionId: string;
+    clientName: string;
+    clientEmail?: string;
+    clientPhone?: string;
+    totalAmount: number;
+    paidAmount: number;
+    balanceAmount: number;
+    status: 'pending' | 'partially_paid' | 'fully_paid' | 'cancelled';
+    dueDate?: string;
+    invoiceNumber: string;
+    notes?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface CarPayment {
+    id: string;
+    invoiceId: string;
+    institutionId: string;
+    amount: number;
+    paymentMethod: string;
+    transactionReference?: string;
+    paymentDate: string;
+    receiptNumber: string;
+    receivedBy?: string;
+    notes?: string;
+    createdAt?: string;
+}
+
 
 export interface StationShift {
     id: string;
