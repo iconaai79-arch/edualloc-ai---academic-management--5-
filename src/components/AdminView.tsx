@@ -17,7 +17,7 @@ import type {
     LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction,
     LawAgreement, LawAgreementTemplate,
     DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
-    CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry
+    CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry
 } from '../types';
 const UserManager = lazy(() => import('./UserManager').then(m => ({ default: m.UserManager })));
 const TimetableGenerator = lazy(() => import('./TimetableGenerator').then(m => ({ default: m.TimetableGenerator })));
@@ -43,6 +43,9 @@ const HospitalityManager = lazy(() => import('./HospitalityManager').then(m => (
 const SchoolShowcaseManager = lazy(() => import('./SchoolShowcaseManager').then(m => ({ default: m.SchoolShowcaseManager })));
 const CampaignCommandView = lazy(() => import('./CampaignCommandView').then(m => ({ default: m.CampaignCommandView })));
 const AddCarListingModal = lazy(() => import('./modals/AddCarListingModal').then(m => ({ default: m.AddCarListingModal })));
+const CreateCarInvoiceModal = lazy(() => import('./modals/CreateCarInvoiceModal').then(m => ({ default: m.CreateCarInvoiceModal })));
+const RecordCarPaymentModal = lazy(() => import('./modals/RecordCarPaymentModal').then(m => ({ default: m.RecordCarPaymentModal })));
+const CarReceiptModal = lazy(() => import('./modals/CarReceiptModal').then(m => ({ default: m.CarReceiptModal })));
 const AcademicConfigManager = lazy(() => import('./AcademicConfigManager').then(m => ({ default: m.AcademicConfigManager })));
 const BoardingMasterView = lazy(() => import('./BoardingMasterView'));
 const ExamInsights = lazy(() => import('./Academics/ExamInsights').then(m => ({ default: m.ExamInsights })));
@@ -378,8 +381,13 @@ export interface AdminViewProps {
     carListings?: CarListing[];
     carTestDrives?: TestDriveBooking[];
     carAppraisals?: CarAppraisal[];
+    carInvoices?: CarInvoice[];
+    carPayments?: CarPayment[];
     onAddCarListing?: (data: Partial<CarListing>) => Promise<void>;
+    onAddCarInvoice?: (data: Partial<CarInvoice>) => Promise<void>;
+    onAddCarPayment?: (data: Partial<CarPayment>) => Promise<void>;
     onUpdateCarTestDriveStatus?: (id: string, status: any) => Promise<void>;
+    onAddCarAppraisal?: (data: Partial<CarAppraisal>) => Promise<void>;
     onManualInvoice?: (institutionId: string, items: InvoiceItem[], totalAmount: number, dueDate: string) => void;
     onUpdateAssessmentStatus?: (id: string, status: string) => Promise<void> | void;
     onAccessAlumnaPortal: (school: SchoolRegistry) => void;
@@ -416,6 +424,13 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const [isSecurityAlertModalOpen, setIsSecurityAlertModalOpen] = useState(false);
     const [isAddListingModalOpen, setIsAddListingModalOpen] = useState(false);
     const [selectedListingForEdit, setSelectedListingForEdit] = useState<CarListing | null>(null);
+    const [autoSubTab, setAutoSubTab] = useState<'inventory' | 'financials'>('inventory');
+    const [isAddCarInvoiceModalOpen, setIsAddCarInvoiceModalOpen] = useState(false);
+    const [isAddCarPaymentModalOpen, setIsAddCarPaymentModalOpen] = useState(false);
+    const [isCarReceiptModalOpen, setIsCarReceiptModalOpen] = useState(false);
+    const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<CarInvoice | null>(null);
+    const [selectedInvoiceForReceipt, setSelectedInvoiceForReceipt] = useState<CarInvoice | null>(null);
+    const [selectedPaymentForReceipt, setSelectedPaymentForReceipt] = useState<CarPayment | null>(null);
 
     const [isPerspectiveModalOpen, setIsPerspectiveModalOpen] = useState(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
@@ -1608,7 +1623,24 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     <SparklesIcon className="w-3 h-3 text-amber-500" /> Automotive Managed Inventory
                                 </p>
                             </div>
+                            <div className="flex bg-slate-100 dark:bg-slate-900 p-1.5 rounded-[2rem] border border-slate-200 dark:border-slate-800">
+                                <button 
+                                    onClick={() => setAutoSubTab('inventory')}
+                                    className={`px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'inventory' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    Inventory
+                                </button>
+                                <button 
+                                    onClick={() => setAutoSubTab('financials')}
+                                    className={`px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'financials' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    Financials
+                                </button>
+                            </div>
                         </div>
+
+                        {autoSubTab === 'inventory' ? (
+                            <>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {[
@@ -1688,6 +1720,148 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                             </div>
                                         </div>
                                     ))}
+                                </div>
+                            </div>
+                        )}
+                            </>
+                        ) : (
+                            <div className="space-y-10">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    {[
+                                        { label: 'Total Sales Volume', count: `KES ${props.carInvoices?.reduce((acc, inv) => acc + inv.totalAmount, 0).toLocaleString() || 0}`, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                                        { label: 'Uncollected Revenue', count: `KES ${props.carInvoices?.reduce((acc, inv) => acc + inv.balanceAmount, 0).toLocaleString() || 0}`, color: 'text-red-600', bg: 'bg-red-50' },
+                                        { label: 'Active Installment Plans', count: props.carInvoices?.filter(i => i.status === 'partially_paid').length || 0, color: 'text-amber-600', bg: 'bg-amber-50' },
+                                    ].map((stat, i) => (
+                                        <div key={i} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]">
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">{stat.label}</p>
+                                            <div className="flex items-center gap-4">
+                                                <span className={`text-2xl font-black italic ${stat.color}`}>{stat.count}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="flex justify-between items-center px-4">
+                                    <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">Sales Ledger & Invoices</h3>
+                                    <button 
+                                        onClick={() => setIsAddCarInvoiceModalOpen(true)}
+                                        className="px-6 py-3 bg-slate-900 text-white rounded-full text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-lg"
+                                    >
+                                        <PlusIcon className="w-4 h-4 mr-2 inline" /> New Sales Invoice
+                                    </button>
+                                </div>
+
+                                <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 overflow-hidden shadow-xl">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50 dark:bg-slate-900/50">
+                                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Invoice #</th>
+                                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Client</th>
+                                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Total Price</th>
+                                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Paid</th>
+                                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Balance</th>
+                                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                                            {props.carInvoices?.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={7} className="px-8 py-20 text-center text-slate-400 font-bold uppercase tracking-widest text-xs italic">No sales invoices generated yet.</td>
+                                                </tr>
+                                            ) : (
+                                                props.carInvoices?.map((inv) => (
+                                                    <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-all group">
+                                                        <td className="px-8 py-6">
+                                                            <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">#{inv.invoiceNumber}</span>
+                                                        </td>
+                                                        <td className="px-8 py-6">
+                                                            <div>
+                                                                <p className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter">{inv.clientName}</p>
+                                                                <p className="text-[10px] font-bold text-slate-400 mt-0.5">{inv.clientPhone}</p>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-8 py-6">
+                                                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">KES {inv.totalAmount.toLocaleString()}</span>
+                                                        </td>
+                                                        <td className="px-8 py-6">
+                                                            <span className="text-xs font-black text-emerald-600">KES {inv.paidAmount.toLocaleString()}</span>
+                                                        </td>
+                                                        <td className="px-8 py-6">
+                                                            <span className={`text-xs font-black ${inv.balanceAmount > 0 ? 'text-red-500' : 'text-slate-400 line-through'}`}>KES {inv.balanceAmount.toLocaleString()}</span>
+                                                        </td>
+                                                        <td className="px-8 py-6">
+                                                            <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${
+                                                                inv.status === 'fully_paid' ? 'bg-emerald-50 text-emerald-600' :
+                                                                inv.status === 'partially_paid' ? 'bg-amber-50 text-amber-600' :
+                                                                'bg-slate-100 text-slate-400'
+                                                            }`}>
+                                                                {inv.status.replace('_', ' ')}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-8 py-6 text-right space-x-2">
+                                                            {inv.balanceAmount > 0 && (
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        setSelectedInvoiceForPayment(inv);
+                                                                        setIsAddCarPaymentModalOpen(true);
+                                                                    }}
+                                                                    className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all"
+                                                                >
+                                                                    Payment
+                                                                </button>
+                                                            )}
+                                                            <button 
+                                                                onClick={() => {
+                                                                    // Show history or details
+                                                                }}
+                                                                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+                                                            >
+                                                                History
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Recent Payments */}
+                                <div className="space-y-6">
+                                    <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 px-4">Transaction History</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {props.carPayments?.map((pay) => {
+                                            const invoice = props.carInvoices?.find(i => i.id === pay.invoiceId);
+                                            return (
+                                                <div key={pay.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden group">
+                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50/50 dark:bg-emerald-900/10 rounded-bl-[5rem] -mr-16 -mt-16 transition-all group-hover:scale-110"></div>
+                                                    <div className="relative">
+                                                        <div className="flex justify-between items-start mb-4">
+                                                            <div>
+                                                                <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest mb-1">Receipt #{pay.receiptNumber}</p>
+                                                                <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter truncate w-32">{invoice?.clientName || 'Unknown Client'}</h4>
+                                                            </div>
+                                                            <span className="text-[10px] font-black text-emerald-600 italic">KES {pay.amount.toLocaleString()}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{new Date(pay.paymentDate).toLocaleDateString()}</span>
+                                                            <button 
+                                                                onClick={() => {
+                                                                    setSelectedInvoiceForReceipt(invoice || null);
+                                                                    setSelectedPaymentForReceipt(pay);
+                                                                    setIsCarReceiptModalOpen(true);
+                                                                }}
+                                                                className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all"
+                                                            >
+                                                                Receipt
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -1828,6 +2002,34 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             setSelectedListingForEdit(null);
                             if (props.onRefreshData) props.onRefreshData();
                         }}
+                    />
+                    <CreateCarInvoiceModal 
+                        isOpen={isAddCarInvoiceModalOpen}
+                        onClose={() => setIsAddCarInvoiceModalOpen(false)}
+                        onSave={props.onAddCarInvoice!}
+                        listings={props.carListings || []}
+                        currentUser={props.currentUser}
+                    />
+                    <RecordCarPaymentModal 
+                        isOpen={isAddCarPaymentModalOpen}
+                        onClose={() => {
+                            setIsAddCarPaymentModalOpen(false);
+                            setSelectedInvoiceForPayment(null);
+                        }}
+                        onSave={props.onAddCarPayment!}
+                        invoice={selectedInvoiceForPayment}
+                        currentUser={props.currentUser}
+                    />
+                    <CarReceiptModal 
+                        isOpen={isCarReceiptModalOpen}
+                        onClose={() => {
+                            setIsCarReceiptModalOpen(false);
+                            setSelectedInvoiceForReceipt(null);
+                            setSelectedPaymentForReceipt(null);
+                        }}
+                        invoice={selectedInvoiceForReceipt}
+                        payment={selectedPaymentForReceipt}
+                        institution={props.currentInstitution!}
                     />
                 </React.Suspense>
             )}
