@@ -655,14 +655,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({
                 <div className="mt-4">
                     <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-8">
                         <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Master Unit Registry</h3>
-                        <div className="relative w-full md:w-auto">
-                            <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                        <div className="relative group w-full md:w-80">
+                            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
                             <input
                                 type="text"
                                 placeholder="SEARCH BY UNIT..."
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
-                                className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all w-full md:w-72 text-slate-900 dark:text-white"
+                                className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-[2rem] pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all text-slate-900 dark:text-white shadow-sm hover:shadow-md"
                             />
                         </div>
                     </div>
@@ -757,14 +757,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
                 <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Active Tenants</h3>
-                <div className="relative w-full md:w-auto">
-                    <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                <div className="relative group w-full md:w-80">
+                    <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
                     <input
                         type="text"
                         placeholder="SEARCH TENANTS..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
-                        className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all w-full md:w-72 text-slate-900 dark:text-white"
+                        className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-[2rem] pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all text-slate-900 dark:text-white shadow-sm hover:shadow-md"
                     />
                 </div>
             </div>

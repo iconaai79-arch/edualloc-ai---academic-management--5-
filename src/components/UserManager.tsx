@@ -1478,17 +1478,15 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-4">
                 <div className="flex flex-col sm:flex-row gap-4 items-center">
-                    <div className="flex-grow w-full relative">
+                    <div className="flex-grow w-full relative group">
+                        <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
                             placeholder={activeTab === 'staff' ? (isRetailAgency ? 'Search staff/agents...' : (isCoop ? 'Search cooperative staff...' : (isChurch ? 'Search workers & clergy...' : 'Search faculty...'))) : (isCoop ? 'Search members...' : (isChurch ? (activeTab === 'visitors' ? 'Search visitors...' : 'Search congregation...') : 'Search students...'))}
-                            className="form-input w-full pl-10"
+                            className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-[2rem] pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all text-slate-900 dark:text-white shadow-sm hover:shadow-md"
                         />
-                        <div className="absolute left-3 top-3 text-slate-400">
-                            <MagnifyingGlassIcon className="w-5 h-5" />
-                        </div>
                     </div>
                     {isSuperAdmin && (institutions || []).length > 0 && (
                         <div className="w-full sm:w-64 flex-shrink-0">

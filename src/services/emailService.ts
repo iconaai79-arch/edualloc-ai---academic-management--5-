@@ -10,10 +10,11 @@ export const sendEmailNotification = async (
     subject: string,
     body: string,
     emailConfig?: EmailConfig,
-    companyName?: string
+    companyName?: string,
+    attachments?: any[]
 ): Promise<{ success: boolean; message: string }> => {
     try {
-        const result = await apiService.sendEmail(recipientEmail, subject, body, emailConfig);
+        const result = await apiService.sendEmail(recipientEmail, subject, body, emailConfig, undefined, attachments);
         return result;
     } catch (error: any) {
         console.error("Email Sending Error:", error);

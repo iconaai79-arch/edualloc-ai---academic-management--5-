@@ -2,21 +2,26 @@
 import React, { useEffect } from 'react';
 import { XIcon } from './icons/XIcon';
 import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { EnvelopeIcon } from './icons/EnvelopeIcon';
+import { sendEmailNotification } from '../services/emailService';
 
 interface PdfPreviewModalProps {
     url: string;
     onClose: () => void;
     filename?: string;
+    recipientEmail?: string;
+    clientName?: string;
 }
 
-export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ url, onClose, filename }) => {
+export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ url, onClose, filename, recipientEmail, clientName }) => {
     const [displayUrl, setDisplayUrl] = React.useState<string>(url);
+    const [isSending, setIsSending] = React.useState(false);
 
     useEffect(() => {
         let activeUrl = url;
         let blobUrl: string | null = null;
 
-        if (url.startsWith('data:application/pdf;base64,')) {
+        if (url && url.startsWith('data:application/pdf;base64,')) {
             try {
                 const base64 = url.split(',')[1];
                 const binary = atob(base64);
@@ -47,6 +52,45 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ url, onClose, 
         link.click();
     };
 
+    const handleEmail = async () => {
+        let targetEmail = recipientEmail;
+        if (!targetEmail) {
+            const email = prompt("Enter recipient email address:", "");
+            if (!email) return;
+            targetEmail = email;
+        }
+
+        setIsSending(true);
+        try {
+            const base64 = url.includes('base64,') ? url.split('base64,')[1] : null;
+            const attachments = base64 ? [{
+                filename: filename || 'document.pdf',
+                content: base64,
+                encoding: 'base64',
+                contentType: 'application/pdf'
+            }] : [];
+
+            const res = await sendEmailNotification(
+                targetEmail,
+                `Document: ${filename || 'PDF Export'}`,
+                `Dear ${clientName || 'Valued Client'},\n\nPlease find the attached document for your reference.\n\nRegards,\nManagement`,
+                undefined,
+                undefined,
+                attachments
+            );
+
+            if (res.success) {
+                alert("Email dispatched successfully!");
+            } else {
+                alert(`Failed to send email: ${res.message}`);
+            }
+        } catch (error: any) {
+            alert(`Error: ${error.message}`);
+        } finally {
+            setIsSending(false);
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-slate-900/90 z-[200] flex items-center justify-center p-4 backdrop-blur-sm">
             <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-6xl h-[95vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up">
@@ -56,6 +100,13 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ url, onClose, 
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Ready for Print or Archiving</p>
                     </div>
                     <div className="flex items-center gap-3">
+                        <button
+                            onClick={handleEmail}
+                            disabled={isSending}
+                            className="btn-secondary flex items-center gap-2 text-[10px] font-black uppercase tracking-widest px-6"
+                        >
+                            <EnvelopeIcon className="w-4 h-4" /> {isSending ? 'Sending...' : 'Email to Client'}
+                        </button>
                         <button
                             onClick={handleDownload}
                             className="btn-primary flex items-center gap-2 text-[10px] font-black uppercase tracking-widest px-6"
@@ -78,4 +129,3 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ url, onClose, 
         </div>
     );
 };
-

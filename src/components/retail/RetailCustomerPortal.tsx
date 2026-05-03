@@ -22,7 +22,7 @@ import { DownloadIcon as Download } from '../icons/DownloadIcon';
 import { PlayCircleIcon as PlayCircle } from '../icons/PlayCircleIcon';
 import { ArrowUpRightIcon as ArrowUpRight } from '../icons/ArrowUpRightIcon';
 
-import { User, ServiceBooking, Institution, RetailSale } from '../../types';
+import { User, ServiceBooking, Institution, RetailSale, CarInvoice, CarPayment } from '../../types';
 import { apiService } from '../../services/apiService';
 
 interface RetailCustomerPortalProps {
@@ -32,9 +32,12 @@ interface RetailCustomerPortalProps {
 
 export function RetailCustomerPortal({ currentUser, currentInstitution }: RetailCustomerPortalProps) {
     const isCarWash = currentInstitution?.businessSubType === 'Car Wash';
-    const [activeTab, setActiveTab] = useState<'overview' | 'booking' | 'wallet' | 'loyalty'>('overview');
+    const isAutoSales = currentInstitution?.businessSubType?.toLowerCase().includes('car') || currentInstitution?.businessSubType?.toLowerCase().includes('auto');
+    const [activeTab, setActiveTab] = useState<'overview' | 'booking' | 'wallet' | 'loyalty' | 'financing'>('overview');
     const [bookings, setBookings] = useState<ServiceBooking[]>([]);
     const [sales, setSales] = useState<RetailSale[]>([]);
+    const [carInvoices, setCarInvoices] = useState<CarInvoice[]>([]);
+    const [carPayments, setCarPayments] = useState<CarPayment[]>([]);
     const [points, setPoints] = useState(currentUser.loyaltyPoints || 0);
     const [walletBalance, setWalletBalance] = useState(currentUser.walletBalance || 0);
     const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -58,19 +61,37 @@ export function RetailCustomerPortal({ currentUser, currentInstitution }: Retail
 
             // Fetch actual sales where customer matches
             try {
-                const allSales = await apiService.fetchModuleRecords<RetailSale>('retail_sales', currentUser.institutionId);
+                const [allSales, allCarInvoices, allCarPayments] = await Promise.all([
+                    apiService.fetchModuleRecords<RetailSale>('retail_sales', currentUser.institutionId),
+                    isAutoSales ? apiService.fetchModuleRecords<CarInvoice>('car_invoices', currentUser.institutionId) : Promise.resolve([]),
+                    isAutoSales ? apiService.fetchModuleRecords<CarPayment>('car_payments', currentUser.institutionId) : Promise.resolve([])
+                ]);
+
                 const customerSales = allSales.filter(s =>
                     (s.customerPhone && s.customerPhone === currentUser.phoneNumber) ||
                     (s.customerEmail && s.customerEmail === currentUser.email)
                 ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
                 setSales(customerSales);
+
+                if (isAutoSales) {
+                    const customerInvoices = allCarInvoices.filter(inv => 
+                        (inv.clientPhone && inv.clientPhone === currentUser.phoneNumber) ||
+                        (inv.clientEmail && inv.clientEmail === currentUser.email) ||
+                        inv.clientName === currentUser.name
+                    );
+                    setCarInvoices(customerInvoices);
+
+                    const invoiceIds = new Set(customerInvoices.map(i => i.id));
+                    const customerPayments = allCarPayments.filter(p => invoiceIds.has(p.invoiceId));
+                    setCarPayments(customerPayments);
+                }
             } catch (error) {
                 console.error("Failed to load customer sales:", error);
             }
         };
 
         loadCustomerData();
-    }, [currentUser, isCarWash]);
+    }, [currentUser, isCarWash, isAutoSales]);
 
     const stats = [
         { label: 'Wallet Balance', value: `KES ${walletBalance.toLocaleString()}`, icon: Wallet, color: 'text-emerald-600', bg: 'bg-emerald-50' },
@@ -133,8 +154,119 @@ export function RetailCustomerPortal({ currentUser, currentInstitution }: Retail
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Main Content Area */}
                     <div className="lg:col-span-2 space-y-8">
-                        {/* Live Tracker (Simulated - Only for Car Wash) */}
-                        {isCarWash && (
+                        {/* Auto Financing Section */}
+                        {activeTab === 'financing' && isAutoSales && (
+                            <section className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+                                <div className="bg-white rounded-[2.5rem] border border-slate-100 p-10 shadow-sm">
+                                    <div className="flex justify-between items-center mb-8">
+                                        <div>
+                                            <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase italic">Vehicle Purchase & Financing</h2>
+                                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Track your installments and payment history</p>
+                                        </div>
+                                    </div>
+
+                                    {carInvoices.length > 0 ? (
+                                        <div className="space-y-8">
+                                            {carInvoices.map(invoice => (
+                                                <div key={invoice.id} className="p-8 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                                                    <div className="flex flex-col md:flex-row justify-between gap-6 mb-8">
+                                                        <div className="space-y-1">
+                                                            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Invoice #{invoice.invoiceNumber}</p>
+                                                            <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase">Vehicle Acquisition</h3>
+                                                            <p className="text-slate-500 text-sm">Status: <span className="uppercase font-bold text-indigo-500">{invoice.status.replace('_', ' ')}</span></p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-2xl font-black text-slate-900 dark:text-white">KES {invoice.totalAmount.toLocaleString()}</p>
+                                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Total Valuation</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                                                        <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Paid Amount</p>
+                                                            <p className="text-xl font-black text-emerald-500">KES {invoice.paidAmount.toLocaleString()}</p>
+                                                        </div>
+                                                        <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Remaining Balance</p>
+                                                            <p className="text-xl font-black text-rose-500">KES {invoice.balanceAmount.toLocaleString()}</p>
+                                                        </div>
+                                                        <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Progress</p>
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                                    <div 
+                                                                        className="h-full bg-indigo-600 rounded-full"
+                                                                        style={{ width: `${(invoice.paidAmount / invoice.totalAmount) * 100}%` }}
+                                                                    />
+                                                                </div>
+                                                                <span className="text-xs font-black text-slate-700 dark:text-slate-300">
+                                                                    {Math.round((invoice.paidAmount / invoice.totalAmount) * 100)}%
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {invoice.isInstallment && (
+                                                        <div className="mb-8 p-6 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800/30">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
+                                                                    <Calendar className="w-5 h-5" />
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-sm font-bold text-indigo-900 dark:text-indigo-100 uppercase tracking-tight">Active Installment Plan</p>
+                                                                    <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+                                                                        KES {invoice.installmentAmount?.toLocaleString()} {invoice.installmentFrequency} • {invoice.totalInstallments} total terms
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="space-y-4">
+                                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Recent Payments</h4>
+                                                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+                                                            <table className="w-full text-left">
+                                                                <thead className="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700">
+                                                                    <tr>
+                                                                        <th className="px-6 py-4 text-[9px] font-black uppercase text-slate-400">Date</th>
+                                                                        <th className="px-6 py-4 text-[9px] font-black uppercase text-slate-400">Reference</th>
+                                                                        <th className="px-6 py-4 text-[9px] font-black uppercase text-slate-400 text-right">Amount</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                                                                    {carPayments.filter(p => p.invoiceId === invoice.id).map(payment => (
+                                                                        <tr key={payment.id}>
+                                                                            <td className="px-6 py-4 text-xs font-bold text-slate-600 dark:text-slate-400">{new Date(payment.paymentDate).toLocaleDateString()}</td>
+                                                                            <td className="px-6 py-4 text-xs font-black text-slate-800 dark:text-white uppercase">{payment.receiptNumber}</td>
+                                                                            <td className="px-6 py-4 text-xs font-black text-emerald-600 text-right">KES {payment.amount.toLocaleString()}</td>
+                                                                        </tr>
+                                                                    ))}
+                                                                    {carPayments.filter(p => p.invoiceId === invoice.id).length === 0 && (
+                                                                        <tr>
+                                                                            <td colSpan={3} className="px-6 py-10 text-center text-xs text-slate-400 font-medium italic">No payments recorded yet.</td>
+                                                                        </tr>
+                                                                    )}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
+                                            <FileText className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                                            <p className="text-slate-400 font-black uppercase tracking-widest text-xs">No vehicle purchase records found for your account.</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </section>
+                        )}
+
+                        {activeTab === 'overview' && (
+                            <>
+                                {/* Live Tracker (Simulated - Only for Car Wash) */}
+                                {isCarWash && (
                             <section className="bg-indigo-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl shadow-indigo-200 mb-8">
                                 <div className="relative z-10">
                                     <div className="flex items-center justify-between mb-8">
@@ -342,7 +474,24 @@ export function RetailCustomerPortal({ currentUser, currentInstitution }: Retail
 
                         {/* Quick Actions */}
                         <section className="space-y-3">
-                            <button className="w-full p-4 bg-white border border-slate-100 rounded-2xl flex items-center justify-between hover:border-indigo-200 transition-all group">
+                            {isAutoSales && (
+                                <button 
+                                    onClick={() => setActiveTab('financing')}
+                                    className={`w-full p-4 border rounded-2xl flex items-center justify-between transition-all group ${activeTab === 'financing' ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-100 hover:border-indigo-200'}`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${activeTab === 'financing' ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-600 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
+                                            <CreditCard className="w-5 h-5" />
+                                        </div>
+                                        <span className={`text-sm font-bold ${activeTab === 'financing' ? 'text-indigo-900' : 'text-slate-700'}`}>Auto Financing</span>
+                                    </div>
+                                    <ChevronRight className="w-4 h-4 text-slate-300" />
+                                </button>
+                            )}
+                            <button 
+                                onClick={() => setActiveTab('overview')}
+                                className="w-full p-4 bg-white border border-slate-100 rounded-2xl flex items-center justify-between hover:border-indigo-200 transition-all group"
+                            >
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-all">
                                         <History className="w-5 h-5" />

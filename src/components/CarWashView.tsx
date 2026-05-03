@@ -1677,7 +1677,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         }
     };
 
-    const inputCls = 'w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-semibold outline-none transition-all';
+    const inputCls = 'w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-semibold text-slate-900 dark:text-white outline-none transition-all';
     const labelCls = 'block text-[10px] font-black uppercase text-slate-400 mb-1.5 ml-1 tracking-widest';
     const statusColor: Record<CarWashJob['status'], string> = { queued: 'bg-amber-100 text-amber-700', in_progress: 'bg-blue-100 text-blue-700', ready: 'bg-purple-100 text-purple-700', completed: 'bg-emerald-100 text-emerald-700', cancelled: 'bg-red-100 text-red-700' };
 
@@ -1881,7 +1881,15 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                 </button>
                             </div>
                         </div>
-                        <div className="relative"><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search customers or plate..." className={inputCls + ' pl-10'} /><SearchIcon className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" /></div>
+                        <div className="relative group">
+                            <input 
+                                value={search} 
+                                onChange={e => setSearch(e.target.value)} 
+                                placeholder="Search customers or plate..." 
+                                className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 focus:border-indigo-500 rounded-[2rem] text-sm font-bold text-slate-900 dark:text-white outline-none transition-all shadow-sm group-hover:shadow-md" 
+                            />
+                            <SearchIcon className="absolute left-4 top-4.5 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {customers.filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.phoneNumber.includes(search)).map(cust => {
                                 const custVehicles = vehicles.filter(v => v.customerId === cust.id);

@@ -200,7 +200,7 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                                         value={formData.make} 
                                         onChange={e => setFormData({ ...formData, make: e.target.value })} 
                                         placeholder="e.g. Toyota" 
-                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
+                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -211,7 +211,7 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                                         value={formData.model} 
                                         onChange={e => setFormData({ ...formData, model: e.target.value })} 
                                         placeholder="e.g. Land Cruiser" 
-                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
+                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
                                     />
                                 </div>
                             </div>
@@ -225,7 +225,7 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                                         type="number"
                                         value={formData.year} 
                                         onChange={e => setFormData({ ...formData, year: Number(e.target.value) })} 
-                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
+                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -236,7 +236,7 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                                         type="number"
                                         value={formData.price} 
                                         onChange={e => setFormData({ ...formData, price: Number(e.target.value) })} 
-                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
+                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
                                     />
                                 </div>
                             </div>
@@ -249,7 +249,7 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                                     <select 
                                         value={formData.fuelType} 
                                         onChange={e => setFormData({ ...formData, fuelType: e.target.value as any })} 
-                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
+                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
                                     >
                                         <option value="Petrol">Petrol</option>
                                         <option value="Diesel">Diesel</option>
@@ -264,7 +264,7 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                                     <select 
                                         value={formData.transmission} 
                                         onChange={e => setFormData({ ...formData, transmission: e.target.value as any })} 
-                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
+                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
                                     >
                                         <option value="Automatic">Automatic</option>
                                         <option value="Manual">Manual</option>
@@ -281,7 +281,7 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                                         type="number"
                                         value={formData.mileage} 
                                         onChange={e => setFormData({ ...formData, mileage: Number(e.target.value) })} 
-                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
+                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -291,7 +291,7 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                                     <select 
                                         value={formData.status} 
                                         onChange={e => setFormData({ ...formData, status: e.target.value as any })} 
-                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
+                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
                                     >
                                         <option value="draft">Review Pending</option>
                                         <option value="active">Live (Verified)</option>

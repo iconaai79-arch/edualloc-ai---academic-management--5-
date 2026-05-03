@@ -2349,15 +2349,15 @@ Please change it after login.`;
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Platform Multi-Tenancy Registry · {filteredInstitutions.length} accounts</p>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <div className="relative">
+                                        <div className="relative group">
+                                            <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
                                             <input
                                                 type="text"
                                                 placeholder="Search by name or code..."
                                                 value={institutionSearchQuery}
                                                 onChange={e => setInstitutionSearchQuery(e.target.value)}
-                                                className="w-72 pl-10 pr-4 py-2.5 border rounded-xl dark:bg-slate-700 dark:border-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                className="w-72 bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-[2rem] pl-12 pr-6 py-3 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all text-slate-900 dark:text-white shadow-sm hover:shadow-md"
                                             />
-                                            <MagnifyingGlassIcon className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
                                         </div>
                                         <button
                                             onClick={() => setIsAddingInstitution(!isAddingInstitution)}
@@ -2436,15 +2436,15 @@ Please change it after login.`;
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div>
                                                 <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Institution Name</label>
-                                                <input type="text" value={newInstData.name} onChange={e => setNewInstData({ ...newInstData, name: e.target.value })} className="form-input" required />
+                                                <input type="text" value={newInstData.name} onChange={e => setNewInstData({ ...newInstData, name: e.target.value })} className="form-input text-slate-900 dark:text-white" required />
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Admin Email</label>
-                                                <input type="email" value={newInstData.email} onChange={e => setNewInstData({ ...newInstData, email: e.target.value })} className="form-input" required />
+                                                <input type="email" value={newInstData.email} onChange={e => setNewInstData({ ...newInstData, email: e.target.value })} className="form-input text-slate-900 dark:text-white" required />
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Phone Number</label>
-                                                <input type="tel" value={newInstData.phoneNumber} onChange={e => setNewInstData({ ...newInstData, phoneNumber: e.target.value })} className="form-input" required />
+                                                <input type="tel" value={newInstData.phoneNumber} onChange={e => setNewInstData({ ...newInstData, phoneNumber: e.target.value })} className="form-input text-slate-900 dark:text-white" required />
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Institution Group / Type</label>
@@ -2461,7 +2461,7 @@ Please change it after login.`;
                                                         if (type === 'Political Campaign') category = 'Political Campaign Management';
                                                         setNewInstData({ ...newInstData, institutionType: type, category: category, businessSubType: category });
                                                     }}
-                                                    className="form-select font-black text-indigo-600 border-indigo-100"
+                                                    className="form-select font-black text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900/30 bg-white dark:bg-slate-800"
                                                 >                                                    <option value="Education">Education Sector</option>
                                                     <option value="HIS">Health Sector (HIS)</option>
                                                     <option value="Pharmacy">Pharmacy / Chemist</option>
@@ -2484,7 +2484,7 @@ Please change it after login.`;
                                                 <select
                                                     value={newInstData.countyId}
                                                     onChange={e => setNewInstData({ ...newInstData, countyId: e.target.value })}
-                                                    className="form-select border-indigo-100"
+                                                    className="form-select border-indigo-100 dark:border-indigo-900/30 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                                                 >
                                                     <option value="">No County Assigned</option>
                                                     {counties.map(c => (

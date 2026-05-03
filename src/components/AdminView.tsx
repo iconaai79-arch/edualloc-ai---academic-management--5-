@@ -2129,10 +2129,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             )}
             {pdfPreviewData && (
                 <PdfPreviewModal
-                    isOpen={!!pdfPreviewData}
+                    url={pdfPreviewData.uri}
+                    filename={pdfPreviewData.title}
                     onClose={() => setPdfPreviewData(null)}
-                    pdfUri={pdfPreviewData.uri}
-                    title={pdfPreviewData.title}
                 />
             )}
         </div>

@@ -68,7 +68,13 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                                 onChange={(e) => {
                                     const lId = e.target.value;
                                     const l = listings.find(item => item.id === lId);
-                                    setFormData(prev => ({ ...prev, listingId: lId, totalAmount: l?.price || 0 }));
+                                    const price = l?.price || 0;
+                                    setFormData(prev => ({ 
+                                        ...prev, 
+                                        listingId: lId, 
+                                        totalAmount: price,
+                                        installmentAmount: prev.isInstallment && prev.totalInstallments ? price / prev.totalInstallments : prev.installmentAmount
+                                    }));
                                 }}
                                 className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
                             >
@@ -130,7 +136,14 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                                     required
                                     type="number"
                                     value={formData.totalAmount}
-                                    onChange={(e) => setFormData({ ...formData, totalAmount: parseFloat(e.target.value) })}
+                                    onChange={(e) => {
+                                        const total = parseFloat(e.target.value) || 0;
+                                        setFormData(prev => ({ 
+                                            ...prev, 
+                                            totalAmount: total,
+                                            installmentAmount: prev.isInstallment && prev.totalInstallments ? total / prev.totalInstallments : prev.installmentAmount
+                                        }));
+                                    }}
                                     className="w-full pl-14 pr-6 py-4 bg-white dark:bg-slate-900 rounded-2xl border-none text-sm font-black focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
                                 />
                             </div>
