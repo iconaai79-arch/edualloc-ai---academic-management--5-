@@ -214,7 +214,8 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
     );
 
     const isAgrovet = tenant?.institutionType === 'Agrovet' || tenant?.category === 'Agrovet';
-    const themeColor = tenant?.themeColor || (isAgrovet ? '#10b981' : '#4f46e5');
+    const isCarShowroom = tenant?.institutionType === 'Car Showroom' || tenant?.category === 'Car Showroom' || (tenant?.businessSubType || '').toLowerCase().includes('showroom') || (tenant?.category || '').toLowerCase().includes('automotive');
+    const themeColor = tenant?.themeColor || (isAgrovet ? '#10b981' : isCarShowroom ? '#1e293b' : '#4f46e5');
 
     const heroItems = [...retailProducts, ...listings].filter(i => (i as any).imageUrl || (i as any).images?.[0]).slice(0, 5);
 
@@ -321,11 +322,11 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                                             <SparklesIcon className="w-4 h-4 text-amber-400" />
                                             <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">Featured Offering</span>
                                         </div>
-                                        <h2 className="text-6xl md:text-8xl font-black text-white uppercase tracking-tighter italic leading-[0.9]">
+                                        <h2 className={`text-6xl md:text-8xl font-black text-white uppercase tracking-tighter italic leading-[0.9] ${isCarShowroom ? 'font-serif' : ''}`}>
                                             {(item as any).name || (item as any).title}
                                         </h2>
                                         <p className="text-white/60 text-lg font-bold uppercase tracking-widest max-w-xl italic">
-                                            {(item as any).description?.slice(0, 120)}...
+                                            {isCarShowroom ? 'Experience pure engineering excellence and timeless design.' : (item as any).description?.slice(0, 120) + '...'}
                                         </p>
                                         <div className="flex items-center gap-6 pt-6">
                                             <button 

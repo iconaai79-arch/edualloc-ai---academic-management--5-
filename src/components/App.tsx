@@ -548,7 +548,8 @@ export const App: React.FC = () => {
     const [showMarketplace, setShowMarketplace] = useState(() => {
         try {
             const params = new URLSearchParams(window.location.search);
-            return params.get('view') === 'marketplace' || window.location.hostname === 'marketplace.eduai.co.ke' || window.location.hostname.includes('marketplace');
+            const view = params.get('view');
+            return view === 'marketplace' || view === 'auto_market' || view === 'showroom' || window.location.hostname === 'marketplace.eduai.co.ke' || window.location.hostname.includes('marketplace');
         } catch (e) {
             return false;
         }
@@ -574,7 +575,7 @@ export const App: React.FC = () => {
     const [activeStoreTenantId, setActiveStoreTenantId] = useState<string | null>(() => {
         try {
             const params = new URLSearchParams(window.location.search);
-            const shop = params.get('shop');
+            const shop = params.get('shop') || params.get('showroom') || params.get('id');
             if (shop) return shop;
 
             // Subdomain discovery: e.g. agrovent.eduai.co.ke

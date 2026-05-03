@@ -53,6 +53,7 @@ const ExamInsights = lazy(() => import('./Academics/ExamInsights').then(m => ({ 
 const AcademicReportsHub = lazy(() => import('./Academics/AcademicReportsHub').then(m => ({ default: m.AcademicReportsHub })));
 const DisciplineManager = lazy(() => import('./Academics/DisciplineManager').then(m => ({ default: m.DisciplineManager })));
 const CarShowroomDashboard = lazy(() => import('./automotive/CarShowroomDashboard').then(m => ({ default: m.CarShowroomDashboard })));
+const TransportManager = lazy(() => import('./TransportManager').then(m => ({ default: m.TransportManager })));
 
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
@@ -104,7 +105,6 @@ const TimetablesView = lazy(() => import('./TimetablesView').then(m => ({ defaul
 import { INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS, RETAIL_SUBTYPES, VALID_STAFF_ROLES } from '../constants';
 const EditInstitutionModal = lazy(() => import('./EditInstitutionModal').then(m => ({ default: m.EditInstitutionModal })));
 const TimetableWizard = lazy(() => import('./TimetableWizard').then(m => ({ default: m.TimetableWizard })));
-const TransportManager = lazy(() => import('./TransportManager').then(m => ({ default: m.TransportManager })));
 import { PdfPreviewModal } from './PdfPreviewModal';
 import * as pdfService from '../services/pdfService';
 import { apiService } from '../services/apiService';
@@ -550,10 +550,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     }, [institutionType]);
 
     const isAutoMarket = useMemo(() => {
+        const type = props.currentInstitution?.institutionType;
         const cat = props.currentInstitution?.category;
         const subType = props.currentInstitution?.businessSubType?.toLowerCase() || '';
         const name = props.currentInstitution?.name?.toLowerCase() || '';
-        return cat === 'Automotive Marketplace' || subType.includes('vehicle sales') || subType.includes('car sales') || subType.includes('motors') || name.includes('motors') || name.includes('car sales');
+        return type === 'Car Showroom' || cat === 'Automotive Marketplace' || cat === 'Car Showroom' || subType.includes('vehicle sales') || subType.includes('car sales') || subType.includes('motors') || name.includes('motors') || name.includes('car sales') || subType.includes('showroom');
     }, [props.currentInstitution]);
 
     const isFuelStation = useMemo(() => {
@@ -567,11 +568,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     }, [props.currentInstitution]);
 
     const isRetailAgency = useMemo(() => {
-        if (props.currentInstitution?.institutionType === 'Church' || props.currentInstitution?.institutionType === 'Hospitality') return false;
+        if (props.currentInstitution?.institutionType === 'Church' || props.currentInstitution?.institutionType === 'Hospitality' || props.currentInstitution?.institutionType === 'Car Showroom' || isAutoMarket) return false;
         const subType = props.currentInstitution?.businessSubType || '';
         const type = props.currentInstitution?.institutionType || '';
         return RETAIL_SUBTYPES.includes(subType) || RETAIL_SUBTYPES.includes(type);
-    }, [props.currentInstitution]);
+    }, [props.currentInstitution, isAutoMarket]);
 
     const isChurch = useMemo(() => {
         return props.currentInstitution?.institutionType === 'Church' || props.currentInstitution?.businessSubType === 'Church';
@@ -875,8 +876,15 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     testDrives={props.carTestDrives || []}
                                     users={props.users || []}
                                     institution={props.currentInstitution!}
-                                    onAction={handleQuickAction}
-                                    onAddListing={() => setIsAddListingModalOpen(true)}
+                                    onAction={(tab, sub) => {
+                                        if (tab === 'inventory') setAutoSubTab('inventory');
+                                        else if (tab === 'financials') setAutoSubTab('financials');
+                                        else setActiveTab(tab as any);
+                                    }}
+                                    onAddListing={() => {
+                                        setSelectedListingForEdit(null);
+                                        setIsAddListingModalOpen(true);
+                                    }}
                                     onAddInvoice={() => setIsAddCarInvoiceModalOpen(true)}
                                     onAddPayment={() => setIsAddCarPaymentModalOpen(true)}
                                     onAddLead={() => setIsAddCarLeadModalOpen(true)}
@@ -1693,279 +1701,30 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 )}
 
                 {activeTab === 'auto_marketplace' && (
-                    <div className="space-y-10 animate-fade-in-up">
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                            <div>
-                                <h1 className="text-4xl font-black uppercase tracking-tighter text-slate-800 dark:text-white">Car <span className="text-indigo-600 italic">Sales</span></h1>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2">
-                                    <SparklesIcon className="w-3 h-3 text-amber-500" /> Automotive Managed Inventory
-                                </p>
-                            </div>
-                            <div className="flex bg-slate-100 dark:bg-slate-900 p-1.5 rounded-[2rem] border border-slate-200 dark:border-slate-800">
-                                <button 
-                                    onClick={() => setAutoSubTab('inventory')}
-                                    className={`px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'inventory' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-                                >
-                                    Inventory
-                                </button>
-                                <button 
-                                    onClick={() => setAutoSubTab('financials')}
-                                    className={`px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'financials' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-                                >
-                                    Financials
-                                </button>
-                            </div>
-                        </div>
-
-                        {autoSubTab === 'inventory' ? (
-                            <>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {[
-                                { label: 'Active Listings', count: props.carListings?.length || 0, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-                                { label: 'Pending Test Drives', count: props.carTestDrives?.filter(t => t.status === 'pending').length || 0, color: 'text-amber-600', bg: 'bg-amber-50' },
-                                { label: 'Completed Appraisals', count: props.carAppraisals?.length || 0, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                            ].map((stat, i) => (
-                                <div key={i} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]">
-                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">{stat.label}</p>
-                                    <div className="flex items-center gap-4">
-                                        <span className={`text-4xl font-black italic ${stat.color}`}>{stat.count}</span>
-                                        <div className={`px-4 py-1.5 ${stat.bg} ${stat.color} rounded-full text-[9px] font-black uppercase tracking-widest`}>Sync Active</div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 p-12 flex flex-col items-center justify-center text-center shadow-xl">
-                            <CarIcon className="w-20 h-20 text-indigo-600 mb-6 opacity-80" />
-                            <h2 className="text-2xl font-black uppercase tracking-tighter mb-4 text-slate-800 dark:text-white">Inventory Management Hub</h2>
-                            <p className="text-slate-500 max-w-lg mb-8 text-[13px] leading-relaxed">
-                                Manage your vehicle showroom, track booking requests for test drives, and oversee AI-powered vehicle appraisals. All automotive financial data is integrated directly into your institutional reports.
-                            </p>
-                            <button 
-                                onClick={() => { 
-                                    setSelectedListingForEdit(null); 
-                                    setIsAddListingModalOpen(true); 
-                                }}
-                                className="px-10 py-5 bg-slate-900 text-white rounded-[2rem] font-black uppercase tracking-widest text-[10px] shadow-2xl transition-all hover:bg-indigo-600 active:scale-95"
-                            >
-                                <PlusIcon className="w-4 h-4 mr-2 inline" /> Add New Vehicle Listing
-                            </button>
-                        </div>
-
-                        {props.carListings && props.carListings.length > 0 && (
-                            <div className="space-y-6">
-                                <div className="flex justify-between items-center px-4">
-                                    <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">Current Inventory</h3>
-                                    <span className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">{props.carListings.length} Total</span>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                    {props.carListings.map((car) => (
-                                        <div key={car.id} className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden group hover:shadow-xl transition-all">
-                                            <div className="aspect-video relative overflow-hidden bg-slate-50 dark:bg-slate-900">
-                                                {car.mainImageUrl ? (
-                                                    <img loading="lazy" src={car.mainImageUrl} alt={car.model} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center">
-                                                        <CarIcon className="w-10 h-10 text-slate-200" />
-                                                    </div>
-                                                )}
-                                                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-[8px] font-black uppercase text-slate-900">{car.year}</div>
-                                                <div className="absolute top-4 right-4 bg-indigo-600 text-white px-3 py-1 rounded-full text-[8px] font-black uppercase shadow-lg">{car.status}</div>
-                                            </div>
-                                            <div className="p-6">
-                                                <h4 className="text-sm font-black uppercase tracking-tighter text-slate-900 dark:text-white truncate">
-                                                    {car.make} <span className="text-indigo-600">{car.model}</span>
-                                                </h4>
-                                                <div className="flex justify-between items-center mt-4">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{car.mileage.toLocaleString()} KM</span>
-                                                    <span className="text-xs font-black text-slate-900 dark:text-white italic">KES {car.price.toLocaleString()}</span>
-                                                </div>
-                                                <div className="flex gap-2 mt-6">
-                                                    <button 
-                                                        onClick={() => {
-                                                            setSelectedListingForEdit(car);
-                                                            setIsAddListingModalOpen(true);
-                                                        }}
-                                                        className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all"
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                    <button className="p-3 bg-slate-50 dark:bg-slate-900 text-slate-400 hover:text-red-500 rounded-xl transition-all">
-                                                        <XIcon className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                            </>
-                        ) : (
-                            <div className="space-y-10">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    {[
-                                        { label: 'Total Sales Volume', count: `KES ${props.carInvoices?.reduce((acc, inv) => acc + inv.totalAmount, 0).toLocaleString() || 0}`, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-                                        { label: 'Uncollected Revenue', count: `KES ${props.carInvoices?.reduce((acc, inv) => acc + inv.balanceAmount, 0).toLocaleString() || 0}`, color: 'text-red-600', bg: 'bg-red-50' },
-                                        { label: 'Active Installment Plans', count: props.carInvoices?.filter(i => i.status === 'partially_paid').length || 0, color: 'text-amber-600', bg: 'bg-amber-50' },
-                                    ].map((stat, i) => (
-                                        <div key={i} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]">
-                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">{stat.label}</p>
-                                            <div className="flex items-center gap-4">
-                                                <span className={`text-2xl font-black italic ${stat.color}`}>{stat.count}</span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="flex justify-between items-center px-4">
-                                    <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">Sales Ledger & Invoices</h3>
-                                    <button 
-                                        onClick={() => setIsAddCarInvoiceModalOpen(true)}
-                                        className="px-6 py-3 bg-slate-900 text-white rounded-full text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-lg"
-                                    >
-                                        <PlusIcon className="w-4 h-4 mr-2 inline" /> New Sales Invoice
-                                    </button>
-                                </div>
-
-                                <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 overflow-hidden shadow-xl">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="bg-slate-50 dark:bg-slate-900/50">
-                                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Invoice #</th>
-                                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Client</th>
-                                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Total Price</th>
-                                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Paid</th>
-                                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Balance</th>
-                                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
-                                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                                            {props.carInvoices?.length === 0 ? (
-                                                <tr>
-                                                    <td colSpan={7} className="px-8 py-20 text-center text-slate-400 font-bold uppercase tracking-widest text-xs italic">No sales invoices generated yet.</td>
-                                                </tr>
-                                            ) : (
-                                                props.carInvoices?.map((inv) => {
-                                                    const car = props.carListings?.find(c => c.id === inv.listingId);
-                                                    return (
-                                                        <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-all group">
-                                                            <td className="px-8 py-6">
-                                                                <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">#{inv.invoiceNumber}</span>
-                                                            </td>
-                                                            <td className="px-8 py-6">
-                                                                <div>
-                                                                    <p className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter">{inv.clientName}</p>
-                                                                    {car && <p className="text-[9px] font-bold text-indigo-600 mt-0.5 uppercase tracking-tighter">{car.year} {car.make} {car.model}</p>}
-                                                                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">{inv.clientPhone}</p>
-                                                                </div>
-                                                            </td>
-                                                        <td className="px-8 py-6">
-                                                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">KES {inv.totalAmount.toLocaleString()}</span>
-                                                        </td>
-                                                        <td className="px-8 py-6">
-                                                            <span className="text-xs font-black text-emerald-600">KES {inv.paidAmount.toLocaleString()}</span>
-                                                        </td>
-                                                        <td className="px-8 py-6">
-                                                            <span className={`text-xs font-black ${inv.balanceAmount > 0 ? 'text-red-500' : 'text-slate-400 line-through'}`}>KES {inv.balanceAmount.toLocaleString()}</span>
-                                                        </td>
-                                                        <td className="px-8 py-6">
-                                                            <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${
-                                                                inv.status === 'fully_paid' ? 'bg-emerald-50 text-emerald-600' :
-                                                                inv.status === 'partially_paid' ? 'bg-amber-50 text-amber-600' :
-                                                                'bg-slate-100 text-slate-400'
-                                                            }`}>
-                                                                {inv.status.replace('_', ' ')}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-8 py-6 text-right space-x-2">
-                                                            {inv.balanceAmount > 0 && (
-                                                                <button 
-                                                                    onClick={() => {
-                                                                        setSelectedInvoiceForPayment(inv);
-                                                                        setIsAddCarPaymentModalOpen(true);
-                                                                    }}
-                                                                    className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all"
-                                                                >
-                                                                    Payment
-                                                                </button>
-                                                            )}
-                                                            <button 
-                                                                onClick={() => {
-                                                                    // Show history or details
-                                                                }}
-                                                                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
-                                                            >
-                                                                History
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => handlePreviewCarInvoice(inv)}
-                                                                className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
-                                                            >
-                                                                PDF
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => handlePreviewCarAgreement(inv)}
-                                                                className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
-                                                            >
-                                                                Agreement
-                                                            </button>
-                                                        </td>
-                                                        </tr>
-                                                    );
-                                                })
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                {/* Recent Payments */}
-                                <div className="space-y-6">
-                                    <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 px-4">Transaction History</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {props.carPayments?.map((pay) => {
-                                            const invoice = props.carInvoices?.find(i => i.id === pay.invoiceId);
-                                            return (
-                                                <div key={pay.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden group">
-                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50/50 dark:bg-emerald-900/10 rounded-bl-[5rem] -mr-16 -mt-16 transition-all group-hover:scale-110"></div>
-                                                    <div className="relative">
-                                                        <div className="flex justify-between items-start mb-4">
-                                                            <div>
-                                                                <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest mb-1">Receipt #{pay.receiptNumber}</p>
-                                                                <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter truncate w-32">{invoice?.clientName || 'Unknown Client'}</h4>
-                                                            </div>
-                                                            <span className="text-[10px] font-black text-emerald-600 italic">KES {pay.amount.toLocaleString()}</span>
-                                                        </div>
-                                                        <div className="flex justify-between items-center">
-                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{new Date(pay.paymentDate).toLocaleDateString()}</span>
-                                                            <button 
-                                                                onClick={() => {
-                                                                    setSelectedInvoiceForReceipt(invoice || null);
-                                                                    setSelectedPaymentForReceipt(pay);
-                                                                    setIsCarReceiptModalOpen(true);
-                                                                }}
-                                                                className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all"
-                                                            >
-                                                                Receipt
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => invoice && handlePreviewCarReceipt(pay, invoice)}
-                                                                className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all"
-                                                            >
-                                                                PDF
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    <CarShowroomDashboard
+                        listings={props.carListings || []}
+                        invoices={props.carInvoices || []}
+                        payments={props.carPayments || []}
+                        testDrives={props.carTestDrives || []}
+                        users={props.users || []}
+                        institution={props.currentInstitution!}
+                        onAction={(tab, sub) => {
+                            if (tab === 'inventory') setAutoSubTab('inventory');
+                            else if (tab === 'financials') setAutoSubTab('financials');
+                            else setActiveTab(tab as any);
+                        }}
+                        onAddListing={() => {
+                            setSelectedListingForEdit(null);
+                            setIsAddListingModalOpen(true);
+                        }}
+                        onAddInvoice={() => setIsAddCarInvoiceModalOpen(true)}
+                        onAddPayment={() => setIsAddCarPaymentModalOpen(true)}
+                        onAddLead={() => setIsAddCarLeadModalOpen(true)}
+                        onSwitchPerspective={() => {
+                            const slug = props.currentInstitution?.slug || props.currentInstitution?.id;
+                            window.open(`/?view=showroom&showroom=${slug}`, '_blank');
+                        }}
+                    />
                 )}
 
                                         {activeTab === 'showcase' && props.currentInstitution && (
