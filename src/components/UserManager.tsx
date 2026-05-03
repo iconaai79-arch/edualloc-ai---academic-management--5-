@@ -848,6 +848,7 @@ interface UserManagerProps {
     onAddExtensionRequest?: (reason: string) => void;
     isPm?: boolean;
     onAccessAlumnaPortal: (school: any) => void;
+    isAutoMarket?: boolean;
 }
 
 export const UserManager: React.FC<UserManagerProps> = (props) => {
@@ -857,7 +858,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         onEditUser, currentUser, currentInstitution,
         onAddParent, onDeleteParent, onAddTimeOffRequest,
         onUpdateRequest, showOnly, onSendBulkCredentials, onAddTransaction, companyDetails, isRetailAgency: isRetailAgencyProp,
-        isCoop: isCoopProp, isPm: isPmProp,
+        isCoop: isCoopProp, isPm: isPmProp, isAutoMarket: isAutoMarketProp,
         isAdding: isAddingProp = false, onAddExtensionRequest
     } = props;
     const isRetailAgency = isRetailAgencyProp ?? RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
@@ -889,11 +890,12 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const isHigherEd = isHigherEdInstitution(currentInstitution);
     const isEdu = isEduInstitution(currentInstitution);
     const isAutoMarket = useMemo(() => {
+        if (typeof isAutoMarketProp === 'boolean') return isAutoMarketProp;
         const cat = currentInstitution?.category;
         const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
         const name = currentInstitution?.name?.toLowerCase() || '';
-        return cat === 'Automotive Marketplace' || subType.includes('vehicle sales') || subType.includes('car sales') || subType.includes('motors') || name.includes('motors') || name.includes('car sales');
-    }, [currentInstitution]);
+        return cat === 'Automotive Marketplace' || subType.includes('vehicle sales') || subType.includes('car sales') || subType.includes('motors') || name.includes('motors') || name.includes('car sales') || subType.includes('showroom');
+    }, [currentInstitution, isAutoMarketProp]);
 
     const isCoop = useMemo(() => {
         if (typeof isCoopProp === 'boolean') return isCoopProp;
@@ -1004,7 +1006,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
         // For Retail Agency and Auto Market, we only show specific roles in Staff tab
         if ((isRetailAgency || isAutoMarket) && activeTab === 'staff') {
-            const retailRoles: Role[] = ['admin', 'retail_agent', 'field_agent', 'store', 'security', 'info_desk', 'driver'];
+            const retailRoles: Role[] = isAutoMarket 
+                ? ['admin', 'retail_agent', 'field_agent'] 
+                : ['admin', 'retail_agent', 'field_agent', 'store', 'security', 'info_desk', 'driver'];
             list = list.filter(u => retailRoles.includes(u.role));
         }
 

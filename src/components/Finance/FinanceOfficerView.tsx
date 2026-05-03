@@ -17,10 +17,14 @@ interface FinanceOfficerViewProps {
     semesters: Semester[];
     onGenerateInvoices: (invoices: any[]) => Promise<void>;
     onAddExpense: (expense: any) => Promise<void>;
-    receiptLimit?: number;
-    setReceiptLimit?: React.Dispatch<React.SetStateAction<number>>;
-    transactionLimit?: number;
-    setTransactionLimit?: React.Dispatch<React.SetStateAction<number>>;
+    receiptLimit: number;
+    setReceiptLimit: React.Dispatch<React.SetStateAction<number>>;
+    transactionLimit: number;
+    setTransactionLimit: React.Dispatch<React.SetStateAction<number>>;
+    transactions: any[];
+    onAddTransaction: (data: any, items: any[]) => Promise<any>;
+    onGenerateReceipt: (transaction: any) => void;
+    onLogAction: (action: string) => void;
 }
 
 export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
@@ -79,6 +83,7 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
                     setReceiptLimit={setReceiptLimit}
                     transactionLimit={transactionLimit}
                     setTransactionLimit={setTransactionLimit}
+                    transactions={transactions}
                 />
             </main>
         </div>

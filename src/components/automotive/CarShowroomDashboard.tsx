@@ -191,16 +191,7 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                                 <p className="text-[9px] opacity-80 uppercase mt-1">Performance insights</p>
                             </button>
 
-                            <button 
-                                onClick={onSwitchPerspective}
-                                className="flex flex-col items-start p-6 bg-amber-50 dark:bg-amber-900/30 rounded-[2rem] border border-amber-100 dark:border-amber-800 hover:border-amber-400 transition-all group text-left"
-                            >
-                                <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-amber-600 mb-4 group-hover:scale-110 transition-transform">
-                                    <EyeIcon className="w-6 h-6" />
-                                </div>
-                                <span className="font-black text-xs uppercase tracking-tight text-slate-900 dark:text-white">Switch View</span>
-                                <p className="text-[9px] text-slate-400 uppercase mt-1">Change module perspective</p>
-                            </button>
+
 
                             <button 
                                 onClick={() => onAction('users')}

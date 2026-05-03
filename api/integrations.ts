@@ -295,6 +295,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let settings: any = {};
         const { data: settingsData } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
         if (settingsData) settings = settingsData.data || {};
+        
+        const getBranding = async (instId?: string) => {
+            const defaultBranding = {
+                logoUrl: settings.logoUrl || settings.logo_url || 'https://eduai.co.ke/logo.png',
+                primaryColor: settings.themeColor || settings.primary_color || '#4f46e5',
+                name: settings.appName || 'EduAi Network'
+            };
+
+            if (!instId || instId === 'GLOBAL' || instId === 'SYSTEM') return defaultBranding;
+
+            try {
+                const { data: inst } = await supabase.from('institutions').select('name, logo_url, theme_color, institution_type').eq('id', instId).maybeSingle();
+                if (inst) {
+                    return {
+                        logoUrl: inst.logo_url || defaultBranding.logoUrl,
+                        primaryColor: inst.theme_color || defaultBranding.primaryColor,
+                        name: inst.name,
+                        type: inst.institution_type
+                    };
+                }
+            } catch (e) {
+                console.error(`[Branding] Failed to fetch for ${instId}:`, e);
+            }
+            return defaultBranding;
+        };
+
+        const wrapHtml = (content: string, branding: any) => {
+            return `
+                <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; background-color: #ffffff;">
+                    <div style="background-color: ${branding.primaryColor}; padding: 30px; text-align: center;">
+                        <img src="${branding.logoUrl}" alt="${branding.name}" style="max-height: 60; max-width: 200px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));" />
+                    </div>
+                    <div style="padding: 40px; color: #1e293b; line-height: 1.6;">
+                        ${content}
+                    </div>
+                    <div style="padding: 20px; background-color: #f8fafc; text-align: center; border-top: 1px solid #e2e8f0;">
+                        <p style="margin: 0; font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">
+                            Sent via ${branding.name}
+                        </p>
+                        <p style="margin: 5px 0 0; font-size: 10px; color: #94a3b8;">
+                            &copy; ${new Date().getFullYear()} EduAi Global Network. All rights reserved.
+                        </p>
+                    </div>
+                </div>
+            `;
+        };
 
         if (action === 'sendEmail') {
             const adminRoles = [
@@ -309,6 +355,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(403).json({ success: false, message: 'Permission denied: Only administrative accounts can send system emails.' });
             }
 
+            const instId = institutionIdOverride || user.user_metadata?.institutionId || user.institution_id || user.institutionId;
+            const branding = await getBranding(instId);
+
             const emailConfig = bodyConfig || settings.email_config || settings.emailConfig;
             if (!emailConfig) return res.status(400).json({ success: false, message: 'Email configuration is missing.' });
 
@@ -318,9 +367,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const username = emailConfig.username;
             const password = emailConfig.password;
             const fromEmail = emailConfig.from_email || emailConfig.fromEmail || username;
-            const fromName = emailConfig.from_name || emailConfig.fromName || 'EduAi';
+            const fromName = emailConfig.from_name || emailConfig.fromName || branding.name;
 
-            
             const transporter = nodemailer.createTransport({
                 host: host,
                 port: Number(port || 587),
@@ -329,12 +377,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 tls: { rejectUnauthorized: false }
             });
 
+            const htmlContent = wrapHtml((message || '').replace(/\n/g, '<br>'), branding);
+
             const info = await transporter.sendMail({
                 from: `"${fromName}" <${fromEmail}>`,
                 to: recipient,
-                subject: subject || 'EduAi Notification',
+                subject: subject || `${branding.name} Notification`,
                 text: message,
-                html: (message || '').replace(/\n/g, '<br>'),
+                html: htmlContent,
                 attachments: paramsMap.attachments // Supports { filename: string, content: string (base64) / Buffer, contentType: string }
             });
 
@@ -342,6 +392,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'sendAlumnaWelcome') {
+            const instId = institutionIdOverride || user.user_metadata?.institutionId || user.institution_id || user.institutionId;
+            const branding = await getBranding(instId);
+
             const emailConfig = bodyConfig || settings.email_config || settings.emailConfig;
             if (!emailConfig) return res.status(400).json({ success: false, message: 'Email configuration is missing.' });
 
@@ -356,26 +409,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 tls: { rejectUnauthorized: false }
             });
 
-            const welcomeHtml = `
-                <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                    <h2 style="color: #4f46e5;">Welcome to the Alumnae Circle!</h2>
-                    <p>Hello <strong>${alumnaName}</strong>,</p>
-                    <p>Congratulations! Your registration for the Alumnae Network is successful. We are thrilled to have you as part of our professional community.</p>
-                    <p>You can now access the portal to connect with classmates, share your legacy, and explore opportunities.</p>
-                    <div style="margin: 30px 0; text-align: center;">
-                        <a href="${loginLink}" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Access Alumnae Portal</a>
-                    </div>
-                    <p style="font-size: 12px; color: #666;">If the button above doesn't work, copy and paste this link into your browser: <br>${loginLink}</p>
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                    <p style="font-size: 10px; color: #999;">EduAI Alumnae Network &copy; ${new Date().getFullYear()}</p>
+            const welcomeContent = `
+                <h2 style="color: ${branding.primaryColor}; margin-top: 0;">Welcome to the Alumnae Circle!</h2>
+                <p>Hello <strong>${alumnaName}</strong>,</p>
+                <p>Congratulations! Your registration for the Alumnae Network is successful. We are thrilled to have you as part of our professional community.</p>
+                <p>You can now access the portal to connect with classmates, share your legacy, and explore opportunities.</p>
+                <div style="margin: 30px 0; text-align: center;">
+                    <a href="${loginLink}" style="background-color: ${branding.primaryColor}; color: white; padding: 14px 28px; text-decoration: none; border-radius: 12px; font-weight: bold; display: inline-block; box-shadow: 0 4px 12px ${branding.primaryColor}40;">Access Alumnae Portal</a>
                 </div>
+                <p style="font-size: 12px; color: #64748b;">If the button above doesn't work, copy and paste this link into your browser: <br>${loginLink}</p>
             `;
 
             const info = await transporter.sendMail({
-                from: `"${emailConfig.from_name || 'EduAI Alumnae'}" <${emailConfig.from_email || emailConfig.username}>`,
+                from: `"${branding.name} Alumnae" <${emailConfig.from_email || emailConfig.username}>`,
                 to: recipient,
                 subject: `Welcome to the Alumnae Circle, ${alumnaName}!`,
-                html: welcomeHtml
+                html: wrapHtml(welcomeContent, branding)
             });
 
             return res.status(200).json({ success: true, message: 'Welcome email sent successfully.', messageId: info.messageId });
@@ -883,15 +932,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const hostHeader = req.headers.host || 'eduai.co.ke';
             const resetLink = `${protocol}://${hostHeader}/?resetToken=${token}`;
 
-            const recoverySubject = "Password Reset Request - Eduai Automation";
-            const recoveryBody = `Dear ${user.name || 'User'},\n\nYou requested a password reset for your account on the Eduai Automation System.\n\nPlease click the link below to set a new password. This link is valid for 1 hour:\n\n${resetLink}\n\nIf you did not request this, please ignore this email and your password will remain unchanged.\n\nBest Regards,\nEduai Automation System`;
+            const instId = user.user_metadata?.institutionId || user.institution_id || user.institutionId;
+            const branding = await getBranding(instId);
+
+            const recoverySubject = `Password Reset Request - ${branding.name}`;
+            const recoveryContent = `
+                <h2 style="color: ${branding.primaryColor}; margin-top: 0;">Password Recovery</h2>
+                <p>Dear <strong>${user.name || 'User'}</strong>,</p>
+                <p>You requested a password reset for your account on the <strong>${branding.name}</strong> system.</p>
+                <p>Please click the button below to set a new password. This link is valid for 1 hour:</p>
+                <div style="margin: 30px 0; text-align: center;">
+                    <a href="${resetLink}" style="background-color: ${branding.primaryColor}; color: white; padding: 14px 28px; text-decoration: none; border-radius: 12px; font-weight: bold; display: inline-block;">Reset Password</a>
+                </div>
+                <p style="font-size: 12px; color: #64748b;">If you did not request this, please ignore this email and your password will remain unchanged.</p>
+            `;
 
             const info = await transporter.sendMail({
-                from: `"${fromName}" <${fromEmail}>`,
+                from: `"${branding.name}" <${fromEmail}>`,
                 to: recipient,
                 subject: recoverySubject,
-                text: recoveryBody,
-                html: recoveryBody.replace(/\n/g, '<br>').replace(resetLink, `<a href="${resetLink}">${resetLink}</a>`)
+                text: `Dear ${user.name || 'User'},\n\nPlease use this link to reset your password: ${resetLink}`,
+                html: wrapHtml(recoveryContent, branding)
             });
 
             console.log(`[Forgot Password] Recovery link sent successfully via Email. Message ID: ${info.messageId}`);

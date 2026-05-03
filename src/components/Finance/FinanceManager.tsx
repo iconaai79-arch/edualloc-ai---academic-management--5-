@@ -20,10 +20,11 @@ interface FinanceManagerProps {
     institution: Institution;
     onGenerateInvoices: (invoices: any[]) => Promise<void>;
     onAddExpense: (expense: any) => Promise<void>;
-    receiptLimit?: number;
-    setReceiptLimit?: React.Dispatch<React.SetStateAction<number>>;
-    transactionLimit?: number;
-    setTransactionLimit?: React.Dispatch<React.SetStateAction<number>>;
+    receiptLimit: number;
+    setReceiptLimit: React.Dispatch<React.SetStateAction<number>>;
+    transactionLimit: number;
+    setTransactionLimit: React.Dispatch<React.SetStateAction<number>>;
+    transactions?: any[];
 }
 
 export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
@@ -76,6 +77,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         institution={props.institution}
                         receiptLimit={props.receiptLimit}
                         setReceiptLimit={props.setReceiptLimit}
+                        transactionLimit={props.transactionLimit}
+                        setTransactionLimit={props.setTransactionLimit}
+                        transactions={props.transactions || []}
                     />
                 )}
 

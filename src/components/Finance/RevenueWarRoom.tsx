@@ -14,8 +14,11 @@ interface RevenueWarRoomProps {
     goals: FinancialGoal[];
     students: User[];
     institution: Institution;
-    receiptLimit?: number;
-    setReceiptLimit?: React.Dispatch<React.SetStateAction<number>>;
+    transactions: any[];
+    receiptLimit: number;
+    setReceiptLimit: React.Dispatch<React.SetStateAction<number>>;
+    transactionLimit: number;
+    setTransactionLimit: React.Dispatch<React.SetStateAction<number>>;
 }
 
 export const RevenueWarRoom: React.FC<RevenueWarRoomProps> = ({
@@ -25,8 +28,11 @@ export const RevenueWarRoom: React.FC<RevenueWarRoomProps> = ({
     goals,
     students,
     institution,
+    transactions,
     receiptLimit,
-    setReceiptLimit
+    setReceiptLimit,
+    transactionLimit,
+    setTransactionLimit
 }) => {
     const stats = useMemo(() => {
         const totalBilled = invoices.reduce((acc, inv) => acc + inv.totalAmount, 0);
@@ -143,13 +149,20 @@ export const RevenueWarRoom: React.FC<RevenueWarRoomProps> = ({
                 </div>
             </div>
 
-            {/* Recent Transactions List */}
+            {/* Recent Financial Activity List */}
             <div className="bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden">
                 <div className="p-8 border-b border-slate-50 flex justify-between items-center">
-                    <h3 className="text-xl font-black text-slate-900 tracking-tight uppercase tracking-widest text-sm">Recent Financial Flux</h3>
+                    <div>
+                        <h3 className="text-xl font-black text-slate-900 tracking-tight uppercase tracking-widest text-sm">Financial Intelligence Feed</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Cross-referencing {receipts.length} receipts & {transactions.length} gateway hits</p>
+                    </div>
                     <div className="flex gap-2">
-                        <button className="px-4 py-2 bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest rounded-xl border border-slate-100">Filter By Date</button>
-                        <button className="px-4 py-2 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg">New Entry</button>
+                        <button 
+                            onClick={() => setTransactionLimit(prev => prev + 50)}
+                            className="px-4 py-2 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg flex items-center gap-2"
+                        >
+                            <ArrowPathIcon className="w-3 h-3" /> Sync Gateway ({transactionLimit})
+                        </button>
                     </div>
                 </div>
                 <div className="overflow-x-auto">
@@ -164,7 +177,7 @@ export const RevenueWarRoom: React.FC<RevenueWarRoomProps> = ({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {[...receipts, ...expenses].sort((a, b) => new Date((b as any).paymentDate || (b as any).date).getTime() - new Date((a as any).paymentDate || (a as any).date).getTime()).slice(0, 10).map((tx, i) => {
+                            {[...receipts, ...expenses].sort((a, b) => new Date((b as any).paymentDate || (b as any).date || 0).getTime() - new Date((a as any).paymentDate || (a as any).date || 0).getTime()).slice(0, receiptLimit).map((tx, i) => {
                                 const isExpense = 'category' in tx;
                                 return (
                                     <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
@@ -197,16 +210,16 @@ export const RevenueWarRoom: React.FC<RevenueWarRoomProps> = ({
                         </tbody>
                     </table>
                 </div>
-                {receipts.length >= (receiptLimit || 50) && (
-                    <div className="p-8 flex justify-center bg-slate-50/30">
+                <div className="p-8 flex justify-center bg-slate-50/30 gap-4">
+                    {receipts.length >= receiptLimit && (
                         <button 
-                            onClick={() => setReceiptLimit?.(prev => prev + 50)}
+                            onClick={() => setReceiptLimit(prev => prev + 50)}
                             className="px-8 py-3 bg-white text-slate-900 border border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all shadow-sm flex items-center gap-3"
                         >
-                            <ArrowPathIcon className="w-4 h-4" /> Sync More History
+                            <ArrowPathIcon className="w-4 h-4" /> Load More History ({receiptLimit})
                         </button>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
         </div>
     );

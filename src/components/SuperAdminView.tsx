@@ -182,10 +182,10 @@ export interface SuperAdminViewProps {
     currentUser: User;
     activityLogLimit?: number;
     setActivityLogLimit?: React.Dispatch<React.SetStateAction<number>>;
-    transactionLimit?: number;
-    setTransactionLimit?: React.Dispatch<React.SetStateAction<number>>;
-    receiptLimit?: number;
-    setReceiptLimit?: React.Dispatch<React.SetStateAction<number>>;
+    transactionLimit: number;
+    setTransactionLimit: React.Dispatch<React.SetStateAction<number>>;
+    receiptLimit: number;
+    setReceiptLimit: React.Dispatch<React.SetStateAction<number>>;
     notificationLimit?: number;
     setNotificationLimit?: React.Dispatch<React.SetStateAction<number>>;
 

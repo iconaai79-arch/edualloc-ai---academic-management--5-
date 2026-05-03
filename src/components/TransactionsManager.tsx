@@ -30,7 +30,7 @@ const TransactionStatusBadge: React.FC<{ status: TransactionStatus }> = ({ statu
     }
 };
 
-export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transactions, institutions, receipts, companyDetails, onGenerateReceipt, onVerifyTransaction, logoUrl, title = "Transaction Management Log" }) => {
+export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transactions, institutions, receipts, companyDetails, onGenerateReceipt, onVerifyTransaction, logoUrl, title = "Transaction Management Log", transactionLimit, setTransactionLimit }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [providerFilter, setProviderFilter] = useState<'all' | 'mpesa' | 'airtel' | 'intasend' | 'ncba'>('all');
     const institutionMap = useMemo(() => new Map(institutions.map(inst => [inst.id, inst])), [institutions]);

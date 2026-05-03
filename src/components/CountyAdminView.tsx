@@ -129,10 +129,10 @@ interface CountyAdminViewProps {
     onAccessAlumnaPortal: (school: SchoolRegistry) => void;
     activityLogLimit?: number;
     setActivityLogLimit?: React.Dispatch<React.SetStateAction<number>>;
-    receiptLimit?: number;
-    setReceiptLimit?: React.Dispatch<React.SetStateAction<number>>;
-    transactionLimit?: number;
-    setTransactionLimit?: React.Dispatch<React.SetStateAction<number>>;
+    receiptLimit: number;
+    setReceiptLimit: React.Dispatch<React.SetStateAction<number>>;
+    transactionLimit: number;
+    setTransactionLimit: React.Dispatch<React.SetStateAction<number>>;
 }
 
 export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {

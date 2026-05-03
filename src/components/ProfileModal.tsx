@@ -5,6 +5,7 @@ import { apiService } from '../services/apiService';
 
 interface ProfileModalProps {
   currentUser: User;
+  currentInstitution?: Institution | null;
   onClose: () => void;
   onSave: (lecturerId: string, data: ProfileUpdateData) => void;
   // FIXED: Changed from void return type to Promise to handle async results correctly.
@@ -18,12 +19,13 @@ const UserCircleIcon: React.FC = () => (
   </svg>
 );
 
-export const ProfileModal: React.FC<ProfileModalProps> = ({ currentUser, onClose, onSave, onChangePassword, onManageUnavailability }) => {
+export const ProfileModal: React.FC<ProfileModalProps> = ({ currentUser, currentInstitution, onClose, onSave, onChangePassword, onManageUnavailability }) => {
   const [name, setName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [expertise, setExpertise] = useState('');
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null | undefined>(undefined);
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
+  const [autoMarketPlaceUrl, setAutoMarketPlaceUrl] = useState('');
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -38,6 +40,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ currentUser, onClose
       setExpertise(currentUser.expertise?.join(', ') || '');
       setProfilePhotoUrl(currentUser.profilePhotoUrl);
       setGender(currentUser.gender || 'Male');
+      setAutoMarketPlaceUrl(currentUser.autoMarketPlaceUrl || '');
     }
   }, [currentUser]);
 
@@ -83,7 +86,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ currentUser, onClose
         phoneNumber,
         expertise: expertiseArray,
         profilePhotoUrl,
-        gender
+        gender,
+        autoMarketPlaceUrl: currentInstitution?.institutionType === 'Car Showroom' ? autoMarketPlaceUrl : undefined
       });
     }
   };
@@ -128,8 +132,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ currentUser, onClose
 
   if (!currentUser) return null;
 
+  const isCarShowroom = currentInstitution?.institutionType === 'Car Showroom';
+
   return (
-    <div className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 bg-slate-900/80 z-[1000] flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800" onClick={(e) => e.stopPropagation()}>
         <div className="p-8 pb-4 flex justify-between items-center bg-white dark:bg-slate-900">
           <div>
@@ -197,6 +203,25 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ currentUser, onClose
                   </div>
                 </div>
               </div>
+
+              {isCarShowroom && (
+                <div className="p-6 bg-slate-50 dark:bg-slate-800/40 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                  <label className="block text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-widest mb-2 ml-1">Automotive Marketplace Store URL</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <svg className="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                    </div>
+                    <input 
+                      type="url" 
+                      value={autoMarketPlaceUrl} 
+                      onChange={(e) => setAutoMarketPlaceUrl(e.target.value)} 
+                      className="form-input pl-11" 
+                      placeholder="https://marketplace.example.com/your-store" 
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-2 ml-1">This link will be displayed on your car listings for buyers to visit your digital showroom.</p>
+                </div>
+              )}
 
               {currentUser.role !== 'student' && (
                 <div>

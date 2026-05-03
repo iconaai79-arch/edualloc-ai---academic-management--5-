@@ -145,7 +145,6 @@ export interface AdminViewProps {
     userTasks: UserTask[];
     generatedTimetable: TimetableEntry[];
     allTimetableEntries: TimetableEntry[];
-    timetable?: TimetableEntry[];
     finalTimetableUrl: string | null;
     letterheadConfig: LetterheadConfig;
     smsConfig: SmsConfig;
@@ -157,10 +156,10 @@ export interface AdminViewProps {
     schoolRegistry?: SchoolRegistry[];
     activityLogLimit?: number;
     setActivityLogLimit?: React.Dispatch<React.SetStateAction<number>>;
-    transactionLimit?: number;
-    setTransactionLimit?: React.Dispatch<React.SetStateAction<number>>;
-    receiptLimit?: number;
-    setReceiptLimit?: React.Dispatch<React.SetStateAction<number>>;
+    transactionLimit: number;
+    setTransactionLimit: React.Dispatch<React.SetStateAction<number>>;
+    receiptLimit: number;
+    setReceiptLimit: React.Dispatch<React.SetStateAction<number>>;
     notificationLimit?: number;
     setNotificationLimit?: React.Dispatch<React.SetStateAction<number>>;
     
@@ -295,7 +294,6 @@ export interface AdminViewProps {
     courseSizes?: Map<string, number>;
     timeOffRequests: TimeOffRequest[];
     enrollmentRequests: EnrollmentRequest[];
-    subjectsAndCourses?: any;
     onImportSubjectsAndAssociate?: (subjects: (Omit<Subject, 'id' | 'institutionId'> & { targetCourseLevelId?: string })[]) => Promise<void>;
     requisitions: Requisition[];
     onAddRequisition?: (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => Promise<void>;
@@ -981,7 +979,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                             <p className="text-[10px] opacity-80 uppercase mt-1">Guided Generation</p>
                                         </button>
                                     )}
-                                     {isCoreAdmin && (
+                                     {isCoreAdmin && !isAutoMarket && (
                                         <button
                                             onClick={() => setIsPerspectiveModalOpen(true)}
                                             className="flex flex-col items-start p-6 bg-amber-50 dark:bg-amber-900/30 rounded-3xl border border-amber-100 dark:border-amber-800 hover:border-amber-400 transition-all group text-left"
@@ -1131,7 +1129,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 />
                             ) : timetableSubTab === 'scheduler' ? (
                                 <TimetablesView
-                                    generatedTimetable={props.timetable || props.generatedTimetable || []}
+                                    generatedTimetable={props.generatedTimetable || []}
                                     subjects={props.subjects || []}
                                     lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
                                     allUsers={props.users || []}
@@ -1235,6 +1233,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         companyDetails={props.companyDetails}
                         currentInstitution={props.currentInstitution}
                         isRetailAgency={isRetailAgency}
+                        isAutoMarket={isAutoMarket}
                     />
                 )}
 

@@ -250,6 +250,7 @@ export interface User {
     subscriptionExpiry?: string;
     walletBalance?: number;
     loyaltyPoints?: number;
+    autoMarketPlaceUrl?: string;
     metadata?: any;
     createdAt?: string;
 }
@@ -439,6 +440,7 @@ export interface Institution {
     history?: string;
     showcaseCpanelUrl?: string;
     showcaseCpanelToken?: string;
+    autoMarketPlaceUrl?: string;
 }
 
 export interface SchoolGallery {
@@ -1508,11 +1510,12 @@ export interface FinancialPeriod {
 
 
 export interface ProfileUpdateData {
-    name?: string;
-    phoneNumber?: string;
-    expertise?: string[];
-    profilePhotoUrl?: string | null;
-    gender?: 'Male' | 'Female' | 'Other';
+  name: string;
+  phoneNumber: string;
+  expertise: string[];
+  profilePhotoUrl?: string | null;
+  gender?: 'Male' | 'Female' | 'Other';
+  autoMarketPlaceUrl?: string;
 }
 
 export interface PasswordUpdateData {

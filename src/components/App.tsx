@@ -688,7 +688,7 @@ export const App: React.FC = () => {
                 apiService.fetchInstitutions().catch(() => []),
                 (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchModuleRecords<County>('counties').catch(() => []),
                 apiService.fetchCompanySettings().catch(() => null),
-                (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchUsers().catch(() => []),
+                (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchUsers(currentUser?.role === 'super_admin' ? undefined : currentUser?.institutionId).catch(() => []),
                 (isAlumnaeMode && !showAlumnaeRegister && !showInstitutionClaim) ? Promise.resolve([]) : apiService.fetchFullRegistry().catch(() => []),
             ]);
 
@@ -4474,6 +4474,10 @@ export const App: React.FC = () => {
                                     setReceiptLimit={setReceiptLimit}
                                     transactionLimit={transactionLimit}
                                     setTransactionLimit={setTransactionLimit}
+                                    transactions={transactions}
+                                    onAddTransaction={apiService.onAddTransaction.bind(apiService)}
+                                    onGenerateReceipt={handleGenerateReceipt}
+                                    onLogAction={handleLogAction}
                                  />
                             ) : activeRole === 'hr_officer' ? (
                                 <HROfficerView
@@ -6240,7 +6244,31 @@ export const App: React.FC = () => {
                     }}
                     onRestoreSession={onRestoreSuperAdminSession}
                 />
-                {showBookDemo && <BookDemoModal onClose={() => setShowBookDemo(false)} />}
+                                {showBookDemo && <BookDemoModal onClose={() => setShowBookDemo(false)} />}
+                {isProfileModalOpen && currentUser && (
+                    <ProfileModal
+                        currentUser={currentUser}
+                        currentInstitution={activeInstitution}
+                        onClose={() => setIsProfileModalOpen(false)}
+                        onSave={async (id, data) => {
+                            await onEditUser(id, data);
+                            setIsProfileModalOpen(false);
+                            await handleLogAction(`Updated personal profile`);
+                        }}
+                        onChangePassword={async (id, data) => {
+                            try {
+                                await apiService.saveModuleRecord('users', { ...currentUser, password: data.newPassword });
+                                return { success: true, message: 'Password updated successfully' };
+                            } catch (err: any) {
+                                return { success: false, message: err.message || 'Failed to update password' };
+                            }
+                        }}
+                        onManageUnavailability={() => {
+                            // Placeholder for unavailability management
+                            alert("Unavailability management coming soon.");
+                        }}
+                    />
+                )}
                 {showSimulatorLeadModal && pendingSimulatorLaunch && (
                     <SimulatorLeadModal 
                         moduleName={SIMULATOR_NAMES[pendingSimulatorLaunch.modId] || pendingSimulatorLaunch.modId}
