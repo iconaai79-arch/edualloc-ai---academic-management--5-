@@ -597,6 +597,14 @@ export const App: React.FC = () => {
         }
     });
     const [showTenantStore, setShowTenantStore] = useState(!!activeStoreTenantId);
+    
+    const isAutoMarket = useMemo(() => {
+        const type = activeInstitution?.institutionType;
+        const cat = activeInstitution?.category;
+        const subType = activeInstitution?.businessSubType?.toLowerCase() || '';
+        const name = activeInstitution?.name?.toLowerCase() || '';
+        return type === 'Car Showroom' || cat === 'Automotive Marketplace' || cat === 'Car Showroom' || subType.includes('vehicle sales') || subType.includes('car sales') || subType.includes('motors') || name.includes('motors') || name.includes('car sales') || subType.includes('showroom');
+    }, [activeInstitution]);
 
     const [showMarketing, setShowMarketing] = useState(() => {
         try {
@@ -3312,6 +3320,7 @@ export const App: React.FC = () => {
                             onTogglePharmacySystem={() => setIsPharmacySystemOpen(!isPharmacySystemOpen)}
                             isHealthSystemOpen={isHealthSystemOpen}
                             isPharmacySystemOpen={isPharmacySystemOpen}
+                            hidePerspectiveSwitcher={isAutoMarket}
                         />
                         <main className={`flex-grow mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full transition-all duration-300 ${isFullWidthLayout ? 'max-w-[1600px]' : 'max-w-7xl'}`}>
                             <Suspense fallback={<SystemPulseLoader message="Initializing Portal..." status="Loading perspective environment" />}>

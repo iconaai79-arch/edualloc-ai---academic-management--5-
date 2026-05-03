@@ -71,7 +71,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                     const [instListings, instRetail, instCars, agroProducts, agroBatches] = await Promise.all([
                         apiService.fetchModuleRecords<PMListing>('pm_listings', resolvedTenant.id),
                         apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', resolvedTenant.id),
-                        apiService.fetchCarListings(resolvedTenant.id, 'active'),
+                        apiService.fetchCarListings(resolvedTenant.id, 'all'),
                         (resolvedTenant.institutionType === 'Agrovet' || resolvedTenant.category === 'Agrovet') ? apiService.fetchModuleRecords('agrovet_products', resolvedTenant.id) : Promise.resolve([]),
                         (resolvedTenant.institutionType === 'Agrovet' || resolvedTenant.category === 'Agrovet') ? apiService.fetchModuleRecords('agrovet_batches', resolvedTenant.id) : Promise.resolve([])
                     ]);
@@ -109,12 +109,21 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                     }
 
                     setRetailProducts(products);
-                    setCarListings(instCars || []);
+                    
+                    const isCarShowroom = resolvedTenant.institutionType === 'Car Showroom' || 
+                                        resolvedTenant.category === 'Car Showroom' || 
+                                        (resolvedTenant.businessSubType || '').toLowerCase().includes('showroom') || 
+                                        (resolvedTenant.category || '').toLowerCase().includes('automotive');
+
+                    // Filter car listings locally to ensure we only show active ones on the storefront
+                    const filteredCars = (instCars || []).filter((c: any) => c.status === 'active' || c.status === 'Published' || c.status === 'Active');
+                    setCarListings(filteredCars);
                     
                     // Set initial active section based on available content
-                    if (instCars && instCars.length > 0) setActiveSection('vehicles');
+                    if (filteredCars.length > 0) setActiveSection('vehicles');
                     else if (products.length > 0) setActiveSection('retail');
                     else if (instListings && instListings.length > 0) setActiveSection('properties');
+                    else if (isCarShowroom) setActiveSection('vehicles'); // Fallback for showroom institutions
 
                     document.title = `${resolvedTenant.name} | Official Storefront`;
                 }

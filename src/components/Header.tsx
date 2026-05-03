@@ -31,6 +31,7 @@ interface HeaderProps {
     isPharmacySystemOpen?: boolean;
     primaryColor?: string;
     secondaryColor?: string;
+    hidePerspectiveSwitcher?: boolean;
 }
 
 const formatRoleName = (role?: Role, institution?: Institution | null): string => {
@@ -77,7 +78,8 @@ export const Header: React.FC<HeaderProps> = ({
     currentUser, institutionName, onLogout, onEditProfile, logoUrl, systemLogoUrl, 
     applicationTitle, notifications, onMarkAsRead, currentInstitution, 
     isApiOnline = true, activeRole, onSwitchRole, onExitPerspective, 
-    onToggleHealthSystem, isHealthSystemOpen, onTogglePharmacySystem, isPharmacySystemOpen, primaryColor, secondaryColor 
+    onToggleHealthSystem, isHealthSystemOpen, onTogglePharmacySystem, isPharmacySystemOpen, primaryColor, secondaryColor,
+    hidePerspectiveSwitcher
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
@@ -253,27 +255,29 @@ export const Header: React.FC<HeaderProps> = ({
 
                             {isMenuOpen && (
                                 <div className="origin-top-right absolute right-0 mt-2 w-64 rounded-2xl shadow-2xl bg-white dark:bg-slate-800 ring-1 ring-black ring-opacity-5 z-[110] overflow-hidden animate-fade-in-up border border-slate-100 dark:border-slate-700">
-                                    <div className="px-5 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
-                                        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-3">Available Roles</p>
-                                        <div className="space-y-2">
-                                            {availableRoles.map((r: Role) => (
-                                                <button
-                                                    key={r}
-                                                    disabled={activeRole === r}
-                                                    onClick={() => { onSwitchRole?.(r as Role); setIsMenuOpen(false); }}
-                                                    className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-tight transition-all flex items-center justify-between group ${activeRole === r ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-100 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
-                                                >
-                                                    {formatRoleName(r as Role, currentInstitution)}
-                                                    {activeRole === r && (
-                                                        <div 
-                                                            className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" 
-                                                            style={{ backgroundColor: activeRole === r ? 'white' : primaryColor }}
-                                                        />
-                                                    )}
-                                                </button>
-                                            ))}
+                                     {!hidePerspectiveSwitcher && (
+                                        <div className="px-5 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                                            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-3">Available Roles</p>
+                                            <div className="space-y-2">
+                                                {availableRoles.map((r: Role) => (
+                                                    <button
+                                                        key={r}
+                                                        disabled={activeRole === r}
+                                                        onClick={() => { onSwitchRole?.(r as Role); setIsMenuOpen(false); }}
+                                                        className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-tight transition-all flex items-center justify-between group ${activeRole === r ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-100 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
+                                                    >
+                                                        {formatRoleName(r as Role, currentInstitution)}
+                                                        {activeRole === r && (
+                                                            <div 
+                                                                className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" 
+                                                                style={{ backgroundColor: activeRole === r ? 'white' : primaryColor }}
+                                                            />
+                                                        )}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                     <div className="p-1 px-2">
                                         <button onClick={() => { onEditProfile(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-3 transition-colors rounded-xl">
                                             <PencilIcon className="w-4 h-4" /> Edit Profile
