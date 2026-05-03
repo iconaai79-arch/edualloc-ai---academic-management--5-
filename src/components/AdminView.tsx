@@ -53,6 +53,8 @@ const ExamInsights = lazy(() => import('./Academics/ExamInsights').then(m => ({ 
 const AcademicReportsHub = lazy(() => import('./Academics/AcademicReportsHub').then(m => ({ default: m.AcademicReportsHub })));
 const DisciplineManager = lazy(() => import('./Academics/DisciplineManager').then(m => ({ default: m.DisciplineManager })));
 const CarShowroomDashboard = lazy(() => import('./automotive/CarShowroomDashboard').then(m => ({ default: m.CarShowroomDashboard })));
+const CarInventoryList = lazy(() => import('./automotive/CarInventoryList').then(m => ({ default: m.CarInventoryList })));
+const CarSalesLedger = lazy(() => import('./automotive/CarSalesLedger').then(m => ({ default: m.CarSalesLedger })));
 const TransportManager = lazy(() => import('./TransportManager').then(m => ({ default: m.TransportManager })));
 
 
@@ -426,7 +428,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const [isSecurityAlertModalOpen, setIsSecurityAlertModalOpen] = useState(false);
     const [isAddListingModalOpen, setIsAddListingModalOpen] = useState(false);
     const [selectedListingForEdit, setSelectedListingForEdit] = useState<CarListing | null>(null);
-    const [autoSubTab, setAutoSubTab] = useState<'inventory' | 'financials'>('inventory');
+    const [autoSubTab, setAutoSubTab] = useState<'dashboard' | 'inventory' | 'financials'>('dashboard');
     const [isAddCarInvoiceModalOpen, setIsAddCarInvoiceModalOpen] = useState(false);
     const [isAddCarPaymentModalOpen, setIsAddCarPaymentModalOpen] = useState(false);
     const [isAddCarLeadModalOpen, setIsAddCarLeadModalOpen] = useState(false);
@@ -1700,30 +1702,86 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 )}
 
                 {activeTab === 'auto_marketplace' && (
-                    <CarShowroomDashboard
-                        listings={props.carListings || []}
-                        invoices={props.carInvoices || []}
-                        payments={props.carPayments || []}
-                        testDrives={props.carTestDrives || []}
-                        users={props.users || []}
-                        institution={props.currentInstitution!}
-                        onAction={(tab, sub) => {
-                            if (tab === 'inventory') setAutoSubTab('inventory');
-                            else if (tab === 'financials') setAutoSubTab('financials');
-                            else setActiveTab(tab as any);
-                        }}
-                        onAddListing={() => {
-                            setSelectedListingForEdit(null);
-                            setIsAddListingModalOpen(true);
-                        }}
-                        onAddInvoice={() => setIsAddCarInvoiceModalOpen(true)}
-                        onAddPayment={() => setIsAddCarPaymentModalOpen(true)}
-                        onAddLead={() => setIsAddCarLeadModalOpen(true)}
-                        onSwitchPerspective={() => {
-                            const slug = props.currentInstitution?.slug || props.currentInstitution?.id;
-                            window.open(`/?view=showroom&showroom=${slug}`, '_blank');
-                        }}
-                    />
+                    <div className="space-y-6">
+                        <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit">
+                            <button onClick={() => setAutoSubTab('dashboard')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'dashboard' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Dashboard Hub</button>
+                            <button onClick={() => setAutoSubTab('inventory')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'inventory' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Vehicle Inventory</button>
+                            <button onClick={() => setAutoSubTab('financials')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'financials' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Sales & Invoices</button>
+                        </div>
+
+                        <div className="animate-fade-in-up">
+                            {autoSubTab === 'dashboard' ? (
+                                <CarShowroomDashboard
+                                    listings={props.carListings || []}
+                                    invoices={props.carInvoices || []}
+                                    payments={props.carPayments || []}
+                                    testDrives={props.carTestDrives || []}
+                                    users={props.users || []}
+                                    institution={props.currentInstitution!}
+                                    onAction={(tab, sub) => {
+                                        if (tab === 'inventory') setAutoSubTab('inventory');
+                                        else if (tab === 'financials') setAutoSubTab('financials');
+                                        else setActiveTab(tab as any);
+                                    }}
+                                    onAddListing={() => {
+                                        setSelectedListingForEdit(null);
+                                        setIsAddListingModalOpen(true);
+                                    }}
+                                    onAddInvoice={() => setIsAddCarInvoiceModalOpen(true)}
+                                    onAddPayment={() => setIsAddCarPaymentModalOpen(true)}
+                                    onAddLead={() => setIsAddCarLeadModalOpen(true)}
+                                    onSwitchPerspective={() => {
+                                        const slug = props.currentInstitution?.slug || props.currentInstitution?.id;
+                                        window.open(`/?view=showroom&showroom=${slug}`, '_blank');
+                                    }}
+                                />
+                            ) : autoSubTab === 'inventory' ? (
+                                <CarInventoryList 
+                                    listings={props.carListings || []}
+                                    institution={props.currentInstitution!}
+                                    onAddListing={() => {
+                                        setSelectedListingForEdit(null);
+                                        setIsAddListingModalOpen(true);
+                                    }}
+                                    onEditListing={(listing) => {
+                                        setSelectedListingForEdit(listing);
+                                        setIsAddListingModalOpen(true);
+                                    }}
+                                    onDeleteListing={async (id) => {
+                                        if (confirm('Are you sure you want to delete this vehicle listing?')) {
+                                            await apiService.deleteModuleRecord('car_sales_listings', id);
+                                            if (props.onRefreshData) props.onRefreshData();
+                                        }
+                                    }}
+                                    onViewShowroom={() => {
+                                        const slug = props.currentInstitution?.slug || props.currentInstitution?.id;
+                                        window.open(`/?view=showroom&showroom=${slug}`, '_blank');
+                                    }}
+                                />
+                            ) : (
+                                <CarSalesLedger 
+                                    invoices={props.carInvoices || []}
+                                    payments={props.carPayments || []}
+                                    listings={props.carListings || []}
+                                    onAddInvoice={() => setIsAddCarInvoiceModalOpen(true)}
+                                    onAddPayment={(invoice) => {
+                                        setSelectedInvoiceForPayment(invoice || null);
+                                        setIsAddCarPaymentModalOpen(true);
+                                    }}
+                                    onPrintInvoice={(inv) => {
+                                        setSelectedInvoiceForReceipt(inv);
+                                        setIsCarReceiptModalOpen(true);
+                                    }}
+                                    onPrintReceipt={(pay) => {
+                                        const inv = props.carInvoices?.find(i => i.id === pay.invoiceId);
+                                        setSelectedInvoiceForReceipt(inv || null);
+                                        setSelectedPaymentForReceipt(pay);
+                                        setIsCarReceiptModalOpen(true);
+                                    }}
+                                />
+                            )}
+                        </div>
+                    </div>
                 )}
 
                                         {activeTab === 'showcase' && props.currentInstitution && (
