@@ -661,7 +661,15 @@ export const apiService = {
         });
     },
     async updateModuleRecord<T = any>(module: string, id: string, data: Partial<T>): Promise<T | null> {
-        const payload = toSnakeCase(data);
+        let payload = toSnakeCase(data);
+        
+        // Strip out fields known to be missing from the Supabase schema to prevent errors
+        if (module === 'users' && payload.metadata !== undefined) {
+            delete payload.metadata;
+        }
+        if (module === 'car_sales_listings' && payload.registration_number !== undefined) {
+            delete payload.registration_number;
+        }
 
         if (!_supabase) {
             const records = ls.get(module);
@@ -735,7 +743,15 @@ export const apiService = {
         }
     },
     async saveModuleRecord<T = any>(module: string, data: T): Promise<T | null> {
-        const payload = toSnakeCase(data);
+        let payload = toSnakeCase(data);
+
+        // Strip out fields known to be missing from the Supabase schema to prevent errors
+        if (module === 'users' && payload.metadata !== undefined) {
+            delete payload.metadata;
+        }
+        if (module === 'car_sales_listings' && payload.registration_number !== undefined) {
+            delete payload.registration_number;
+        }
 
         if (!_supabase) {
             ls.upsert(module, payload);
@@ -807,7 +823,18 @@ export const apiService = {
         // For "Retry All", we'll delete each as it succeeds.
     },
     async saveModuleRecords<T = any>(module: string, data: T[]): Promise<T[] | null> {
-        const payload = data.map(toSnakeCase);
+        let payload = data.map(toSnakeCase);
+
+        // Strip out fields known to be missing from the Supabase schema to prevent errors
+        payload = payload.map(item => {
+            if (module === 'users' && item.metadata !== undefined) {
+                delete item.metadata;
+            }
+            if (module === 'car_sales_listings' && item.registration_number !== undefined) {
+                delete item.registration_number;
+            }
+            return item;
+        });
 
         if (!_supabase) {
             payload.forEach(item => ls.upsert(module, item));
