@@ -470,6 +470,25 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         }
     };
 
+    const handlePreviewCarAgreement = async (invoice: CarInvoice) => {
+        const listing = props.carListings?.find(l => l.id === invoice.listingId);
+        if (!listing) return;
+        
+        try {
+            const uri = await pdfService.generateCarSaleAgreementPdfDataUri(
+                invoice,
+                listing,
+                props.currentInstitution!,
+                companyDetails,
+                props.currentInstitution!.logoUrl
+            );
+            setPdfPreviewData({ uri, title: `Agreement ${invoice.invoiceNumber}` });
+        } catch (error) {
+            console.error("Failed to generate PDF:", error);
+            alert("Failed to generate PDF. Please try again.");
+        }
+    };
+
     const [isPerspectiveModalOpen, setIsPerspectiveModalOpen] = useState(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [editingInstitution, setEditingInstitution] = useState<Institution | null>(null);
@@ -1865,6 +1884,12 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                                                 className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
                                                             >
                                                                 PDF
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => handlePreviewCarAgreement(inv)}
+                                                                className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
+                                                            >
+                                                                Agreement
                                                             </button>
                                                         </td>
                                                         </tr>

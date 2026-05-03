@@ -150,6 +150,73 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                         </div>
                     </div>
 
+                    {/* Installment Plan Toggle */}
+                    <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-slate-700 space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-800 dark:text-white">Enable Installment Plan</h4>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Split the total amount into periodic payments</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setFormData(prev => ({ ...prev, isInstallment: !prev.isInstallment }))}
+                                className={`w-14 h-8 rounded-full transition-all relative ${formData.isInstallment ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'}`}
+                            >
+                                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${formData.isInstallment ? 'left-7' : 'left-1'}`}></div>
+                            </button>
+                        </div>
+
+                        {formData.isInstallment && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in">
+                                <div className="space-y-3">
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Frequency</label>
+                                    <select
+                                        value={formData.installmentFrequency || 'monthly'}
+                                        onChange={(e) => setFormData({ ...formData, installmentFrequency: e.target.value as any })}
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 rounded-xl border-none text-xs font-bold dark:text-white focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <option value="monthly">Monthly</option>
+                                        <option value="bi-weekly">Bi-Weekly</option>
+                                        <option value="weekly">Weekly</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Total Installments</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={formData.totalInstallments || 1}
+                                        onChange={(e) => {
+                                            const total = parseInt(e.target.value) || 1;
+                                            setFormData({ 
+                                                ...formData, 
+                                                totalInstallments: total,
+                                                installmentAmount: formData.totalAmount ? formData.totalAmount / total : 0
+                                            });
+                                        }}
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 rounded-xl border-none text-xs font-bold dark:text-white focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Start Date</label>
+                                    <input
+                                        type="date"
+                                        value={formData.startDate || new Date().toISOString().split('T')[0]}
+                                        onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-800 rounded-xl border-none text-xs font-bold dark:text-white focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                {formData.totalInstallments && formData.totalInstallments > 0 && (
+                                    <div className="col-span-full pt-4 border-t border-slate-100 dark:border-slate-800">
+                                        <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">
+                                            Installment Amount: KES {((formData.totalAmount || 0) / formData.totalInstallments).toLocaleString()} / {formData.installmentFrequency || 'monthly'}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
                     <div className="space-y-4">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Payment Terms & Notes</label>
                         <textarea 

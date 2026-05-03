@@ -379,6 +379,78 @@ export const generateCarReceiptPdfDataUri = async (
     return doc.output('datauristring');
 };
 
+export const generateCarSaleAgreementPdfDataUri = async (
+    invoice: CarInvoice,
+    listing: CarListing,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    const tableStartY = createPdfWithLetterhead(doc, 'VEHICLE SALE & INSTALLMENT AGREEMENT', companyDetails, institution, logoImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('1. PARTIES TO THE AGREEMENT', margin, tableStartY + 10);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`SELLER: ${institution.name}`, margin, tableStartY + 18);
+    doc.text(`BUYER: ${invoice.clientName}`, margin, tableStartY + 24);
+    doc.text(`Phone: ${invoice.clientPhone}`, margin, tableStartY + 30);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('2. VEHICLE DESCRIPTION', margin, tableStartY + 45);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Make/Model: ${listing.year} ${listing.make} ${listing.model}`, margin, tableStartY + 53);
+    doc.text(`Registration: ${listing.registrationNumber}`, margin, tableStartY + 59);
+    doc.text(`Chassis No: ${listing.chassisNumber || 'N/A'}`, margin, tableStartY + 65);
+    doc.text(`Engine No: ${listing.engineNumber || 'N/A'}`, margin, tableStartY + 71);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('3. FINANCIAL TERMS', margin, tableStartY + 86);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Total Sale Price: KES ${invoice.totalAmount.toLocaleString()}`, margin, tableStartY + 94);
+    
+    if (invoice.isInstallment) {
+        doc.text(`Payment Mode: Installment Plan`, margin, tableStartY + 100);
+        doc.text(`Frequency: ${invoice.installmentFrequency}`, margin, tableStartY + 106);
+        doc.text(`Total Installments: ${invoice.totalInstallments}`, margin, tableStartY + 112);
+        doc.text(`Amount per Installment: KES ${invoice.installmentAmount?.toLocaleString()}`, margin, tableStartY + 118);
+        doc.text(`Commencement Date: ${invoice.startDate}`, margin, tableStartY + 124);
+    } else {
+        doc.text(`Payment Mode: Full Payment`, margin, tableStartY + 100);
+        doc.text(`Due Date: ${invoice.dueDate}`, margin, tableStartY + 106);
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('4. DECLARATION', margin, tableStartY + 140);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const declaration = "The Buyer agrees to purchase the vehicle described above under the terms and conditions set forth in this agreement. Ownership shall remain with the Seller until the total amount is paid in full. In case of default on any installment, the Seller reserves the right to repossess the vehicle.";
+    const splitText = doc.splitTextToSize(declaration, pageWidth - (margin * 2));
+    doc.text(splitText, margin, tableStartY + 148);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('SELLER SIGNATURE: _______________________', margin, tableStartY + 180);
+    doc.text('BUYER SIGNATURE: _______________________', margin, tableStartY + 195);
+    doc.text('DATE: _______________________', margin, tableStartY + 210);
+
+    return doc.output('datauristring');
+};
+
 export const downloadInvoicePdf = async (invoice: Invoice, institution: Institution, companyDetails: CompanyDetails, logoUrl: string | null) => {
     const dataUri = await generateInvoicePdfDataUri(invoice, institution, companyDetails, logoUrl);
     const link = document.createElement('a');

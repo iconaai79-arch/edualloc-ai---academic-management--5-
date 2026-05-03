@@ -3965,6 +3965,11 @@ export interface CarInvoice {
     dueDate?: string;
     invoiceNumber: string;
     notes?: string;
+    isInstallment?: boolean;
+    installmentFrequency?: 'monthly' | 'weekly' | 'bi-weekly';
+    totalInstallments?: number;
+    installmentAmount?: number;
+    startDate?: string;
     createdAt?: string;
     updatedAt?: string;
 }
