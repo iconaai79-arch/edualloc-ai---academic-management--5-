@@ -41,6 +41,8 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
         transmission: 'Automatic',
         status: 'active',
         registrationNumber: listing?.registrationNumber || '',
+        tour360Url: listing?.tour360Url || '',
+        videoWalkthroughUrl: listing?.videoWalkthroughUrl || '',
         viewCount: 0,
         inquiryCount: 0,
         galleryUrls: []
@@ -293,6 +295,31 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                                         value={formData.registrationNumber} 
                                         onChange={e => setFormData({ ...formData, registrationNumber: e.target.value })} 
                                         placeholder="e.g. KDC 123X" 
+                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center gap-1.5">
+                                        <BadgeCheck className="w-3.5 h-3.5" /> 360° Virtual Tour Link
+                                    </label>
+                                    <input 
+                                        value={formData.tour360Url} 
+                                        onChange={e => setFormData({ ...formData, tour360Url: e.target.value })} 
+                                        placeholder="e.g. Matterport or Kuula Link" 
+                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center gap-1.5">
+                                        <BadgeCheck className="w-3.5 h-3.5" /> Video Walkthrough Link
+                                    </label>
+                                    <input 
+                                        value={formData.videoWalkthroughUrl} 
+                                        onChange={e => setFormData({ ...formData, videoWalkthroughUrl: e.target.value })} 
+                                        placeholder="e.g. YouTube or Vimeo Link" 
                                         className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
                                     />
                                 </div>

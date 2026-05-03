@@ -130,12 +130,22 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                         <img loading="lazy" src={vehicle.mainImageUrl} className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-12">
                             <div className="flex gap-4">
-                                <button className="bg-white/10 backdrop-blur-xl border border-white/20 text-white px-8 py-4 rounded-3xl font-black uppercase text-[11px] hover:bg-white/20 transition-all flex items-center gap-2">
-                                    <Rotate3d className="w-5 h-5" /> 360° Interior
-                                </button>
-                                <button className="bg-white/10 backdrop-blur-xl border border-white/20 text-white px-8 py-4 rounded-3xl font-black uppercase text-[11px] hover:bg-white/20 transition-all flex items-center gap-2">
-                                    <PlayCircle className="w-5 h-5" /> Tour Video
-                                </button>
+                                {vehicle.tour360Url && (
+                                    <button 
+                                        onClick={() => window.open(vehicle.tour360Url, '_blank')}
+                                        className="bg-white/10 backdrop-blur-xl border border-white/20 text-white px-8 py-4 rounded-3xl font-black uppercase text-[11px] hover:bg-white/20 transition-all flex items-center gap-2"
+                                    >
+                                        <Rotate3d className="w-5 h-5" /> 360° Interior
+                                    </button>
+                                )}
+                                {vehicle.videoWalkthroughUrl && (
+                                    <button 
+                                        onClick={() => window.open(vehicle.videoWalkthroughUrl, '_blank')}
+                                        className="bg-white/10 backdrop-blur-xl border border-white/20 text-white px-8 py-4 rounded-3xl font-black uppercase text-[11px] hover:bg-white/20 transition-all flex items-center gap-2"
+                                    >
+                                        <PlayCircle className="w-5 h-5" /> Tour Video
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
