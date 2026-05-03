@@ -3920,6 +3920,7 @@ export interface CarListing {
     galleryUrls?: string[];
     tour360Url?: string;
     videoWalkthroughUrl?: string;
+    inspectionReportUrl?: string;
     aiValuationStatus?: 'pending' | 'estimated' | 'verified';
     estimatedMarketValue?: number;
     inspectionScore?: number;
