@@ -3919,6 +3919,7 @@ export interface CarListing {
     aiValuationStatus?: 'pending' | 'estimated' | 'verified';
     estimatedMarketValue?: number;
     inspectionScore?: number;
+    registrationNumber?: string;
     vinNumber?: string;
     verifiedHistory?: boolean;
     status: 'draft' | 'active' | 'sold' | 'archived';
@@ -3964,6 +3965,7 @@ export interface CarInvoice {
     status: 'pending' | 'partially_paid' | 'fully_paid' | 'cancelled';
     dueDate?: string;
     invoiceNumber: string;
+    registrationNumber?: string;
     notes?: string;
     isInstallment?: boolean;
     installmentFrequency?: 'monthly' | 'weekly' | 'bi-weekly';

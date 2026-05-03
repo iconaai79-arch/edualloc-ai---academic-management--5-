@@ -299,7 +299,7 @@ export const generateCarInvoicePdfDataUri = async (
         [
             1,
             `${listing.year} ${listing.make} ${listing.model}`,
-            listing.registrationNumber,
+            invoice.registrationNumber || listing.registrationNumber || 'N/A',
             invoice.totalAmount.toLocaleString()
         ]
     ];
@@ -478,7 +478,13 @@ export const generateCarClientStatementPdfDataUri = async (
 
     // Combine invoices and payments, sort by date
     const transactions = [
-        ...invoices.map(inv => ({ date: inv.createdAt || '', ref: inv.invoiceNumber, desc: 'Vehicle Invoice', amount: inv.totalAmount, type: 'debit' })),
+        ...invoices.map(inv => ({ 
+            date: inv.createdAt || '', 
+            ref: inv.invoiceNumber, 
+            desc: inv.registrationNumber ? `Vehicle Invoice (${inv.registrationNumber})` : 'Vehicle Invoice', 
+            amount: inv.totalAmount, 
+            type: 'debit' 
+        })),
         ...payments.map(pay => ({ date: pay.paymentDate, ref: pay.receiptNumber, desc: `Payment - ${pay.paymentMethod}`, amount: pay.amount, type: 'credit' }))
     ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 

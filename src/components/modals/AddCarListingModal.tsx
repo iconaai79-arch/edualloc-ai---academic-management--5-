@@ -40,6 +40,7 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
         fuelType: 'Petrol',
         transmission: 'Automatic',
         status: 'active',
+        registrationNumber: listing?.registrationNumber || '',
         viewCount: 0,
         inquiryCount: 0,
         galleryUrls: []
@@ -284,6 +285,20 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                                         className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
                                     />
                                 </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center gap-1.5">
+                                        <BadgeCheck className="w-3.5 h-3.5" /> Car Registration Number
+                                    </label>
+                                    <input 
+                                        value={formData.registrationNumber} 
+                                        onChange={e => setFormData({ ...formData, registrationNumber: e.target.value })} 
+                                        placeholder="e.g. KDC 123X" 
+                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4">
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center gap-1.5">
                                         <BadgeCheck className="w-3.5 h-3.5 text-emerald-500" /> Platform Status

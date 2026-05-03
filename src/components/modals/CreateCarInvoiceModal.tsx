@@ -21,6 +21,7 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
         clientEmail: '',
         clientPhone: '',
         totalAmount: 0,
+        registrationNumber: '',
         dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         notes: ''
     });
@@ -61,7 +62,7 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                     {/* Vehicle Selection */}
                     <div className="space-y-4">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Vehicle from Inventory</label>
-                        <div className="grid grid-cols-1 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <select 
                                 required
                                 value={formData.listingId}
@@ -73,6 +74,7 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                                         ...prev, 
                                         listingId: lId, 
                                         totalAmount: price,
+                                        registrationNumber: (l as any)?.registrationNumber || prev.registrationNumber,
                                         installmentAmount: prev.isInstallment && prev.totalInstallments ? price / prev.totalInstallments : prev.installmentAmount
                                     }));
                                 }}
@@ -83,6 +85,13 @@ export const CreateCarInvoiceModal: React.FC<CreateCarInvoiceModalProps> = ({ is
                                     <option key={l.id} value={l.id}>{l.year} {l.make} {l.model} - KES {l.price.toLocaleString()}</option>
                                 ))}
                             </select>
+                            <input 
+                                type="text"
+                                placeholder="Car Reg Number (e.g. KDC 123X)"
+                                value={formData.registrationNumber}
+                                onChange={(e) => setFormData({ ...formData, registrationNumber: e.target.value })}
+                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
+                            />
                         </div>
                     </div>
 

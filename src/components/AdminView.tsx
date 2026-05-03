@@ -51,6 +51,7 @@ const BoardingMasterView = lazy(() => import('./BoardingMasterView'));
 const ExamInsights = lazy(() => import('./Academics/ExamInsights').then(m => ({ default: m.ExamInsights })));
 const AcademicReportsHub = lazy(() => import('./Academics/AcademicReportsHub').then(m => ({ default: m.AcademicReportsHub })));
 const DisciplineManager = lazy(() => import('./Academics/DisciplineManager').then(m => ({ default: m.DisciplineManager })));
+const CarShowroomDashboard = lazy(() => import('./automotive/CarShowroomDashboard').then(m => ({ default: m.CarShowroomDashboard })));
 
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
@@ -862,6 +863,22 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         {isCampaign ? (
                             <div className="animate-fade-in">
                                 <CampaignCommandView user={props.currentUser} />
+                            </div>
+                        ) : isAutoMarket ? (
+                            <div className="animate-fade-in">
+                                <CarShowroomDashboard 
+                                    listings={props.carListings || []}
+                                    invoices={props.carInvoices || []}
+                                    payments={props.carPayments || []}
+                                    testDrives={props.carTestDrives || []}
+                                    users={props.users || []}
+                                    institution={props.currentInstitution!}
+                                    onAction={handleQuickAction}
+                                    onAddListing={() => setIsAddListingModalOpen(true)}
+                                    onAddInvoice={() => setIsAddCarInvoiceModalOpen(true)}
+                                    onAddPayment={() => setIsAddCarPaymentModalOpen(true)}
+                                    onSwitchPerspective={() => setIsPerspectiveModalOpen(true)}
+                                />
                             </div>
                         ) : (
                             <>

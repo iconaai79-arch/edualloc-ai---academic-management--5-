@@ -80,6 +80,7 @@ export const CarReceiptModal: React.FC<CarReceiptModalProps> = ({ isOpen, onClos
                             <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">Invoice Details</p>
                             <div>
                                 <p className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tighter">Reference #{invoice.invoiceNumber}</p>
+                                <p className="text-xs font-bold text-slate-500 mt-1">Reg No: {invoice.registrationNumber || 'N/A'}</p>
                                 <p className="text-xs font-bold text-slate-500 mt-1">Total Agreed: KES {invoice.totalAmount.toLocaleString()}</p>
                                 <p className="text-xs font-bold text-indigo-600 mt-1 uppercase tracking-widest">Status: {invoice.status.replace('_', ' ')}</p>
                             </div>
