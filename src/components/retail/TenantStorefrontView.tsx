@@ -187,6 +187,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                     customerName: inquiryName,
                     phoneNumber: inquiryPhone,
                     productQuery: inquiryProduct.name,
+                    urgency: 'urgent',
                     status: 'Open',
                     createdAt: new Date().toISOString()
                 };
@@ -198,6 +199,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                     customerName: inquiryName,
                     phoneNumber: inquiryPhone,
                     productQuery: 'General Store Inquiry',
+                    urgency: 'urgent',
                     status: 'Open',
                     createdAt: new Date().toISOString()
                 };
