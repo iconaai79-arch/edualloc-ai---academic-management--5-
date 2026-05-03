@@ -163,7 +163,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
 
     const handleSubmitInquiry = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!tenant || (!inquiryListing && !inquiryProduct)) return;
+        if (!tenant || (!inquiryListing && !inquiryProduct && !isGeneralContact)) return;
         setInquirySubmitting(true);
 
         try {
@@ -191,6 +191,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                     status: 'Open',
                     createdAt: new Date().toISOString()
                 };
+                console.log('Submitting product inquiry lead:', lead);
                 await apiService.saveModuleRecord('retail_wishlist', lead);
             } else if (isGeneralContact) {
                  const lead = {
@@ -203,6 +204,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                     status: 'Open',
                     createdAt: new Date().toISOString()
                 };
+                console.log('Submitting general inquiry lead:', lead);
                 await apiService.saveModuleRecord('retail_wishlist', lead);
             }
             setInquirySuccess(true);
