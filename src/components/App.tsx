@@ -597,14 +597,6 @@ export const App: React.FC = () => {
         }
     });
     const [showTenantStore, setShowTenantStore] = useState(!!activeStoreTenantId);
-    
-    const isAutoMarket = useMemo(() => {
-        const type = activeInstitution?.institutionType;
-        const cat = activeInstitution?.category;
-        const subType = activeInstitution?.businessSubType?.toLowerCase() || '';
-        const name = activeInstitution?.name?.toLowerCase() || '';
-        return type === 'Car Showroom' || cat === 'Automotive Marketplace' || cat === 'Car Showroom' || subType.includes('vehicle sales') || subType.includes('car sales') || subType.includes('motors') || name.includes('motors') || name.includes('car sales') || subType.includes('showroom');
-    }, [activeInstitution]);
 
     const [showMarketing, setShowMarketing] = useState(() => {
         try {
@@ -1235,6 +1227,14 @@ export const App: React.FC = () => {
         }
         return null;
     }, [currentUser, institutions, schoolRegistry]);
+
+    const isAutoMarket = useMemo(() => {
+        const type = activeInstitution?.institutionType;
+        const cat = activeInstitution?.category;
+        const subType = activeInstitution?.businessSubType?.toLowerCase() || '';
+        const name = activeInstitution?.name?.toLowerCase() || '';
+        return type === 'Car Showroom' || cat === 'Automotive Marketplace' || cat === 'Car Showroom' || subType.includes('vehicle sales') || subType.includes('car sales') || subType.includes('motors') || name.includes('motors') || name.includes('car sales') || subType.includes('showroom');
+    }, [activeInstitution]);
 
     const [selectedRole, setSelectedRole] = useState<Role | null>(null);
 
