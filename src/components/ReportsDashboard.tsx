@@ -342,6 +342,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     } = props;
 
     const isRetailAgency = RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
+    const isAutoSales = currentInstitution?.businessSubType?.toLowerCase().includes('car') || currentInstitution?.businessSubType?.toLowerCase().includes('auto');
     const isEdu = useMemo(() => {
         const type = currentInstitution?.institutionType;
         return type === 'Education' || ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes((currentInstitution as any)?.institutionType || '');
@@ -655,6 +656,10 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         { key: 'patterns', label: 'Behavioral Analytics', icon: <TrendingUpIcon className="w-5 h-5 mr-3" /> },
         { key: 'client_statements', label: 'Client Statements', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
     ].filter(tab => {
+        if (isAutoSales) {
+            const allowed = ['visuals', 'stats', 'audit', 'attendance', 'client_statements'];
+            return allowed.includes(tab.key);
+        }
         if (isRetailAgency || !isEdu) {
             const allowed = ['visuals', 'stats', 'audit', 'attendance', 'patterns'];
             if (currentInstitution?.institutionType === 'Transport' || currentInstitution?.institutionType === 'Business' || currentInstitution?.institutionType === 'Retail') {
@@ -708,6 +713,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             courses={courses || []}
                             rooms={rooms || []}
                             visitors={visitors || []}
+                            isAutoSales={isAutoSales}
                         />
                     )}
                     {subTab === 'stats' && (
@@ -816,14 +822,14 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             </div>
 
                             <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg overflow-x-auto">
-                                <h3 className="text-xl font-semibold p-6">{isRetailAgency ? 'Personnel & Agent Statistics' : 'Faculty Workload Summary'}</h3>
+                                <h3 className="text-xl font-semibold p-6">{(isAutoSales || isRetailAgency) ? 'Personnel & Sales Agent Statistics' : 'Faculty Workload Summary'}</h3>
                                 <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
                                     <thead className="bg-slate-50 dark:bg-slate-700">
                                         <tr>
-                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">{isRetailAgency ? 'Staff / Agent' : 'Faculty Member'}</th>
-                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">{isRetailAgency ? 'Assigned Tasks' : 'Allocated Units'}</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">{(isAutoSales || isRetailAgency) ? 'Staff / Agent' : 'Faculty Member'}</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">{(isAutoSales || isRetailAgency) ? 'Assigned Leads' : 'Allocated Units'}</th>
                                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Count</th>
-                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">{isRetailAgency ? 'Total Sessions' : 'Total Periods'}</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">{(isAutoSales || isRetailAgency) ? 'Total Shifts' : 'Total Periods'}</th>
                                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Hrs/Week</th>
                                         </tr>
                                     </thead>
