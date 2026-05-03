@@ -46,6 +46,7 @@ const AddCarListingModal = lazy(() => import('./modals/AddCarListingModal').then
 const CreateCarInvoiceModal = lazy(() => import('./modals/CreateCarInvoiceModal').then(m => ({ default: m.CreateCarInvoiceModal })));
 const RecordCarPaymentModal = lazy(() => import('./modals/RecordCarPaymentModal').then(m => ({ default: m.RecordCarPaymentModal })));
 const CarReceiptModal = lazy(() => import('./modals/CarReceiptModal').then(m => ({ default: m.CarReceiptModal })));
+const AddCarLeadModal = lazy(() => import('./modals/AddCarLeadModal').then(m => ({ default: m.AddCarLeadModal })));
 const AcademicConfigManager = lazy(() => import('./AcademicConfigManager').then(m => ({ default: m.AcademicConfigManager })));
 const BoardingMasterView = lazy(() => import('./BoardingMasterView'));
 const ExamInsights = lazy(() => import('./Academics/ExamInsights').then(m => ({ default: m.ExamInsights })));
@@ -430,6 +431,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const [autoSubTab, setAutoSubTab] = useState<'inventory' | 'financials'>('inventory');
     const [isAddCarInvoiceModalOpen, setIsAddCarInvoiceModalOpen] = useState(false);
     const [isAddCarPaymentModalOpen, setIsAddCarPaymentModalOpen] = useState(false);
+    const [isAddCarLeadModalOpen, setIsAddCarLeadModalOpen] = useState(false);
     const [isCarReceiptModalOpen, setIsCarReceiptModalOpen] = useState(false);
     const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<CarInvoice | null>(null);
     const [selectedInvoiceForReceipt, setSelectedInvoiceForReceipt] = useState<CarInvoice | null>(null);
@@ -568,8 +570,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         if (props.currentInstitution?.institutionType === 'Church' || props.currentInstitution?.institutionType === 'Hospitality') return false;
         const subType = props.currentInstitution?.businessSubType || '';
         const type = props.currentInstitution?.institutionType || '';
-        return RETAIL_SUBTYPES.includes(subType) || RETAIL_SUBTYPES.includes(type);
-    }, [props.currentInstitution]);
+        return RETAIL_SUBTYPES.includes(subType) || RETAIL_SUBTYPES.includes(type) || isAutoMarket;
+    }, [props.currentInstitution, isAutoMarket]);
 
     const isChurch = useMemo(() => {
         return props.currentInstitution?.institutionType === 'Church' || props.currentInstitution?.businessSubType === 'Church';
@@ -877,6 +879,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     onAddListing={() => setIsAddListingModalOpen(true)}
                                     onAddInvoice={() => setIsAddCarInvoiceModalOpen(true)}
                                     onAddPayment={() => setIsAddCarPaymentModalOpen(true)}
+                                    onAddLead={() => setIsAddCarLeadModalOpen(true)}
                                     onSwitchPerspective={() => setIsPerspectiveModalOpen(true)}
                                 />
                             </div>
@@ -1223,6 +1226,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onSendSms={props.onSendSms}
                         companyDetails={props.companyDetails}
                         currentInstitution={props.currentInstitution}
+                        isRetailAgency={isRetailAgency}
                     />
                 )}
 
@@ -1315,7 +1319,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         mpesaConfig={props.companyDetails.mpesaConfig}
                         smsConfig={props.smsConfig}
                         onRefreshData={props.onRefreshData}
-                        moduleContext={isCoop ? 'cooperative' : (isRetailAgency ? 'agrovet' : isChurch ? 'church' : 'school')}
+                        moduleContext={isCoop ? 'cooperative' : (isAutoMarket ? 'auto_marketplace' : (isRetailAgency ? 'agrovet' : isChurch ? 'church' : 'school'))}
                     />
                 )}
 
@@ -2129,6 +2133,35 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 </React.Suspense>
             )}
 
+            {isAddCarLeadModalOpen && (
+                <React.Suspense fallback={null}>
+                    <AddCarLeadModal 
+                        institution={props.currentInstitution!}
+                        onClose={() => setIsAddCarLeadModalOpen(false)}
+                        onSave={async (lead) => {
+                            const userData: Partial<User> = {
+                                name: lead.customerName,
+                                phoneNumber: lead.customerPhone,
+                                email: lead.customerEmail || '',
+                                role: 'lead',
+                                institutionId: props.currentInstitution!.id,
+                                metadata: {
+                                    enquiredModels: lead.enquiredModels,
+                                    source: lead.source,
+                                    status: lead.status,
+                                    notes: lead.notes,
+                                    leadType: 'walk-in'
+                                }
+                            };
+                            if (props.onAddUser) {
+                                await props.onAddUser(userData);
+                            }
+                            setIsAddCarLeadModalOpen(false);
+                            if (props.onRefreshData) props.onRefreshData();
+                        }}
+                    />
+                </React.Suspense>
+            )}
             {isCarReceiptModalOpen && (
                 <React.Suspense fallback={null}>
                     <CarReceiptModal 

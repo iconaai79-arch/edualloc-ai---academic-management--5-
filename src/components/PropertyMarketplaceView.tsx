@@ -468,6 +468,11 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             (p.description || '').toLowerCase().includes(q);
     });
 
+    const filteredVehicles = vehicleListings.filter(v => {
+        const q = searchQuery.toLowerCase();
+        return `${v.make} ${v.model} ${v.year} ${v.description} ${v.fuelType} ${v.transmission}`.toLowerCase().includes(q);
+    });
+
     const getSeller = (instId: string) => institutions.find(i => i.id === instId);
 
     if (loading) {
@@ -1034,7 +1039,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             {activeSection === 'vehicles' && (
                 <div className="max-w-[1600px] mx-auto px-8 pb-32 pt-20">
                     <VehicleMarketplaceView 
-                        listings={vehicleListings}
+                        listings={filteredVehicles}
                         onBookTestDrive={(v) => {
                              // Implement book test drive flow if needed
                              alert(`Booking test drive for ${v.make} ${v.model}. Out of scope for this demo.`);

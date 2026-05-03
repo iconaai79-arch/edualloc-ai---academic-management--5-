@@ -52,10 +52,11 @@ const calculateSmsParts = (msg: string) => {
 export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ users, departments, courses, institutions, onSendSms, currentUser, smsBalance, currentInstitution, mpesaConfig, smsConfig, onRefreshData, moduleContext = 'school', companyDetails, transactions }) => {
     const isRetailAgency = useMemo(() => {
         if (currentInstitution?.institutionType === 'Church') return false;
+        if (moduleContext === 'auto_marketplace') return true;
         const subType = currentInstitution?.businessSubType || '';
         const type = currentInstitution?.institutionType || '';
         return RETAIL_SUBTYPES.includes(subType) || RETAIL_SUBTYPES.includes(type);
-    }, [currentInstitution]);
+    }, [currentInstitution, moduleContext]);
     const isChurch = useMemo(() => currentInstitution?.institutionType === 'Church', [currentInstitution]);
     const [isBuySMSModalOpen, setIsBuySMSModalOpen] = useState(false);
     const [recipientTarget, setRecipientTarget] = useState('individual'); // individual, all_staff, all_students, department, course, institution
@@ -172,6 +173,15 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
         return courses.map(c => ({ id: c.id, name: c.name }));
     }, [courses, departments, isSuperAdminView, institutionMap, currentUser]);
 
+    const leadModelOptions = useMemo(() => {
+        const models = new Set<string>();
+        users.filter(u => u.role === 'lead' && u.metadata?.enquiredModels).forEach(u => {
+            u.metadata.enquiredModels.forEach((m: string) => models.add(m));
+        });
+        return Array.from(models).sort();
+    }, [users]);
+
+    const [leadModelFilter, setLeadModelFilter] = useState('all');
 
     const recipientList = useMemo(() => {
         let baseUsers = users;
@@ -221,8 +231,13 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                 return isChurch ? [] : baseUsers.filter(u => u.role === 'field_agent');
             case 'all_agents':
                 return isChurch ? [] : baseUsers.filter(u => ['retail_agent', 'field_agent', 'agent'].includes(u.role as string));
-            case 'all_leads':
-                return isChurch ? [] : baseUsers.filter(u => u.role === 'lead');
+            case 'all_leads': {
+                let filtered = isChurch ? [] : baseUsers.filter(u => u.role === 'lead');
+                if (leadModelFilter !== 'all') {
+                    filtered = filtered.filter(u => u.metadata?.enquiredModels?.includes(leadModelFilter));
+                }
+                return filtered;
+            }
             case 'institution': {
                 if (!selectedId) return [];
                 const usersInInstitution = baseUsers.filter(u => u.institutionId === selectedId);
@@ -246,7 +261,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
             default:
                 return [];
         }
-    }, [recipientTarget, selectedId, selectedInstitutionRoleFilter, users, courses, currentUser]);
+    }, [recipientTarget, selectedId, selectedInstitutionRoleFilter, users, courses, currentUser, leadModelFilter]);
 
     const validRecipients = useMemo(() => {
         const unique = new Map<string, User>();
@@ -446,6 +461,22 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                         <select value={selectedInstitutionRoleFilter} onChange={e => setSelectedInstitutionRoleFilter(e.target.value as any)} required className="form-select" aria-label="Select role within institution">
                             <option value="all">All Users</option>
                             <option value="admins">Admins Only</option>
+                        </select>
+                    </div>
+                ) : null;
+            case 'all_leads':
+                return leadModelOptions.length > 0 ? (
+                    <div className="mt-1">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Filter by Interested Model</label>
+                        <select 
+                            value={leadModelFilter} 
+                            onChange={e => setLeadModelFilter(e.target.value)} 
+                            className="form-select mt-1"
+                        >
+                            <option value="all">All Models ({leadModelOptions.length})</option>
+                            {leadModelOptions.map(model => (
+                                <option key={model} value={model}>{model}</option>
+                            ))}
                         </select>
                     </div>
                 ) : null;
@@ -787,7 +818,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                                                 <option value="all_field_agents">All Field Agents</option>
                                                 <option value="all_agents">All Agents (Retail + Field)</option>
                                                 <option value="all_customers">All Customers</option>
-                                                <option value="all_leads">All Leads</option>
+                                                <option value="all_leads">Showroom Leads (Walk-ins)</option>
                                             </>
                                         ) : (
                                             <>

@@ -32,6 +32,7 @@ interface CarShowroomDashboardProps {
     onAddListing: () => void;
     onAddInvoice: () => void;
     onAddPayment: () => void;
+    onAddLead: () => void;
     onSwitchPerspective: () => void;
 }
 
@@ -46,6 +47,7 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
     onAddListing,
     onAddInvoice,
     onAddPayment,
+    onAddLead,
     onSwitchPerspective
 }) => {
     const stats = useMemo(() => {
@@ -54,6 +56,7 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
         const revenueCollected = payments.reduce((sum, pay) => sum + pay.amount, 0);
         const pendingDrives = testDrives.filter(td => td.status === 'pending').length;
         const totalCustomers = new Set(invoices.map(inv => inv.clientName)).size;
+        const totalLeads = users.filter(u => u.role === 'lead').length;
 
         return {
             totalInventory: listings.length,
@@ -61,9 +64,10 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
             totalSales,
             revenueCollected,
             pendingDrives,
-            totalCustomers
+            totalCustomers,
+            totalLeads
         };
-    }, [listings, invoices, payments, testDrives]);
+    }, [listings, invoices, payments, testDrives, users]);
 
     return (
         <div className="space-y-10 animate-fade-in">
@@ -76,6 +80,12 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                     <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Automotive Operations Command Center</p>
                 </div>
                 <div className="flex flex-wrap gap-3">
+                    <button 
+                        onClick={onAddLead}
+                        className="flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-amber-200 hover:bg-amber-600 transition-all active:scale-95"
+                    >
+                        <PlusIcon className="w-4 h-4" /> Log Walk-in
+                    </button>
                     <button 
                         onClick={onAddListing}
                         className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95"
@@ -130,10 +140,10 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                     <div className="absolute -right-4 -top-4 w-24 h-24 bg-sky-50 dark:bg-sky-900/20 rounded-full group-hover:scale-125 transition-transform"></div>
                     <div className="relative z-10">
                         <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2">
-                            <UsersIcon className="w-4 h-4 text-sky-600" /> Showroom Reach
+                            <UsersIcon className="w-4 h-4 text-sky-600" /> Showroom Leads
                         </p>
-                        <h3 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">{stats.totalCustomers}</h3>
-                        <p className="text-[10px] font-bold text-sky-600 mt-2 uppercase tracking-widest">Unique Leads</p>
+                        <h3 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">{stats.totalLeads}</h3>
+                        <p className="text-[10px] font-bold text-sky-600 mt-2 uppercase tracking-widest">Total Enquiries</p>
                     </div>
                 </div>
             </div>

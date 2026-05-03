@@ -250,6 +250,7 @@ export interface User {
     subscriptionExpiry?: string;
     walletBalance?: number;
     loyaltyPoints?: number;
+    metadata?: any;
     createdAt?: string;
 }
 
@@ -3988,6 +3989,21 @@ export interface CarPayment {
     receivedBy?: string;
     notes?: string;
     createdAt?: string;
+}
+
+export interface CarLead {
+    id: string;
+    institutionId: string;
+    customerName: string;
+    customerPhone: string;
+    customerEmail?: string;
+    enquiredModels: string[]; // e.g. ["Toyota Hilux", "Isuzu D-Max"]
+    budget?: number;
+    source: 'walk-in' | 'online' | 'referral';
+    status: 'hot' | 'warm' | 'cold' | 'converted' | 'lost';
+    notes?: string;
+    createdAt: string;
+    updatedAt?: string;
 }
 
 

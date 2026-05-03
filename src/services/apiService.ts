@@ -2481,10 +2481,11 @@ export const apiService = {
         }
         return allRecords;
     },
-    async fetchCarListings(institutionId?: string, status: string = 'active'): Promise<CarListing[]> {
+    async fetchCarListings(institutionId?: string, status: string = 'active', options: any = {}): Promise<CarListing[]> {
         return apiService.fetchModuleRecords('car_sales_listings', institutionId, undefined, { 
-            filter: status !== 'all' ? { status } : undefined,
-            order: 'created_at.desc'
+            filter: status !== 'all' ? { status, ...options.filter } : options.filter,
+            order: 'created_at.desc',
+            ...options
         });
     },
     async saveCarListing(data: Partial<CarListing>): Promise<void> {

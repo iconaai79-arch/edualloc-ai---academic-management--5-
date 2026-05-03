@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PMListing, PMListingStatus, PMListingType, Institution, RetailInventoryItem, PMInquiry, RetailWishlist, AssessmentMark } from '../../types';
+import { PMListing, PMListingStatus, PMListingType, Institution, RetailInventoryItem, PMInquiry, RetailWishlist, AssessmentMark, CarListing } from '../../types';
 import { apiService } from '../../services/apiService';
 import { getInstitutionEmailConfig } from '../../services/emailService';
 import { HomeIcon } from '../icons/HomeIcon';
@@ -17,6 +17,8 @@ import { ArrowRightIcon } from '../icons/ArrowRightIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
 import { GlobeAltIcon } from '../icons/GlobeAltIcon';
+import { CarIcon } from '../icons/CarIcon';
+import { VehicleMarketplaceView } from '../VehicleMarketplaceView';
 
 interface TenantStorefrontViewProps {
     institutionId: string;
@@ -26,9 +28,10 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
     const [tenant, setTenant] = useState<Institution | null>(null);
     const [listings, setListings] = useState<PMListing[]>([]);
     const [retailProducts, setRetailProducts] = useState<RetailInventoryItem[]>([]);
+    const [carListings, setCarListings] = useState<CarListing[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeSection, setActiveSection] = useState<'retail' | 'properties'>('retail');
+    const [activeSection, setActiveSection] = useState<'retail' | 'properties' | 'vehicles'>('retail');
     const [selectedListing, setSelectedListing] = useState<PMListing | null>(null);
     const [selectedProduct, setSelectedProduct] = useState<RetailInventoryItem | null>(null);
     
@@ -65,9 +68,10 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                 if (resolvedTenant) {
                     setTenant(resolvedTenant);
                     // Use the resolved unique ID for subsequent item fetches
-                    const [instListings, instRetail, agroProducts, agroBatches] = await Promise.all([
+                    const [instListings, instRetail, instCars, agroProducts, agroBatches] = await Promise.all([
                         apiService.fetchModuleRecords<PMListing>('pm_listings', resolvedTenant.id),
                         apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', resolvedTenant.id),
+                        apiService.fetchCarListings(resolvedTenant.id, 'active'),
                         (resolvedTenant.institutionType === 'Agrovet' || resolvedTenant.category === 'Agrovet') ? apiService.fetchModuleRecords('agrovet_products', resolvedTenant.id) : Promise.resolve([]),
                         (resolvedTenant.institutionType === 'Agrovet' || resolvedTenant.category === 'Agrovet') ? apiService.fetchModuleRecords('agrovet_batches', resolvedTenant.id) : Promise.resolve([])
                     ]);
@@ -105,6 +109,13 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                     }
 
                     setRetailProducts(products);
+                    setCarListings(instCars || []);
+                    
+                    // Set initial active section based on available content
+                    if (instCars && instCars.length > 0) setActiveSection('vehicles');
+                    else if (products.length > 0) setActiveSection('retail');
+                    else if (instListings && instListings.length > 0) setActiveSection('properties');
+
                     document.title = `${resolvedTenant.name} | Official Storefront`;
                 }
             } catch (error) {
@@ -216,7 +227,7 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
         }
     }, [heroItems.length]);
 
-    const showTabs = retailProducts.length > 0 && listings.length > 0;
+    const showTabs = (retailProducts.length > 0 ? 1 : 0) + (listings.length > 0 ? 1 : 0) + (carListings.length > 0 ? 1 : 0) > 1;
     
     useEffect(() => {
         if (!showTabs) {
@@ -406,6 +417,14 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                         >
                             Properties ({listings.length})
                         </button>
+                        {carListings.length > 0 && (
+                            <button 
+                                onClick={() => setActiveSection('vehicles')}
+                                className={`px-10 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.2em] transition-all ${activeSection === 'vehicles' ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-400 hover:text-indigo-600'}`}
+                            >
+                                Vehicles ({carListings.length})
+                            </button>
+                        )}
                     </div>
                    )}
                    
@@ -459,6 +478,37 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                                 </div>
                             </div>
                         ))}
+                    </div>
+                ) : activeSection === 'vehicles' ? (
+                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+                        <VehicleMarketplaceView 
+                            listings={carListings.filter(c => 
+                                `${c.make} ${c.model}`.toLowerCase().includes(searchQuery.toLowerCase())
+                            )}
+                            onBookTestDrive={(v) => {
+                                setInquiryProduct({
+                                    id: v.id,
+                                    name: `Test Drive: ${v.make} ${v.model}`,
+                                    institutionId: v.institutionId,
+                                    marketplaceEnabled: true,
+                                    quantity: 1,
+                                    srpPrice: v.price
+                                } as any);
+                                setInquirySuccess(false);
+                            }}
+                            onInquiry={(v) => {
+                                setInquiryProduct({
+                                    id: v.id,
+                                    name: `Inquiry: ${v.make} ${v.model}`,
+                                    institutionId: v.institutionId,
+                                    marketplaceEnabled: true,
+                                    quantity: 1,
+                                    srpPrice: v.price
+                                } as any);
+                                setInquirySuccess(false);
+                            }}
+                            currentInstitution={tenant}
+                        />
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
