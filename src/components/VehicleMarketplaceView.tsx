@@ -22,7 +22,8 @@ import {
     MessageCircle,
     Clock,
     Heart,
-    Plus
+    Plus,
+    Printer
 } from 'lucide-react';
 import type { CarListing } from '../types';
 
@@ -52,6 +53,8 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
     const [financeDownPayment, setFinanceDownPayment] = useState(20); // Percentage
     const [financeTenure, setFinanceTenure] = useState(60); // Months
     const [interestRate, setInterestRate] = useState(12); // Annual %
+    const [isQuoting, setIsQuoting] = useState(false);
+    const [quoteData, setQuoteData] = useState<any>(null);
 
     const categories = ['All', 'Sedan', 'SUV', 'Electric', 'Luxury', 'Classic'];
 
@@ -318,6 +321,26 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                                 <MessageCircle className="w-5 h-5" /> WhatsApp
                             </button>
                         </div>
+                        <button 
+                            onClick={() => {
+                                const insurance = vehicle.price * 0.045; // 4.5% Est Insurance
+                                const registration = 25000; // Flat Est for Reg/Transfer
+                                setQuoteData({
+                                    vehicle,
+                                    breakdown: [
+                                        { label: 'Vehicle Unit Price', value: vehicle.price },
+                                        { label: 'Insurance (4.5% Est.)', value: insurance },
+                                        { label: 'Registration & Transfer', value: registration },
+                                        { label: 'Dealer Prep & Admin', value: 15000 },
+                                    ],
+                                    total: vehicle.price + insurance + registration + 15000
+                                });
+                                setIsQuoting(true);
+                            }}
+                            className="h-20 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 rounded-[2rem] font-black uppercase tracking-[0.2em] text-[11px] hover:border-indigo-600 transition-all flex items-center justify-center gap-4 text-slate-900 dark:text-white group"
+                        >
+                            <CircleDollarSign className="w-5 h-5 text-indigo-600 group-hover:scale-110 transition-transform" /> Get Instant Quote
+                        </button>
                     </div>
                 </div>
             </div>
@@ -481,6 +504,54 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                                             </tr>
                                         </tbody>
                                     </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Quotation Modal */}
+                    {isQuoting && quoteData && (
+                        <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-fade-in">
+                            <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[3.5rem] shadow-2xl overflow-hidden flex flex-col">
+                                <div className="p-10 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
+                                    <h2 className="text-3xl font-black uppercase tracking-tighter">Pro-Forma <span className="text-indigo-600">Quotation</span></h2>
+                                    <button onClick={() => setIsQuoting(false)} className="p-3 bg-slate-50 rounded-2xl"><X className="w-6 h-6 text-slate-400" /></button>
+                                </div>
+                                <div className="p-10 space-y-8">
+                                    <div className="flex items-center gap-6 p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl">
+                                        <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-white shadow-md">
+                                            <img src={quoteData.vehicle.mainImageUrl} className="w-full h-full object-cover" />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Selected Vehicle</p>
+                                            <h4 className="text-xl font-black uppercase tracking-tight">{quoteData.vehicle.year} {quoteData.vehicle.make} {quoteData.vehicle.model}</h4>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        {quoteData.breakdown.map((item: any, i: number) => (
+                                            <div key={i} className="flex justify-between items-center py-3 border-b border-slate-50 dark:border-slate-800 last:border-0">
+                                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{item.label}</span>
+                                                <span className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">KES {item.value.toLocaleString()}</span>
+                                            </div>
+                                        ))}
+                                        <div className="flex justify-between items-center pt-6 mt-4 border-t border-slate-200 dark:border-slate-700">
+                                            <span className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-[0.2em]">Total Amount</span>
+                                            <span className="text-3xl font-black text-indigo-600 tracking-tighter leading-none">KES {quoteData.total.toLocaleString()}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-8">
+                                        <button 
+                                            onClick={() => window.print()}
+                                            className="w-full py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-[11px] tracking-[0.3em] shadow-2xl shadow-indigo-100 hover:bg-slate-900 transition-all flex items-center justify-center gap-4"
+                                        >
+                                            <Printer className="w-5 h-5" /> Download / Print Quote
+                                        </button>
+                                        <p className="text-center text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-6 italic px-8">
+                                            * Prices are estimates and subject to change based on actual insurance and registration costs at the time of purchase.
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
