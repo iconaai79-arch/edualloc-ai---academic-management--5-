@@ -1770,17 +1770,20 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                                     <td colSpan={7} className="px-8 py-20 text-center text-slate-400 font-bold uppercase tracking-widest text-xs italic">No sales invoices generated yet.</td>
                                                 </tr>
                                             ) : (
-                                                props.carInvoices?.map((inv) => (
-                                                    <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-all group">
-                                                        <td className="px-8 py-6">
-                                                            <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">#{inv.invoiceNumber}</span>
-                                                        </td>
-                                                        <td className="px-8 py-6">
-                                                            <div>
-                                                                <p className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter">{inv.clientName}</p>
-                                                                <p className="text-[10px] font-bold text-slate-400 mt-0.5">{inv.clientPhone}</p>
-                                                            </div>
-                                                        </td>
+                                                props.carInvoices?.map((inv) => {
+                                                    const car = props.carListings?.find(c => c.id === inv.listingId);
+                                                    return (
+                                                        <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-all group">
+                                                            <td className="px-8 py-6">
+                                                                <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">#{inv.invoiceNumber}</span>
+                                                            </td>
+                                                            <td className="px-8 py-6">
+                                                                <div>
+                                                                    <p className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter">{inv.clientName}</p>
+                                                                    {car && <p className="text-[9px] font-bold text-indigo-600 mt-0.5 uppercase tracking-tighter">{car.year} {car.make} {car.model}</p>}
+                                                                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">{inv.clientPhone}</p>
+                                                                </div>
+                                                            </td>
                                                         <td className="px-8 py-6">
                                                             <span className="text-xs font-bold text-slate-600 dark:text-slate-300">KES {inv.totalAmount.toLocaleString()}</span>
                                                         </td>
