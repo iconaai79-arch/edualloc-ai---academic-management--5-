@@ -667,8 +667,9 @@ export const apiService = {
         if (module === 'users' && payload.metadata !== undefined) {
             delete payload.metadata;
         }
-        if (module === 'car_sales_listings' && payload.registration_number !== undefined) {
-            delete payload.registration_number;
+        if (module === 'car_sales_listings') {
+            if (payload.registration_number !== undefined) delete payload.registration_number;
+            if (payload.tour360_url !== undefined) delete payload.tour360_url;
         }
 
         if (!_supabase) {
@@ -749,8 +750,9 @@ export const apiService = {
         if (module === 'users' && payload.metadata !== undefined) {
             delete payload.metadata;
         }
-        if (module === 'car_sales_listings' && payload.registration_number !== undefined) {
-            delete payload.registration_number;
+        if (module === 'car_sales_listings') {
+            if (payload.registration_number !== undefined) delete payload.registration_number;
+            if (payload.tour360_url !== undefined) delete payload.tour360_url;
         }
 
         if (!_supabase) {
@@ -830,8 +832,9 @@ export const apiService = {
             if (module === 'users' && item.metadata !== undefined) {
                 delete item.metadata;
             }
-            if (module === 'car_sales_listings' && item.registration_number !== undefined) {
-                delete item.registration_number;
+            if (module === 'car_sales_listings') {
+                if (item.registration_number !== undefined) delete item.registration_number;
+                if (item.tour360_url !== undefined) delete item.tour360_url;
             }
             return item;
         });
