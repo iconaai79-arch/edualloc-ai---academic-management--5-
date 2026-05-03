@@ -103,6 +103,8 @@ import { INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS, RETAIL_SUB
 const EditInstitutionModal = lazy(() => import('./EditInstitutionModal').then(m => ({ default: m.EditInstitutionModal })));
 const TimetableWizard = lazy(() => import('./TimetableWizard').then(m => ({ default: m.TimetableWizard })));
 const TransportManager = lazy(() => import('./TransportManager').then(m => ({ default: m.TransportManager })));
+import { PdfPreviewModal } from './PdfPreviewModal';
+import * as pdfService from '../services/pdfService';
 import { apiService } from '../services/apiService';
 const RetailReportsDashboard = lazy(() => import('./retail/RetailReportsDashboard').then(m => ({ default: m.RetailReportsDashboard })));
 const ExternalModuleView = lazy(() => import('./ExternalModuleView').then(m => ({ default: m.ExternalModuleView })));
@@ -431,6 +433,42 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<CarInvoice | null>(null);
     const [selectedInvoiceForReceipt, setSelectedInvoiceForReceipt] = useState<CarInvoice | null>(null);
     const [selectedPaymentForReceipt, setSelectedPaymentForReceipt] = useState<CarPayment | null>(null);
+    const [pdfPreviewData, setPdfPreviewData] = useState<{ uri: string; title: string } | null>(null);
+
+    const handlePreviewCarInvoice = async (invoice: CarInvoice) => {
+        const listing = props.carListings?.find(l => l.id === invoice.listingId);
+        if (!listing) return;
+        
+        try {
+            const uri = await pdfService.generateCarInvoicePdfDataUri(
+                invoice,
+                listing,
+                props.currentInstitution!,
+                companyDetails,
+                props.currentInstitution!.logoUrl
+            );
+            setPdfPreviewData({ uri, title: `Invoice ${invoice.invoiceNumber}` });
+        } catch (error) {
+            console.error("Failed to generate PDF:", error);
+            alert("Failed to generate PDF. Please try again.");
+        }
+    };
+
+    const handlePreviewCarReceipt = async (payment: CarPayment, invoice: CarInvoice) => {
+        try {
+            const uri = await pdfService.generateCarReceiptPdfDataUri(
+                payment,
+                invoice,
+                props.currentInstitution!,
+                companyDetails,
+                props.currentInstitution!.logoUrl
+            );
+            setPdfPreviewData({ uri, title: `Receipt ${payment.receiptNumber}` });
+        } catch (error) {
+            console.error("Failed to generate PDF:", error);
+            alert("Failed to generate PDF. Please try again.");
+        }
+    };
 
     const [isPerspectiveModalOpen, setIsPerspectiveModalOpen] = useState(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
@@ -1822,6 +1860,12 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                                             >
                                                                 History
                                                             </button>
+                                                            <button 
+                                                                onClick={() => handlePreviewCarInvoice(inv)}
+                                                                className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+                                                            >
+                                                                PDF
+                                                            </button>
                                                         </td>
                                                         </tr>
                                                     );
@@ -1859,6 +1903,12 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                                                 className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all"
                                                             >
                                                                 Receipt
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => invoice && handlePreviewCarReceipt(pay, invoice)}
+                                                                className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all"
+                                                            >
+                                                                PDF
                                                             </button>
                                                         </div>
                                                     </div>
@@ -2051,6 +2101,14 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         institution={props.currentInstitution!}
                     />
                 </React.Suspense>
+            )}
+            {pdfPreviewData && (
+                <PdfPreviewModal
+                    isOpen={!!pdfPreviewData}
+                    onClose={() => setPdfPreviewData(null)}
+                    pdfUri={pdfPreviewData.uri}
+                    title={pdfPreviewData.title}
+                />
             )}
         </div>
     );
