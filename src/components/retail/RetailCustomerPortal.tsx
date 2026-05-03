@@ -362,14 +362,16 @@ export function RetailCustomerPortal({ currentUser, currentInstitution }: Retail
                                 </div>
                             )}
                         </section>
-                    </div>
+                    </>
+                )}
+            </div>
 
-                    {/* Sidebar Area */}
-                    <div className="space-y-8">
-                        {/* Wallet Manager */}
-                        <section className="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm">
-                            <h2 className="text-lg font-black text-slate-800 mb-6">Digital Wallet</h2>
-                            <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-2xl p-6 text-white mb-6 shadow-xl shadow-indigo-100 relative overflow-hidden">
+            {/* Sidebar Area */}
+            <div className="space-y-8">
+                {/* Wallet Manager */}
+                <section className="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm">
+                    <h2 className="text-lg font-black text-slate-800 mb-6">Digital Wallet</h2>
+                    <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-2xl p-6 text-white mb-6 shadow-xl shadow-indigo-100 relative overflow-hidden">
                                 <div className="relative z-10">
                                     <p className="text-indigo-200 text-[10px] font-black uppercase tracking-widest mb-1">Available Balance</p>
                                     <p className="text-3xl font-black mb-6">KES {walletBalance.toLocaleString()}</p>
