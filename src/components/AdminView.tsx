@@ -2006,6 +2006,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             setSelectedListingForEdit(null);
                             if (props.onRefreshData) props.onRefreshData();
                         }}
+                    />
                 </React.Suspense>
             )}
 
