@@ -1,13 +1,13 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import type { User, Subject, Department, AllocationRequest, RequestStatus, LessonStructure, TimetableEntry, Room, LetterheadConfig, Conflict, Course, StudentAttendance, Assessment, AssessmentMark, Institution, LecturerContract, ExamTimetableEntry, Building, TimetableSettings, Semester, AcademicYear, Visitor, ActivityLog } from '../types';
+import type { User, Subject, Department, AllocationRequest, RequestStatus, LessonStructure, TimetableEntry, Room, LetterheadConfig, Conflict, Course, StudentAttendance, Assessment, AssessmentMark, Institution, LecturerContract, ExamTimetableEntry, Building, TimetableSettings, Semester, AcademicYear, Visitor, ActivityLog, CarInvoice, CarPayment } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
 import { AdvisoryReportView } from './AdvisoryReportView';
 import { ConflictReport } from './ConflictReport';
 import { AttendanceReports } from './AttendanceReports';
 import { AssessmentReports } from './AssessmentReports';
 import { ExamTimetableGrid } from './ExamTimetableGrid';
-import { generateExamTimetablePdf, generateWorkloadStatisticsPdf } from '../services/pdfService';
+import { generateExamTimetablePdf, generateWorkloadStatisticsPdf, generateCarClientStatementPdfDataUri } from '../services/pdfService';
 import { PrinterIcon } from './icons/PrinterIcon';
 import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 import { ChartBarIcon } from './icons/ChartBarIcon';
@@ -65,6 +65,8 @@ interface ReportsDashboardProps {
     courseSizes: Map<string, number>;
     activityLogLimit?: number;
     setActivityLogLimit?: React.Dispatch<React.SetStateAction<number>>;
+    carInvoices?: CarInvoice[];
+    carPayments?: CarPayment[];
 }
 
 const ProgressBar: React.FC<{ value: number; max: number }> = ({ value, max }) => {
@@ -240,6 +242,86 @@ const ExamTimetableReport: React.FC<{
             </div>
         );
     };
+
+const ClientStatementReport: React.FC<{
+    carInvoices: CarInvoice[];
+    carPayments: CarPayment[];
+    currentInstitution: Institution;
+    onPreviewPdf: (url: string, filename: string) => void;
+}> = ({ carInvoices, carPayments, currentInstitution, onPreviewPdf }) => {
+    const [selectedClient, setSelectedClient] = useState('');
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    const clients = useMemo(() => {
+        const uniqueClients = new Set((carInvoices || []).map(inv => inv.clientName));
+        return Array.from(uniqueClients).sort();
+    }, [carInvoices]);
+
+    const handleGenerate = async () => {
+        if (!selectedClient) return;
+        setIsGenerating(true);
+        try {
+            const clientInvoices = carInvoices.filter(inv => inv.clientName === selectedClient);
+            const clientPayments = (carPayments || []).filter(pay => {
+                const inv = carInvoices.find(i => i.id === pay.invoiceId);
+                return inv && inv.clientName === selectedClient;
+            });
+
+            const companyDetails = {
+                name: currentInstitution.name,
+                email: currentInstitution.email,
+                phone: currentInstitution.phoneNumber,
+                address: (currentInstitution as any).location?.address || '',
+                website: (currentInstitution as any).website || ''
+            };
+
+            const uri = await generateCarClientStatementPdfDataUri(
+                selectedClient,
+                clientInvoices,
+                clientPayments,
+                currentInstitution,
+                companyDetails as any,
+                currentInstitution.logoUrl || null
+            );
+            onPreviewPdf(uri, `Statement_${selectedClient.replace(/\s+/g, '_')}.pdf`);
+        } catch (error) {
+            console.error("Failed to generate statement:", error);
+            alert("Failed to generate statement.");
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    return (
+        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-6 animate-fade-in">
+            <div>
+                <h3 className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white">Client Statement Generator</h3>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Generate comprehensive account statements for specific clients</p>
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-4 items-end">
+                <div className="flex-1 space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Client</label>
+                    <select
+                        value={selectedClient}
+                        onChange={(e) => setSelectedClient(e.target.value)}
+                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
+                    >
+                        <option value="">Choose a client...</option>
+                        {clients.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                </div>
+                <button
+                    onClick={handleGenerate}
+                    disabled={!selectedClient || isGenerating}
+                    className="px-12 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all disabled:opacity-50"
+                >
+                    {isGenerating ? 'Generating...' : 'Preview Statement'}
+                </button>
+            </div>
+        </div>
+    );
+};
 
 export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     const {
@@ -571,9 +653,13 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         { key: 'exam_timetable', label: 'Exam Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-3" /> },
         { key: 'generated_timetable', label: 'Generated Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-3" /> },
         { key: 'patterns', label: 'Behavioral Analytics', icon: <TrendingUpIcon className="w-5 h-5 mr-3" /> },
+        { key: 'client_statements', label: 'Client Statements', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
     ].filter(tab => {
         if (isRetailAgency || !isEdu) {
             const allowed = ['visuals', 'stats', 'audit', 'attendance', 'patterns'];
+            if (currentInstitution?.institutionType === 'Transport' || currentInstitution?.institutionType === 'Business' || currentInstitution?.institutionType === 'Retail') {
+                allowed.push('client_statements');
+            }
             return allowed.includes(tab.key);
         }
         return true;
@@ -600,6 +686,17 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                 </aside>
 
                 <main className="flex-1 min-w-0">
+                    {subTab === 'client_statements' && (
+                        <ClientStatementReport
+                            carInvoices={props.carInvoices || []}
+                            carPayments={props.carPayments || []}
+                            currentInstitution={currentInstitution!}
+                            onPreviewPdf={(url, filename) => {
+                                setPreviewPdfUrl(url);
+                                setPreviewPdfFilename(filename);
+                            }}
+                        />
+                    )}
                     {subTab === 'visuals' && (
                         <VisualReports
                             lecturers={lecturers || []}

@@ -451,6 +451,69 @@ export const generateCarSaleAgreementPdfDataUri = async (
     return doc.output('datauristring');
 };
 
+export const generateCarClientStatementPdfDataUri = async (
+    clientName: string,
+    invoices: CarInvoice[],
+    payments: CarPayment[],
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    const tableStartY = createPdfWithLetterhead(doc, 'CLIENT STATEMENT OF ACCOUNT', companyDetails, institution, logoImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(`CLIENT: ${clientName}`, margin, tableStartY + 10);
+    doc.text(`DATE: ${new Date().toLocaleDateString()}`, pageWidth - margin, tableStartY + 10, { align: 'right' });
+
+    const head = [['DATE', 'REFERENCE', 'DESCRIPTION', 'DEBIT (KES)', 'CREDIT (KES)', 'BALANCE (KES)']];
+    const body: any[] = [];
+    let runningBalance = 0;
+
+    // Combine invoices and payments, sort by date
+    const transactions = [
+        ...invoices.map(inv => ({ date: inv.createdAt || '', ref: inv.invoiceNumber, desc: 'Vehicle Invoice', amount: inv.totalAmount, type: 'debit' })),
+        ...payments.map(pay => ({ date: pay.paymentDate, ref: pay.receiptNumber, desc: `Payment - ${pay.paymentMethod}`, amount: pay.amount, type: 'credit' }))
+    ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    transactions.forEach(t => {
+        if (t.type === 'debit') runningBalance += t.amount;
+        else runningBalance -= t.amount;
+
+        body.push([
+            new Date(t.date).toLocaleDateString(),
+            t.ref,
+            t.desc,
+            t.type === 'debit' ? t.amount.toLocaleString() : '',
+            t.type === 'credit' ? t.amount.toLocaleString() : '',
+            runningBalance.toLocaleString()
+        ]);
+    });
+
+    (doc as any).autoTable({
+        head: head,
+        body: body,
+        startY: tableStartY + 20,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] },
+        styles: { fontSize: 8 },
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('OUTSTANDING BALANCE:', pageWidth - margin - 50, finalY + 15);
+    doc.text(`KES ${runningBalance.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
+
+    return doc.output('datauristring');
+};
+
 export const downloadInvoicePdf = async (invoice: Invoice, institution: Institution, companyDetails: CompanyDetails, logoUrl: string | null) => {
     const dataUri = await generateInvoicePdfDataUri(invoice, institution, companyDetails, logoUrl);
     const link = document.createElement('a');
