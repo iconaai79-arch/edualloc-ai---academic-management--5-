@@ -233,8 +233,9 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
         if (!showTabs) {
             if (retailProducts.length > 0) setActiveSection('retail');
             else if (listings.length > 0) setActiveSection('properties');
+            else if (carListings.length > 0) setActiveSection('vehicles');
         }
-    }, [showTabs, retailProducts.length, listings.length]);
+    }, [showTabs, retailProducts.length, listings.length, carListings.length]);
 
     if (loading) {
         return (
