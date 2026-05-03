@@ -660,17 +660,38 @@ export const apiService = {
             p_notes: payload.notes || ''
         });
     },
+    sanitizePayload(module: string, payload: any): any {
+        if (!payload) return payload;
+
+        const processItem = (item: any) => {
+            if (typeof item !== 'object' || item === null) return item;
+            
+            if (module === 'users') {
+                delete item.metadata;
+            }
+            if (module === 'car_sales_listings') {
+                delete item.registration_number;
+                delete item.tour360_url;
+                delete item.video_walkthrough_url;
+                delete item.vin_number;
+                delete item.trim;
+                delete item.body_type;
+                delete item.engine_size;
+                delete item.color;
+            }
+            if (module === 'car_sales_invoices') {
+                delete item.registration_number;
+            }
+            return item;
+        };
+
+        if (Array.isArray(payload)) {
+            return payload.map(processItem);
+        }
+        return processItem(payload);
+    },
     async updateModuleRecord<T = any>(module: string, id: string, data: Partial<T>): Promise<T | null> {
-        let payload = toSnakeCase(data);
-        
-        // Strip out fields known to be missing from the Supabase schema to prevent errors
-        if (module === 'users' && payload.metadata !== undefined) {
-            delete payload.metadata;
-        }
-        if (module === 'car_sales_listings') {
-            if (payload.registration_number !== undefined) delete payload.registration_number;
-            if (payload.tour360_url !== undefined) delete payload.tour360_url;
-        }
+        let payload = apiService.sanitizePayload(module, toSnakeCase(data));
 
         if (!_supabase) {
             const records = ls.get(module);
@@ -744,16 +765,7 @@ export const apiService = {
         }
     },
     async saveModuleRecord<T = any>(module: string, data: T): Promise<T | null> {
-        let payload = toSnakeCase(data);
-
-        // Strip out fields known to be missing from the Supabase schema to prevent errors
-        if (module === 'users' && payload.metadata !== undefined) {
-            delete payload.metadata;
-        }
-        if (module === 'car_sales_listings') {
-            if (payload.registration_number !== undefined) delete payload.registration_number;
-            if (payload.tour360_url !== undefined) delete payload.tour360_url;
-        }
+        let payload = apiService.sanitizePayload(module, toSnakeCase(data));
 
         if (!_supabase) {
             ls.upsert(module, payload);
@@ -825,19 +837,7 @@ export const apiService = {
         // For "Retry All", we'll delete each as it succeeds.
     },
     async saveModuleRecords<T = any>(module: string, data: T[]): Promise<T[] | null> {
-        let payload = data.map(toSnakeCase);
-
-        // Strip out fields known to be missing from the Supabase schema to prevent errors
-        payload = payload.map(item => {
-            if (module === 'users' && item.metadata !== undefined) {
-                delete item.metadata;
-            }
-            if (module === 'car_sales_listings') {
-                if (item.registration_number !== undefined) delete item.registration_number;
-                if (item.tour360_url !== undefined) delete item.tour360_url;
-            }
-            return item;
-        });
+        let payload = apiService.sanitizePayload(module, data.map(toSnakeCase));
 
         if (!_supabase) {
             payload.forEach(item => ls.upsert(module, item));
