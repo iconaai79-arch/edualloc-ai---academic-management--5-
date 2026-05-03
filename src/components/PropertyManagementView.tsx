@@ -662,7 +662,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({
                                 placeholder="SEARCH BY UNIT..."
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
-                                className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all w-full md:w-72"
+                                className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all w-full md:w-72 text-slate-900 dark:text-white"
                             />
                         </div>
                     </div>
@@ -764,7 +764,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({
                         placeholder="SEARCH TENANTS..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
-                        className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all w-full md:w-72"
+                        className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all w-full md:w-72 text-slate-900 dark:text-white"
                     />
                 </div>
             </div>

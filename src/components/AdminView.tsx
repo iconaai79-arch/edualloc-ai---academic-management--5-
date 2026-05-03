@@ -1823,8 +1823,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                                                 History
                                                             </button>
                                                         </td>
-                                                    </tr>
-                                                ))
+                                                        </tr>
+                                                    );
+                                                })
                                             )}
                                         </tbody>
                                     </table>
