@@ -43,6 +43,7 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
         registrationNumber: listing?.registrationNumber || '',
         tour360Url: listing?.tour360Url || '',
         videoWalkthroughUrl: listing?.videoWalkthroughUrl || '',
+        inspectionReportUrl: listing?.inspectionReportUrl || '',
         viewCount: 0,
         inquiryCount: 0,
         galleryUrls: []
@@ -130,7 +131,7 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                 </div>
 
                 {/* Body */}
-                <div className="p-8 overflow-y-auto space-y-10 no-scrollbar">
+                <div className="p-8 overflow-y-auto space-y-10 no-scrollbar flex-grow">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                         {/* Left Side: Images */}
                         <div className="space-y-8">
@@ -308,7 +309,7 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                                     <input 
                                         value={formData.tour360Url} 
                                         onChange={e => setFormData({ ...formData, tour360Url: e.target.value })} 
-                                        placeholder="e.g. Matterport or Kuula Link" 
+                                        placeholder="e.g. Matterport Link" 
                                         className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
                                     />
                                 </div>
@@ -319,56 +320,53 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                                     <input 
                                         value={formData.videoWalkthroughUrl} 
                                         onChange={e => setFormData({ ...formData, videoWalkthroughUrl: e.target.value })} 
-                                        placeholder="e.g. YouTube or Vimeo Link" 
+                                        placeholder="e.g. YouTube Link" 
                                         className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
                                     />
                                 </div>
                             </div>
 
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center gap-1.5">
-                                        <BadgeCheck className="w-3.5 h-3.5 text-indigo-500" /> Digital Inspection Report (PDF)
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center gap-1.5">
+                                    <BadgeCheck className="w-3.5 h-3.5 text-indigo-500" /> Digital Inspection Report (PDF)
+                                </label>
+                                <div className="flex gap-2">
+                                    <input 
+                                        value={formData.inspectionReportUrl} 
+                                        onChange={e => setFormData({ ...formData, inspectionReportUrl: e.target.value })} 
+                                        placeholder="URL to PDF Report" 
+                                        className="flex-grow h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
+                                    />
+                                    <label className="w-14 h-14 bg-indigo-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center cursor-pointer hover:bg-indigo-100 transition-all">
+                                        <ImageIcon className="w-5 h-5 text-indigo-600" />
+                                        <input type="file" className="hidden" accept=".pdf" onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                setUploading(true);
+                                                try {
+                                                    const res = await apiService.uploadToGoogleDrive(file, `Inspection_Reports`, { institutionId: institution.id, useGlobalConfig: false });
+                                                    if (res.success) setFormData({ ...formData, inspectionReportUrl: res.fileUrl });
+                                                } finally { setUploading(false); }
+                                            }
+                                        }} />
                                     </label>
-                                    <div className="flex gap-2">
-                                        <input 
-                                            value={formData.inspectionReportUrl} 
-                                            onChange={e => setFormData({ ...formData, inspectionReportUrl: e.target.value })} 
-                                            placeholder="URL to PDF Report" 
-                                            className="flex-grow h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
-                                        />
-                                        <label className="w-14 h-14 bg-indigo-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center cursor-pointer hover:bg-indigo-100 transition-all">
-                                            <ImageIcon className="w-5 h-5 text-indigo-600" />
-                                            <input type="file" className="hidden" accept=".pdf" onChange={async (e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) {
-                                                    setUploading(true);
-                                                    try {
-                                                        const res = await apiService.uploadToGoogleDrive(file, `Inspection_Reports`, { institutionId: institution.id, useGlobalConfig: false });
-                                                        if (res.success) setFormData({ ...formData, inspectionReportUrl: res.fileUrl });
-                                                    } finally { setUploading(false); }
-                                                }
-                                            }} />
-                                        </label>
-                                    </div>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 gap-4">
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center gap-1.5">
-                                        <BadgeCheck className="w-3.5 h-3.5 text-emerald-500" /> Platform Status
-                                    </label>
-                                    <select 
-                                        value={formData.status} 
-                                        onChange={e => setFormData({ ...formData, status: e.target.value as any })} 
-                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
-                                    >
-                                        <option value="draft">Review Pending</option>
-                                        <option value="active">Live (Verified)</option>
-                                        <option value="sold">Marked as Sold</option>
-                                        <option value="archived">Hidden (Archive)</option>
-                                    </select>
-                                </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center gap-1.5">
+                                    <BadgeCheck className="w-3.5 h-3.5 text-emerald-500" /> Platform Status
+                                </label>
+                                <select 
+                                    value={formData.status} 
+                                    onChange={e => setFormData({ ...formData, status: e.target.value as any })} 
+                                    className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
+                                >
+                                    <option value="draft">Review Pending</option>
+                                    <option value="active">Live (Verified)</option>
+                                    <option value="sold">Marked as Sold</option>
+                                    <option value="archived">Hidden (Archive)</option>
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -399,4 +397,3 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
         </div>
     );
 };
-
