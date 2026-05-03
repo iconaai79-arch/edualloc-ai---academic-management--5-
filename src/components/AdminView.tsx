@@ -2002,7 +2002,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             setSelectedListingForEdit(null);
                             if (props.onRefreshData) props.onRefreshData();
                         }}
-                    />
+                </React.Suspense>
+            )}
+
+            {isAddCarInvoiceModalOpen && (
+                <React.Suspense fallback={null}>
                     <CreateCarInvoiceModal 
                         isOpen={isAddCarInvoiceModalOpen}
                         onClose={() => setIsAddCarInvoiceModalOpen(false)}
@@ -2010,6 +2014,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         listings={props.carListings || []}
                         currentUser={props.currentUser}
                     />
+                </React.Suspense>
+            )}
+
+            {isAddCarPaymentModalOpen && (
+                <React.Suspense fallback={null}>
                     <RecordCarPaymentModal 
                         isOpen={isAddCarPaymentModalOpen}
                         onClose={() => {
@@ -2020,6 +2029,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         invoice={selectedInvoiceForPayment}
                         currentUser={props.currentUser}
                     />
+                </React.Suspense>
+            )}
+
+            {isCarReceiptModalOpen && (
+                <React.Suspense fallback={null}>
                     <CarReceiptModal 
                         isOpen={isCarReceiptModalOpen}
                         onClose={() => {
