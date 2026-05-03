@@ -2,19 +2,19 @@
 import React, { useState } from 'react';
 import { CarListing, Institution } from '../../types';
 import { 
-    CarIcon, 
-    PencilIcon, 
-    TrashIcon, 
-    MagnifyingGlassIcon as SearchIcon,
-    PlusIcon,
-    EyeIcon,
-    CameraIcon,
-    MapPinIcon,
-    ZapIcon,
-    GaugeIcon,
-    CalendarDaysIcon,
-    ArrowsRightLeftIcon
-} from '../icons';
+    Car, 
+    Pencil, 
+    Trash2, 
+    Search,
+    Plus,
+    Eye,
+    Camera,
+    MapPin,
+    Zap,
+    Gauge,
+    Calendar,
+    ArrowRightLeft
+} from 'lucide-react';
 
 interface CarInventoryListProps {
     listings: CarListing[];
@@ -66,13 +66,13 @@ export const CarInventoryList: React.FC<CarInventoryListProps> = ({
                         onClick={onViewShowroom}
                         className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-slate-900 text-slate-700 dark:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95"
                     >
-                        <EyeIcon className="w-4 h-4 text-indigo-600" /> Public Showroom
+                        <Eye className="w-4 h-4 text-indigo-600" /> Public Showroom
                     </button>
                     <button 
                         onClick={onAddListing}
                         className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95"
                     >
-                        <PlusIcon className="w-4 h-4" /> Add Vehicle
+                        <Plus className="w-4 h-4" /> Add Vehicle
                     </button>
                 </div>
             </div>
@@ -87,7 +87,7 @@ export const CarInventoryList: React.FC<CarInventoryListProps> = ({
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full h-12 pl-12 pr-6 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all"
                     />
-                    <SearchIcon className="w-4 h-4 absolute left-4 top-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
+                    <Search className="w-4 h-4 absolute left-4 top-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
                 </div>
                 <div className="flex bg-slate-50 dark:bg-slate-900 p-1 rounded-xl w-full md:w-auto">
                     {(['all', 'active', 'sold', 'draft'] as const).map((s) => (
@@ -112,7 +112,7 @@ export const CarInventoryList: React.FC<CarInventoryListProps> = ({
                                 <img loading="lazy" src={listing.mainImageUrl} alt={listing.model} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                             ) : (
                                 <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
-                                    <CameraIcon className="w-12 h-12 mb-2" />
+                                    <Camera className="w-12 h-12 mb-2" />
                                     <p className="text-[9px] font-black uppercase tracking-widest">No Photos Added</p>
                                 </div>
                             )}
@@ -146,14 +146,14 @@ export const CarInventoryList: React.FC<CarInventoryListProps> = ({
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-50 dark:border-slate-800">
-                                    <GaugeIcon className="w-4 h-4 text-slate-400" />
+                                    <Gauge className="w-4 h-4 text-slate-400" />
                                     <div>
                                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Mileage</p>
                                         <p className="text-[10px] font-black text-slate-900 dark:text-white">{listing.mileage.toLocaleString()} KM</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-50 dark:border-slate-800">
-                                    <ZapIcon className="w-4 h-4 text-amber-500" />
+                                    <Zap className="w-4 h-4 text-amber-500" />
                                     <div>
                                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Fuel Type</p>
                                         <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase">{listing.fuelType}</p>
@@ -167,13 +167,13 @@ export const CarInventoryList: React.FC<CarInventoryListProps> = ({
                                     onClick={() => onEditListing(listing)}
                                     className="flex-grow flex items-center justify-center gap-2 py-3 bg-slate-900 dark:bg-white dark:text-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 dark:hover:bg-slate-100 transition-all"
                                 >
-                                    <PencilIcon className="w-3 h-3" /> Edit Unit
+                                    <Pencil className="w-3 h-3" /> Edit Unit
                                 </button>
                                 <button 
                                     onClick={() => onDeleteListing(listing.id)}
                                     className="w-12 h-11 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all"
                                 >
-                                    <TrashIcon className="w-4 h-4" />
+                                    <Trash2 className="w-4 h-4" />
                                 </button>
                             </div>
                         </div>
@@ -182,7 +182,7 @@ export const CarInventoryList: React.FC<CarInventoryListProps> = ({
 
                 {filteredListings.length === 0 && (
                     <div className="col-span-full py-32 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900/50 rounded-[3rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
-                        <CarIcon className="w-16 h-16 text-slate-200 mb-4" />
+                        <Car className="w-16 h-16 text-slate-200 mb-4" />
                         <h3 className="text-xl font-black text-slate-400 uppercase tracking-tighter italic">No vehicles found</h3>
                         <p className="text-[10px] text-slate-400 uppercase tracking-[0.2em] mt-2">Try adjusting your filters or add a new unit</p>
                         <button 
