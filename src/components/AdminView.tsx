@@ -570,8 +570,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         if (props.currentInstitution?.institutionType === 'Church' || props.currentInstitution?.institutionType === 'Hospitality') return false;
         const subType = props.currentInstitution?.businessSubType || '';
         const type = props.currentInstitution?.institutionType || '';
-        return RETAIL_SUBTYPES.includes(subType) || RETAIL_SUBTYPES.includes(type) || isAutoMarket;
-    }, [props.currentInstitution, isAutoMarket]);
+        return RETAIL_SUBTYPES.includes(subType) || RETAIL_SUBTYPES.includes(type);
+    }, [props.currentInstitution]);
 
     const isChurch = useMemo(() => {
         return props.currentInstitution?.institutionType === 'Church' || props.currentInstitution?.businessSubType === 'Church';

@@ -888,6 +888,13 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const isSchool = isSchoolInstitution(currentInstitution);
     const isHigherEd = isHigherEdInstitution(currentInstitution);
     const isEdu = isEduInstitution(currentInstitution);
+    const isAutoMarket = useMemo(() => {
+        const cat = currentInstitution?.category;
+        const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
+        const name = currentInstitution?.name?.toLowerCase() || '';
+        return cat === 'Automotive Marketplace' || subType.includes('vehicle sales') || subType.includes('car sales') || subType.includes('motors') || name.includes('motors') || name.includes('car sales');
+    }, [currentInstitution]);
+
     const isCoop = useMemo(() => {
         if (typeof isCoopProp === 'boolean') return isCoopProp;
         const type = currentInstitution?.institutionType;
@@ -948,14 +955,14 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
     useEffect(() => {
         if (activeTab === 'staff') {
-            const defaultRole = isCoop ? 'cooperative_manager' : (isRetailAgency ? 'retail_agent' : (isChurch ? 'worker' : 'teacher'));
+            const defaultRole = isCoop ? 'cooperative_manager' : ((isRetailAgency || isAutoMarket) ? 'retail_agent' : (isChurch ? 'worker' : 'teacher'));
             setRoles([defaultRole as Role]);
         } else if (activeTab === 'customer') {
             setRoles(['customer']);
         } else {
             setRoles(isChurch ? ['member'] as any : ['student']);
         }
-    }, [activeTab, isCoop, isRetailAgency, isChurch]);
+    }, [activeTab, isCoop, isRetailAgency, isAutoMarket, isChurch]);
 
     const canManageUserRecords = useMemo(() => {
         if (!currentUser) return false;
@@ -995,8 +1002,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             });
         }
 
-        // For Retail Agency, we only show specific roles in Staff tab
-        if (isRetailAgency && activeTab === 'staff') {
+        // For Retail Agency and Auto Market, we only show specific roles in Staff tab
+        if ((isRetailAgency || isAutoMarket) && activeTab === 'staff') {
             const retailRoles: Role[] = ['admin', 'retail_agent', 'field_agent', 'store', 'security', 'info_desk', 'driver'];
             list = list.filter(u => retailRoles.includes(u.role));
         }
