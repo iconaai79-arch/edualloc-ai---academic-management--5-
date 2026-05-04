@@ -334,6 +334,7 @@ export interface SuperAdminViewProps {
     onToggleInstitutionStatus: (institutionId: string) => void;
     onLoginAsAdmin: (institutionId: string, initialRole?: Role | null) => void;
     onAccessAlumnaPortal: (school: SchoolRegistry) => void;
+    schoolRegistry?: SchoolRegistry[];
     onGenerateReceipt: (transaction: MpesaTransaction) => void;
 
     // New Props
@@ -947,6 +948,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         onUpdateInstitution,
         onLoginAsAdmin,
         onAccessAlumnaPortal,
+        schoolRegistry: propSchoolRegistry,
         onSendSms,
         currentUser,
         onRefreshData,

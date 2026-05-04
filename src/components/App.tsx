@@ -5259,6 +5259,7 @@ export const App: React.FC = () => {
                                     onLogout={handleLogout}
                                     onUpdateInstitution={onUpdateInstitution}
                                     onAccessAlumnaPortal={handleAccessAlumnaPortal}
+                                    schoolRegistry={schoolRegistry}
                                     onGenerateReceipt={handleGenerateReceipt}
                                     onUpdateCounty={handleUpdateCounty}
                                     onAddInstitution={handleAddCountyInstitution}

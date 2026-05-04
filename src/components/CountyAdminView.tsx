@@ -127,6 +127,7 @@ interface CountyAdminViewProps {
     onDisbursePayouts: (ids: string[]) => void;
     onAddPayouts: (data: any) => void;
     onAccessAlumnaPortal: (school: SchoolRegistry) => void;
+    schoolRegistry?: SchoolRegistry[];
     activityLogLimit?: number;
     setActivityLogLimit?: React.Dispatch<React.SetStateAction<number>>;
     receiptLimit: number;
