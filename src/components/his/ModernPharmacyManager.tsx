@@ -1423,6 +1423,7 @@ export const ModernPharmacyManager: React.FC<{
                                     {isGeneratingReport ? 'Processing...' : 'Generate Analysis'}
                                  </button>
                             </div>
+                        </div>
                     ) : (
                         <div className="space-y-12">
                             <div className="glass-morphism-dark p-10 rounded-[3rem] border border-white/5 flex flex-col md:flex-row justify-between items-center gap-8">
