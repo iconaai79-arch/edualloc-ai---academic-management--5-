@@ -731,6 +731,8 @@ export interface SmsConfig {
     params?: { name: string; value: string }[];
     smsUnitPrice?: number;
     minSmsUnits?: number;
+    accountId?: string;
+    authToken?: string;
 }
 
 export interface EmailConfig {

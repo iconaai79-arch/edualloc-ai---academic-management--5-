@@ -667,7 +667,90 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     recipient_count: normalizedRecipients.length
                 });
             } else if (provider === 'Sematime') {
-                return res.status(501).json({ success: false, message: 'Sematime integration is currently under maintenance. Please use ABMIS or Zettatel.' });
+                const accId = smsConfig.accountId || smsConfig.userId || smsConfig.apiKey || '';
+                const authToken = smsConfig.authToken || smsConfig.apiSecret || smsConfig.password || '';
+
+                if (!accId || !authToken) {
+                    return res.status(400).json({ success: false, message: 'Sematime requires both Account ID (stored in accountId or apiKey) and AuthToken (stored in authToken or apiSecret).' });
+                }
+
+                const baseUrl = `https://apis.sematime.com/v1/${accId}/messages/single`;
+                const batchSize = 100; 
+                let successBatchCount = 0;
+                let lastGatewayRes = null;
+
+                for (let i = 0; i < normalizedRecipients.length; i += batchSize) {
+                    const batch = normalizedRecipients.slice(i, i + batchSize);
+                    const recipientsStr = batch.join(',');
+
+                    try {
+                        const sRes = await fetchWithTimeout(baseUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'AuthToken': authToken
+                            },
+                            body: JSON.stringify({
+                                text: message || '',
+                                recipients: recipientsStr
+                            })
+                        }, 30000);
+
+                        const resRaw = await sRes.text();
+                        lastGatewayRes = resRaw;
+                        
+                        let resData: any;
+                        try { resData = JSON.parse(resRaw); } catch (e) { resData = { raw: resRaw }; }
+
+                        if (sRes.ok) {
+                            successBatchCount++;
+                        } else {
+                            console.error(`[Sematime] Batch failed: ${resRaw.substring(0, 150)}`);
+                        }
+                    } catch (e: any) {
+                        console.error(`[Sematime] Exception: ${e.message}`);
+                    }
+                }
+
+                if (successBatchCount === 0 && normalizedRecipients.length > 0) {
+                    return res.status(502).json({
+                        success: false,
+                        message: `Sematime gateway failed for all batches.`,
+                        last_response: lastGatewayRes?.substring(0, 300)
+                    });
+                }
+
+                // Deduct balance and Log
+                if (institutionId !== 'SYSTEM' && user.id !== 'system' && !isSystemMessage) {
+                    const supabase = getSupabase();
+                    if (supabase) {
+                        await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: totalUnitsToDeduct });
+                        if (user.role === 'super_admin') {
+                            await supabase.rpc('increment_sms_balance', { inst_id: institutionId, amount: totalUnitsToDeduct });
+                        }
+
+                        try {
+                            await supabase.from('sms_logs').insert({
+                                institution_id: institutionId,
+                                sender_id: (user.id === 'system' || !user.id) ? null : user.id,
+                                recipient: normalizedRecipients.length === 1 ? normalizedRecipients[0] : `${normalizedRecipients.length} recipients`,
+                                message: message,
+                                units: totalUnitsToDeduct,
+                                status: 'sent',
+                                provider: 'Sematime',
+                                gateway_response: { batch_count: Math.ceil(normalizedRecipients.length / batchSize), success_batches: successBatchCount }
+                            });
+                        } catch (logErr) {
+                            console.error('[Sematime Logging] Failed to record log:', logErr);
+                        }
+                    }
+                }
+
+                return res.status(200).json({
+                    success: true,
+                    message: `Sematime processing complete. Successfully dispatched ${successBatchCount} of ${Math.ceil(normalizedRecipients.length / batchSize)} batches.`,
+                    recipient_count: normalizedRecipients.length
+                });
             }
 
             return res.status(400).json({ success: false, message: `Unsupported SMS provider: ${provider}` });
@@ -872,21 +955,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 
                 // Re-using SMS dispatch logic (simplified for this specific context)
                 const provider = smsConfig.provider || 'Zettatel';
-                const baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? 'https://sms.zettatel.com/smsapi/send' : 'https://sms.abmis.co.ke/SMSApi/send');
                 
-                const finalParams: Record<string, string> = {
-                    userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId || '',
-                    password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password || '',
-                    mobile: phone,
-                    msg: otpMessage,
-                    senderid: smsConfig.fromNumber || provider,
-                    msgType: 'text',
-                    output: 'json'
-                };
-
-                const urlParams = new URLSearchParams(finalParams);
                 try {
-                    await fetchWithTimeout(`${baseUrl}?${urlParams.toString()}`, { method: 'GET' });
+                    if (provider === 'Sematime') {
+                        const accId = smsConfig.accountId || smsConfig.userId || smsConfig.apiKey || '';
+                        const authToken = smsConfig.authToken || smsConfig.apiSecret || smsConfig.password || '';
+                        const semaUrl = `https://apis.sematime.com/v1/${accId}/messages/single`;
+
+                        await fetchWithTimeout(semaUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'AuthToken': authToken
+                            },
+                            body: JSON.stringify({
+                                text: otpMessage,
+                                recipients: phone
+                            })
+                        }, 15000);
+                    } else {
+                        const baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? 'https://sms.zettatel.com/smsapi/send' : 'https://sms.abmis.co.ke/SMSApi/send');
+                        const finalParams: Record<string, string> = {
+                            userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId || '',
+                            password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password || '',
+                            mobile: phone,
+                            msg: otpMessage,
+                            senderid: smsConfig.fromNumber || provider,
+                            msgType: 'text',
+                            output: 'json'
+                        };
+                        const urlParams = new URLSearchParams(finalParams);
+                        await fetchWithTimeout(`${baseUrl}?${urlParams.toString()}`, { method: 'GET' });
+                    }
                     return res.status(200).json({ success: true, message: 'Verification code sent to your phone.' });
                 } catch (e: any) {
                     return res.status(502).json({ success: false, message: 'Verification code generated but SMS delivery failed.', hint: e.message });
@@ -990,25 +1090,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             'ABMIS': 'https://sms.abmis.co.ke/SMSApi/send',
                             'Zettatel': 'https://sms.zettatel.com/smsapi/send'
                         };
-                        const baseUrl = smsConfig.baseUrl || smsConfig.api_url || defaultUrls[provider] || defaultUrls['Zettatel'];
 
-                        const finalParams: Record<string, string> = {
-                            userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
-                            password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password,
-                            mobile: phone,
-                            msg: smsMessage,
-                            senderid: smsConfig.fromNumber || provider,
-                            msgType: 'text',
-                            output: 'json'
-                        };
+                        let smsRes: any;
+                        if (provider === 'Sematime') {
+                            const accId = smsConfig.accountId || smsConfig.userId || smsConfig.apiKey || '';
+                            const authToken = smsConfig.authToken || smsConfig.apiSecret || smsConfig.password || '';
+                            const semaUrl = `https://apis.sematime.com/v1/${accId}/messages/single`;
 
-                        const urlParams = new URLSearchParams(finalParams);
-                        const method = smsConfig.method || 'GET';
-                        const dispatchUrl = method === 'GET' ? `${baseUrl}?${urlParams.toString()}` : baseUrl;
-                        const fetchOptions: any = { method, headers: { 'Accept': 'application/json' } };
-                        if (method === 'POST') fetchOptions.body = urlParams.toString();
+                            smsRes = await fetchWithTimeout(semaUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'AuthToken': authToken
+                                },
+                                body: JSON.stringify({
+                                    text: smsMessage,
+                                    recipients: phone
+                                })
+                            }, 15000);
+                        } else {
+                            const baseUrl = smsConfig.baseUrl || smsConfig.api_url || defaultUrls[provider] || defaultUrls['Zettatel'];
 
-                        const smsRes = await fetchWithTimeout(dispatchUrl, fetchOptions, 15000);
+                            const finalParams: Record<string, string> = {
+                                userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
+                                password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password,
+                                mobile: phone,
+                                msg: smsMessage,
+                                senderid: smsConfig.fromNumber || provider,
+                                msgType: 'text',
+                                output: 'json'
+                            };
+
+                            const urlParams = new URLSearchParams(finalParams);
+                            const method = smsConfig.method || 'GET';
+                            const dispatchUrl = method === 'GET' ? `${baseUrl}?${urlParams.toString()}` : baseUrl;
+                            const fetchOptions: any = { method, headers: { 'Accept': 'application/json' } };
+                            if (method === 'POST') fetchOptions.body = urlParams.toString();
+
+                            smsRes = await fetchWithTimeout(dispatchUrl, fetchOptions, 15000);
+                        }
                         const smsResultText = await smsRes.text();
                         console.log(`[Forgot Password] SMS Gateway Response: ${smsResultText.substring(0, 100)}`);
                         smsSuccess = true;
