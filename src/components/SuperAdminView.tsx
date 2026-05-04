@@ -1930,7 +1930,7 @@ Please change it after login.`;
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full md:w-auto px-4 md:px-0">
+                <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar-horizontal w-full md:w-auto px-4 md:px-0 pb-2">
                     {tabs.map((tab) => (
                         <button
                             key={tab.key}
