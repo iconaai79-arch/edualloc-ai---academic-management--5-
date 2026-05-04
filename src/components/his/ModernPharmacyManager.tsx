@@ -39,7 +39,7 @@ export const ModernPharmacyManager: React.FC<{
     currentInstitution?: Institution | null;
     currentUser: User;
 }> = ({ institutionId, currentInstitution, currentUser }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'inventory' | 'prescriptions' | 'hr' | 'accounting' | 'automation' | 'reports' | 'config'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'inventory' | 'prescriptions' | 'hr' | 'accounting' | 'automation' | 'reports' | 'sales' | 'config'>('dashboard');
     const [reportsSubTab, setReportsSubTab] = useState<'general' | 'sales'>('general');
     const [salesFilter, setSalesFilter] = useState<'day' | 'week' | 'month' | 'period'>('day');
     const [salesStartDate, setSalesStartDate] = useState(new Date().toISOString().split('T')[0]);
@@ -162,7 +162,7 @@ export const ModernPharmacyManager: React.FC<{
     };
 
     const accessibleTabs = useMemo(() => {
-        const allTabs = ['dashboard', 'pos', 'inventory', 'prescriptions', 'hr', 'accounting', 'automation', 'reports', 'config'] as const;
+        const allTabs = ['dashboard', 'pos', 'inventory', 'prescriptions', 'hr', 'accounting', 'automation', 'reports', 'sales', 'config'] as const;
         return allTabs.filter(tab => canAccessTab(tab as any));
     }, [currentUser.role, staff]);
 
@@ -706,6 +706,7 @@ export const ModernPharmacyManager: React.FC<{
                             {tab === 'accounting' && <BanknotesIcon className="w-4 h-4" />}
                             {tab === 'automation' && <SparklesIcon className="w-4 h-4" />}
                             {tab === 'reports' && <ClipboardListIcon className="w-4 h-4" />}
+                            {tab === 'sales' && <BanknotesIcon className="w-4 h-4" />}
                             {tab === 'config' && <SettingsIcon className="w-4 h-4" />}
                             {tab}
                         </button>
@@ -1545,6 +1546,136 @@ export const ModernPharmacyManager: React.FC<{
                                 src={selectedReportUrl} 
                                 className="w-full h-full"
                                 title="Pharmacy Report Preview"
+                            />
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* SALES ANALYTICS VIEW */}
+            {activeTab === 'sales' && (
+                <div className="space-y-12 animate-fade-in">
+                    <div className="glass-morphism-dark p-10 rounded-[3rem] border border-white/5 flex flex-col md:flex-row justify-between items-center gap-8">
+                        <div className="flex items-center gap-4 bg-black/40 p-2 rounded-[1.5rem] border border-white/5 overflow-x-auto custom-scrollbar-horizontal pb-2">
+                            {(['day', 'week', 'month', 'period'] as const).map(f => (
+                                <button 
+                                    key={f}
+                                    onClick={() => {
+                                        setSalesFilter(f);
+                                        const now = new Date();
+                                        const start = new Date();
+                                        if (f === 'day') start.setHours(0,0,0,0);
+                                        if (f === 'week') start.setDate(now.getDate() - 7);
+                                        if (f === 'month') start.setMonth(now.getMonth() - 1);
+                                        
+                                        if (f !== 'period') {
+                                            setSalesStartDate(start.toISOString().split('T')[0]);
+                                            setSalesEndDate(now.toISOString().split('T')[0]);
+                                        }
+                                    }}
+                                    className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${salesFilter === f ? `bg-${theme.bg} text-white shadow-lg` : 'text-slate-500 hover:text-slate-300'}`}
+                                >
+                                    {f}
+                                </button>
+                            ))}
+                        </div>
+
+                        {salesFilter === 'period' && (
+                            <div className="flex items-center gap-4">
+                                <input 
+                                    type="date" 
+                                    value={salesStartDate}
+                                    onChange={e => setSalesStartDate(e.target.value)}
+                                    className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-[10px] font-black text-white outline-none focus:border-indigo-500 transition-all"
+                                />
+                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">To</span>
+                                <input 
+                                    type="date" 
+                                    value={salesEndDate}
+                                    onChange={e => setSalesEndDate(e.target.value)}
+                                    className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-[10px] font-black text-white outline-none focus:border-indigo-500 transition-all"
+                                />
+                            </div>
+                        )}
+
+                        <button 
+                            onClick={handleGenerateDetailedSalesReport}
+                            disabled={isGeneratingReport}
+                            className={`flex items-center gap-3 px-10 py-4 rounded-[1.5rem] bg-${theme.bg} text-white text-[10px] font-black uppercase tracking-widest shadow-xl shadow-${theme.bg}/20 hover:scale-105 transition-all disabled:opacity-50`}
+                        >
+                            <PrinterIcon className="w-4 h-4" />
+                            {isGeneratingReport ? 'Processing...' : 'Export Sales PDF'}
+                        </button>
+                    </div>
+
+                    <div className="glass-morphism-dark rounded-[3.5rem] border border-white/5 overflow-hidden">
+                        <div className="overflow-x-auto custom-scrollbar-horizontal">
+                            <table className="w-full text-left border-collapse min-w-[800px]">
+                                <thead>
+                                    <tr className="bg-white/5">
+                                        <th className="px-10 py-8 text-[10px] font-black uppercase tracking-widest text-slate-500">Item Code</th>
+                                        <th className="px-6 py-8 text-[10px] font-black uppercase tracking-widest text-slate-500">Medication Name</th>
+                                        <th className="px-6 py-8 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Qty Sold</th>
+                                        <th className="px-10 py-8 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Total Revenue (KES)</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {(() => {
+                                        const filteredSales = sales.filter(s => {
+                                            const d = new Date(s.createdAt);
+                                            const start = new Date(salesStartDate);
+                                            const end = new Date(salesEndDate);
+                                            end.setHours(23, 59, 59, 999);
+                                            return d >= start && d <= end;
+                                        });
+                                        
+                                        const filteredSaleItems = saleItems.filter(si => 
+                                            filteredSales.some(fs => fs.id === si.saleId)
+                                        );
+
+                                        const aggregated = new Map<string, { sku: string, name: string, qty: number, total: number }>();
+                                        filteredSaleItems.forEach(item => {
+                                            const inv = inventory.find(i => i.id === item.medicationId);
+                                            const key = item.medicationId;
+                                            const existing = aggregated.get(key) || { sku: inv?.sku || 'N/A', name: inv?.name || 'Unknown', qty: 0, total: 0 };
+                                            existing.qty += Number(item.quantity);
+                                            existing.total += Number(item.totalPrice);
+                                            aggregated.set(key, existing);
+                                        });
+
+                                        return Array.from(aggregated.values())
+                                            .sort((a, b) => b.total - a.total)
+                                            .map((item, idx) => (
+                                                <tr key={idx} className="hover:bg-white/[0.02] transition-colors group">
+                                                    <td className="px-10 py-6 text-[10px] font-black text-slate-500">{item.sku}</td>
+                                                    <td className="px-6 py-6 font-black text-white uppercase text-[11px] tracking-tight">{item.name}</td>
+                                                    <td className="px-6 py-6 text-center">
+                                                        <span className="px-4 py-1.5 rounded-full bg-white/5 text-[10px] font-black text-white">{item.qty} Units</span>
+                                                    </td>
+                                                    <td className={`px-10 py-6 text-right font-black italic text-base text-${theme.accent}`}>
+                                                        {item.total.toLocaleString()}
+                                                    </td>
+                                                </tr>
+                                            ));
+                                    })()}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* PDF Preview Frame */}
+                    {selectedReportUrl && (
+                        <div className="w-full h-[800px] rounded-[3rem] border border-white/10 overflow-hidden shadow-2xl animate-fade-in relative">
+                            <button 
+                                onClick={() => setSelectedReportUrl(null)}
+                                className="absolute top-6 right-6 p-4 rounded-full bg-rose-500/80 text-white backdrop-blur-xl hover:bg-rose-500 transition-all z-10"
+                            >
+                                <TrashIcon className="w-6 h-6" />
+                            </button>
+                            <iframe 
+                                src={selectedReportUrl} 
+                                className="w-full h-full"
+                                title="Pharmacy Sales Report Preview"
                             />
                         </div>
                     )}

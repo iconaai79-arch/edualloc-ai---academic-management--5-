@@ -41,14 +41,15 @@ interface LoginViewProps {
     companyDetails: CompanyDetails;
     onResetPassword?: (token: string, pass: string) => Promise<{ success: boolean; message: string }>;
     schoolRegistry?: SchoolRegistry[];
+    initialView?: 'login' | 'register';
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({
     onLogin, onInstitutionRegister, onCountyRegister, logoUrl, applicationTitle,
     onOpenGuestPortal, onOpenGuestFeedback, onOpenMarketplace, onOpenShowcase, companyDetails, onForgotPassword, onResetPassword,
-    onVerifyOtp, onResendOtp, onVerifyResetOtp, schoolRegistry = []
+    onVerifyOtp, onResendOtp, onVerifyResetOtp, schoolRegistry = [], initialView = 'login'
 }) => {
-    const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'recovery_otp' | 'reg_success' | 'reset_sent' | 'reset_password' | 'otp'>('login');
+    const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'recovery_otp' | 'reg_success' | 'reset_sent' | 'reset_password' | 'otp'>(initialView);
     const [identifier, setIdentifier] = useState('');
     const [recoveryMethod, setRecoveryMethod] = useState<'email' | 'phone'>('email');
     const [phoneNumber, setPhoneNumber] = useState('');

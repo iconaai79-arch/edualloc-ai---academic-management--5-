@@ -44,10 +44,11 @@ interface ModuleProps {
   onLaunchSimulator?: () => void;
   tutorial?: any;
   onViewTutorial?: (mod: any) => void;
+  onRegister?: () => void;
 }
 
 const ModuleCard: React.FC<ModuleProps> = (props) => {
-  const { icon, imageUrl, title, description, advantages, modId, onLaunchSimulator, tutorial, onViewTutorial } = props;
+  const { icon, imageUrl, title, description, advantages, modId, onLaunchSimulator, tutorial, onViewTutorial, onRegister } = props;
   return (
   <div className="module-card animate-in">
     <div className="module-image-container">
@@ -126,6 +127,15 @@ const ModuleCard: React.FC<ModuleProps> = (props) => {
           Launch Showcase
         </button>
         <button 
+          className="simulator-btn group flex-1 bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-500/20"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onRegister) onRegister();
+          }}
+        >
+          Direct Registration
+        </button>
+        <button 
           title="Share solution"
           className="p-3.5 bg-white/5 border border-white/10 text-slate-400 hover:text-indigo-400 hover:bg-white/10 rounded-2xl transition-all group relative"
           onClick={async (e) => {
@@ -169,12 +179,14 @@ interface MarketingLandingPageProps {
   onLogin?: () => void;
   onBookDemo?: () => void;
   onLaunchSimulator?: (role: any, modId: string) => void;
+  onRegister?: (modId: string) => void;
 }
 
 export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
   onLogin,
   onBookDemo,
-  onLaunchSimulator
+  onLaunchSimulator,
+  onRegister
 }) => {
   const [companyDetails, setCompanyDetails] = useState<CompanyDetails | null>(null);
   const [currentWidth, setCurrentWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
@@ -245,7 +257,8 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
     onViewTutorial: (mod: any) => {
         setActiveTutorial(mod);
         setTutorialStep(0);
-    }
+    },
+    onRegister: () => onRegister?.(m.id)
   }));
 
   // Create modules from custom institutional config
@@ -256,7 +269,8 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
     description: item.description,
     advantages: item.category ? [item.category] : [],
     link: item.link,
-    onLaunchSimulator: () => onLaunchSimulator?.('admin', item.id || 'edu')
+    onLaunchSimulator: () => onLaunchSimulator?.('admin', item.id || 'edu'),
+    onRegister: () => onRegister?.(item.id || 'edu')
   }));
 
   // Merge them, prioritizing platformModules for the new auto-updating behavior

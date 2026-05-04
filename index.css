@@ -90,18 +90,19 @@
 }
 
 .custom-scrollbar-horizontal::-webkit-scrollbar {
-  height: 6px;
+  height: 8px;
 }
 .custom-scrollbar-horizontal::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.05);
   border-radius: 10px;
 }
 .custom-scrollbar-horizontal::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(79, 70, 229, 0.4);
   border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.05);
 }
 .custom-scrollbar-horizontal::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(79, 70, 229, 0.6);
 }
 
 @keyframes shake {

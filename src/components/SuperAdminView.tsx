@@ -533,7 +533,7 @@ const PoliticalMetadataManager: React.FC = () => {
 
     return (
         <div className="space-y-8 animate-fade-in">
-            <div className="flex bg-slate-100 dark:bg-slate-930 p-2 rounded-2xl w-fit">
+            <div className="flex bg-slate-100 dark:bg-slate-930 p-2 rounded-2xl w-full md:w-fit overflow-x-auto custom-scrollbar-horizontal pb-2">
                 {['parties', 'counties', 'constituencies', 'wards'].map(t => (
                     <button 
                         key={t}
@@ -2198,7 +2198,7 @@ Please change it after login.`;
 
                 {activeTab === 'institutions' && (
                     <div className="space-y-6 animate-fade-in-up">
-                        <div className="flex bg-slate-100 dark:bg-slate-700 p-1.5 rounded-2xl w-fit mb-6 overflow-x-auto max-w-full no-scrollbar">
+                        <div className="flex bg-slate-100 dark:bg-slate-700 p-1.5 rounded-2xl w-fit mb-6 overflow-x-auto max-w-full custom-scrollbar-horizontal pb-2">
                             <button
                                 onClick={() => setInstitutionsSubTab('list')}
                                 className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${institutionsSubTab === 'list' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
@@ -5065,7 +5065,7 @@ Please change it after login.`;
                         <div className="relative group/modal">
                             <div 
                                 ref={scrollRef}
-                                className="p-8 flex gap-4 overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory"
+                                className="p-8 flex gap-4 overflow-x-auto custom-scrollbar-horizontal pb-4 scroll-smooth snap-x snap-mandatory"
                             >
                                 {perspectiveOptions.filter(o => !o.isService).map(opt => (
                                     <button

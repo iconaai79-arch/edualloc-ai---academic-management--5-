@@ -597,6 +597,7 @@ export const App: React.FC = () => {
         }
     });
     const [showTenantStore, setShowTenantStore] = useState(!!activeStoreTenantId);
+    const [loginInitialView, setLoginInitialView] = useState<'login' | 'register'>('login');
 
     const [showMarketing, setShowMarketing] = useState(() => {
         try {
@@ -6076,9 +6077,14 @@ export const App: React.FC = () => {
                                 onBookDemo={() => setShowBookDemo(true)}
                                 onOpenStore={() => setShowMarketplace(true)}
                                 onLaunchSimulator={handleLaunchSimulator}
+                                onRegister={(modId) => {
+                                    setLoginInitialView('register');
+                                    setShowMarketing(false);
+                                }}
                             />
                         ) : (
                             <LoginView
+                            initialView={loginInitialView}
                             onLogin={async (e, p) => {
                                 // Discovery Phase: Search for user directly in DB if not in local cache
                                 let matchedUsers = (users || []).filter(u => u && (u.email?.toLowerCase() === e.toLowerCase() || u.phoneNumber === e) && (u.password === p || (!u.password && p === 'password123')));
