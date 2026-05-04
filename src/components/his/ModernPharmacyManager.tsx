@@ -4,7 +4,7 @@ import {
     ClipboardListIcon, CurrencyIcon, ExclamationTriangleIcon, BeakerIcon, 
     PencilIcon, DocumentTextIcon, ClockIcon, UserIcon, TrashIcon,
     ArrowPathIcon, ChartBarIcon, CreditCardIcon, EnvelopeIcon, PhoneIcon,
-    ShieldCheckIcon, CheckBadgeIcon, UsersIcon, BanknotesIcon, BellIcon, SettingsIcon
+    ShieldCheckIcon, CheckBadgeIcon, UsersIcon, BanknotesIcon, BellIcon, SettingsIcon, PrinterIcon
 } from '../icons';
 import { apiService } from '../../services/apiService';
 import { 
