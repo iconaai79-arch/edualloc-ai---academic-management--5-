@@ -607,7 +607,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 setActiveTab('church');
             } else if (isHospitality || role === 'hospitality_admin') {
                 setActiveTab('hospitality');
-            } else if (isRetailAgency || ['Pharmacy', 'Chemist'].includes(businessSubType || '')) {
+            } else if (isRetailAgency) {
                 setActiveTab('retail');
             } else if (isDS || role === 'driving_instructor') {
                 setActiveTab('driving_school');
