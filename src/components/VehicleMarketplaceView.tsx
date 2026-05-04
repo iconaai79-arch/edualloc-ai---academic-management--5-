@@ -446,119 +446,180 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                             </div>
                         </div>
                     )}
-
-                    {/* Comparison Modal */}
-                    {isComparing && (
-                        <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-fade-in">
-                            <div className="bg-white dark:bg-slate-900 w-full max-w-6xl rounded-[3.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                                <div className="p-10 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
-                                    <h2 className="text-3xl font-black uppercase tracking-tighter">Vehicle <span className="text-indigo-600">Comparison</span></h2>
-                                    <button onClick={() => setIsComparing(false)} className="p-3 bg-slate-50 rounded-2xl"><X className="w-6 h-6 text-slate-400" /></button>
-                                </div>
-                                <div className="p-10 overflow-x-auto">
-                                    <table className="w-full text-left">
-                                        <thead>
-                                            <tr>
-                                                <th className="py-6 px-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Specifications</th>
-                                                {compareList.map(item => (
-                                                    <th key={item.id} className="py-6 px-4 min-w-[200px]">
-                                                        <div className="aspect-video rounded-2xl overflow-hidden mb-4 shadow-lg">
-                                                            <img src={item.mainImageUrl} className="w-full h-full object-cover" />
-                                                        </div>
-                                                        <p className="text-lg font-black uppercase tracking-tighter">{item.make} {item.model}</p>
-                                                        <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">KES {item.price.toLocaleString()}</p>
-                                                    </th>
-                                                ))}
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                                            {[
-                                                { label: 'Year', key: 'year' },
-                                                { label: 'Mileage', key: 'mileage', format: (v: any) => `${v.toLocaleString()} KM` },
-                                                { label: 'Transmission', key: 'transmission' },
-                                                { label: 'Fuel Type', key: 'fuelType' },
-                                                { label: 'Body Type', key: 'bodyType' },
-                                                { label: 'Engine', key: 'engineSize' },
-                                            ].map(row => (
-                                                <tr key={row.label}>
-                                                    <td className="py-6 px-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">{row.label}</td>
-                                                    {compareList.map(item => (
-                                                        <td key={item.id} className="py-6 px-4 text-xs font-bold text-slate-900 dark:text-white uppercase tracking-tight">
-                                                            {row.format ? row.format((item as any)[row.key]) : (item as any)[row.key] || 'N/A'}
-                                                        </td>
-                                                    ))}
-                                                </tr>
-                                            ))}
-                                            <tr>
-                                                <td className="py-8 px-4"></td>
-                                                {compareList.map(item => (
-                                                    <td key={item.id} className="py-8 px-4">
-                                                        <button 
-                                                            onClick={() => { setSelectedVehicle(item); setViewMode('details'); setIsComparing(false); }}
-                                                            className="w-full py-4 bg-slate-900 text-white rounded-xl font-black uppercase text-[9px] tracking-widest hover:bg-indigo-600 transition-all"
-                                                        >
-                                                            View Details
-                                                        </button>
-                                                    </td>
-                                                ))}
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Quotation Modal */}
-                    {isQuoting && quoteData && (
-                        <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-fade-in">
-                            <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[3.5rem] shadow-2xl overflow-hidden flex flex-col">
-                                <div className="p-10 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
-                                    <h2 className="text-3xl font-black uppercase tracking-tighter">Pro-Forma <span className="text-indigo-600">Quotation</span></h2>
-                                    <button onClick={() => setIsQuoting(false)} className="p-3 bg-slate-50 rounded-2xl"><X className="w-6 h-6 text-slate-400" /></button>
-                                </div>
-                                <div className="p-10 space-y-8">
-                                    <div className="flex items-center gap-6 p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl">
-                                        <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-white shadow-md">
-                                            <img src={quoteData.vehicle.mainImageUrl} className="w-full h-full object-cover" />
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Selected Vehicle</p>
-                                            <h4 className="text-xl font-black uppercase tracking-tight">{quoteData.vehicle.year} {quoteData.vehicle.make} {quoteData.vehicle.model}</h4>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        {quoteData.breakdown.map((item: any, i: number) => (
-                                            <div key={i} className="flex justify-between items-center py-3 border-b border-slate-50 dark:border-slate-800 last:border-0">
-                                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{item.label}</span>
-                                                <span className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">KES {item.value.toLocaleString()}</span>
-                                            </div>
-                                        ))}
-                                        <div className="flex justify-between items-center pt-6 mt-4 border-t border-slate-200 dark:border-slate-700">
-                                            <span className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-[0.2em]">Total Amount</span>
-                                            <span className="text-3xl font-black text-indigo-600 tracking-tighter leading-none">KES {quoteData.total.toLocaleString()}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-8">
-                                        <button 
-                                            onClick={() => window.print()}
-                                            className="w-full py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-[11px] tracking-[0.3em] shadow-2xl shadow-indigo-100 hover:bg-slate-900 transition-all flex items-center justify-center gap-4"
-                                        >
-                                            <Printer className="w-5 h-5" /> Download / Print Quote
-                                        </button>
-                                        <p className="text-center text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-6 italic px-8">
-                                            * Prices are estimates and subject to change based on actual insurance and registration costs at the time of purchase.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             ) : selectedVehicle && (
                 renderDetails(selectedVehicle)
+            )}
+
+            {/* Comparison Modal */}
+            {isComparing && (
+                <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-6xl rounded-[3.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="p-10 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
+                            <h2 className="text-3xl font-black uppercase tracking-tighter">Vehicle <span className="text-indigo-600">Comparison</span></h2>
+                            <button onClick={() => setIsComparing(false)} className="p-3 bg-slate-50 rounded-2xl"><X className="w-6 h-6 text-slate-400" /></button>
+                        </div>
+                        <div className="p-10 overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr>
+                                        <th className="py-6 px-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Specifications</th>
+                                        {compareList.map(item => (
+                                            <th key={item.id} className="py-6 px-4 min-w-[200px]">
+                                                <div className="aspect-video rounded-2xl overflow-hidden mb-4 shadow-lg">
+                                                    <img src={item.mainImageUrl} className="w-full h-full object-cover" />
+                                                </div>
+                                                <p className="text-lg font-black uppercase tracking-tighter">{item.make} {item.model}</p>
+                                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">KES {item.price.toLocaleString()}</p>
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                    {[
+                                        { label: 'Year', key: 'year' },
+                                        { label: 'Mileage', key: 'mileage', format: (v: any) => `${v.toLocaleString()} KM` },
+                                        { label: 'Transmission', key: 'transmission' },
+                                        { label: 'Fuel Type', key: 'fuelType' },
+                                        { label: 'Body Type', key: 'bodyType' },
+                                        { label: 'Engine', key: 'engineSize' },
+                                    ].map(row => (
+                                        <tr key={row.label}>
+                                            <td className="py-6 px-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">{row.label}</td>
+                                            {compareList.map(item => (
+                                                <td key={item.id} className="py-6 px-4 text-xs font-bold text-slate-900 dark:text-white uppercase tracking-tight">
+                                                    {row.format ? row.format((item as any)[row.key]) : (item as any)[row.key] || 'N/A'}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                    <tr>
+                                        <td className="py-8 px-4"></td>
+                                        {compareList.map(item => (
+                                            <td key={item.id} className="py-8 px-4">
+                                                <button 
+                                                    onClick={() => { setSelectedVehicle(item); setViewMode('details'); setIsComparing(false); }}
+                                                    className="w-full py-4 bg-slate-900 text-white rounded-xl font-black uppercase text-[9px] tracking-widest hover:bg-indigo-600 transition-all"
+                                                >
+                                                    View Details
+                                                </button>
+                                            </td>
+                                        ))}
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Quotation Modal */}
+            {isQuoting && quoteData && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-fade-in no-print">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[3.5rem] shadow-2xl overflow-hidden flex flex-col animate-scale-in">
+                        <div className="p-10 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
+                            <h2 className="text-3xl font-black uppercase tracking-tighter">Pro-Forma <span className="text-indigo-600">Quotation</span></h2>
+                            <button onClick={() => setIsQuoting(false)} className="p-3 bg-slate-50 rounded-2xl"><X className="w-6 h-6 text-slate-400" /></button>
+                        </div>
+                        <div className="p-10 space-y-8">
+                            <div className="flex items-center gap-6 p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl">
+                                <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-white shadow-md">
+                                    <img src={quoteData.vehicle.mainImageUrl} className="w-full h-full object-cover" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Selected Vehicle</p>
+                                    <h4 className="text-xl font-black uppercase tracking-tight">{quoteData.vehicle.year} {quoteData.vehicle.make} {quoteData.vehicle.model}</h4>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                {quoteData.breakdown.map((item: any, i: number) => (
+                                    <div key={i} className="flex justify-between items-center py-3 border-b border-slate-50 dark:border-slate-800 last:border-0">
+                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{item.label}</span>
+                                        <span className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">KES {item.value.toLocaleString()}</span>
+                                    </div>
+                                ))}
+                                <div className="flex justify-between items-center pt-6 mt-4 border-t border-slate-200 dark:border-slate-700">
+                                    <span className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-[0.2em]">Total Amount</span>
+                                    <span className="text-3xl font-black text-indigo-600 tracking-tighter leading-none">KES {quoteData.total.toLocaleString()}</span>
+                                </div>
+                            </div>
+
+                            <div className="pt-8">
+                                <button 
+                                    onClick={() => window.print()}
+                                    className="w-full py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-[11px] tracking-[0.3em] shadow-2xl shadow-indigo-100 hover:bg-slate-900 transition-all flex items-center justify-center gap-4"
+                                >
+                                    <Printer className="w-5 h-5" /> Download / Print Quote
+                                </button>
+                                <p className="text-center text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-6 italic px-8">
+                                    * Prices are estimates and subject to change based on actual insurance and registration costs at the time of purchase.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Print Only Version of Quote */}
+            {isQuoting && quoteData && (
+                <div className="hidden print:block print-only p-20 bg-white">
+                    <div className="flex justify-between items-start mb-12">
+                        <div>
+                            <h1 className="text-4xl font-black uppercase tracking-tighter">Pro-Forma Quotation</h1>
+                            <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-2">EduAI Auto Marketplace Ecosystem</p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-xs font-bold text-slate-400 uppercase">Date Issued</p>
+                            <p className="text-sm font-black uppercase tracking-tight">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                        </div>
+                    </div>
+
+                    <div className="border-4 border-slate-900 p-10 rounded-[2rem] mb-12 flex gap-10 items-center">
+                        <div className="w-40 h-40 rounded-2xl overflow-hidden border-2 border-slate-100">
+                            <img src={quoteData.vehicle.mainImageUrl} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1">
+                            <p className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-1">Vehicle Specifications</p>
+                            <h2 className="text-5xl font-black uppercase tracking-tighter italic">{quoteData.vehicle.year} {quoteData.vehicle.make} {quoteData.vehicle.model}</h2>
+                            <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-2">VIN: {quoteData.vehicle.vinNumber || 'VERIFIED-UNIT-' + quoteData.vehicle.id.slice(0,8)}</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-6">
+                        <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 border-b pb-4">Financial Breakdown</h3>
+                        {quoteData.breakdown.map((item: any, i: number) => (
+                            <div key={i} className="flex justify-between items-center py-4 border-b border-slate-50">
+                                <span className="text-xs font-black uppercase text-slate-500 tracking-widest">{item.label}</span>
+                                <span className="text-lg font-black text-slate-900 uppercase">KES {item.value.toLocaleString()}</span>
+                            </div>
+                        ))}
+                        <div className="flex justify-between items-center pt-10 mt-6 bg-slate-900 text-white p-10 rounded-[2.5rem]">
+                            <span className="text-sm font-black uppercase tracking-[0.4em]">Total Net Amount</span>
+                            <span className="text-5xl font-black tracking-tighter">KES {quoteData.total.toLocaleString()}</span>
+                        </div>
+                    </div>
+
+                    <div className="mt-20 pt-20 border-t border-dashed border-slate-200">
+                        <div className="grid grid-cols-2 gap-20">
+                            <div>
+                                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-8">Authorized Dealer Stamp</h4>
+                                <div className="w-48 h-48 border-2 border-slate-100 rounded-full flex items-center justify-center text-slate-100 border-dashed">
+                                    <span className="text-[10px] uppercase font-black tracking-tighter rotate-12 opacity-20">HIS Nexus Authorized</span>
+                                </div>
+                            </div>
+                            <div className="space-y-6">
+                                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Terms & Conditions</h4>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase leading-loose italic">
+                                    1. This quotation is valid for 7 business days from the date of issue. <br />
+                                    2. Prices include estimated registration and transfer fees. <br />
+                                    3. Insurance rates are based on standard market appraisals. <br />
+                                    4. Final price may vary based on specific customer requirements.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

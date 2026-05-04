@@ -13,7 +13,8 @@ import {
     BadgeCheck,
     Coins,
     Calendar,
-    Gauge
+    Gauge,
+    Rotate3d
 } from 'lucide-react';
 import { CarListing, Institution } from '../../types';
 import { apiService } from '../../services/apiService';
@@ -31,7 +32,7 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
     onClose, 
     onSave 
 }) => {
-    const [formData, setFormData] = useState<Partial<CarListing>>(listing || {
+    const [formData, setFormData] = useState<Partial<CarListing>>({
         make: '',
         model: '',
         year: new Date().getFullYear(),
@@ -40,13 +41,14 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
         fuelType: 'Petrol',
         transmission: 'Automatic',
         status: 'active',
-        registrationNumber: listing?.registrationNumber || '',
-        tour360Url: listing?.tour360Url || '',
-        videoWalkthroughUrl: listing?.videoWalkthroughUrl || '',
-        inspectionReportUrl: listing?.inspectionReportUrl || '',
+        registrationNumber: '',
+        tour360Url: '',
+        videoWalkthroughUrl: '',
+        inspectionReportUrl: '',
         viewCount: 0,
         inquiryCount: 0,
-        galleryUrls: []
+        galleryUrls: [],
+        ...listing
     });
 
     const [uploading, setUploading] = useState(false);
@@ -304,21 +306,36 @@ export const AddCarListingModal: React.FC<AddCarListingModalProps> = ({
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center gap-1.5">
-                                        <BadgeCheck className="w-3.5 h-3.5" /> 360° Virtual Tour Link
+                                        <Rotate3d className="w-3.5 h-3.5 text-indigo-500" /> 360° Virtual Tour (Link or Upload)
                                     </label>
-                                    <input 
-                                        value={formData.tour360Url} 
-                                        onChange={e => setFormData({ ...formData, tour360Url: e.target.value })} 
-                                        placeholder="e.g. Matterport Link" 
-                                        className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
-                                    />
+                                    <div className="flex gap-2">
+                                        <input 
+                                            value={formData.tour360Url || ''} 
+                                            onChange={e => setFormData({ ...formData, tour360Url: e.target.value })} 
+                                            placeholder="e.g. Matterport or File Link" 
+                                            className="flex-grow h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
+                                        />
+                                        <label className="w-14 h-14 bg-indigo-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center cursor-pointer hover:bg-indigo-100 transition-all group">
+                                            <Rotate3d className="w-5 h-5 text-indigo-600 group-hover:rotate-180 transition-transform duration-500" />
+                                            <input type="file" className="hidden" accept=".html,.zip,image/*" onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    setUploading(true);
+                                                    try {
+                                                        const res = await apiService.uploadToGoogleDrive(file, `Virtual_Tours`, { institutionId: institution.id, useGlobalConfig: false });
+                                                        if (res.success) setFormData({ ...formData, tour360Url: res.fileUrl });
+                                                    } finally { setUploading(false); }
+                                                }
+                                            }} />
+                                        </label>
+                                    </div>
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center gap-1.5">
-                                        <BadgeCheck className="w-3.5 h-3.5" /> Video Walkthrough Link
+                                        <Plus className="w-3.5 h-3.5 text-rose-500" /> Video Walkthrough Link
                                     </label>
                                     <input 
-                                        value={formData.videoWalkthroughUrl} 
+                                        value={formData.videoWalkthroughUrl || ''} 
                                         onChange={e => setFormData({ ...formData, videoWalkthroughUrl: e.target.value })} 
                                         placeholder="e.g. YouTube Link" 
                                         className="w-full h-14 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 text-sm font-bold text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-100 transition-all outline-none" 
