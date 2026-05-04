@@ -18,7 +18,8 @@ import {
     Database,
     Zap,
     Edit2,
-    Heart
+    Heart,
+    ArrowUpDown
 } from 'lucide-react';
 import type { SchoolRegistry } from '../../types';
 import { apiService } from '../../services/apiService';
@@ -72,52 +73,92 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
     const [selectedType, setSelectedType] = useState('Secondary');
     const [isProcessingBulk, setIsProcessingBulk] = useState(false);
     const [editingSchool, setEditingSchool] = useState<SchoolRegistry | null>(null);
+    const [alumnaeCounts, setAlumnaeCounts] = useState<Record<string, number>>({});
+    const [sortBy, setSortBy] = useState<'name' | 'alumnae'>('alumnae');
 
     const institutionTypes = ['Primary', 'Secondary', 'TVET', 'University', 'College', 'Institute', 'Polytechnic', 'Driving School'];
 
+    const loadAlumnaeCounts = async () => {
+        try {
+            // Fetch only schoolId to minimize payload size
+            const members = await apiService.fetchModuleRecords('alumnae_members', undefined, undefined, { 
+                select: 'school_id',
+                limit: 100000 // Support up to 100k members for counts
+            });
+            
+            const counts: Record<string, number> = {};
+            members.forEach((m: any) => {
+                const sid = m.schoolId || m.school_id;
+                if (sid) {
+                    counts[sid] = (counts[sid] || 0) + 1;
+                }
+            });
+            setAlumnaeCounts(counts);
+        } catch (err) {
+            console.error("Failed to load alumnae counts:", err);
+        }
+    };
+
+    useEffect(() => {
+        loadAlumnaeCounts();
+    }, [registry.length]);
+
     const filteredSchools = useMemo(() => {
-        if (!searchTerm) return registry;
-        const lower = searchTerm.toLowerCase().trim();
-        const searchTerms = lower.split(/\s+/).filter(t => t.length > 0);
+        let schools = [...registry];
         
-        if (searchTerms.length === 0) return registry;
-
-        const matches = registry.filter(s => {
-            const name = s.name.toLowerCase();
-            const knec = (s.knecCode || '').toLowerCase();
-            const uic = (s.uic || '').toLowerCase();
-            const county = (s.county || '').toLowerCase();
-            const region = (s.region || '').toLowerCase();
-            const id = s.id.toLowerCase();
+        if (searchTerm) {
+            const lower = searchTerm.toLowerCase().trim();
+            const searchTerms = lower.split(/\s+/).filter(t => t.length > 0);
             
-            const schoolData = `${name} ${knec} ${uic} ${county} ${region} ${id}`;
-            
-            return searchTerms.every(term => schoolData.includes(term));
-        });
+            schools = schools.filter(s => {
+                const name = s.name.toLowerCase();
+                const knec = (s.knecCode || '').toLowerCase();
+                const uic = (s.uic || '').toLowerCase();
+                const county = (s.county || '').toLowerCase();
+                const region = (s.region || '').toLowerCase();
+                const id = s.id.toLowerCase();
+                
+                const schoolData = `${name} ${knec} ${uic} ${county} ${region} ${id}`;
+                
+                return searchTerms.every(term => schoolData.includes(term));
+            });
+        }
 
-        return matches.sort((a, b) => {
+        return schools.sort((a, b) => {
+            if (sortBy === 'alumnae') {
+                const countA = alumnaeCounts[a.id] || 0;
+                const countB = alumnaeCounts[b.id] || 0;
+                if (countB !== countA) return countB - countA;
+                return a.name.localeCompare(b.name);
+            }
+
+            const lower = searchTerm.toLowerCase().trim();
+            const searchTerms = lower.split(/\s+/).filter(t => t.length > 0);
+            
             const aName = a.name.toLowerCase();
             const bName = b.name.toLowerCase();
             
-            // 1. Exact match on name
-            if (aName === lower) return -1;
-            if (bName === lower) return 1;
-            
-            // 2. Starts with match on name
-            const aStarts = aName.startsWith(lower);
-            const bStarts = bName.startsWith(lower);
-            if (aStarts && !bStarts) return -1;
-            if (bStarts && !aStarts) return 1;
-            
-            // 3. Name contains all terms
-            const aNameHasTerms = searchTerms.every(t => aName.includes(t));
-            const bNameHasTerms = searchTerms.every(t => bName.includes(t));
-            if (aNameHasTerms && !bNameHasTerms) return -1;
-            if (bNameHasTerms && !aNameHasTerms) return 1;
+            if (searchTerm) {
+                // 1. Exact match on name
+                if (aName === lower) return -1;
+                if (bName === lower) return 1;
+                
+                // 2. Starts with match on name
+                const aStarts = aName.startsWith(lower);
+                const bStarts = bName.startsWith(lower);
+                if (aStarts && !bStarts) return -1;
+                if (bStarts && !aStarts) return 1;
+                
+                // 3. Name contains all terms
+                const aNameHasTerms = searchTerms.every(t => aName.includes(t));
+                const bNameHasTerms = searchTerms.every(t => bName.includes(t));
+                if (aNameHasTerms && !bNameHasTerms) return -1;
+                if (bNameHasTerms && !aNameHasTerms) return 1;
+            }
 
             return aName.localeCompare(bName);
         });
-    }, [registry, searchTerm]);
+    }, [registry, searchTerm, sortBy, alumnaeCounts]);
 
     const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 50;
@@ -129,10 +170,10 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
 
     const totalPages = Math.ceil(filteredSchools.length / pageSize);
 
-    // Reset to page 1 when searching
+    // Reset to page 1 when searching or sorting
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchTerm]);
+    }, [searchTerm, sortBy]);
 
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.checked) {
@@ -349,6 +390,17 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                         <Search className="w-5 h-5 absolute left-5 top-4.5 text-slate-400" />
                     </div>
                     <div className="flex gap-4 w-full md:w-auto">
+                        <button 
+                            onClick={() => setSortBy(sortBy === 'name' ? 'alumnae' : 'name')}
+                            className={`h-14 px-6 rounded-2xl flex items-center gap-3 text-xs font-black uppercase tracking-widest transition-all ${
+                                sortBy === 'alumnae' 
+                                ? 'bg-rose-600 text-white shadow-lg shadow-rose-500/30' 
+                                : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-indigo-600'
+                            }`}
+                        >
+                            <ArrowUpDown className={`w-4 h-4 ${sortBy === 'alumnae' ? 'rotate-180' : ''} transition-transform`} />
+                            {sortBy === 'alumnae' ? 'Sorted by Alumnae' : 'Sort by Alumnae'}
+                        </button>
                         <button className="h-14 px-6 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center gap-2 text-xs font-black uppercase text-slate-400 tracking-widest hover:text-indigo-600 transition-colors">
                             <Filter className="w-4 h-4" /> Advanced Filter
                         </button>
@@ -373,6 +425,7 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                 <th className="px-10 py-6">School Identity</th>
                                 <th className="px-10 py-6">Geography</th>
                                 <th className="px-10 py-6">Master Codes</th>
+                                <th className="px-10 py-6">Network Strength</th>
                                 <th className="px-10 py-6 text-right">Portfolio Actions</th>
                             </tr>
                         </thead>
@@ -421,6 +474,19 @@ export const SchoolRegistryManager: React.FC<SchoolRegistryManagerProps> = ({ re
                                             <div className="flex items-center gap-2">
                                                 <CheckCircle2 className="w-3.5 h-3.5 text-amber-500" />
                                                 <span className="text-[10px] font-mono font-black text-amber-600 uppercase">KNEC: {s.knecCode || 'N/A'}</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-10 py-8">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-3 rounded-2xl ${alumnaeCounts[s.id] > 0 ? 'bg-rose-50 text-rose-600' : 'bg-slate-50 text-slate-400'} transition-colors`}>
+                                                <Heart className={`w-5 h-5 ${alumnaeCounts[s.id] > 0 ? 'fill-rose-600' : ''}`} />
+                                            </div>
+                                            <div>
+                                                <p className="text-xl font-black text-slate-800 dark:text-white tracking-tighter italic">
+                                                    {alumnaeCounts[s.id]?.toLocaleString() || 0}
+                                                </p>
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Alumnae</p>
                                             </div>
                                         </div>
                                     </td>
