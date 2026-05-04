@@ -641,7 +641,7 @@ export const ModernPharmacyManager: React.FC<{
                     </div>
                 </div>
 
-                <div className="flex bg-white/5 backdrop-blur-3xl p-1.5 rounded-[2.5rem] border border-white/10 shadow-2xl overflow-x-auto no-scrollbar">
+                <div className="flex bg-white/5 backdrop-blur-3xl p-1.5 rounded-[2.5rem] border border-white/10 shadow-2xl overflow-x-auto custom-scrollbar-horizontal pb-2 max-w-full">
                     {accessibleTabs.map(tab => (
                         <button
                             key={tab}
@@ -1487,20 +1487,29 @@ export const ModernPharmacyManager: React.FC<{
 
                             <div className="glass-morphism-dark p-12 rounded-[4rem] border border-white/5 bg-gradient-to-b from-indigo-500/5 to-transparent">
                                 <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-10 text-indigo-400">Theme <span className="text-white">Experience</span></h3>
-                                <div className="grid grid-cols-5 gap-4">
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
                                     {(['indigo', 'emerald', 'rose', 'amber', 'cyan'] as const).map(t => (
                                         <button 
                                             key={t}
-                                            onClick={() => setSettings({...settings, theme: t})}
-                                            className={`h-16 rounded-2xl border-2 transition-all flex items-center justify-center ${settings.theme === t ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-60 hover:opacity-100'}`}
-                                            title={t.toUpperCase()}
+                                            onClick={() => setSettings(prev => prev ? {...prev, theme: t} : null)}
+                                            className={`group relative h-24 rounded-[2rem] border-2 transition-all duration-500 flex flex-col items-center justify-center gap-3 ${settings.theme === t ? `border-${t === 'indigo' ? 'indigo-500' : t === 'emerald' ? 'emerald-500' : t === 'rose' ? 'rose-500' : t === 'amber' ? 'amber-500' : 'cyan-500'} bg-white/5 shadow-2xl scale-105` : 'border-white/5 opacity-40 hover:opacity-100 hover:bg-white/5'}`}
                                         >
-                                            <div className={`w-10 h-10 rounded-full bg-${t === 'indigo' ? 'indigo-500' : t === 'emerald' ? 'emerald-500' : t === 'rose' ? 'rose-500' : t === 'amber' ? 'amber-500' : 'cyan-500'}`}></div>
+                                            <div className={`w-8 h-8 rounded-full bg-${t === 'indigo' ? 'indigo-500' : t === 'emerald' ? 'emerald-500' : t === 'rose' ? 'rose-500' : t === 'amber' ? 'amber-500' : 'cyan-500'} shadow-lg group-hover:scale-125 transition-transform duration-500`}></div>
+                                            <span className="text-[8px] font-black uppercase tracking-widest">{t}</span>
+                                            {settings.theme === t && (
+                                                <div className="absolute -top-2 -right-2 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-[#0a0a0f]">
+                                                    <CheckCircleIcon className="w-3 h-3 text-white" />
+                                                </div>
+                                            )}
                                         </button>
                                     ))}
                                 </div>
-                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-6 text-center">Global accent nodes will be recalibrated upon selection.</p>
+                             <div className="mt-10 p-6 bg-white/5 rounded-3xl border border-white/5 flex items-center gap-4">
+                                    <SparklesIcon className="w-6 h-6 text-indigo-400" />
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic">Adaptive Bio-Interface: The selected theme will propagate across all visual nodes and PDF artifacts.</p>
+                                </div>
                             </div>
+                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-6 text-center italic">Global accent nodes will be recalibrated upon selection.</p>
                         </div>
 
                         <div className="space-y-12">

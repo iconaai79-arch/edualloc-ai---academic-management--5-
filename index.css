@@ -89,6 +89,21 @@
   scrollbar-width: none;
 }
 
+.custom-scrollbar-horizontal::-webkit-scrollbar {
+  height: 6px;
+}
+.custom-scrollbar-horizontal::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+.custom-scrollbar-horizontal::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+.custom-scrollbar-horizontal::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
 @keyframes shake {
 
   0%,
