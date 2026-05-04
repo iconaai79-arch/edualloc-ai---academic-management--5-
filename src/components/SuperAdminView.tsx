@@ -4012,13 +4012,13 @@ Please change it after login.`;
 
                                         <div>
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">
-                                                {localSmsConfig.provider === 'Zettatel' ? 'User ID' : localSmsConfig.provider === 'Sematime' ? 'API Key' : 'User ID / API Key'}
+                                                {localSmsConfig.provider === 'Sematime' ? 'Account ID' : localSmsConfig.provider === 'Zettatel' ? 'User ID' : 'User ID / API Key'}
                                             </label>
                                             <input type="text" value={localSmsConfig.apiKey} onChange={e => setLocalSmsConfig({ ...localSmsConfig, apiKey: e.target.value })} className="form-input h-10" />
                                         </div>
                                         <div>
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">
-                                                {localSmsConfig.provider === 'Zettatel' ? 'Password' : localSmsConfig.provider === 'Sematime' ? 'Client ID' : 'API Password / Secret'}
+                                                {localSmsConfig.provider === 'Sematime' ? 'Auth Token' : localSmsConfig.provider === 'Zettatel' ? 'Password' : 'API Password / Secret'}
                                             </label>
                                             <input type="password" value={localSmsConfig.apiSecret} onChange={e => setLocalSmsConfig({ ...localSmsConfig, apiSecret: e.target.value })} className="form-input h-10" />
                                         </div>
@@ -5200,6 +5200,7 @@ Please change it after login.`;
                                     >
                                         <option value="Zettatel">Zettatel</option>
                                         <option value="ABMIS">ABMIS</option>
+                                        <option value="Sematime">Sematime</option>
                                     </select>
                                 </div>
                                 <div>
@@ -5207,12 +5208,16 @@ Please change it after login.`;
                                     <input type="text" value={tenantSmsConfig.fromNumber || ''} onChange={e => setTenantSmsConfig(prev => ({ ...prev, fromNumber: e.target.value }))} className="form-input" placeholder="e.g. EduAi" />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">API Key / Username</label>
-                                    <input type="text" value={tenantSmsConfig.apiKey || ''} onChange={e => setTenantSmsConfig(prev => ({ ...prev, apiKey: e.target.value }))} className="form-input" placeholder="Gateway username" />
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">
+                                        {tenantSmsConfig.provider === 'Sematime' ? 'Account ID' : 'API Key / Username'}
+                                    </label>
+                                    <input type="text" value={tenantSmsConfig.apiKey || ''} onChange={e => setTenantSmsConfig(prev => ({ ...prev, apiKey: e.target.value }))} className="form-input" placeholder={tenantSmsConfig.provider === 'Sematime' ? "Sematime Account ID" : "Gateway username"} />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">API Secret / Password</label>
-                                    <input type="password" value={tenantSmsConfig.apiSecret || ''} onChange={e => setTenantSmsConfig(prev => ({ ...prev, apiSecret: e.target.value }))} className="form-input" placeholder="Gateway password" />
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">
+                                        {tenantSmsConfig.provider === 'Sematime' ? 'Auth Token' : 'API Secret / Password'}
+                                    </label>
+                                    <input type="password" value={tenantSmsConfig.apiSecret || ''} onChange={e => setTenantSmsConfig(prev => ({ ...prev, apiSecret: e.target.value }))} className="form-input" placeholder={tenantSmsConfig.provider === 'Sematime' ? "Sematime Auth Token" : "Gateway password"} />
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Request Method</label>
