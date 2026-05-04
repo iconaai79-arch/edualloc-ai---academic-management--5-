@@ -12,7 +12,8 @@ import {
     generatePharmacyExpiryReportPdf,
     generatePharmacyStaffPayslipPdf,
     generatePharmacyReceiptPdf,
-    generatePharmacySalesReportPdf
+    generatePharmacySalesReportPdf,
+    generateDetailedPharmacySalesReportPdf
 } from '../../services/pdfService';
 import {
     HISPharmacyInventory, 
@@ -23,6 +24,7 @@ import {
     PharmacySale,
     PharmacyLedger,
     PharmacyStaff,
+    PharmacySaleItem,
     PharmacySettings,
     Institution,
     User
@@ -38,6 +40,10 @@ export const ModernPharmacyManager: React.FC<{
     currentUser: User;
 }> = ({ institutionId, currentInstitution, currentUser }) => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'inventory' | 'prescriptions' | 'hr' | 'accounting' | 'automation' | 'reports' | 'config'>('dashboard');
+    const [reportsSubTab, setReportsSubTab] = useState<'general' | 'sales'>('general');
+    const [salesFilter, setSalesFilter] = useState<'day' | 'week' | 'month' | 'period'>('day');
+    const [salesStartDate, setSalesStartDate] = useState(new Date().toISOString().split('T')[0]);
+    const [salesEndDate, setSalesEndDate] = useState(new Date().toISOString().split('T')[0]);
     const [isLoading, setIsLoading] = useState(true);
     
     // Core Data
@@ -48,6 +54,7 @@ export const ModernPharmacyManager: React.FC<{
     const [ledger, setLedger] = useState<PharmacyLedger[]>([]);
     const [staff, setStaff] = useState<PharmacyStaff[]>([]);
     const [patients, setPatients] = useState<HISPatient[]>([]);
+    const [saleItems, setSaleItems] = useState<PharmacySaleItem[]>([]);
     const [alerts, setAlerts] = useState<any[]>([]);
 
     // UI State
@@ -72,11 +79,12 @@ export const ModernPharmacyManager: React.FC<{
     const loadData = async () => {
         setIsLoading(true);
         try {
-            const [inv, batchRecords, prescs, saleRecords, ledgerRecords, staffRecords, patientRecords, alertRecords, settingsRecords] = await Promise.all([
+            const [inv, batchRecords, prescs, saleRecords, saleItemRecords, ledgerRecords, staffRecords, patientRecords, alertRecords, settingsRecords] = await Promise.all([
                 apiService.fetchModuleRecords('his_pharmacy_inventory', institutionId),
                 apiService.fetchModuleRecords('his_pharmacy_batches', institutionId),
                 apiService.fetchModuleRecords('his_prescriptions', institutionId, undefined, { order: 'created_at.desc' }),
                 apiService.fetchModuleRecords('his_pharmacy_sales', institutionId),
+                apiService.fetchModuleRecords('his_pharmacy_sale_items', institutionId),
                 apiService.fetchModuleRecords('his_pharmacy_ledger', institutionId),
                 apiService.fetchModuleRecords('his_pharmacy_staff', institutionId),
                 apiService.fetchModuleRecords('his_patients', institutionId),
@@ -88,6 +96,7 @@ export const ModernPharmacyManager: React.FC<{
             setBatches(batchRecords || []);
             setPrescriptions(prescs || []);
             setSales(saleRecords || []);
+            setSaleItems(saleItemRecords || []);
             setLedger(ledgerRecords || []);
             setStaff(staffRecords || []);
             setPatients(patientRecords || []);
@@ -201,6 +210,41 @@ export const ModernPharmacyManager: React.FC<{
             setSelectedReportUrl(dataUri);
         } catch (e) {
             alert("Payslip generation failed");
+        } finally {
+            setIsGeneratingReport(false);
+        }
+    };
+
+    const handleGenerateDetailedSalesReport = async () => {
+        if (!currentInstitution || !settings) return;
+        setIsGeneratingReport(true);
+        try {
+            const filteredSales = sales.filter(s => {
+                const d = new Date(s.createdAt);
+                const start = new Date(salesStartDate);
+                const end = new Date(salesEndDate);
+                end.setHours(23, 59, 59, 999);
+                return d >= start && d <= end;
+            });
+            
+            const filteredSaleItems = saleItems.filter(si => 
+                filteredSales.some(fs => fs.id === si.saleId)
+            );
+
+            const reportUrl = await generateDetailedPharmacySalesReportPdf(
+                filteredSales,
+                filteredSaleItems,
+                inventory,
+                salesStartDate,
+                salesEndDate,
+                currentInstitution,
+                settings,
+                settings.footerImageUrl || null
+            );
+            setSelectedReportUrl(reportUrl);
+        } catch (e) {
+            console.error(e);
+            alert("Failed to generate detailed sales report.");
         } finally {
             setIsGeneratingReport(false);
         }
@@ -1309,86 +1353,184 @@ export const ModernPharmacyManager: React.FC<{
             )}
 
             {activeTab === 'reports' && (
-                <div className="p-12 animate-fade-in space-y-12">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-                        {/* Clinical Inventory Valuation */}
-                        <div className={`glass-morphism-dark p-12 rounded-[4rem] border border-white/5 group hover:${theme.border} transition-all text-center space-y-8`}>
-                             <div className={`w-24 h-24 rounded-[2.5rem] bg-${theme.bg}/10 flex items-center justify-center text-${theme.accent} mx-auto`}>
-                                 <ArchiveBoxIcon className="w-12 h-12" />
-                             </div>
-                             <div>
-                                 <h3 className="text-2xl font-black uppercase tracking-tighter italic">Clinical <span className="text-indigo-400">Valuation</span></h3>
-                                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">Generate PDF of total stock assets</p>
-                             </div>
-                             <button 
-                                onClick={handleGenerateInventoryReport}
-                                className={`w-full py-5 rounded-[2rem] bg-${theme.bg} text-white text-[10px] font-black uppercase tracking-[0.4em] shadow-xl hover:scale-105 transition-all`}
-                             >
-                                Generate Preview
-                             </button>
-                        </div>
-
-                        {/* Expiry Risk Audit */}
-                        <div className="glass-morphism-dark p-12 rounded-[4rem] border border-white/5 group hover:border-rose-500/30 transition-all text-center space-y-8">
-                             <div className="w-24 h-24 rounded-[2.5rem] bg-rose-500/10 flex items-center justify-center text-rose-400 mx-auto">
-                                 <ExclamationTriangleIcon className="w-12 h-12" />
-                             </div>
-                             <div>
-                                 <h3 className="text-2xl font-black uppercase tracking-tighter italic">Expiry <span className="text-rose-400">Audit</span></h3>
-                                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">Identify and list high-risk batches</p>
-                             </div>
-                             <button 
-                                onClick={handleGenerateExpiryReport}
-                                className="w-full py-5 rounded-[2rem] bg-rose-500 text-white text-[10px] font-black uppercase tracking-[0.4em] shadow-xl hover:scale-105 transition-all"
-                             >
-                                Start Audit PDF
-                             </button>
-                        </div>
-
-                        {/* Payroll Nexus */}
-                        <div className="glass-morphism-dark p-12 rounded-[4rem] border border-white/5 group hover:border-emerald-500/30 transition-all text-center space-y-8 overflow-hidden relative">
-                             <div className="w-24 h-24 rounded-[2.5rem] bg-emerald-500/10 flex items-center justify-center text-emerald-400 mx-auto">
-                                 <UsersIcon className="w-12 h-12" />
-                             </div>
-                             <div className="max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                                 <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-4">Staff <span className="text-emerald-400">Payslips</span></h3>
-                                 <div className="space-y-4">
-                                     {staff.map(s => (
-                                         <button 
-                                            key={s.id}
-                                            onClick={() => handleGenerateStaffPayslip(s)}
-                                            className="w-full flex items-center justify-between p-4 bg-black/40 rounded-2xl border border-white/5 hover:border-emerald-500/50 transition-all group/item"
-                                         >
-                                             <div className="text-left">
-                                                 <p className="text-[10px] font-black uppercase italic text-white">{s.fullName || 'Operator'}</p>
-                                                 <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">{s.role}</p>
-                                             </div>
-                                             <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                                                 <DocumentTextIcon className="w-3 h-3" />
-                                             </div>
-                                         </button>
-                                     ))}
-                                 </div>
-                             </div>
-                        </div>
-                        {/* Sales Logic Analysis */}
-                        <div className="glass-morphism-dark p-12 rounded-[4rem] border border-white/5 group hover:border-indigo-500/30 transition-all text-center space-y-8">
-                             <div className="w-24 h-24 rounded-[2.5rem] bg-indigo-500/10 flex items-center justify-center text-indigo-400 mx-auto">
-                                 <BanknotesIcon className="w-12 h-12" />
-                             </div>
-                             <div>
-                                 <h3 className="text-2xl font-black uppercase tracking-tighter italic">Sales <span className="text-emerald-400">Analysis</span></h3>
-                                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">Revenue trends & top medications breakdown</p>
-                             </div>
-                             <button 
-                                onClick={handleGenerateSalesReport}
-                                disabled={isGeneratingReport}
-                                className="w-full py-5 rounded-[2rem] bg-gradient-to-r from-indigo-500 to-emerald-500 text-white text-[10px] font-black uppercase tracking-[0.4em] shadow-xl hover:scale-105 transition-all disabled:opacity-50"
-                             >
-                                {isGeneratingReport ? 'Processing...' : 'Generate Analysis'}
-                             </button>
-                        </div>
+                    <div className="flex bg-white/5 p-2 rounded-[2rem] w-fit mb-12">
+                        <button 
+                            onClick={() => setReportsSubTab('general')}
+                            className={`px-10 py-4 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest transition-all ${reportsSubTab === 'general' ? `bg-${theme.bg} text-white shadow-xl shadow-${theme.bg}/20` : 'text-slate-500 hover:text-white'}`}
+                        >
+                            General Analysis
+                        </button>
+                        <button 
+                            onClick={() => setReportsSubTab('sales')}
+                            className={`px-10 py-4 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest transition-all ${reportsSubTab === 'sales' ? `bg-${theme.bg} text-white shadow-xl shadow-${theme.bg}/20` : 'text-slate-500 hover:text-white'}`}
+                        >
+                            Detailed Sales
+                        </button>
                     </div>
+
+                    {reportsSubTab === 'general' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+                            {/* Clinical Inventory Valuation */}
+                            <div className={`glass-morphism-dark p-12 rounded-[4rem] border border-white/5 group hover:${theme.border} transition-all text-center space-y-8`}>
+                                 <div className={`w-24 h-24 rounded-[2.5rem] bg-${theme.bg}/10 flex items-center justify-center text-${theme.accent} mx-auto`}>
+                                     <ArchiveBoxIcon className="w-12 h-12" />
+                                 </div>
+                                 <div>
+                                     <h3 className="text-2xl font-black uppercase tracking-tighter italic">Clinical <span className="text-indigo-400">Valuation</span></h3>
+                                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">Generate PDF of total stock assets</p>
+                                 </div>
+                                 <button 
+                                    onClick={handleGenerateInventoryReport}
+                                    className={`w-full py-5 rounded-[2rem] bg-${theme.bg} text-white text-[10px] font-black uppercase tracking-[0.4em] shadow-xl hover:scale-105 transition-all`}
+                                 >
+                                    Generate Preview
+                                 </button>
+                            </div>
+
+                            {/* Expiry Risk Audit */}
+                            <div className="glass-morphism-dark p-12 rounded-[4rem] border border-white/5 group hover:border-rose-500/30 transition-all text-center space-y-8">
+                                 <div className="w-24 h-24 rounded-[2.5rem] bg-rose-500/10 flex items-center justify-center text-rose-400 mx-auto">
+                                     <ExclamationTriangleIcon className="w-12 h-12" />
+                                 </div>
+                                 <div>
+                                     <h3 className="text-2xl font-black uppercase tracking-tighter italic">Expiry <span className="text-rose-400">Audit</span></h3>
+                                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">Identify and list high-risk batches</p>
+                                 </div>
+                                 <button 
+                                    onClick={handleGenerateExpiryReport}
+                                    className="w-full py-5 rounded-[2rem] bg-rose-500 text-white text-[10px] font-black uppercase tracking-[0.4em] shadow-xl hover:scale-105 transition-all"
+                                 >
+                                    Start Audit PDF
+                                 </button>
+                            </div>
+
+                            {/* Sales Logic Analysis */}
+                            <div className="glass-morphism-dark p-12 rounded-[4rem] border border-white/5 group hover:border-indigo-500/30 transition-all text-center space-y-8">
+                                 <div className="w-24 h-24 rounded-[2.5rem] bg-indigo-500/10 flex items-center justify-center text-indigo-400 mx-auto">
+                                     <BanknotesIcon className="w-12 h-12" />
+                                 </div>
+                                 <div>
+                                     <h3 className="text-2xl font-black uppercase tracking-tighter italic">Sales <span className="text-emerald-400">Analysis</span></h3>
+                                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">Revenue trends & top medications breakdown</p>
+                                 </div>
+                                 <button 
+                                    onClick={handleGenerateSalesReport}
+                                    disabled={isGeneratingReport}
+                                    className="w-full py-5 rounded-[2rem] bg-gradient-to-r from-indigo-500 to-emerald-500 text-white text-[10px] font-black uppercase tracking-[0.4em] shadow-xl hover:scale-105 transition-all disabled:opacity-50"
+                                 >
+                                    {isGeneratingReport ? 'Processing...' : 'Generate Analysis'}
+                                 </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-12">
+                            <div className="glass-morphism-dark p-10 rounded-[3rem] border border-white/5 flex flex-col md:flex-row justify-between items-center gap-8">
+                                <div className="flex items-center gap-4 bg-black/40 p-2 rounded-[1.5rem] border border-white/5">
+                                    {(['day', 'week', 'month', 'period'] as const).map(f => (
+                                        <button 
+                                            key={f}
+                                            onClick={() => {
+                                                setSalesFilter(f);
+                                                const now = new Date();
+                                                const start = new Date();
+                                                if (f === 'day') start.setHours(0,0,0,0);
+                                                if (f === 'week') start.setDate(now.getDate() - 7);
+                                                if (f === 'month') start.setMonth(now.getMonth() - 1);
+                                                
+                                                if (f !== 'period') {
+                                                    setSalesStartDate(start.toISOString().split('T')[0]);
+                                                    setSalesEndDate(now.toISOString().split('T')[0]);
+                                                }
+                                            }}
+                                            className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${salesFilter === f ? `bg-${theme.bg} text-white shadow-lg` : 'text-slate-500 hover:text-slate-300'}`}
+                                        >
+                                            {f}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {salesFilter === 'period' && (
+                                    <div className="flex items-center gap-4">
+                                        <input 
+                                            type="date" 
+                                            value={salesStartDate}
+                                            onChange={e => setSalesStartDate(e.target.value)}
+                                            className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-[10px] font-black text-white outline-none focus:border-indigo-500 transition-all"
+                                        />
+                                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">To</span>
+                                        <input 
+                                            type="date" 
+                                            value={salesEndDate}
+                                            onChange={e => setSalesEndDate(e.target.value)}
+                                            className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-[10px] font-black text-white outline-none focus:border-indigo-500 transition-all"
+                                        />
+                                    </div>
+                                )}
+
+                                <button 
+                                    onClick={handleGenerateDetailedSalesReport}
+                                    disabled={isGeneratingReport}
+                                    className={`flex items-center gap-3 px-10 py-4 rounded-[1.5rem] bg-${theme.bg} text-white text-[10px] font-black uppercase tracking-widest shadow-xl shadow-${theme.bg}/20 hover:scale-105 transition-all disabled:opacity-50`}
+                                >
+                                    <PrinterIcon className="w-4 h-4" />
+                                    {isGeneratingReport ? 'Processing...' : 'Export Sales PDF'}
+                                </button>
+                            </div>
+
+                            <div className="glass-morphism-dark rounded-[3.5rem] border border-white/5 overflow-hidden">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-white/5">
+                                            <th className="px-10 py-8 text-[10px] font-black uppercase tracking-widest text-slate-500">Item Code</th>
+                                            <th className="px-6 py-8 text-[10px] font-black uppercase tracking-widest text-slate-500">Medication Name</th>
+                                            <th className="px-6 py-8 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Qty Sold</th>
+                                            <th className="px-10 py-8 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Total Revenue (KES)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {(() => {
+                                            const filteredSales = sales.filter(s => {
+                                                const d = new Date(s.createdAt);
+                                                const start = new Date(salesStartDate);
+                                                const end = new Date(salesEndDate);
+                                                end.setHours(23, 59, 59, 999);
+                                                return d >= start && d <= end;
+                                            });
+                                            
+                                            const filteredSaleItems = saleItems.filter(si => 
+                                                filteredSales.some(fs => fs.id === si.saleId)
+                                            );
+
+                                            const aggregated = new Map<string, { sku: string, name: string, qty: number, total: number }>();
+                                            filteredSaleItems.forEach(item => {
+                                                const inv = inventory.find(i => i.id === item.medicationId);
+                                                const key = item.medicationId;
+                                                const existing = aggregated.get(key) || { sku: inv?.sku || 'N/A', name: inv?.name || 'Unknown', qty: 0, total: 0 };
+                                                existing.qty += Number(item.quantity);
+                                                existing.total += Number(item.totalPrice);
+                                                aggregated.set(key, existing);
+                                            });
+
+                                            return Array.from(aggregated.values())
+                                                .sort((a, b) => b.total - a.total)
+                                                .map((item, idx) => (
+                                                    <tr key={idx} className="hover:bg-white/[0.02] transition-colors group">
+                                                        <td className="px-10 py-6 text-[10px] font-black text-slate-500">{item.sku}</td>
+                                                        <td className="px-6 py-6 font-black text-white uppercase text-[11px] tracking-tight">{item.name}</td>
+                                                        <td className="px-6 py-6 text-center">
+                                                            <span className="px-4 py-1.5 rounded-full bg-white/5 text-[10px] font-black text-white">{item.qty} Units</span>
+                                                        </td>
+                                                        <td className={`px-10 py-6 text-right font-black italic text-base text-${theme.accent}`}>
+                                                            {item.total.toLocaleString()}
+                                                        </td>
+                                                    </tr>
+                                                ));
+                                        })()}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
 
                     {/* PDF Preview Frame */}
                     {selectedReportUrl && (

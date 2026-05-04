@@ -5570,3 +5570,82 @@ export const generatePharmacySalesReportPdf = async (
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
 };
+/**
+ * Generates a detailed itemized sales report for the pharmacy.
+ */
+export const generateDetailedPharmacySalesReportPdf = async (
+    sales: PharmacySale[],
+    saleItems: PharmacySaleItem[],
+    inventory: HISPharmacyInventory[],
+    startDate: string,
+    endDate: string,
+    institution: Institution,
+    settings: PharmacySettings,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(settings.letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 14;
+
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text("DETAILED PHARMACY SALES REPORT", margin, yPos);
+    yPos += 10;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Period: ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`, margin, yPos);
+    yPos += 15;
+
+    // Aggregate items
+    const aggregated = new Map<string, { sku: string, name: string, qty: number, total: number }>();
+    saleItems.forEach(item => {
+        const inv = inventory.find(i => i.id === item.medicationId);
+        const key = item.medicationId;
+        const existing = aggregated.get(key) || { sku: inv?.sku || 'N/A', name: inv?.name || 'Unknown', qty: 0, total: 0 };
+        existing.qty += Number(item.quantity);
+        existing.total += Number(item.totalPrice);
+        aggregated.set(key, existing);
+    });
+
+    const head = [['SKU/Code', 'Item Name', 'Total Quantity', 'Total Amount (KES)']];
+    const body = Array.from(aggregated.values())
+        .sort((a, b) => b.total - a.total)
+        .map(item => [
+            item.sku,
+            item.name.toUpperCase(),
+            item.qty.toLocaleString(),
+            item.total.toLocaleString()
+        ]);
+
+    doc.autoTable({
+        startY: yPos,
+        head: head,
+        body: body,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] },
+        styles: { fontSize: 8 },
+        columnStyles: {
+            2: { halign: 'center' },
+            3: { halign: 'right', fontStyle: 'bold' }
+        }
+    });
+
+    const totalRevenue = sales.reduce((sum, s) => sum + Number(s.totalAmount), 0);
+    yPos = (doc as any).lastAutoTable.finalY + 10;
+    
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`TOTAL REVENUE FOR PERIOD: KES ${totalRevenue.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
