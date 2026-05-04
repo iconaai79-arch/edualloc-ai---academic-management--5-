@@ -3827,7 +3827,6 @@ export const AlumnaePortalView: React.FC<AlumnaePortalViewProps> = ({ currentAlu
                     
                     <div className="relative max-w-full max-h-full flex items-center justify-center animate-in zoom-in-95 duration-700 group">
                         <img loading="lazy" 
-                            loading="lazy" 
                             src={zoomedImage} 
                             className="max-w-full max-h-full object-contain rounded-[3rem] shadow-[0_40px_100px_rgba(0,0,0,0.6)] ring-1 ring-white/10 transition-transform duration-500 group-hover:scale-105" 
                             onClick={(e) => e.stopPropagation()}

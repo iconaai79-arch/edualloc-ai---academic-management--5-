@@ -1354,6 +1354,7 @@ export const ModernPharmacyManager: React.FC<{
             )}
 
             {activeTab === 'reports' && (
+                <>
                     <div className="flex bg-white/5 p-2 rounded-[2rem] w-fit mb-12">
                         <button 
                             onClick={() => setReportsSubTab('general')}
@@ -1550,6 +1551,7 @@ export const ModernPharmacyManager: React.FC<{
                         </div>
                     )}
                 </div>
+                </>
             )}
 
             {/* SALES ANALYTICS VIEW */}
