@@ -120,9 +120,13 @@ export const ModernPharmacyManager: React.FC<{
             emerald: { accent: 'emerald-400', bg: 'emerald-500', shadow: 'shadow-emerald-500/20', glass: 'from-emerald-500/5', border: 'border-emerald-500/30', text: 'text-emerald-400' },
             rose: { accent: 'rose-400', bg: 'rose-500', shadow: 'shadow-rose-500/20', glass: 'from-rose-500/5', border: 'border-rose-500/30', text: 'text-rose-400' },
             amber: { accent: 'amber-400', bg: 'amber-500', shadow: 'shadow-amber-500/20', glass: 'from-amber-500/5', border: 'border-amber-500/30', text: 'text-amber-400' },
-            cyan: { accent: 'cyan-400', bg: 'cyan-500', shadow: 'shadow-cyan-500/20', glass: 'from-cyan-500/5', border: 'border-cyan-500/30', text: 'text-cyan-400' }
+            cyan: { accent: 'cyan-400', bg: 'cyan-500', shadow: 'shadow-cyan-500/20', glass: 'from-cyan-500/5', border: 'border-cyan-500/30', text: 'text-cyan-400' },
+            violet: { accent: 'violet-400', bg: 'violet-500', shadow: 'shadow-violet-500/20', glass: 'from-violet-500/5', border: 'border-violet-500/30', text: 'text-violet-400' },
+            fuchsia: { accent: 'fuchsia-400', bg: 'fuchsia-500', shadow: 'shadow-fuchsia-500/20', glass: 'from-fuchsia-500/5', border: 'border-fuchsia-500/30', text: 'text-fuchsia-400' },
+            sky: { accent: 'sky-400', bg: 'sky-500', shadow: 'shadow-sky-500/20', glass: 'from-sky-500/5', border: 'border-sky-500/30', text: 'text-sky-400' },
+            lime: { accent: 'lime-400', bg: 'lime-500', shadow: 'shadow-lime-500/20', glass: 'from-lime-500/5', border: 'border-lime-500/30', text: 'text-lime-400' }
         };
-        return config[t] || config.indigo;
+        return config[t as keyof typeof config] || config.indigo;
     }, [settings?.theme]);
 
     const canAccessTab = (tab: typeof activeTab) => {
@@ -1488,13 +1492,13 @@ export const ModernPharmacyManager: React.FC<{
                             <div className="glass-morphism-dark p-12 rounded-[4rem] border border-white/5 bg-gradient-to-b from-indigo-500/5 to-transparent">
                                 <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-10 text-indigo-400">Theme <span className="text-white">Experience</span></h3>
                                 <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-                                    {(['indigo', 'emerald', 'rose', 'amber', 'cyan'] as const).map(t => (
+                                    {(['indigo', 'emerald', 'rose', 'amber', 'cyan', 'violet', 'fuchsia', 'sky', 'lime'] as const).map(t => (
                                         <button 
                                             key={t}
                                             onClick={() => setSettings(prev => prev ? {...prev, theme: t} : null)}
-                                            className={`group relative h-24 rounded-[2rem] border-2 transition-all duration-500 flex flex-col items-center justify-center gap-3 ${settings.theme === t ? `border-${t === 'indigo' ? 'indigo-500' : t === 'emerald' ? 'emerald-500' : t === 'rose' ? 'rose-500' : t === 'amber' ? 'amber-500' : 'cyan-500'} bg-white/5 shadow-2xl scale-105` : 'border-white/5 opacity-40 hover:opacity-100 hover:bg-white/5'}`}
+                                            className={`group relative h-24 rounded-[2rem] border-2 transition-all duration-500 flex flex-col items-center justify-center gap-3 ${settings.theme === t ? `border-${t === 'indigo' ? 'indigo-500' : t === 'emerald' ? 'emerald-500' : t === 'rose' ? 'rose-500' : t === 'amber' ? 'amber-500' : t === 'cyan' ? 'cyan-500' : t === 'violet' ? 'violet-500' : t === 'fuchsia' ? 'fuchsia-500' : t === 'sky' ? 'sky-500' : 'lime-500'} bg-white/5 shadow-2xl scale-105` : 'border-white/5 opacity-40 hover:opacity-100 hover:bg-white/5'}`}
                                         >
-                                            <div className={`w-8 h-8 rounded-full bg-${t === 'indigo' ? 'indigo-500' : t === 'emerald' ? 'emerald-500' : t === 'rose' ? 'rose-500' : t === 'amber' ? 'amber-500' : 'cyan-500'} shadow-lg group-hover:scale-125 transition-transform duration-500`}></div>
+                                            <div className={`w-8 h-8 rounded-full bg-${t === 'indigo' ? 'indigo-500' : t === 'emerald' ? 'emerald-500' : t === 'rose' ? 'rose-500' : t === 'amber' ? 'amber-500' : t === 'cyan' ? 'cyan-500' : t === 'violet' ? 'violet-500' : t === 'fuchsia' ? 'fuchsia-500' : t === 'sky' ? 'sky-500' : 'lime-500'} shadow-lg group-hover:scale-125 transition-transform duration-500`}></div>
                                             <span className="text-[8px] font-black uppercase tracking-widest">{t}</span>
                                             {settings.theme === t && (
                                                 <div className="absolute -top-2 -right-2 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-[#0a0a0f]">

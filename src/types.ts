@@ -3290,7 +3290,7 @@ export interface PharmacySettings {
     stopRemindersEnabled?: boolean;
     checkupRemindersEnabled?: boolean;
     autoPrintReceipt: boolean;
-    theme?: 'indigo' | 'emerald' | 'rose' | 'amber' | 'cyan';
+    theme?: 'indigo' | 'emerald' | 'rose' | 'amber' | 'cyan' | 'violet' | 'fuchsia' | 'sky' | 'lime';
     updatedAt: string;
 }
 
