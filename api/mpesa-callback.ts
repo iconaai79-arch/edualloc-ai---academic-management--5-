@@ -58,61 +58,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let settings: any = {};
         const { data: settingsData } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
         if (settingsData) settings = settingsData.data;
-+
-+        const getBranding = async (instId?: string) => {
-+            const protocol = String(req.headers['x-forwarded-proto'] || 'https');
-+            const hostHeader = req.headers.host || 'eduai.co.ke';
-+            const siteUrl = `${protocol}://${hostHeader}`;
-+
-+            const makeAbsolute = (url: string) => {
-+                if (!url || url.startsWith('http') || url.startsWith('data:')) return url;
-+                return `${siteUrl}${url.startsWith('/') ? '' : '/'}${url}`;
-+            };
-+
-+            const defaultBranding = {
-+                logoUrl: makeAbsolute(settings.logoUrl || settings.logo_url || 'https://eduai.co.ke/logo.png'),
-+                primaryColor: settings.themeColor || settings.primary_color || '#4f46e5',
-+                name: settings.appName || 'EduAi Network'
-+            };
-+
-+            if (!instId || instId === 'GLOBAL' || instId === 'SYSTEM') return defaultBranding;
-+
-+            try {
-+                const { data: inst } = await supabase.from('institutions').select('name, logo_url, theme_color, institution_type').eq('id', instId).maybeSingle();
-+                if (inst) {
-+                    return {
-+                        logoUrl: makeAbsolute(inst.logo_url) || defaultBranding.logoUrl,
-+                        primaryColor: inst.theme_color || defaultBranding.primaryColor,
-+                        name: inst.name,
-+                        type: inst.institution_type
-+                    };
-+                }
-+            } catch (e) {
-+                console.error(`[Branding] Failed to fetch for ${instId}:`, e);
-+            }
-+            return defaultBranding;
-+        };
-+
-+        const wrapHtml = (content: string, branding: any) => {
-+            return `
-+                <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; background-color: #ffffff;">
-+                    <div style="background-color: ${branding.primaryColor}; padding: 30px; text-align: center;">
-+                        <img src="${branding.logoUrl}" alt="${branding.name}" style="max-height: 60; max-width: 200px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));" />
-+                    </div>
-+                    <div style="padding: 40px; color: #1e293b; line-height: 1.6;">
-+                        ${content}
-+                    </div>
-+                    <div style="padding: 20px; background-color: #f8fafc; text-align: center; border-top: 1px solid #e2e8f0;">
-+                        <p style="margin: 0; font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">
-+                            Sent via ${branding.name}
-+                        </p>
-+                        <p style="margin: 5px 0 0; font-size: 10px; color: #94a3b8;">
-+                            &copy; ${new Date().getFullYear()} EduAi Global Network. All rights reserved.
-+                        </p>
-+                    </div>
-+                </div>
-+            `;
-+        };
+
+        const getBranding = async (instId?: string) => {
+            const protocol = String(req.headers['x-forwarded-proto'] || 'https');
+            const hostHeader = req.headers.host || 'eduai.co.ke';
+            const siteUrl = `${protocol}://${hostHeader}`;
+
+            const makeAbsolute = (url: string) => {
+                if (!url || url.startsWith('http') || url.startsWith('data:')) return url;
+                return `${siteUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+            };
+
+            const defaultBranding = {
+                logoUrl: makeAbsolute(settings.logoUrl || settings.logo_url) || 'https://eduai.co.ke/logo.png',
+                primaryColor: settings.themeColor || settings.primary_color || '#4f46e5',
+                name: settings.appName || 'EduAi Network'
+            };
+
+            if (!instId || instId === 'GLOBAL' || instId === 'SYSTEM') return defaultBranding;
+
+            try {
+                const { data: inst } = await supabase.from('institutions').select('name, logo_url, theme_color, institution_type').eq('id', instId).maybeSingle();
+                if (inst) {
+                    return {
+                        logoUrl: makeAbsolute(inst.logo_url) || defaultBranding.logoUrl,
+                        primaryColor: inst.theme_color || defaultBranding.primaryColor,
+                        name: inst.name,
+                        type: inst.institution_type
+                    };
+                }
+            } catch (e) {
+                console.error(`[Branding] Failed to fetch for ${instId}:`, e);
+            }
+            return defaultBranding;
+        };
+
+        const wrapHtml = (content: string, branding: any) => {
+            return `
+                <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; background-color: #ffffff;">
+                    <div style="background-color: ${branding.primaryColor}; padding: 30px; text-align: center;">
+                        <img src="${branding.logoUrl}" alt="${branding.name}" width="180" style="display: inline-block; max-height: 60px; width: auto; height: auto; border: 0;" />
+                    </div>
+                    <div style="padding: 40px; color: #1e293b; line-height: 1.6;">
+                        ${content}
+                    </div>
+                    <div style="padding: 20px; background-color: #f8fafc; text-align: center; border-top: 1px solid #e2e8f0;">
+                        <p style="margin: 0; font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">
+                            Sent via ${branding.name}
+                        </p>
+                        <p style="margin: 5px 0 0; font-size: 10px; color: #94a3b8;">
+                            &copy; ${new Date().getFullYear()} EduAi Global Network. All rights reserved.
+                        </p>
+                    </div>
+                </div>
+            `;
+        };
 
         // Parse M-Pesa callback data
         const { Body } = req.body;

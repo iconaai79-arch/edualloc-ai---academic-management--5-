@@ -307,7 +307,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             };
 
             const defaultBranding = {
-                logoUrl: makeAbsolute(settings.logoUrl || settings.logo_url || 'https://eduai.co.ke/logo.png'),
+                logoUrl: makeAbsolute(settings.logoUrl || settings.logo_url) || 'https://eduai.co.ke/logo.png',
                 primaryColor: settings.themeColor || settings.primary_color || '#4f46e5',
                 name: settings.appName || 'EduAi Network'
             };
@@ -334,7 +334,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return `
                 <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; background-color: #ffffff;">
                     <div style="background-color: ${branding.primaryColor}; padding: 30px; text-align: center;">
-                        <img src="${branding.logoUrl}" alt="${branding.name}" style="max-height: 60; max-width: 200px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));" />
+                        <img src="${branding.logoUrl}" alt="${branding.name}" width="180" style="display: inline-block; max-height: 60px; width: auto; height: auto; border: 0;" />
                     </div>
                     <div style="padding: 40px; color: #1e293b; line-height: 1.6;">
                         ${content}
