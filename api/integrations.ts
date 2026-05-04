@@ -297,8 +297,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (settingsData) settings = settingsData.data || {};
         
         const getBranding = async (instId?: string) => {
+            const protocol = String(req.headers['x-forwarded-proto'] || 'https');
+            const hostHeader = req.headers.host || 'eduai.co.ke';
+            const siteUrl = `${protocol}://${hostHeader}`;
+
+            const makeAbsolute = (url: string) => {
+                if (!url || url.startsWith('http') || url.startsWith('data:')) return url;
+                return `${siteUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+            };
+
             const defaultBranding = {
-                logoUrl: settings.logoUrl || settings.logo_url || 'https://eduai.co.ke/logo.png',
+                logoUrl: makeAbsolute(settings.logoUrl || settings.logo_url || 'https://eduai.co.ke/logo.png'),
                 primaryColor: settings.themeColor || settings.primary_color || '#4f46e5',
                 name: settings.appName || 'EduAi Network'
             };
@@ -309,7 +318,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const { data: inst } = await supabase.from('institutions').select('name, logo_url, theme_color, institution_type').eq('id', instId).maybeSingle();
                 if (inst) {
                     return {
-                        logoUrl: inst.logo_url || defaultBranding.logoUrl,
+                        logoUrl: makeAbsolute(inst.logo_url) || defaultBranding.logoUrl,
                         primaryColor: inst.theme_color || defaultBranding.primaryColor,
                         name: inst.name,
                         type: inst.institution_type
@@ -1697,52 +1706,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             tls: { rejectUnauthorized: false }
                         });
 
-                        const htmlTemplate = `
-                            <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-                                <div style="background-color: #4f46e5; padding: 32px 24px; text-align: center;">
-                                    <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em; text-transform: uppercase;">Payment Verified</h1>
-                                </div>
-                                <div style="padding: 32px 24px; color: #1e293b; line-height: 1.6;">
-                                    <p style="margin-top: 0; font-weight: 600; font-size: 18px;">Hello,</p>
-                                    <p style="margin-bottom: 24px;">Your payment for <strong>${inst?.name || 'your account'}</strong> has been successfully verified. Details of the transaction are below:</p>
-                                    
-                                    <div style="background-color: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-                                        <table style="width: 100%; border-collapse: collapse;">
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; width: 40%;">Amount Paid</td>
-                                                <td style="padding: 8px 0; color: #1e293b; font-weight: 800; font-size: 15px;">KES ${amt.toLocaleString()}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Purpose</td>
-                                                <td style="padding: 8px 0; color: #1e293b; font-weight: 600; font-size: 15px;">${purpose}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Reference</td>
-                                                <td style="padding: 8px 0; color: #1e293b; font-family: monospace; font-size: 14px;">${txn.transaction_id || txn.id}</td>
-                                            </tr>
-                                            ${(txn as any).newBalance !== undefined ? `
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">New SMS Balance</td>
-                                                <td style="padding: 8px 0; color: #059669; font-weight: 800; font-size: 15px;">${(txn as any).newBalance.toLocaleString()} Units</td>
-                                            </tr>` : ''}
-                                        </table>
-                                    </div>
-                                    
-                                    <p style="margin-bottom: 0;">Thank you for choosing EduAi platform for your institution management.</p>
-                                </div>
-                                <div style="background-color: #f1f5f9; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
-                                    <p style="margin: 0; color: #64748b; font-size: 12px;">This is an automated notification. Please do not reply to this email.</p>
-                                    <p style="margin: 8px 0 0; color: #94a3b8; font-size: 11px;">&copy; 2024 EduAi Automation Hub. All rights reserved.</p>
-                                </div>
+                        const branding = await getBranding(instId);
+                        const htmlContent = wrapHtml(`
+                            <h2 style="color: ${branding.primaryColor}; margin-top: 0;">Payment Verified</h2>
+                            <p>Hello,</p>
+                            <p>Your payment for <strong>${inst?.name || 'your account'}</strong> has been successfully verified. Details of the transaction are below:</p>
+                            
+                            <div style="background-color: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; width: 40%;">Amount Paid</td>
+                                        <td style="padding: 8px 0; color: #1e293b; font-weight: 800; font-size: 15px;">KES ${amt.toLocaleString()}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Purpose</td>
+                                        <td style="padding: 8px 0; color: #1e293b; font-weight: 600; font-size: 15px;">${purpose}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Reference</td>
+                                        <td style="padding: 8px 0; color: #1e293b; font-family: monospace; font-size: 14px;">${txn.transaction_id || txn.id}</td>
+                                    </tr>
+                                    ${(txn as any).newBalance !== undefined ? `
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">New SMS Balance</td>
+                                        <td style="padding: 8px 0; color: #059669; font-weight: 800; font-size: 15px;">${(txn as any).newBalance.toLocaleString()} Units</td>
+                                    </tr>` : ''}
+                                </table>
                             </div>
-                        `;
+                            
+                            <p style="margin-bottom: 0;">Thank you for choosing EduAi platform for your institution management.</p>
+                        `, branding);
 
                         await transporter.sendMail({
-                            from: `"${emailConfig.fromName || 'EduAi'}" <${emailConfig.fromEmail || emailConfig.username}>`,
+                            from: `"${branding.name}" <${emailConfig.fromEmail || emailConfig.username}>`,
                             to: inst.email,
                             subject: isSms ? 'SMS Top-up Verified' : 'Payment Verified Successfully',
                             text: notifyMessage,
-                            html: htmlTemplate
+                            html: htmlContent
                         });
                     } catch (e: any) {
                         console.error('[Reconcile] Email failed:', e.message);

@@ -58,6 +58,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let settings: any = {};
         const { data: settingsData } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
         if (settingsData) settings = settingsData.data;
++
++        const getBranding = async (instId?: string) => {
++            const protocol = String(req.headers['x-forwarded-proto'] || 'https');
++            const hostHeader = req.headers.host || 'eduai.co.ke';
++            const siteUrl = `${protocol}://${hostHeader}`;
++
++            const makeAbsolute = (url: string) => {
++                if (!url || url.startsWith('http') || url.startsWith('data:')) return url;
++                return `${siteUrl}${url.startsWith('/') ? '' : '/'}${url}`;
++            };
++
++            const defaultBranding = {
++                logoUrl: makeAbsolute(settings.logoUrl || settings.logo_url || 'https://eduai.co.ke/logo.png'),
++                primaryColor: settings.themeColor || settings.primary_color || '#4f46e5',
++                name: settings.appName || 'EduAi Network'
++            };
++
++            if (!instId || instId === 'GLOBAL' || instId === 'SYSTEM') return defaultBranding;
++
++            try {
++                const { data: inst } = await supabase.from('institutions').select('name, logo_url, theme_color, institution_type').eq('id', instId).maybeSingle();
++                if (inst) {
++                    return {
++                        logoUrl: makeAbsolute(inst.logo_url) || defaultBranding.logoUrl,
++                        primaryColor: inst.theme_color || defaultBranding.primaryColor,
++                        name: inst.name,
++                        type: inst.institution_type
++                    };
++                }
++            } catch (e) {
++                console.error(`[Branding] Failed to fetch for ${instId}:`, e);
++            }
++            return defaultBranding;
++        };
++
++        const wrapHtml = (content: string, branding: any) => {
++            return `
++                <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; background-color: #ffffff;">
++                    <div style="background-color: ${branding.primaryColor}; padding: 30px; text-align: center;">
++                        <img src="${branding.logoUrl}" alt="${branding.name}" style="max-height: 60; max-width: 200px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));" />
++                    </div>
++                    <div style="padding: 40px; color: #1e293b; line-height: 1.6;">
++                        ${content}
++                    </div>
++                    <div style="padding: 20px; background-color: #f8fafc; text-align: center; border-top: 1px solid #e2e8f0;">
++                        <p style="margin: 0; font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">
++                            Sent via ${branding.name}
++                        </p>
++                        <p style="margin: 5px 0 0; font-size: 10px; color: #94a3b8;">
++                            &copy; ${new Date().getFullYear()} EduAi Global Network. All rights reserved.
++                        </p>
++                    </div>
++                </div>
++            `;
++        };
 
         // Parse M-Pesa callback data
         const { Body } = req.body;
@@ -319,51 +374,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const purpose = `SMS Top-up (${unitsCount} units)`;
                         const emailMessage = `Dear Admin, payment confirmed! ${unitsCount} SMS units have been added to your balance. Your new balance is ${newBalance.toLocaleString()} units. Ref: ${mpesaReceiptNumber || transaction.id}. Thank you for choosing Eduai Automation.`;
 
-                        const htmlTemplate = `
-                            <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-                                <div style="background-color: #4f46e5; padding: 32px 24px; text-align: center;">
-                                    <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em; text-transform: uppercase;">Payment Verified</h1>
-                                </div>
-                                <div style="padding: 32px 24px; color: #1e293b; line-height: 1.6;">
-                                    <p style="margin-top: 0; font-weight: 600; font-size: 18px;">Hello,</p>
-                                    <p style="margin-bottom: 24px;">Your payment of <strong>KES ${transaction.amount.toLocaleString()}</strong> for SMS units has been successfully verified.</p>
-                                    
-                                    <div style="background-color: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-                                        <table style="width: 100%; border-collapse: collapse;">
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; width: 40%;">Amount Paid</td>
-                                                <td style="padding: 8px 0; color: #1e293b; font-weight: 800; font-size: 15px;">KES ${transaction.amount.toLocaleString()}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Purpose</td>
-                                                <td style="padding: 8px 0; color: #1e293b; font-weight: 600; font-size: 15px;">${purpose}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Reference</td>
-                                                <td style="padding: 8px 0; color: #1e293b; font-family: monospace; font-size: 14px;">${mpesaReceiptNumber || transaction.id}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">New SMS Balance</td>
-                                                <td style="padding: 8px 0; color: #059669; font-weight: 800; font-size: 15px;">${newBalance.toLocaleString()} Units</td>
-                                            </tr>
-                                        </table>
-                                    </div>
-                                    
-                                    <p style="margin-bottom: 0;">Thank you for your continued partnership with the Eduai Automation Platform.</p>
-                                </div>
-                                <div style="background-color: #f1f5f9; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
-                                    <p style="margin: 0; color: #64748b; font-size: 12px;">This is an automated notification. Please do not reply to this email.</p>
-                                    <p style="margin: 8px 0 0; color: #94a3b8; font-size: 11px;">&copy; 2024 Eduai Automation Hub. All rights reserved.</p>
-                                </div>
+                        const branding = await getBranding(transaction.institution_id);
+                        const htmlContent = wrapHtml(`
+                            <h2 style="color: ${branding.primaryColor}; margin-top: 0;">Payment Verified</h2>
+                            <p>Hello,</p>
+                            <p>Your payment of <strong>KES ${transaction.amount.toLocaleString()}</strong> for SMS units has been successfully verified.</p>
+                            
+                            <div style="background-color: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; width: 40%;">Amount Paid</td>
+                                        <td style="padding: 8px 0; color: #1e293b; font-weight: 800; font-size: 15px;">KES ${transaction.amount.toLocaleString()}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Purpose</td>
+                                        <td style="padding: 8px 0; color: #1e293b; font-weight: 600; font-size: 15px;">${purpose}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Reference</td>
+                                        <td style="padding: 8px 0; color: #1e293b; font-family: monospace; font-size: 14px;">${mpesaReceiptNumber || transaction.id}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #64748b; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">New SMS Balance</td>
+                                        <td style="padding: 8px 0; color: #059669; font-weight: 800; font-size: 15px;">${newBalance.toLocaleString()} Units</td>
+                                    </tr>
+                                </table>
                             </div>
-                        `;
+                            
+                            <p style="margin-bottom: 0;">Thank you for your continued partnership with the Eduai Automation Platform.</p>
+                        `, branding);
 
                         await transporter.sendMail({
-                            from: `"${emailConfig.fromName || 'Eduai Automation Hub'}" <${emailConfig.fromEmail || emailConfig.username}>`,
+                            from: `"${branding.name}" <${emailConfig.fromEmail || emailConfig.username}>`,
                             to: updatedInst.email,
                             subject: 'SMS Units Topped Up Successfully',
                             text: emailMessage,
-                            html: htmlTemplate
+                            html: htmlContent
                         });
                     } catch (emailErr) {
                         console.error('[M-Pesa Callback] Email notification failed:', emailErr);
