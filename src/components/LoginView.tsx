@@ -42,12 +42,13 @@ interface LoginViewProps {
     onResetPassword?: (token: string, pass: string) => Promise<{ success: boolean; message: string }>;
     schoolRegistry?: SchoolRegistry[];
     initialView?: 'login' | 'register';
+    prefillModuleId?: string;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({
     onLogin, onInstitutionRegister, onCountyRegister, logoUrl, applicationTitle,
     onOpenGuestPortal, onOpenGuestFeedback, onOpenMarketplace, onOpenShowcase, companyDetails, onForgotPassword, onResetPassword,
-    onVerifyOtp, onResendOtp, onVerifyResetOtp, schoolRegistry = [], initialView = 'login'
+    onVerifyOtp, onResendOtp, onVerifyResetOtp, schoolRegistry = [], initialView = 'login', prefillModuleId
 }) => {
     const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'recovery_otp' | 'reg_success' | 'reset_sent' | 'reset_password' | 'otp'>(initialView);
     const [identifier, setIdentifier] = useState('');
@@ -115,7 +116,34 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 setView('register');
             }
         }
-    }, [schoolRegistry]);
+
+        if (prefillModuleId) {
+            const MODULE_REG_MAPPING: Record<string, Partial<InstitutionRegistrationData>> = {
+                'property': { institutionType: 'Business', category: 'Property Management', businessSubType: 'Property Management' },
+                'coop': { institutionType: 'Cooperative', category: '', businessSubType: '' },
+                'his': { institutionType: 'HIS', category: 'Hospital/Clinic', businessSubType: 'Hospital/Clinic' },
+                'retail': { institutionType: 'Business', category: 'Retail Agency', businessSubType: 'Retail Agency' },
+                'autoservice': { institutionType: 'Business', category: 'Car Wash', businessSubType: 'Car Wash' },
+                'edu': { institutionType: 'Education', category: 'Primary', businessSubType: 'Primary' },
+                'fuel': { institutionType: 'Business', category: 'General', businessSubType: 'General' },
+                'campaign': { institutionType: 'Political Campaign', category: 'Political Campaign Management', businessSubType: 'Political Campaign Management' },
+                'legal': { institutionType: 'Law Firm', category: 'Law Firm', businessSubType: 'Law Firm' },
+                'ds': { institutionType: 'Education', category: 'Driving School', businessSubType: 'Driving School' },
+                'civil': { institutionType: 'Business', category: 'General', businessSubType: 'General' },
+                'logistics': { institutionType: 'Logistics', category: 'Cargo & Delivery', businessSubType: 'Cargo & Delivery' },
+                'showroom': { institutionType: 'Business', category: 'Automotive Marketplace', businessSubType: 'Automotive Marketplace' },
+                'tourism': { institutionType: 'Hospitality', category: 'Travel Agency', businessSubType: 'Travel Agency' },
+                'community': { institutionType: 'Community', category: 'Chama/Savings Group', businessSubType: 'Chama/Savings Group' },
+                'alumni': { institutionType: 'Education', category: 'Alumni Network', businessSubType: 'Alumni Network' },
+                'pharmacy': { institutionType: 'Pharmacy', category: '', businessSubType: '' }
+            };
+
+            const prefill = MODULE_REG_MAPPING[prefillModuleId];
+            if (prefill) {
+                setRegData(prev => ({ ...prev, ...prefill }));
+            }
+        }
+    }, [schoolRegistry, prefillModuleId]);
 
     const handleLoginSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
