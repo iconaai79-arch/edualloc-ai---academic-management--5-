@@ -4012,6 +4012,21 @@ export interface CarLead {
     updatedAt?: string;
 }
 
+export interface BankTransaction {
+    id: string;
+    institutionId: string;
+    amount: number;
+    transactionDate: string;
+    reference: string;
+    senderName?: string;
+    bankName?: string;
+    status: 'reconciled' | 'unreconciled';
+    linkedInvoiceId?: string;
+    reconciledAt?: string;
+    reconciledBy?: string;
+    createdAt: string;
+}
+
 
 export interface StationShift {
     id: string;

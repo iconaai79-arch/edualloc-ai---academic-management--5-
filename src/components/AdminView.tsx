@@ -17,7 +17,7 @@ import type {
     LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction,
     LawAgreement, LawAgreementTemplate,
     DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
-    CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry
+    CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry, BankTransaction
 } from '../types';
 const UserManager = lazy(() => import('./UserManager').then(m => ({ default: m.UserManager })));
 const TimetableGenerator = lazy(() => import('./TimetableGenerator').then(m => ({ default: m.TimetableGenerator })));
@@ -55,6 +55,7 @@ const DisciplineManager = lazy(() => import('./Academics/DisciplineManager').the
 const CarShowroomDashboard = lazy(() => import('./automotive/CarShowroomDashboard').then(m => ({ default: m.CarShowroomDashboard })));
 const CarInventoryList = lazy(() => import('./automotive/CarInventoryList').then(m => ({ default: m.CarInventoryList })));
 const CarSalesLedger = lazy(() => import('./automotive/CarSalesLedger').then(m => ({ default: m.CarSalesLedger })));
+const BankFeedsManager = lazy(() => import('./automotive/BankFeedsManager').then(m => ({ default: m.BankFeedsManager })));
 const TransportManager = lazy(() => import('./TransportManager').then(m => ({ default: m.TransportManager })));
 
 
@@ -156,6 +157,7 @@ export interface AdminViewProps {
     institutions?: Institution[];
     counties: County[];
     schoolRegistry?: SchoolRegistry[];
+    carBankTransactions?: BankTransaction[];
     activityLogLimit?: number;
     setActivityLogLimit?: React.Dispatch<React.SetStateAction<number>>;
     transactionLimit: number;
@@ -318,6 +320,11 @@ export interface AdminViewProps {
     onAssociateSubjectToCourseLevel?: (subjectId: string, courseLevelId: string) => void;
     onDisassociateSubjectFromCourseLevel?: (subjectId: string, courseLevelId: string) => void;
     onUpdateExtensionRequestStatus?: (requestId: string, status: 'approved' | 'rejected', extensionDays?: number) => void;
+    
+    // Bank Reconciliation
+    onReconcileBankTransaction?: (transactionId: string, invoiceId: string) => Promise<void>;
+    onFetchBankFeeds?: () => Promise<void>;
+    
     onSaveBiometricConfig?: (config: BiometricConfig) => void;
     onUpdateVoteHeads?: (heads: VoteHead[]) => void;
     onUpdateFeeStructures?: (structures: FeeStructure[]) => void;
@@ -428,7 +435,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const [isSecurityAlertModalOpen, setIsSecurityAlertModalOpen] = useState(false);
     const [isAddListingModalOpen, setIsAddListingModalOpen] = useState(false);
     const [selectedListingForEdit, setSelectedListingForEdit] = useState<CarListing | null>(null);
-    const [autoSubTab, setAutoSubTab] = useState<'dashboard' | 'inventory' | 'financials'>('dashboard');
+    const [autoSubTab, setAutoSubTab] = useState<'dashboard' | 'inventory' | 'financials' | 'bank_feeds'>('dashboard');
     const [isAddCarInvoiceModalOpen, setIsAddCarInvoiceModalOpen] = useState(false);
     const [isAddCarPaymentModalOpen, setIsAddCarPaymentModalOpen] = useState(false);
     const [isAddCarLeadModalOpen, setIsAddCarLeadModalOpen] = useState(false);
@@ -756,7 +763,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
             if (tab.id === 'reports') {
                 if (props.currentUser?.role === 'super_admin') return true;
-                if (isAutoMarket) return ['director', 'finance', 'admin'].includes(roleToUse || '');
+                if (isAutoMarket) return ['director', 'finance'].includes(roleToUse || '');
                 return true; // Default visibility for other institutional types
             }
 
@@ -1717,7 +1724,10 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             <button onClick={() => setAutoSubTab('dashboard')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'dashboard' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Dashboard Hub</button>
                             <button onClick={() => setAutoSubTab('inventory')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'inventory' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Vehicle Inventory</button>
                             {['director', 'finance', 'super_admin', 'admin'].includes(props.currentUser?.role || '') && (
-                                <button onClick={() => setAutoSubTab('financials')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'financials' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Sales & Invoices</button>
+                                <>
+                                    <button onClick={() => setAutoSubTab('financials')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'financials' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Sales & Invoices</button>
+                                    <button onClick={() => setAutoSubTab('bank_feeds')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'bank_feeds' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Bank Feeds</button>
+                                </>
                             )}
                         </div>
 
@@ -1733,6 +1743,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     onAction={(tab, sub) => {
                                         if (tab === 'inventory') setAutoSubTab('inventory');
                                         else if (tab === 'financials') setAutoSubTab('financials');
+                                        else if (tab === 'bank_feeds') setAutoSubTab('bank_feeds');
                                         else setActiveTab(tab as any);
                                     }}
                                     onAddListing={() => {
@@ -1771,7 +1782,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                         window.open(`/?view=showroom&showroom=${slug}`, '_blank');
                                     }}
                                 />
-                            ) : (
+                            ) : autoSubTab === 'financials' ? (
                                 <CarSalesLedger 
                                     invoices={props.carInvoices || []}
                                     payments={props.carPayments || []}
@@ -1781,18 +1792,31 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                         setSelectedInvoiceForPayment(invoice || null);
                                         setIsAddCarPaymentModalOpen(true);
                                     }}
-                                    onPrintInvoice={(inv) => {
-                                        setSelectedInvoiceForReceipt(inv);
-                                        setIsCarReceiptModalOpen(true);
-                                    }}
+                                    onPrintInvoice={handlePreviewCarInvoice}
                                     onPrintReceipt={(pay) => {
                                         const inv = props.carInvoices?.find(i => i.id === pay.invoiceId);
-                                        setSelectedInvoiceForReceipt(inv || null);
-                                        setSelectedPaymentForReceipt(pay);
-                                        setIsCarReceiptModalOpen(true);
+                                        if (inv) handlePreviewCarReceipt(pay, inv);
                                     }}
+                                    onPrintAgreement={handlePreviewCarAgreement}
                                 />
-                            )}
+                            ) : autoSubTab === 'bank_feeds' ? (
+                                <BankFeedsManager
+                                    transactions={props.carBankTransactions || []}
+                                    invoices={props.carInvoices || []}
+                                    onReconcile={async (tid, invId) => {
+                                        if (props.onReconcileBankTransaction) {
+                                            await props.onReconcileBankTransaction(tid, invId);
+                                        }
+                                    }}
+                                    onFetchFeeds={async () => {
+                                        if (props.onFetchBankFeeds) {
+                                            await props.onFetchBankFeeds();
+                                        }
+                                    }}
+                                    currentUser={props.currentUser}
+                                    institution={props.currentInstitution!}
+                                />
+                            ) : null}
                         </div>
                     </div>
                 )}

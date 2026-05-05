@@ -97,7 +97,7 @@ import type {
     InstitutionModuleState,
     LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction, LawAgreementTemplate, LawAgreement,
     DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
-    CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry,
+    CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry, BankTransaction,
     DisciplineIncident, Expense, FinancialGoal, PayrollRecord, CampaignProfile
 } from '../types';
 import { XIcon } from './icons/XIcon';
@@ -526,6 +526,7 @@ export const App: React.FC = () => {
     const [carAppraisals, setCarAppraisals] = useState<CarAppraisal[]>([]);
     const [carInvoices, setCarInvoices] = useState<CarInvoice[]>([]);
     const [carPayments, setCarPayments] = useState<CarPayment[]>([]);
+    const [carBankTransactions, setCarBankTransactions] = useState<BankTransaction[]>([]);
 
     const [showCarSales, setShowCarSales] = useState(() => {
         try {
@@ -837,7 +838,7 @@ export const App: React.FC = () => {
             let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [], sar: any[] = [], enr: any[] = [], abs: any[] = [], con: any[] = [], att: any[] = [], item: any[] = [], tt: any[] = [], et: any[] = [], asg: any[] = [], subm: any[] = [], rat: any[] = [], ta: any[] = [], asmt: any[] = [], asmtMarks: any[] = [], bks: any[] = [], ltx: any[] = [], apts: any[] = [], sups: any[] = [], stx: any[] = [], cinv: any[] = [], ccats: any[] = [], cstores: any[] = [], bApps: any[] = [], bFunds: any[] = [], lo: any[] = [], obs: any[] = [], vis: any[] = [], sec: any[] = [], reqRecords: any[] = [], retExp: any[] = [], rStores: any[] = [], rInv: any[] = [], tor: any[] = [], fBulletin: any[] = [], fDocs: any[] = [], fWatch: any[] = [], fMaint: any[] = [], fCheckIn: any[] = [], vhcls: any[] = [], tonb: any[] = [], vlogs: any[] = [], cafe: any[] = [], cOrders: any[] = [], rSales: any[] = [], cwJobs: any[] = [], cFarmers: any[] = [], cColls: any[] = [], cRiders: any[] = [], cAgroInv: any[] = [], cAgroSales: any[] = [], cSaccoAcc: any[] = [], cSaccoTx: any[] = [], cPayouts: any[] = [], cExps: any[] = [], cInc: any[] = [], lClients: any[] = [], lMatters: any[] = [], lDocs: any[] = [], lTime: any[] = [], lInvs: any[] = [], lTrust: any[] = [], lTemplates: any[] = [], lAgreements: any[] = [], dsInst: any[] = [], dsVeh: any[] = [], dsStud: any[] = [], dsLess: any[] = [], dsMast: any[] = [], dsSet: any[] = [], cInvs: any[] = [], cPay: any[] = [];
             let ims: any[] = [];
             let demoLeads: any[] = [];
-            let csList: any[] = [], csTest: any[] = [], csAppr: any[] = [];
+            let csList: any[] = [], csTest: any[] = [], csAppr: any[] = [], csBank: any[] = [];
             let disc: any[] = [];
             let fExps: any[] = [], fGoals: any[] = [];
             let fPayroll: any[] = [];
@@ -853,7 +854,7 @@ export const App: React.FC = () => {
                     ? apiService.fetchDemoRequests().catch(() => []) 
                     : Promise.resolve([]);
 
-                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements, dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, csList, csTest, csAppr, cInvs, cPay, ims, disc, fExps, fGoals, fPayroll, demoLeads] = await Promise.all([
+                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements, dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, csList, csTest, csAppr, cInvs, cPay, csBank, ims, disc, fExps, fGoals, fPayroll, demoLeads] = await Promise.all([
 
                     apiService.fetchInvoices(effectiveInstId).catch(() => []),
                     apiService.fetchExtensionRequests(isSuper ? 'ALL' : effectiveInstId).catch(() => []),
@@ -935,6 +936,7 @@ export const App: React.FC = () => {
                     isBusiness ? apiService.fetchCarAppraisals(effectiveInstId).catch(() => []) : Promise.resolve([]),
                     isBusiness ? apiService.fetchCarInvoices(effectiveInstId).catch(() => []) : Promise.resolve([]),
                     isBusiness ? apiService.fetchCarPayments(undefined, effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    isBusiness ? apiService.fetchModuleRecords<BankTransaction>('car_bank_transactions', effectiveInstId).catch(() => []) : Promise.resolve([]),
                     apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', effectiveInstId).catch(() => []),
                     isAcademic ? apiService.fetchModuleRecords<DisciplineIncident>('discipline_incidents', effectiveInstId).catch(() => []) : Promise.resolve([]),
                     apiService.fetchModuleRecords<Expense>('expenses', effectiveInstId).catch(() => []),
@@ -1011,6 +1013,7 @@ export const App: React.FC = () => {
             setCarAppraisals(csAppr || []);
             setCarInvoices(cInvs || []);
             setCarPayments(cPay || []);
+            setCarBankTransactions(csBank || []);
 
             setRetailExpenses(retExp || []);
             setRetailStores(rStores || []);
@@ -5187,6 +5190,57 @@ export const App: React.FC = () => {
                                     onAddCarAppraisal={async (data: Partial<CarAppraisal>) => {
                                         const instId = activeInstitution?.id || currentUser.institutionId;
                                         await apiService.saveCarAppraisal({ ...data, id: `appr_${Date.now()}`, institutionId: instId || '' });
+                                        await loadData();
+                                    }}
+                                    carBankTransactions={carBankTransactions}
+                                    onReconcileBankTransaction={async (tid, invId) => {
+                                        const transaction = carBankTransactions.find(t => t.id === tid);
+                                        const invoice = carInvoices.find(i => i.id === invId);
+                                        if (transaction && invoice) {
+                                            // 1. Mark transaction as reconciled
+                                            const updatedTransaction: BankTransaction = {
+                                                ...transaction,
+                                                status: 'reconciled',
+                                                linkedInvoiceId: invId,
+                                                reconciledAt: new Date().toISOString(),
+                                                reconciledBy: currentUser.name
+                                            };
+                                            await apiService.saveModuleRecord('car_bank_transactions', updatedTransaction);
+
+                                            // 2. Add payment to history
+                                            await apiService.saveCarPayment({
+                                                id: `cpay_${Date.now()}`,
+                                                invoiceId: invId,
+                                                institutionId: currentUser.institutionId,
+                                                amount: transaction.amount,
+                                                paymentMethod: 'Bank Transfer',
+                                                transactionReference: transaction.reference,
+                                                paymentDate: transaction.transactionDate,
+                                                receiptNumber: `RCPT-AUTO-${Date.now().toString().slice(-4)}`,
+                                                notes: `Auto-reconciled from bank feed (${transaction.reference})`
+                                            });
+                                            
+                                            await loadData();
+                                        }
+                                    }}
+                                    onFetchBankFeeds={async () => {
+                                        // Mock fetching new feeds
+                                        const newFeeds: BankTransaction[] = [
+                                            {
+                                                id: `bt_${Date.now()}_1`,
+                                                institutionId: currentUser.institutionId,
+                                                amount: 1500000,
+                                                transactionDate: new Date().toISOString(),
+                                                reference: "INV-123456 Payment",
+                                                senderName: "John Doe",
+                                                bankName: "Equity Bank",
+                                                status: 'unreconciled',
+                                                createdAt: new Date().toISOString()
+                                            }
+                                        ];
+                                        for (const f of newFeeds) {
+                                            await apiService.saveModuleRecord('car_bank_transactions', f);
+                                        }
                                         await loadData();
                                     }}
                                 />
