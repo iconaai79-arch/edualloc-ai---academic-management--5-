@@ -3805,6 +3805,18 @@ export const App: React.FC = () => {
                                         carListings={carListings}
                                         carTestDrives={carTestDrives}
                                         carAppraisals={carAppraisals}
+                                        carInvoices={carInvoices}
+                                        carPayments={carPayments}
+                                        onAddCarInvoice={async (data: Partial<CarInvoice>) => {
+                                            const instId = activeInstitution?.id || currentUser.institutionId;
+                                            await apiService.saveCarInvoice({ ...data, id: `inv_${Date.now()}`, institutionId: instId || '' });
+                                            await loadData();
+                                        }}
+                                        onAddCarPayment={async (data: Partial<CarPayment>) => {
+                                            const instId = activeInstitution?.id || currentUser.institutionId;
+                                            await apiService.saveCarPayment({ ...data, id: `pay_${Date.now()}`, institutionId: instId || '' });
+                                            await loadData();
+                                        }}
                                         onAddCarListing={async (data: Partial<CarListing>) => {
                                             const instId = activeInstitution?.id || currentUser.institutionId;
                                             await apiService.saveCarListing({ ...data, id: `v_${Date.now()}`, institutionId: instId || '' });

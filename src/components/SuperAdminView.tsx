@@ -14,7 +14,7 @@ import type {
     TransportOnboarding, VehicleLog, AppNotification,
     LawAgreement, LawAgreementTemplate, LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction,
     DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
-    CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry, MarketingProspect,
+    CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry, MarketingProspect,
     PoliticalParty, Constituency, Ward, FtpConfig, GoogleDriveConfig, ICDCode
 } from '../types';
 import { TransactionsManager } from './TransactionsManager';
@@ -129,6 +129,8 @@ const StudentView = React.lazy(() => import('./StudentView').then(m => ({ defaul
 const AcademicsOfficerView = React.lazy(() => import('./AcademicsOfficerView').then(m => ({ default: m.AcademicsOfficerView })));
 const LoginView = React.lazy(() => import('./LoginView').then(m => ({ default: m.LoginView })));
 const HospitalityMarketplace = React.lazy(() => import('./hospitality/HospitalityMarketplace').then(m => ({ default: m.HospitalityMarketplace })));
+const CarShowroomDashboard = React.lazy(() => import('./automotive/CarShowroomDashboard').then(m => ({ default: m.CarShowroomDashboard })));
+const CarSalesLedger = React.lazy(() => import('./automotive/CarSalesLedger').then(m => ({ default: m.CarSalesLedger })));
 
 import { 
     Compass, 
@@ -288,9 +290,13 @@ export interface SuperAdminViewProps {
     carListings?: CarListing[];
     carTestDrives?: TestDriveBooking[];
     carAppraisals?: CarAppraisal[];
+    carInvoices?: CarInvoice[];
+    carPayments?: CarPayment[];
     onAddCarListing?: (data: Partial<CarListing>) => Promise<void>;
     onUpdateCarTestDriveStatus?: (id: string, status: any) => Promise<void>;
     onAddCarAppraisal?: (data: Partial<CarAppraisal>) => Promise<void>;
+    onAddCarInvoice?: (data: Partial<CarInvoice>) => Promise<void>;
+    onAddCarPayment?: (data: Partial<CarPayment>) => Promise<void>;
 
     onUpdateEnrollmentRequest?: (id: string, status: 'approved' | 'rejected') => void;
     onUpdateAbsenceRequest?: (id: string, status: 'approved' | 'rejected') => void;
@@ -1066,6 +1072,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isAddingInstitution, setIsAddingInstitution] = useState(false);
+    const [autoSubTab, setAutoSubTab] = useState<'dashboard' | 'inventory' | 'financials'>('dashboard');
     const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'sms_pricing' | 'marketplace' | 'showcase' | 'system_build' | 'storage'>('profile');
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways'>('mpesa');
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
@@ -3364,61 +3371,90 @@ Please change it after login.`;
                                 >
                                     <PlusIcon className="w-4 h-4" /> Add Featured Listing
                                 </button>
-                                <button className="px-8 py-4 bg-indigo-600 text-white rounded-[2rem] font-black uppercase tracking-widest text-[9px] shadow-2xl transition-all flex items-center gap-3">
+                                <button 
+                                    onClick={() => setAutoSubTab('financials')}
+                                    className="px-8 py-4 bg-indigo-600 text-white rounded-[2rem] font-black uppercase tracking-widest text-[9px] shadow-2xl transition-all flex items-center gap-3"
+                                >
                                     <ArrowTrendingUpIcon className="w-4 h-4" /> Market Reports
                                 </button>
                             </div>
                         </div>
 
-                        {/* Marketplace Stats */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {[
-                                { label: 'Active Listings', val: carListings?.length || 0, icon: <CarIcon className="w-6 h-6" />, color: 'bg-slate-900' },
-                                { label: 'Home Test Drives', val: carTestDrives?.filter(t => t.status === 'pending').length || 0, icon: <ClockIcon className="w-6 h-6" />, color: 'bg-indigo-600' },
-                                { label: 'AI Appraisals', val: carAppraisals?.length || 0, icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-amber-500' },
-                                { label: 'Network Value', val: 'KES 84M', icon: <BanknotesIcon className="w-6 h-6" />, color: 'bg-emerald-600' },
-                            ].map((stat, i) => (
-                                <div key={i} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col justify-between group hover:border-indigo-500/30 transition-all">
-                                    <div className={`w-14 h-14 ${stat.color} text-white rounded-2xl flex items-center justify-center mb-6 shadow-xl`}>
-                                        {stat.icon}
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">{stat.label}</p>
-                                        <h4 className="text-3xl font-black text-slate-800 dark:text-white group-hover:text-indigo-600 transition-colors uppercase italic">{stat.val}</h4>
-                                    </div>
-                                </div>
-                            ))}
+                        {/* Sub-navigation */}
+                        <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-2xl w-fit border border-slate-200 dark:border-slate-700">
+                            <button onClick={() => setAutoSubTab('dashboard')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'dashboard' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Operations Hub</button>
+                            <button onClick={() => setAutoSubTab('inventory')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'inventory' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Inventory Preview</button>
+                            <button onClick={() => setAutoSubTab('financials')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'financials' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Sales Ledger</button>
                         </div>
 
-                        {/* Marketplace Preview Section */}
-                        <div className="bg-slate-50 rounded-[4rem] p-12 border border-slate-100 relative overflow-hidden group">
-                           <div className="absolute top-0 right-0 p-12 opacity-5 rotate-12 group-hover:opacity-10 transition-opacity">
-                                <CarIcon className="w-96 h-96 text-indigo-400" />
-                            </div>
-                            <div className="relative z-10 space-y-12">
-                                <div className="max-w-xl space-y-4">
-                                    <h3 className="text-4xl font-black uppercase tracking-tighter text-slate-900 leading-none">
-                                        Marketplace <span className="text-indigo-600">Simulated View</span>
-                                    </h3>
-                                    <p className="text-slate-400 text-xs font-bold leading-relaxed uppercase tracking-wider italic">
-                                        Experience the high-end vehicle discovery portal as your users see it. Verified listings only.
-                                    </p>
-                                </div>
-                                <div className="bg-white rounded-[3rem] border border-slate-100 shadow-2xl overflow-hidden h-[800px] relative">
-                                    <div className="h-full overflow-y-auto scrollbar-none p-12">
-                                        <VehicleMarketplaceView 
-                                            listings={carListings || []}
-                                            currentInstitution={currentInstitution}
-                                            onBookTestDrive={() => {}}
-                                            onInquiry={() => {}}
-                                            onEditListing={(listing) => {
-                                                setSelectedListingForEdit(listing);
-                                                setIsAddListingModalOpen(true);
-                                            }}
-                                        />
+                        <div className="animate-fade-in">
+                            {autoSubTab === 'dashboard' && (
+                                <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
+                                    <CarShowroomDashboard 
+                                        listings={carListings || []}
+                                        invoices={props.carInvoices || []}
+                                        payments={props.carPayments || []}
+                                        testDrives={carTestDrives || []}
+                                        users={users || []}
+                                        institution={currentInstitution || institutions[0]}
+                                        currentUser={currentUser}
+                                        onAction={(tab, sub) => {
+                                            if (tab === 'inventory') setAutoSubTab('inventory');
+                                            else if (tab === 'financials') setAutoSubTab('financials');
+                                            else if (tab === 'auto_marketplace') setAutoSubTab(sub as any || 'dashboard');
+                                        }}
+                                        onAddListing={() => {
+                                            setSelectedListingForEdit(null);
+                                            setIsAddListingModalOpen(true);
+                                        }}
+                                        onAddInvoice={() => props.onAddCarInvoice?.({})}
+                                        onAddPayment={() => props.onAddCarPayment?.({})}
+                                        onAddLead={() => {}}
+                                        onSwitchPerspective={() => {}}
+                                    />
+                                </Suspense>
+                            )}
+
+                            {autoSubTab === 'financials' && (
+                                <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
+                                    <CarSalesLedger 
+                                        invoices={props.carInvoices || []}
+                                        payments={props.carPayments || []}
+                                        listings={carListings || []}
+                                        institution={currentInstitution || institutions[0]}
+                                        onAddInvoice={() => props.onAddCarInvoice?.({})}
+                                        onAddPayment={() => props.onAddCarPayment?.({})}
+                                        onGenerateReceipt={() => {}}
+                                    />
+                                </Suspense>
+                            )}
+
+                            {autoSubTab === 'inventory' && (
+                                <div className="space-y-12">
+                                    <div className="max-w-xl space-y-4">
+                                        <h3 className="text-4xl font-black uppercase tracking-tighter text-slate-900 leading-none">
+                                            Marketplace <span className="text-indigo-600">Simulated View</span>
+                                        </h3>
+                                        <p className="text-slate-400 text-xs font-bold leading-relaxed uppercase tracking-wider italic">
+                                            Experience the high-end vehicle discovery portal as your users see it. Verified listings only.
+                                        </p>
+                                    </div>
+                                    <div className="bg-white rounded-[3rem] border border-slate-100 shadow-2xl overflow-hidden h-[800px] relative">
+                                        <div className="h-full overflow-y-auto scrollbar-none p-12">
+                                            <VehicleMarketplaceView 
+                                                listings={carListings || []}
+                                                currentInstitution={currentInstitution}
+                                                onBookTestDrive={() => {}}
+                                                onInquiry={() => {}}
+                                                onEditListing={(listing) => {
+                                                    setSelectedListingForEdit(listing);
+                                                    setIsAddListingModalOpen(true);
+                                                }}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     </div>
                 )}
