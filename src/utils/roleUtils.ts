@@ -93,6 +93,11 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
         return ['campaign_admin', 'campaign_agent', 'staff', 'member', 'visitor', 'security'];
     }
 
+    // Car Showroom / Automotive Marketplace
+    if (type === 'Car Showroom' || subType.includes('car sales') || subType.includes('showroom')) {
+        return ['director', 'finance', 'sales', 'reception', 'customer', 'lead'];
+    }
+
     return ['admin', 'staff', 'customer'] as any[];
 };
 
@@ -233,6 +238,16 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
             case 'worker': return 'Ministry Worker / Staff';
             case 'member': case 'church_member': return 'Church Member';
             case 'visitor': return 'First-time Visitor';
+        }
+    }
+
+    // Automotive Showroom context
+    if (type === 'Car Showroom' || subType.includes('car sales') || subType.includes('showroom')) {
+        switch (role) {
+            case 'director': return 'Director';
+            case 'finance': return 'Finance Manager';
+            case 'sales': return 'Sales Executive';
+            case 'reception': return 'Front Desk / Reception';
         }
     }
 

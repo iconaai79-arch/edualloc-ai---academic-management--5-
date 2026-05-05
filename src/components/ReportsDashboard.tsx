@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import type { User, Subject, Department, AllocationRequest, RequestStatus, LessonStructure, TimetableEntry, Room, LetterheadConfig, Conflict, Course, StudentAttendance, Assessment, AssessmentMark, Institution, LecturerContract, ExamTimetableEntry, Building, TimetableSettings, Semester, AcademicYear, Visitor, ActivityLog, CarInvoice, CarPayment } from '../types';
+import type { User, Subject, Department, AllocationRequest, RequestStatus, LessonStructure, TimetableEntry, Room, LetterheadConfig, Conflict, Course, StudentAttendance, Assessment, AssessmentMark, Institution, LecturerContract, ExamTimetableEntry, Building, TimetableSettings, Semester, AcademicYear, Visitor, ActivityLog, CarInvoice, CarPayment, CompanyDetails } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
 import { AdvisoryReportView } from './AdvisoryReportView';
 import { ConflictReport } from './ConflictReport';
@@ -31,6 +31,8 @@ import { EyeIcon } from './icons/EyeIcon';
 import { TrendingUpIcon } from './icons/TrendingUpIcon';
 import { AttendanceAnalytics } from './AttendanceAnalytics';
 import { timeToMinutes, minutesToTime } from '../utils/timeUtils';
+
+const UserManager = React.lazy(() => import('./UserManager').then(m => ({ default: m.UserManager })));
 
 interface ReportsDashboardProps {
     lecturers: User[];
@@ -67,6 +69,14 @@ interface ReportsDashboardProps {
     setActivityLogLimit?: React.Dispatch<React.SetStateAction<number>>;
     carInvoices?: CarInvoice[];
     carPayments?: CarPayment[];
+    onAddUser?: (data: any) => Promise<void>;
+    onEditUser?: (id: string, data: any) => Promise<void>;
+    onDeleteUser?: (id: string) => Promise<void>;
+    onImportUsers?: (users: any[]) => Promise<void>;
+    onSendSms?: (data: any) => Promise<any>;
+    companyDetails?: CompanyDetails;
+    onAddTransaction?: (data: any, items: any[]) => Promise<any>;
+    onRefreshData?: () => void;
 }
 
 const ProgressBar: React.FC<{ value: number; max: number }> = ({ value, max }) => {
@@ -641,7 +651,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
 
     const subTabs = [
         { key: 'visuals', label: 'Graphs & Visuals', icon: <ChartPieIcon className="w-5 h-5 mr-3" /> },
-        { key: 'stats', label: isRetailAgency ? 'Personnel & Agent Stats' : 'Workload & Statistics', icon: <ChartBarIcon className="w-5 h-5 mr-3" /> },
+        { key: 'stats', label: (isRetailAgency || isAutoSales) ? 'Personnel & Agent Stats' : 'Workload & Statistics', icon: <ChartBarIcon className="w-5 h-5 mr-3" /> },
         { key: 'progress', label: 'Course Progress Tracking', icon: <CheckCircleIcon className="w-5 h-5 mr-3" /> },
         { key: 'enrollment_capacity', label: 'Enrollment vs Capacity', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
         { key: 'utilization', label: 'Room Utilization', icon: <BuildingOfficeIcon className="w-5 h-5 mr-3" /> },
@@ -655,9 +665,10 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         { key: 'generated_timetable', label: 'Generated Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-3" /> },
         { key: 'patterns', label: 'Behavioral Analytics', icon: <TrendingUpIcon className="w-5 h-5 mr-3" /> },
         { key: 'client_statements', label: 'Client Statements', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
+        { key: 'manage_users', label: 'Manage Showroom Users', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
     ].filter(tab => {
         if (isAutoSales) {
-            const allowed = ['visuals', 'stats', 'audit', 'attendance', 'client_statements'];
+            const allowed = ['visuals', 'stats', 'audit', 'attendance', 'client_statements', 'manage_users'];
             return allowed.includes(tab.key);
         }
         if (isRetailAgency || !isEdu) {
@@ -748,11 +759,11 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{isRetailAgency ? 'Total Units/Items' : 'Total Subjects'}</h3>
+                                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{(isRetailAgency || isAutoSales) ? 'Total Units/Items' : 'Total Subjects'}</h3>
                                     <p className="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">{totalSubjectsCount}</p>
                                 </div>
                                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{isRetailAgency ? 'Active Assignments' : 'Allocated Subjects'}</h3>
+                                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{(isRetailAgency || isAutoSales) ? 'Active Assignments' : 'Allocated Subjects'}</h3>
                                     <p className="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">{allocatedSubjectsCount}</p>
                                 </div>
                                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
@@ -760,65 +771,71 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                     <p className="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">{totalRequestsCount}</p>
                                 </div>
                                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{isRetailAgency ? 'Total Personnel' : 'Total Staff'}</h3>
+                                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{(isRetailAgency || isAutoSales) ? 'Total Personnel' : 'Total Staff'}</h3>
                                     <p className="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">{filteredLecturers.length}</p>
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
-                                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                                    <h3 className="text-xl font-semibold mb-4">Department Workload</h3>
-                                    <div className="space-y-4">
-                                        {departmentWorkload.map(dept => (
-                                            <div key={dept.id}>
-                                                <div className="flex justify-between text-sm font-medium mb-1">
-                                                    <span className="text-slate-700 dark:text-slate-200">{dept.name}</span>
-                                                    <span className="text-slate-500 dark:text-slate-400">{dept.allocatedPeriods} / {dept.totalPeriods} periods</span>
+                                {!isAutoSales && (
+                                    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
+                                        <h3 className="text-xl font-semibold mb-4">Department Workload</h3>
+                                        <div className="space-y-4">
+                                            {departmentWorkload.map(dept => (
+                                                <div key={dept.id}>
+                                                    <div className="flex justify-between text-sm font-medium mb-1">
+                                                        <span className="text-slate-700 dark:text-slate-200">{dept.name}</span>
+                                                        <span className="text-slate-500 dark:text-slate-400">{dept.allocatedPeriods} / {dept.totalPeriods} periods</span>
+                                                    </div>
+                                                    <ProgressBar value={dept.allocatedPeriods} max={dept.totalPeriods} />
                                                 </div>
-                                                < ProgressBar value={dept.allocatedPeriods} max={dept.totalPeriods} />
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
 
-                                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                                    <h3 className="text-xl font-semibold mb-4">Request Lifecycle</h3>
-                                    <dl>
-                                        <div className="flex justify-between py-2 border-b border-slate-200 dark:border-slate-700">
-                                            <dt className="text-sm text-slate-500 dark:text-slate-400">Approved</dt>
-                                            <dd className="text-sm font-medium text-green-600 dark:text-green-400">{requestStatusCounts.approved || 0}</dd>
-                                        </div>
-                                        <div className="flex justify-between py-2 border-b border-slate-200 dark:border-slate-700">
-                                            <dt className="text-sm text-slate-500 dark:text-slate-400">Pending Dept. Review</dt>
-                                            <dd className="text-sm font-medium text-yellow-600 dark:text-yellow-400">{requestStatusCounts.pending || 0}</dd>
-                                        </div>
-                                        <div className="flex justify-between py-2 border-b border-slate-200 dark:border-slate-700">
-                                            <dt className="text-sm text-slate-500 dark:text-slate-400">Pending Final Registry</dt>
-                                            <dd className="text-sm font-medium text-sky-600 dark:text-sky-400">{requestStatusCounts.hod_approved || 0}</dd>
-                                        </div>
-                                        <div className="flex justify-between py-2">
-                                            <dt className="text-sm text-slate-500 dark:text-slate-400">Disapproved</dt>
-                                            <dd className="text-sm font-medium text-red-600 dark:text-red-400">{requestStatusCounts.disapproved || 0}</dd>
-                                        </div>
-                                    </dl>
-                                </div>
-                                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                                    <h3 className="text-xl font-semibold mb-4">Workload Agreements</h3>
-                                    <dl>
-                                        <div className="flex justify-between py-2 border-b border-slate-200 dark:border-slate-700">
-                                            <dt className="text-sm text-slate-500 dark:text-slate-400">Accepted</dt>
-                                            <dd className="text-sm font-medium text-green-600 dark:text-green-400">{contractStats.accepted}</dd>
-                                        </div>
-                                        <div className="flex justify-between py-2 border-b border-slate-200 dark:border-slate-700">
-                                            <dt className="text-sm text-slate-500 dark:text-slate-400">Pending</dt>
-                                            <dd className="text-sm font-medium text-yellow-600 dark:text-yellow-400">{contractStats.pending}</dd>
-                                        </div>
-                                        <div className="flex justify-between py-2">
-                                            <dt className="text-sm text-slate-500 dark:text-slate-400">Rejected</dt>
-                                            <dd className="text-sm font-medium text-red-600 dark:text-red-400">{contractStats.rejected}</dd>
-                                        </div>
-                                    </dl>
-                                </div>
+                                {!isAutoSales && (
+                                    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
+                                        <h3 className="text-xl font-semibold mb-4">Request Lifecycle</h3>
+                                        <dl>
+                                            <div className="flex justify-between py-2 border-b border-slate-200 dark:border-slate-700">
+                                                <dt className="text-sm text-slate-500 dark:text-slate-400">Approved</dt>
+                                                <dd className="text-sm font-medium text-green-600 dark:text-green-400">{requestStatusCounts.approved || 0}</dd>
+                                            </div>
+                                            <div className="flex justify-between py-2 border-b border-slate-200 dark:border-slate-700">
+                                                <dt className="text-sm text-slate-500 dark:text-slate-400">Pending Dept. Review</dt>
+                                                <dd className="text-sm font-medium text-yellow-600 dark:text-yellow-400">{requestStatusCounts.pending || 0}</dd>
+                                            </div>
+                                            <div className="flex justify-between py-2 border-b border-slate-200 dark:border-slate-700">
+                                                <dt className="text-sm text-slate-500 dark:text-slate-400">Pending Final Registry</dt>
+                                                <dd className="text-sm font-medium text-sky-600 dark:text-sky-400">{requestStatusCounts.hod_approved || 0}</dd>
+                                            </div>
+                                            <div className="flex justify-between py-2">
+                                                <dt className="text-sm text-slate-500 dark:text-slate-400">Disapproved</dt>
+                                                <dd className="text-sm font-medium text-red-600 dark:text-red-400">{requestStatusCounts.disapproved || 0}</dd>
+                                            </div>
+                                        </dl>
+                                    </div>
+                                )}
+                                {!isAutoSales && (
+                                    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
+                                        <h3 className="text-xl font-semibold mb-4">Workload Agreements</h3>
+                                        <dl>
+                                            <div className="flex justify-between py-2 border-b border-slate-200 dark:border-slate-700">
+                                                <dt className="text-sm text-slate-500 dark:text-slate-400">Accepted</dt>
+                                                <dd className="text-sm font-medium text-green-600 dark:text-green-400">{contractStats.accepted}</dd>
+                                            </div>
+                                            <div className="flex justify-between py-2 border-b border-slate-200 dark:border-slate-700">
+                                                <dt className="text-sm text-slate-500 dark:text-slate-400">Pending</dt>
+                                                <dd className="text-sm font-medium text-yellow-600 dark:text-yellow-400">{contractStats.pending}</dd>
+                                            </div>
+                                            <div className="flex justify-between py-2">
+                                                <dt className="text-sm text-slate-500 dark:text-slate-400">Rejected</dt>
+                                                <dd className="text-sm font-medium text-red-600 dark:text-red-400">{contractStats.rejected}</dd>
+                                            </div>
+                                        </dl>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg overflow-x-auto">
@@ -1030,6 +1047,28 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                 institutionId={currentUser.institutionId}
                             />
                         </div>
+                    )}
+                    {subTab === 'manage_users' && (
+                        <React.Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
+                            <UserManager
+                                user={currentUser}
+                                users={lecturers}
+                                showOnly="staff"
+                                onAddUser={props.onAddUser!}
+                                onEditUser={props.onEditUser!}
+                                onDeleteUser={props.onDeleteUser!}
+                                onImportUsers={props.onImportUsers!}
+                                onSendSms={props.onSendSms!}
+                                companyDetails={props.companyDetails!}
+                                currentInstitution={currentInstitution}
+                                isAutoMarket={true}
+                                onAddTransaction={props.onAddTransaction}
+                                onRefreshData={props.onRefreshData}
+                                departments={departments}
+                                subjects={subjects}
+                                courses={courses}
+                            />
+                        </React.Suspense>
                     )}
                 </main>
             </div>

@@ -644,7 +644,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
     const isCoreAdmin = useMemo(() => {
         const role = props.currentUser?.role;
-        return ['admin', 'head_teacher', 'super_admin', 'reseller', 'agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent', 'transport_admin', 'dos', 'deputy', 'hod', 'tto'].includes(role || '');
+        return ['admin', 'head_teacher', 'super_admin', 'reseller', 'agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent', 'transport_admin', 'dos', 'deputy', 'hod', 'tto', 'director', 'finance'].includes(role || '');
     }, [props.currentUser?.role]);
 
     const tabs = useMemo(() => {
@@ -698,6 +698,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
             // Educational tabs
             if (['timetable', 'courses', 'leaveout', 'boarding', 'users'].includes(tab.id)) {
+                if (tab.id === 'users' && isAutoMarket) return ['director', 'finance', 'super_admin', 'admin'].includes(roleToUse || '');
                 if (tab.id === 'users' && (isCoop || isCommunity || institutionType === 'SACCO' || institutionType === 'Agrovet')) return true;
                 return isEdu;
             }
@@ -749,6 +750,10 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             if (tab.id === 'hospitality') return isHospitality || roleToUse === 'hospitality_admin';
             if (tab.id === 'auto_marketplace') return isAutoMarket;
             if (tab.id === 'fuel_station') return isFuelStation;
+
+            if (tab.id === 'reports' && isAutoMarket) {
+                return ['director', 'finance', 'super_admin', 'admin'].includes(roleToUse || '');
+            }
 
             if (tab.id === 'showcase') {
                 return (isSchool || isEdu) && ['admin', 'head_teacher', 'dos', 'super_admin'].includes(roleToUse || '');
@@ -1820,6 +1825,14 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 visitors={visitors}
                                 activityLogLimit={props.activityLogLimit}
                                 setActivityLogLimit={props.setActivityLogLimit}
+                                onAddUser={props.onAddUser}
+                                onEditUser={props.onEditUser}
+                                onDeleteUser={props.onDeleteUser}
+                                onImportUsers={props.onImportUsers}
+                                onSendSms={props.onSendSms}
+                                companyDetails={props.companyDetails}
+                                onAddTransaction={props.onAddTransaction}
+                                onRefreshData={props.onRefreshData}
                             />
                         )}
                     </div>
