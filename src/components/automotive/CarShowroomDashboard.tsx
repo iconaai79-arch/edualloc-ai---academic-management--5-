@@ -9,17 +9,17 @@ import {
     Institution
 } from '../../types';
 import { 
-    CarIcon, 
-    CurrencyIcon, 
-    UsersIcon, 
-    CalendarDaysIcon,
-    ArrowPathIcon,
-    PlusIcon,
-    CreditCardIcon,
-    ChartBarIcon,
-    SparklesIcon,
-    EyeIcon
-} from '../icons';
+    Car, 
+    Coins, 
+    Users, 
+    CalendarDays,
+    RefreshCw,
+    Plus,
+    CreditCard,
+    BarChart3,
+    Sparkles,
+    Eye
+} from 'lucide-react';
 
 interface CarShowroomDashboardProps {
     listings: CarListing[];
@@ -84,19 +84,19 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                         onClick={onAddLead}
                         className="flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-amber-200 hover:bg-amber-600 transition-all active:scale-95"
                     >
-                        <PlusIcon className="w-4 h-4" /> Log Walk-in
+                        <Plus className="w-4 h-4" /> Log Walk-in
                     </button>
                     <button 
                         onClick={onAddListing}
                         className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95"
                     >
-                        <PlusIcon className="w-4 h-4" /> Add Vehicle
+                        <Plus className="w-4 h-4" /> Add Vehicle
                     </button>
                     <button 
                         onClick={onAddInvoice}
                         className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-slate-900 text-slate-700 dark:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 hover:bg-slate-50 transition-all active:scale-95"
                     >
-                        <CreditCardIcon className="w-4 h-4 text-indigo-600" /> New Invoice
+                        <CreditCard className="w-4 h-4 text-indigo-600" /> New Invoice
                     </button>
                 </div>
             </div>
@@ -107,7 +107,7 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                     <div className="absolute -right-4 -top-4 w-24 h-24 bg-indigo-50 dark:bg-indigo-900/20 rounded-full group-hover:scale-125 transition-transform"></div>
                     <div className="relative z-10">
                         <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2">
-                            <CarIcon className="w-4 h-4 text-indigo-600" /> Live Inventory
+                            <Car className="w-4 h-4 text-indigo-600" /> Live Inventory
                         </p>
                         <h3 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">{stats.activeListings}</h3>
                         <p className="text-[10px] font-bold text-slate-400 mt-2">OUT OF {stats.totalInventory} TOTAL UNITS</p>
@@ -118,7 +118,7 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                     <div className="absolute -right-4 -top-4 w-24 h-24 bg-emerald-50 dark:bg-emerald-900/20 rounded-full group-hover:scale-125 transition-transform"></div>
                     <div className="relative z-10">
                         <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2">
-                            <CurrencyIcon className="w-4 h-4 text-emerald-600" /> Revenue Flow
+                            <Coins className="w-4 h-4 text-emerald-600" /> Revenue Flow
                         </p>
                         <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">KES {stats.revenueCollected.toLocaleString()}</h3>
                         <p className="text-[10px] font-bold text-emerald-600 mt-2 uppercase tracking-widest">Total Collected</p>
@@ -129,7 +129,7 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                     <div className="absolute -right-4 -top-4 w-24 h-24 bg-amber-50 dark:bg-amber-900/20 rounded-full group-hover:scale-125 transition-transform"></div>
                     <div className="relative z-10">
                         <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2">
-                            <CalendarDaysIcon className="w-4 h-4 text-amber-600" /> Test Drives
+                            <CalendarDays className="w-4 h-4 text-amber-600" /> Test Drives
                         </p>
                         <h3 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">{stats.pendingDrives}</h3>
                         <p className="text-[10px] font-bold text-amber-600 mt-2 uppercase tracking-widest">Pending Sessions</p>
@@ -140,7 +140,7 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                     <div className="absolute -right-4 -top-4 w-24 h-24 bg-sky-50 dark:bg-sky-900/20 rounded-full group-hover:scale-125 transition-transform"></div>
                     <div className="relative z-10">
                         <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2">
-                            <UsersIcon className="w-4 h-4 text-sky-600" /> Showroom Leads
+                            <Users className="w-4 h-4 text-sky-600" /> Showroom Leads
                         </p>
                         <h3 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">{stats.totalLeads}</h3>
                         <p className="text-[10px] font-bold text-sky-600 mt-2 uppercase tracking-widest">Total Enquiries</p>
@@ -154,7 +154,7 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                 <div className="lg:col-span-8 space-y-8">
                     <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700">
                         <h3 className="text-xl font-black tracking-tighter uppercase mb-8 flex items-center gap-3">
-                            <SparklesIcon className="w-5 h-5 text-indigo-600" />
+                            <Sparkles className="w-5 h-5 text-indigo-600" />
                             Showroom Operations Hub
                         </h3>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -163,7 +163,7 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                                 className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-slate-800 hover:border-indigo-400 transition-all group text-left"
                             >
                                 <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-indigo-600 mb-4 group-hover:scale-110 transition-transform">
-                                    <CarIcon className="w-6 h-6" />
+                                    <Car className="w-6 h-6" />
                                 </div>
                                 <span className="font-black text-xs uppercase tracking-tight text-slate-900 dark:text-white">Vehicle Registry</span>
                                 <p className="text-[9px] text-slate-400 uppercase mt-1">Manage unit details & photos</p>
@@ -174,7 +174,7 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                                 className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-slate-800 hover:border-emerald-400 transition-all group text-left"
                             >
                                 <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
-                                    <ChartBarIcon className="w-6 h-6" />
+                                    <BarChart3 className="w-6 h-6" />
                                 </div>
                                 <span className="font-black text-xs uppercase tracking-tight text-slate-900 dark:text-white">Sales Ledger</span>
                                 <p className="text-[9px] text-slate-400 uppercase mt-1">Audit invoices & payments</p>
@@ -185,7 +185,7 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                                 className="flex flex-col items-start p-6 bg-indigo-600 text-white rounded-[2rem] shadow-xl shadow-indigo-100 hover:shadow-indigo-300 transition-all group text-left hover:-translate-y-1"
                             >
                                 <div className="p-4 bg-white/20 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
-                                    <ChartBarIcon className="w-6 h-6" />
+                                    <BarChart3 className="w-6 h-6" />
                                 </div>
                                 <span className="font-black text-xs uppercase tracking-tight">Market Analytics</span>
                                 <p className="text-[9px] opacity-80 uppercase mt-1">Performance insights</p>
@@ -198,7 +198,7 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                                 className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-slate-800 hover:border-indigo-400 transition-all group text-left"
                             >
                                 <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-indigo-600 mb-4 group-hover:scale-110 transition-transform">
-                                    <UsersIcon className="w-6 h-6" />
+                                    <Users className="w-6 h-6" />
                                 </div>
                                 <span className="font-black text-xs uppercase tracking-tight text-slate-900 dark:text-white">Sales Agents</span>
                                 <p className="text-[9px] text-slate-400 uppercase mt-1">Staff & permissions</p>
@@ -210,7 +210,7 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                     <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700">
                         <div className="flex items-center justify-between mb-8">
                             <h3 className="text-xl font-black tracking-tighter uppercase flex items-center gap-3">
-                                <ArrowPathIcon className="w-5 h-5 text-emerald-600" />
+                                <RefreshCw className="w-5 h-5 text-emerald-600" />
                                 Recent Vehicle Sales
                             </h3>
                             <button 
@@ -227,7 +227,7 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                                     <div key={inv.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 bg-slate-50 dark:bg-slate-900/40 rounded-[2rem] border border-slate-50 dark:border-slate-800 group hover:border-indigo-100 transition-all">
                                         <div className="flex items-center gap-4">
                                             <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-400 group-hover:text-indigo-600 transition-colors shadow-sm">
-                                                <CarIcon className="w-6 h-6" />
+                                                <Car className="w-6 h-6" />
                                             </div>
                                             <div>
                                                 <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
@@ -252,7 +252,7 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                             })}
                             {invoices.length === 0 && (
                                 <div className="text-center py-12">
-                                    <CarIcon className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                                    <Car className="w-12 h-12 text-slate-200 mx-auto mb-4" />
                                     <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">No sales recorded yet</p>
                                 </div>
                             )}

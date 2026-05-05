@@ -669,19 +669,6 @@ export const apiService = {
             if (module === 'users') {
                 delete item.metadata;
             }
-            if (module === 'car_sales_listings') {
-                delete item.registration_number;
-                delete item.tour360_url;
-                delete item.video_walkthrough_url;
-                delete item.vin_number;
-                delete item.trim;
-                delete item.body_type;
-                delete item.engine_size;
-                delete item.color;
-            }
-            if (module === 'car_sales_invoices') {
-                delete item.registration_number;
-            }
             return item;
         };
 

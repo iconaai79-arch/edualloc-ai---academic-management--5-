@@ -2,18 +2,18 @@
 import React, { useState, useMemo } from 'react';
 import { CarInvoice, CarPayment, CarListing } from '../../types';
 import { 
-    CreditCardIcon, 
-    ArrowsRightLeftIcon, 
-    DocumentTextIcon, 
-    CheckCircleIcon, 
-    XCircleIcon,
-    MagnifyingGlassIcon as SearchIcon,
-    ArrowDownTrayIcon,
-    PrinterIcon,
-    CurrencyIcon,
-    PlusIcon,
-    CalendarDaysIcon
-} from '../icons';
+    CreditCard, 
+    ArrowLeftRight, 
+    FileText, 
+    CheckCircle, 
+    XCircle,
+    Search,
+    ArrowDownTray,
+    Printer,
+    Coins,
+    Plus,
+    CalendarDays
+} from 'lucide-react';
 
 interface CarSalesLedgerProps {
     invoices: CarInvoice[];
@@ -61,7 +61,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
                     <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 bg-indigo-50 dark:bg-slate-900 rounded-xl flex items-center justify-center text-indigo-600">
-                            <DocumentTextIcon className="w-5 h-5" />
+                            <FileText className="w-5 h-5" />
                         </div>
                         <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Total Sales Value</span>
                     </div>
@@ -71,7 +71,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                 <div className="bg-emerald-600 p-8 rounded-[2.5rem] text-white shadow-xl shadow-emerald-100 dark:shadow-none">
                     <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-white">
-                            <CheckCircleIcon className="w-5 h-5" />
+                            <CheckCircle className="w-5 h-5" />
                         </div>
                         <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70">Revenue Collected</span>
                     </div>
@@ -81,7 +81,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
                     <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 bg-amber-50 dark:bg-slate-900 rounded-xl flex items-center justify-center text-amber-600">
-                            <ArrowsRightLeftIcon className="w-5 h-5" />
+                            <ArrowLeftRight className="w-5 h-5" />
                         </div>
                         <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Total Outstanding</span>
                     </div>
@@ -116,7 +116,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full h-12 pl-12 pr-6 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all"
                         />
-                        <SearchIcon className="w-4 h-4 absolute left-4 top-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
+                        <Search className="w-4 h-4 absolute left-4 top-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
                     </div>
 
                     <div className="flex gap-3">
@@ -124,13 +124,13 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                             onClick={onAddInvoice}
                             className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
                         >
-                            <PlusIcon className="w-4 h-4" /> New Invoice
+                            <Plus className="w-4 h-4" /> New Invoice
                         </button>
                         <button 
                             onClick={() => onAddPayment()}
                             className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-95"
                         >
-                            <PlusIcon className="w-4 h-4" /> Record Payment
+                            <Plus className="w-4 h-4" /> Record Payment
                         </button>
                     </div>
                 </div>
@@ -159,7 +159,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                             <td className="px-8 py-6">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400">
-                                                        <ArrowsRightLeftIcon className="w-5 h-5" />
+                                                        <ArrowLeftRight className="w-5 h-5" />
                                                     </div>
                                                     <div>
                                                         <p className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase">{listing ? `${listing.year} ${listing.make} ${listing.model}` : 'Special Order'}</p>
@@ -186,7 +186,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                         className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
                                                         title="Print Invoice"
                                                     >
-                                                        <PrinterIcon className="w-4 h-4" />
+                                                        <Printer className="w-4 h-4" />
                                                     </button>
                                                     {inv.status !== 'fully_paid' && (
                                                         <button 
@@ -211,7 +211,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                         <td className="px-8 py-6">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 bg-emerald-50 dark:bg-slate-900 rounded-xl flex items-center justify-center text-emerald-600">
-                                                    <CheckCircleIcon className="w-5 h-5" />
+                                                    <CheckCircle className="w-5 h-5" />
                                                 </div>
                                                 <div>
                                                     <p className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase">Settlement #{pay.invoiceId}</p>
@@ -234,7 +234,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                 className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
                                                 title="Print Receipt"
                                             >
-                                                <PrinterIcon className="w-4 h-4" />
+                                                <Printer className="w-4 h-4" />
                                             </button>
                                         </td>
                                     </tr>
@@ -246,7 +246,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
 
                 {(activeTab === 'invoices' ? filteredInvoices : filteredPayments).length === 0 && (
                     <div className="py-24 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900/50">
-                        <CurrencyIcon className="w-16 h-16 text-slate-200 mb-4" />
+                        <Coins className="w-16 h-16 text-slate-200 mb-4" />
                         <h3 className="text-xl font-black text-slate-400 uppercase tracking-tighter italic">No records found</h3>
                         <p className="text-[10px] text-slate-400 uppercase tracking-[0.2em] mt-2">The financial ledger is currently empty</p>
                     </div>

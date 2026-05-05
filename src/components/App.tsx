@@ -3622,7 +3622,6 @@ export const App: React.FC = () => {
                                         assessments={assessments}
                                         assessmentMarks={assessmentMarks}
                                         incidents={incidents}
-                                        onAccessAlumnaPortal={handleAccessAlumnaPortal}
                                         schoolRegistry={schoolRegistry}
                                         onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
                                         onDeleteAssessment={async (id: string) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
@@ -3912,7 +3911,6 @@ export const App: React.FC = () => {
                                             loadData();
                                         }}
                                          onLogAction={handleLogAction}
-                                         onAccessAlumnaPortal={handleAccessAlumnaPortal}
                                          schoolRegistry={schoolRegistry}
                                      />
                                 ) : activeRole === 'lecturer' ? (

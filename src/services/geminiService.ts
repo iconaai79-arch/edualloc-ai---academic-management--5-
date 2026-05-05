@@ -273,7 +273,13 @@ export const generateTimetable = async (
                 const days = profile?.operatingDays?.length || settings.operatingDays?.length || 0;
                 const periodCount = profile?.periods?.length || settings.periods?.length || 0;
                 const levelAllocations = cohortAllocations.filter(a => a.levelIds.includes(l.id));
-                const totalSlots = (days * periodCount) * 1.5; // Added 50% buffer to support high-density/parallel schedules
+                
+                // DRIVING SCHOOL OPTIMIZATION: Accounting for parallel resources (vehicles and instructors)
+                const isDrivingSchool = currentInstitution?.institutionType === 'Driving School';
+                const parallelCapacity = Math.max(1, Math.min(rooms.length, lecturers.length));
+                const capacityMultiplier = isDrivingSchool ? 4.0 : 1.5; // High buffer for driving schools
+                const totalSlots = (days * periodCount) * parallelCapacity * capacityMultiplier;
+
                 let runningTotal = 0;
                 const targets = levelAllocations.map(a => {
                     const sub = subjects.find(s => s.id === a.subjectId);
@@ -300,7 +306,7 @@ export const generateTimetable = async (
                     console.warn(`[Batch Engine] Level ${l.name} workload (${runningTotal}) exceeds total slots (${totalSlots}). Pruning applied.`);
                 }
 
-                return { level: l.name, id: l.id, homeRoomId: l.roomId, targets, availableSlots: totalSlots };
+                return { level: l.name, id: l.id, courseId: l.courseId, homeRoomId: l.roomId, targets, availableSlots: totalSlots };
             });
 
             if (fulfillmentTargets.every(f => f.targets.length === 0)) {
@@ -308,46 +314,62 @@ export const generateTimetable = async (
                 continue;
             }
 
-            // Ultra-Lean Context: Only send last 100 entries and use minimal ID matching to stay under timeout limits
-            const recentContext = allGeneratedEntries.slice(-100); 
-            const committedContext = recentContext.map(e => 
-                `${e.day.substring(0,2)}|${e.startTime}|L:${e.lecturerId.substring(0,3)}|R:${e.roomId.substring(0,3)}`
-            ).join(';');
+            // SUB-BATCHING STRATEGY: If a single cohort has too many sessions, split into multiple AI calls
+            // This prevents the 4096 token limit from truncating the response.
+            const COHORT_TARGET_LIMIT = 150; 
+            const cohortEntries: any[] = [];
+            
+            for (const ft of fulfillmentTargets) {
+                const targetChunks: any[][] = [];
+                for (let j = 0; j < ft.targets.length; j += COHORT_TARGET_LIMIT) {
+                    targetChunks.push(ft.targets.slice(j, j + COHORT_TARGET_LIMIT));
+                }
 
-            const prompt = `
-                ACT AS: Master Academic Scheduling Logic Engine (Pass ${i + 1} of ${cohorts.length})
-                
-                OPERATING BOUNDS:
-                - General Days: ${JSON.stringify(settings.operatingDays)}
-                - General Range: ${settings.startTime} to ${settings.endTime}
-                - Profiles: ${JSON.stringify(compactProfiles)}
-                - Rooms: ${JSON.stringify(compactRooms)}
-                
-                MANDATORY TARGETS:
-                ${JSON.stringify(fulfillmentTargets.map(f => ({ l: f.level, i: f.id, r: f.homeRoomId, t: f.targets.map((t: any) => ({ i: t.id, c: t.count })) })))}
-                
-                OUTPUT:
-                - JSON Array: [ { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }, ... ]
-            `;
+                for (let k = 0; k < targetChunks.length; k++) {
+                    const currentTargets = targetChunks[k];
+                    console.log(`[Batch Engine] Pass ${i+1}.${k+1}: Generating ${currentTargets.reduce((acc, t) => acc + t.count, 0)} sessions for ${ft.level}`);
 
-            const response = await safeGenerateContent(prompt, { 
-                responseMimeType: 'application/json',
-                temperature: 0.1,
-                maxOutputTokens: 4096 // Reduced from 16384 to ensure response finishes within cloud execution limits
-            }, modelTier);
+                    const prompt = `
+                        ACT AS: Master Academic Scheduling Logic Engine (Pass ${i + 1}.${k + 1} of ${cohorts.length})
+                        
+                        OPERATING BOUNDS:
+                        - General Days: ${JSON.stringify(settings.operatingDays)}
+                        - General Range: ${settings.startTime} to ${settings.endTime}
+                        - Profiles: ${JSON.stringify(compactProfiles)}
+                        - Rooms: ${JSON.stringify(compactRooms)}
+                        
+                        MANDATORY TARGETS FOR ${ft.level}:
+                        ${JSON.stringify({ l: ft.level, i: ft.id, r: ft.homeRoomId, t: currentTargets.map((t: any) => ({ i: t.id, c: t.count })) })}
+                        
+                        CONTEXT: 
+                        Avoid conflicts with these already scheduled sessions: ${allGeneratedEntries.slice(-50).map(e => `${e.day}|${e.startTime}|L:${e.lecturerId}|R:${e.roomId}`).join(';')}
+                        
+                        OUTPUT:
+                        - JSON Array: [ { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }, ... ]
+                    `;
 
-            const shardResult = sanitizeAndParseJson(response.text || "[]");
-            const finalShard = (Array.isArray(shardResult) ? shardResult : []).map((entry: any) => {
-                const levelData = currentCohort.find(l => String(l.id) === String(entry.courseLevelId));
-                return {
-                    ...entry,
-                    courseId: entry.courseId || levelData?.courseId,
-                    id: `entry_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
-                };
-            });
+                    const response = await safeGenerateContent(prompt, { 
+                        responseMimeType: 'application/json',
+                        temperature: 0.1,
+                        maxOutputTokens: 4096 
+                    }, modelTier);
 
-            allGeneratedEntries = [...allGeneratedEntries, ...finalShard];
-            console.log(`[Batch Engine] Sequence ${i+1}/${cohorts.length} finished. Added ${finalShard.length} sessions.`);
+                    const shardResult = sanitizeAndParseJson(response.text || "[]");
+                    const finalShard = (Array.isArray(shardResult) ? shardResult : []).map((entry: any) => ({
+                        ...entry,
+                        courseId: entry.courseId || ft.courseId,
+                        courseLevelId: entry.courseLevelId || ft.id,
+                        id: `entry_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+                    }));
+
+                    cohortEntries.push(...finalShard);
+                    // Minimal delay between sub-batches
+                    if (k < targetChunks.length - 1) await new Promise(resolve => setTimeout(resolve, 800));
+                }
+            }
+
+            allGeneratedEntries = [...allGeneratedEntries, ...cohortEntries];
+            console.log(`[Batch Engine] Level Pass ${i+1}/${cohorts.length} finished. Added ${cohortEntries.length} sessions.`);
         }
 
         return { entries: allGeneratedEntries, notifications: Array.from(new Set(allNotifications)) };

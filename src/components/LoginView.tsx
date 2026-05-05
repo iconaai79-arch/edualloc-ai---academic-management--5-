@@ -125,17 +125,17 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 'retail': { institutionType: 'Business', category: 'Retail Agency', businessSubType: 'Retail Agency' },
                 'autoservice': { institutionType: 'Business', category: 'Car Wash', businessSubType: 'Car Wash' },
                 'edu': { institutionType: 'Education', category: 'Primary', businessSubType: 'Primary' },
-                'fuel': { institutionType: 'Business', category: 'General', businessSubType: 'General' },
                 'campaign': { institutionType: 'Political Campaign', category: 'Political Campaign Management', businessSubType: 'Political Campaign Management' },
                 'legal': { institutionType: 'Law Firm', category: 'Law Firm', businessSubType: 'Law Firm' },
                 'ds': { institutionType: 'Education', category: 'Driving School', businessSubType: 'Driving School' },
-                'civil': { institutionType: 'Business', category: 'General', businessSubType: 'General' },
                 'logistics': { institutionType: 'Logistics', category: 'Cargo & Delivery', businessSubType: 'Cargo & Delivery' },
                 'showroom': { institutionType: 'Business', category: 'Automotive Marketplace', businessSubType: 'Automotive Marketplace' },
                 'tourism': { institutionType: 'Hospitality', category: 'Travel Agency', businessSubType: 'Travel Agency' },
                 'community': { institutionType: 'Community', category: 'Chama/Savings Group', businessSubType: 'Chama/Savings Group' },
                 'alumni': { institutionType: 'Education', category: 'Alumni Network', businessSubType: 'Alumni Network' },
-                'pharmacy': { institutionType: 'Pharmacy', category: '', businessSubType: '' }
+                'pharmacy': { institutionType: 'Pharmacy', category: '', businessSubType: '' },
+                'fuel': { institutionType: 'Fuel Station', category: 'Fuel Station', businessSubType: 'Fuel Station' },
+                'civil': { institutionType: 'Construction', category: 'Construction', businessSubType: 'Construction' }
             };
 
             const prefill = MODULE_REG_MAPPING[prefillModuleId];
@@ -647,7 +647,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                     if (type === 'Logistics') cat = 'Cargo & Delivery';
                                                     if (type === 'Community') cat = 'Chama/Savings Group';
                                                     if (type === 'Political Campaign') cat = 'Political Campaign Management';
-                                                    setRegData({ ...regData, institutionType: type, category: cat, businessSubType: cat });
+                                                    if (type === 'Fuel Station') cat = 'Fuel Station';
+                                                    if (type === 'Construction') cat = 'Construction';
+                                                    setRegData({ ...regData, institutionType: type as any, category: cat, businessSubType: cat });
                                                 }}
                                             >
                                                 <option value="Education">Education Sector</option>
@@ -664,6 +666,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                 <option value="Broadcaster">Media / Broadcaster</option>
                                                 <option value="Reseller">Reseller Agency</option>
                                                 <option value="Hospitality">Tourism & Hospitality</option>
+                                                <option value="Fuel Station">Energy / Fuel Station</option>
+                                                <option value="Construction">Engineering / Construction Hub</option>
                                             </select>
 
                                             {regData.institutionType === 'HIS' && (
