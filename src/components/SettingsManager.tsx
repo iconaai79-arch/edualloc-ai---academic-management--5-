@@ -189,6 +189,7 @@ type SettingsTab = 'global_config' | 'general' | 'timetable' | 'calendar' | 'sub
 export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const isSuperAdmin = props.currentUser.role === 'super_admin' && !props.isAcademicsOfficer && !props.isCoop && !props.isInstitutionalView;
     const isRetailAgency = useMemo(() => RETAIL_SUBTYPES.includes(props.currentInstitution?.businessSubType || ''), [props.currentInstitution]);
+    const isAutoSales = useMemo(() => props.currentInstitution?.businessSubType?.toLowerCase().includes('car') || props.currentInstitution?.businessSubType?.toLowerCase().includes('auto'), [props.currentInstitution]);
 
     const isSchool = (props.currentInstitution?.institutionType === 'Education' && (props.currentInstitution?.category === 'Primary' || props.currentInstitution?.category === 'Secondary')) || (props.currentInstitution as any)?.institutionType === 'Primary' || (props.currentInstitution as any)?.institutionType === 'Secondary';
     const isChurch = useMemo(() => props.currentInstitution?.institutionType === 'Church', [props.currentInstitution]);
@@ -749,13 +750,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 tabs.push({ id: 'subjects', label: 'Ministries', icon: <BookOpenIcon className="w-5 h-5 mr-2" /> });
                 tabs.push({ id: 'staff', label: 'Workers & Clergy', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> });
             }
-            if (isCoop) {
-                tabs.push({ id: 'staff', label: 'Staff & Roles', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> });
+            if (isCoop || isAutoSales) {
+                tabs.push({ id: 'staff', label: isAutoSales ? 'Manage Users' : 'Staff & Roles', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> });
             }
         }
 
         return tabs;
-    }, [props.currentUser.role, isSchool, isEdu, isSuperAdmin, isRetailAgency, isCoop]);
+    }, [props.currentUser.role, isSchool, isEdu, isSuperAdmin, isRetailAgency, isCoop, isAutoSales, isChurch]);
 
     const allDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 

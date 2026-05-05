@@ -972,7 +972,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         const baseAdminRoles = [
             'admin', 'super_admin', 'head_teacher', 'dos', 'deputy', 'hod', 'academics_officer', 'registrar',
             'property_admin', 'cooperative_manager', 'agrovet_admin', 'his_admin', 'carwash_admin', 
-            'transport_admin', 'mechanic_admin'
+            'transport_admin', 'mechanic_admin', 'director', 'finance'
         ];
         return baseAdminRoles.includes(r) || (currentUser.roles && (currentUser.roles.includes('admin') || currentUser.roles.includes('super_admin')));
     }, [currentUser]);
