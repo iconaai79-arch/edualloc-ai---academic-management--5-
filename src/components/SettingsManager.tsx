@@ -2383,13 +2383,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">
-                                            {localInstSmsConfig.provider === 'Zettatel' ? 'User ID' : localInstSmsConfig.provider === 'Sematime' ? 'API Key' : 'User ID / API Key'}
+                                            {localInstSmsConfig.provider === 'Zettatel' ? 'User ID' : localInstSmsConfig.provider === 'Sematime' ? 'Account ID' : 'User ID / API Key'}
                                         </label>
                                         <input type="text" value={localInstSmsConfig.apiKey} onChange={(e) => setLocalInstSmsConfig({ ...localInstSmsConfig, apiKey: e.target.value })} className="form-input h-10" />
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">
-                                            {localInstSmsConfig.provider === 'Zettatel' ? 'Password' : localInstSmsConfig.provider === 'Sematime' ? 'Client ID' : 'API Password / Secret'}
+                                            {localInstSmsConfig.provider === 'Zettatel' ? 'Password' : localInstSmsConfig.provider === 'Sematime' ? 'Auth Token' : 'API Password / Secret'}
                                         </label>
                                         <input type="password" value={localInstSmsConfig.apiSecret} onChange={(e) => setLocalInstSmsConfig({ ...localInstSmsConfig, apiSecret: e.target.value })} className="form-input h-10" />
                                     </div>

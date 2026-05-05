@@ -636,6 +636,36 @@ GRANT ALL ON public.counties TO anon, authenticated, service_role;
                         <SparklesIcon className="w-4 h-4" /> Initialize County Registry
                     </button>
 
+                    <button
+                        onClick={async () => {
+                            if (window.confirm('Initialize Car Marketplace Schema: This will add inspection report and score columns to the listings table. Continue?')) {
+                                setIsMigrating(true);
+                                setMigrationMsg('Repairing marketplace schema...');
+                                try {
+                                    const carSql = `
+-- Car Marketplace Schema Repair
+ALTER TABLE car_sales_listings ADD COLUMN IF NOT EXISTS inspection_report_url TEXT;
+ALTER TABLE car_sales_listings ADD COLUMN IF NOT EXISTS inspection_score INTEGER DEFAULT 95;
+`;
+                                    const result = await apiService.runMigration(carSql);
+                                    if (result.success) {
+                                        alert("Car Marketplace schema updated successfully.");
+                                    } else {
+                                        alert("Repair Failed: " + result.message);
+                                    }
+                                } catch (err: any) {
+                                    alert(`Gateway Error: ${err.message}`);
+                                } finally {
+                                    setIsMigrating(false);
+                                    setMigrationMsg('');
+                                }
+                            }
+                        }}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg"
+                    >
+                        <SparklesIcon className="w-4 h-4" /> Repair Car Marketplace Schema
+                    </button>
+
                     {onRunAlumniMigration && (
                         <button
                             onClick={async () => {

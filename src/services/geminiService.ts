@@ -275,9 +275,12 @@ export const generateTimetable = async (
                 const levelAllocations = cohortAllocations.filter(a => a.levelIds.includes(l.id));
                 
                 // DRIVING SCHOOL OPTIMIZATION: Accounting for parallel resources (vehicles and instructors)
-                const isDrivingSchool = currentInstitution?.institutionType === 'Driving School';
-                const parallelCapacity = Math.max(1, Math.min(rooms.length, lecturers.length));
-                const capacityMultiplier = isDrivingSchool ? 4.0 : 1.5; // High buffer for driving schools
+                const instType = institution?.institutionType || (institution as any)?.type;
+                const isDrivingSchool = instType === 'Driving School';
+                
+                // Parallel Capacity: In driving schools, multiple vehicles (rooms) allow parallel sessions for the same cohort.
+                const parallelCapacity = isDrivingSchool ? Math.max(1, rooms.length) : 1;
+                const capacityMultiplier = isDrivingSchool ? 5.0 : 1.5; // High buffer for driving schools
                 const totalSlots = (days * periodCount) * parallelCapacity * capacityMultiplier;
 
                 let runningTotal = 0;
@@ -329,6 +332,8 @@ export const generateTimetable = async (
                     const currentTargets = targetChunks[k];
                     console.log(`[Batch Engine] Pass ${i+1}.${k+1}: Generating ${currentTargets.reduce((acc, t) => acc + t.count, 0)} sessions for ${ft.level}`);
 
+                    const instType = institution?.institutionType || (institution as any)?.type;
+                    const isDrivingSchool = instType === 'Driving School';
                     const prompt = `
                         ACT AS: Master Academic Scheduling Logic Engine (Pass ${i + 1}.${k + 1} of ${cohorts.length})
                         
@@ -341,6 +346,11 @@ export const generateTimetable = async (
                         MANDATORY TARGETS FOR ${ft.level}:
                         ${JSON.stringify({ l: ft.level, i: ft.id, r: ft.homeRoomId, t: currentTargets.map((t: any) => ({ i: t.id, c: t.count })) })}
                         
+                        ${isDrivingSchool ? `DRIVING SCHOOL PARALLELISM:
+                        - Level "${ft.level}" can have MULTIPLE lessons at the same time.
+                        - You MUST schedule lessons in parallel across different Rooms (Vehicles) and Lecturers (Instructors).
+                        - Do NOT restrict one lesson per time slot for this level.` : ''}
+
                         CONTEXT: 
                         Avoid conflicts with these already scheduled sessions: ${allGeneratedEntries.slice(-50).map(e => `${e.day}|${e.startTime}|L:${e.lecturerId}|R:${e.roomId}`).join(';')}
                         
