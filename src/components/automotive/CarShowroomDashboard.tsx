@@ -34,6 +34,7 @@ interface CarShowroomDashboardProps {
     onAddPayment: () => void;
     onAddLead: () => void;
     onSwitchPerspective: () => void;
+    currentUser: User;
 }
 
 export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
@@ -48,8 +49,12 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
     onAddInvoice,
     onAddPayment,
     onAddLead,
-    onSwitchPerspective
+    onSwitchPerspective,
+    currentUser
 }) => {
+    const isAuthorizedForFinance = useMemo(() => {
+        return ['director', 'finance', 'super_admin', 'admin'].includes(currentUser?.role || '');
+    }, [currentUser]);
     const stats = useMemo(() => {
         const activeListings = listings.filter(l => l.status === 'active').length;
         const totalSales = invoices.filter(inv => inv.status !== 'cancelled').reduce((sum, inv) => sum + inv.totalAmount, 0);
@@ -86,18 +91,22 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                     >
                         <Plus className="w-4 h-4" /> Log Walk-in
                     </button>
-                    <button 
-                        onClick={onAddListing}
-                        className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95"
-                    >
-                        <Plus className="w-4 h-4" /> Add Vehicle
-                    </button>
-                    <button 
-                        onClick={onAddInvoice}
-                        className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-slate-900 text-slate-700 dark:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 hover:bg-slate-50 transition-all active:scale-95"
-                    >
-                        <CreditCard className="w-4 h-4 text-indigo-600" /> New Invoice
-                    </button>
+                    {isAuthorizedForFinance && (
+                        <>
+                            <button 
+                                onClick={onAddListing}
+                                className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95"
+                            >
+                                <Plus className="w-4 h-4" /> Add Vehicle
+                            </button>
+                            <button 
+                                onClick={onAddInvoice}
+                                className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-slate-900 text-slate-700 dark:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 hover:bg-slate-50 transition-all active:scale-95"
+                            >
+                                <CreditCard className="w-4 h-4 text-indigo-600" /> New Invoice
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -114,16 +123,18 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden group">
-                    <div className="absolute -right-4 -top-4 w-24 h-24 bg-emerald-50 dark:bg-emerald-900/20 rounded-full group-hover:scale-125 transition-transform"></div>
-                    <div className="relative z-10">
-                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2">
-                            <Coins className="w-4 h-4 text-emerald-600" /> Revenue Flow
-                        </p>
-                        <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">KES {stats.revenueCollected.toLocaleString()}</h3>
-                        <p className="text-[10px] font-bold text-emerald-600 mt-2 uppercase tracking-widest">Total Collected</p>
+                {isAuthorizedForFinance && (
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden group">
+                        <div className="absolute -right-4 -top-4 w-24 h-24 bg-emerald-50 dark:bg-emerald-900/20 rounded-full group-hover:scale-125 transition-transform"></div>
+                        <div className="relative z-10">
+                            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <Coins className="w-4 h-4 text-emerald-600" /> Revenue Flow
+                            </p>
+                            <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">KES {stats.revenueCollected.toLocaleString()}</h3>
+                            <p className="text-[10px] font-bold text-emerald-600 mt-2 uppercase tracking-widest">Total Collected</p>
+                        </div>
                     </div>
-                </div>
+                )}
 
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden group">
                     <div className="absolute -right-4 -top-4 w-24 h-24 bg-amber-50 dark:bg-amber-900/20 rounded-full group-hover:scale-125 transition-transform"></div>
@@ -169,27 +180,31 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                                 <p className="text-[9px] text-slate-400 uppercase mt-1">Manage unit details & photos</p>
                             </button>
 
-                            <button 
-                                onClick={() => onAction('auto_marketplace', 'financials')}
-                                className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-slate-800 hover:border-emerald-400 transition-all group text-left"
-                            >
-                                <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
-                                    <BarChart3 className="w-6 h-6" />
-                                </div>
-                                <span className="font-black text-xs uppercase tracking-tight text-slate-900 dark:text-white">Sales Ledger</span>
-                                <p className="text-[9px] text-slate-400 uppercase mt-1">Audit invoices & payments</p>
-                            </button>
+                            {isAuthorizedForFinance && (
+                                <>
+                                    <button 
+                                        onClick={() => onAction('auto_marketplace', 'financials')}
+                                        className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-slate-800 hover:border-emerald-400 transition-all group text-left"
+                                    >
+                                        <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
+                                            <BarChart3 className="w-6 h-6" />
+                                        </div>
+                                        <span className="font-black text-xs uppercase tracking-tight text-slate-900 dark:text-white">Sales Ledger</span>
+                                        <p className="text-[9px] text-slate-400 uppercase mt-1">Audit invoices & payments</p>
+                                    </button>
 
-                            <button 
-                                onClick={() => onAction('reports')}
-                                className="flex flex-col items-start p-6 bg-indigo-600 text-white rounded-[2rem] shadow-xl shadow-indigo-100 hover:shadow-indigo-300 transition-all group text-left hover:-translate-y-1"
-                            >
-                                <div className="p-4 bg-white/20 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
-                                    <BarChart3 className="w-6 h-6" />
-                                </div>
-                                <span className="font-black text-xs uppercase tracking-tight">Market Analytics</span>
-                                <p className="text-[9px] opacity-80 uppercase mt-1">Performance insights</p>
-                            </button>
+                                    <button 
+                                        onClick={() => onAction('reports')}
+                                        className="flex flex-col items-start p-6 bg-indigo-600 text-white rounded-[2rem] shadow-xl shadow-indigo-100 hover:shadow-indigo-300 transition-all group text-left hover:-translate-y-1"
+                                    >
+                                        <div className="p-4 bg-white/20 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
+                                            <BarChart3 className="w-6 h-6" />
+                                        </div>
+                                        <span className="font-black text-xs uppercase tracking-tight">Market Analytics</span>
+                                        <p className="text-[9px] opacity-80 uppercase mt-1">Performance insights</p>
+                                    </button>
+                                </>
+                            )}
 
 
 
@@ -206,92 +221,94 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
                         </div>
                     </div>
 
-                    {/* Recent Unit Sales */}
-                    <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                        <div className="flex items-center justify-between mb-8">
-                            <h3 className="text-xl font-black tracking-tighter uppercase flex items-center gap-3">
-                                <RefreshCw className="w-5 h-5 text-emerald-600" />
-                                Recent Vehicle Sales
-                            </h3>
-                            <button 
-                                onClick={() => onAction('auto_marketplace', 'financials')}
-                                className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:underline"
-                            >
-                                View All
-                            </button>
-                        </div>
-                        <div className="space-y-4">
-                            {invoices.slice(0, 5).map(inv => {
-                                const listing = listings.find(l => l.id === inv.listingId);
-                                return (
-                                    <div key={inv.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 bg-slate-50 dark:bg-slate-900/40 rounded-[2rem] border border-slate-50 dark:border-slate-800 group hover:border-indigo-100 transition-all">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-400 group-hover:text-indigo-600 transition-colors shadow-sm">
-                                                <Car className="w-6 h-6" />
+                    {isAuthorizedForFinance && (
+                        <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                            <div className="flex items-center justify-between mb-8">
+                                <h3 className="text-xl font-black tracking-tighter uppercase flex items-center gap-3">
+                                    <RefreshCw className="w-5 h-5 text-emerald-600" />
+                                    Recent Vehicle Sales
+                                </h3>
+                                <button 
+                                    onClick={() => onAction('auto_marketplace', 'financials')}
+                                    className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:underline"
+                                >
+                                    View All
+                                </button>
+                            </div>
+                            <div className="space-y-4">
+                                {invoices.slice(0, 5).map(inv => {
+                                    const listing = listings.find(l => l.id === inv.listingId);
+                                    return (
+                                        <div key={inv.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 bg-slate-50 dark:bg-slate-900/40 rounded-[2rem] border border-slate-50 dark:border-slate-800 group hover:border-indigo-100 transition-all">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-400 group-hover:text-indigo-600 transition-colors shadow-sm">
+                                                    <Car className="w-6 h-6" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                                        {listing ? `${listing.year} ${listing.make} ${listing.model}` : 'Unknown Vehicle'}
+                                                    </p>
+                                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-0.5">
+                                                        {inv.clientName} • #{inv.invoiceNumber}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                                                    {listing ? `${listing.year} ${listing.make} ${listing.model}` : 'Unknown Vehicle'}
-                                                </p>
-                                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-0.5">
-                                                    {inv.clientName} • #{inv.invoiceNumber}
-                                                </p>
+                                            <div className="mt-4 sm:mt-0 text-left sm:text-right">
+                                                <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {inv.totalAmount.toLocaleString()}</p>
+                                                <span className={`inline-block px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-[0.2em] mt-1 ${
+                                                    inv.status === 'fully_paid' ? 'bg-emerald-50 text-emerald-600' : 
+                                                    inv.status === 'partially_paid' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-500'
+                                                }`}>
+                                                    {inv.status.replace('_', ' ')}
+                                                </span>
                                             </div>
                                         </div>
-                                        <div className="mt-4 sm:mt-0 text-left sm:text-right">
-                                            <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {inv.totalAmount.toLocaleString()}</p>
-                                            <span className={`inline-block px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-[0.2em] mt-1 ${
-                                                inv.status === 'fully_paid' ? 'bg-emerald-50 text-emerald-600' : 
-                                                inv.status === 'partially_paid' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-500'
-                                            }`}>
-                                                {inv.status.replace('_', ' ')}
-                                            </span>
-                                        </div>
+                                    );
+                                })}
+                                {invoices.length === 0 && (
+                                    <div className="text-center py-12 text-slate-400">
+                                        <Coins className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                                        <p className="text-[10px] font-black uppercase tracking-widest">No Sales Recorded</p>
                                     </div>
-                                );
-                            })}
-                            {invoices.length === 0 && (
-                                <div className="text-center py-12">
-                                    <Car className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                                    <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">No sales recorded yet</p>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 {/* Sidebar Insights */}
                 <div className="lg:col-span-4 space-y-8">
-                    {/* Inventory Health */}
-                    <div className="bg-slate-900 rounded-[3rem] p-10 text-white relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600/20 rounded-full blur-3xl"></div>
-                        <h3 className="text-lg font-black uppercase tracking-widest mb-8 relative z-10">Inventory Health</h3>
-                        <div className="space-y-6 relative z-10">
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                                    <span className="text-slate-400">Active Units</span>
-                                    <span>{Math.round((stats.activeListings / (stats.totalInventory || 1)) * 100)}%</span>
+                    {isAuthorizedForFinance && (
+                        <div className="bg-slate-900 rounded-[3rem] p-10 text-white relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600/20 rounded-full blur-3xl"></div>
+                            <h3 className="text-lg font-black uppercase tracking-widest mb-8 relative z-10">Inventory Health</h3>
+                            <div className="space-y-6 relative z-10">
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+                                        <span className="text-slate-400">Active Units</span>
+                                        <span>{Math.round((stats.activeListings / (stats.totalInventory || 1)) * 100)}%</span>
+                                    </div>
+                                    <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                                        <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${(stats.activeListings / (stats.totalInventory || 1)) * 100}%` }}></div>
+                                    </div>
                                 </div>
-                                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                                    <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${(stats.activeListings / (stats.totalInventory || 1)) * 100}%` }}></div>
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+                                        <span className="text-slate-400">Collection Rate</span>
+                                        <span>{Math.round((stats.revenueCollected / (stats.totalSales || 1)) * 100)}%</span>
+                                    </div>
+                                    <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${(stats.revenueCollected / (stats.totalSales || 1)) * 100}%` }}></div>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                                    <span className="text-slate-400">Collection Rate</span>
-                                    <span>{Math.round((stats.revenueCollected / (stats.totalSales || 1)) * 100)}%</span>
-                                </div>
-                                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${(stats.revenueCollected / (stats.totalSales || 1)) * 100}%` }}></div>
-                                </div>
+                            <div className="mt-10 p-6 bg-white/5 rounded-[2rem] border border-white/10 relative z-10">
+                                <p className="text-[10px] font-bold text-slate-300 italic leading-relaxed">
+                                    "The showroom is currently operating at <span className="text-white font-black">{Math.round((stats.activeListings / (stats.totalInventory || 1)) * 100)}%</span> inventory visibility. Expanding your digital reach could improve lead conversion."
+                                </p>
                             </div>
                         </div>
-                        <div className="mt-10 p-6 bg-white/5 rounded-[2rem] border border-white/10 relative z-10">
-                            <p className="text-[10px] font-bold text-slate-300 italic leading-relaxed">
-                                "The showroom is currently operating at <span className="text-white font-black">{Math.round((stats.activeListings / (stats.totalInventory || 1)) * 100)}%</span> inventory visibility. Expanding your digital reach could improve lead conversion."
-                            </p>
-                        </div>
-                    </div>
+                    )}
 
                     {/* Pending Actions Drive */}
                     <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700">

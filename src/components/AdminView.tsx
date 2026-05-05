@@ -1716,7 +1716,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit">
                             <button onClick={() => setAutoSubTab('dashboard')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'dashboard' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Dashboard Hub</button>
                             <button onClick={() => setAutoSubTab('inventory')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'inventory' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Vehicle Inventory</button>
-                            <button onClick={() => setAutoSubTab('financials')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'financials' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Sales & Invoices</button>
+                            {['director', 'finance', 'super_admin', 'admin'].includes(props.currentUser?.role || '') && (
+                                <button onClick={() => setAutoSubTab('financials')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'financials' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Sales & Invoices</button>
+                            )}
                         </div>
 
                         <div className="animate-fade-in-up">
@@ -1744,6 +1746,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                         const slug = props.currentInstitution?.slug || props.currentInstitution?.id;
                                         window.open(`/?view=showroom&showroom=${slug}`, '_blank');
                                     }}
+                                    currentUser={props.currentUser}
                                 />
                             ) : autoSubTab === 'inventory' ? (
                                 <CarInventoryList 
