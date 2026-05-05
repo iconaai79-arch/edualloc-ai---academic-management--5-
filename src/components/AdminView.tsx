@@ -698,8 +698,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
             // Educational tabs
             if (['timetable', 'courses', 'leaveout', 'boarding', 'users'].includes(tab.id)) {
-                if (tab.id === 'users' && isAutoMarket) return ['director', 'finance', 'super_admin', 'admin'].includes(roleToUse || '');
-                if (tab.id === 'users' && (isCoop || isCommunity || institutionType === 'SACCO' || institutionType === 'Agrovet')) return true;
+                if (tab.id === 'users') {
+                    if (props.currentUser?.role === 'super_admin') return true;
+                    if (isAutoMarket) return ['director', 'finance', 'admin'].includes(roleToUse || '');
+                    if (isCoop || isCommunity || institutionType === 'SACCO' || institutionType === 'Agrovet') return true;
+                }
                 return isEdu;
             }
 
@@ -751,8 +754,10 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             if (tab.id === 'auto_marketplace') return isAutoMarket;
             if (tab.id === 'fuel_station') return isFuelStation;
 
-            if (tab.id === 'reports' && isAutoMarket) {
-                return ['director', 'finance', 'super_admin', 'admin'].includes(roleToUse || '');
+            if (tab.id === 'reports') {
+                if (props.currentUser?.role === 'super_admin') return true;
+                if (isAutoMarket) return ['director', 'finance', 'admin'].includes(roleToUse || '');
+                return true; // Default visibility for other institutional types
             }
 
             if (tab.id === 'showcase') {
