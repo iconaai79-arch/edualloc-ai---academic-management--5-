@@ -94,7 +94,7 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
     }
 
     // Car Showroom / Automotive Marketplace
-    if (type === 'Car Showroom' || subType.includes('car sales') || subType.includes('showroom')) {
+    if (type === 'Car Showroom' || subType.includes('car sales') || subType.includes('showroom') || subType.includes('automotive') || subType.includes('motors')) {
         return ['director', 'finance', 'sales', 'reception', 'customer', 'lead'];
     }
 
@@ -242,7 +242,7 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
     }
 
     // Automotive Showroom context
-    if (type === 'Car Showroom' || subType.includes('car sales') || subType.includes('showroom')) {
+    if (type === 'Car Showroom' || subType.includes('car sales') || subType.includes('showroom') || subType.includes('automotive') || subType.includes('motors')) {
         switch (role) {
             case 'director': return 'Director';
             case 'finance': return 'Finance Manager';

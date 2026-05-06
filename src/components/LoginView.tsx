@@ -41,7 +41,7 @@ interface LoginViewProps {
     companyDetails: CompanyDetails;
     onResetPassword?: (token: string, pass: string) => Promise<{ success: boolean; message: string }>;
     schoolRegistry?: SchoolRegistry[];
-    initialView?: 'login' | 'register';
+    initialView?: 'login' | 'register' | 'reset_password';
     prefillModuleId?: string;
 }
 

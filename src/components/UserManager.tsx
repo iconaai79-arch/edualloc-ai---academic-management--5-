@@ -891,10 +891,11 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const isEdu = isEduInstitution(currentInstitution);
     const isAutoMarket = useMemo(() => {
         if (typeof isAutoMarketProp === 'boolean') return isAutoMarketProp;
+        const type = currentInstitution?.institutionType;
         const cat = currentInstitution?.category;
         const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
         const name = currentInstitution?.name?.toLowerCase() || '';
-        return cat === 'Automotive Marketplace' || subType.includes('vehicle sales') || subType.includes('car sales') || subType.includes('motors') || name.includes('motors') || name.includes('car sales') || subType.includes('showroom');
+        return type === 'Car Showroom' || cat === 'Automotive Marketplace' || subType.includes('vehicle sales') || subType.includes('car sales') || subType.includes('motors') || name.includes('motors') || name.includes('car sales') || subType.includes('showroom');
     }, [currentInstitution, isAutoMarketProp]);
 
     const isCoop = useMemo(() => {

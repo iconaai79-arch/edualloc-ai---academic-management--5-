@@ -598,7 +598,15 @@ export const App: React.FC = () => {
         }
     });
     const [showTenantStore, setShowTenantStore] = useState(!!activeStoreTenantId);
-    const [loginInitialView, setLoginInitialView] = useState<'login' | 'register'>('login');
+    const [loginInitialView, setLoginInitialView] = useState<'login' | 'register' | 'reset_password'>(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('resetToken')) return 'reset_password';
+            return 'login';
+        } catch (e) {
+            return 'login';
+        }
+    });
     const [registrationModuleId, setRegistrationModuleId] = useState<string | null>(null);
 
     const [showMarketing, setShowMarketing] = useState(() => {
@@ -615,9 +623,11 @@ export const App: React.FC = () => {
             if (isAlumnaeSubdomain) return false; // Don't show marketing if on alumnae subdomain
             
             const isAlumnaeDeepLink = params.get('school') || params.get('alumnae') || params.get('view') === 'alumnae_register' || params.get('view') === 'alumnae_social' || params.get('view') === 'alumnae_portal';
-            return !currentUser && !showMarketplace && !showCommunityHub && !showGuestPortal && !showGuestFeedback && !showTenantStore && !isAlumnaeDeepLink;
+            const isPasswordReset = !!params.get('resetToken');
+            
+            return !currentUser && !showMarketplace && !showCommunityHub && !showGuestPortal && !showGuestFeedback && !showTenantStore && !isAlumnaeDeepLink && !isPasswordReset;
         } catch (e) {
-            return !currentUser;
+            return !currentUser && !window.location.search.includes('resetToken');
         }
     });
 
