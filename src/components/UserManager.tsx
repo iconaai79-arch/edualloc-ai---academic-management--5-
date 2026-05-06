@@ -957,7 +957,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
     useEffect(() => {
         if (activeTab === 'staff') {
-            const defaultRole = isCoop ? 'cooperative_manager' : ((isRetailAgency || isAutoMarket) ? 'retail_agent' : (isChurch ? 'worker' : 'teacher'));
+            const defaultRole = isCoop ? 'cooperative_manager' : (isAutoMarket ? 'sales' : (isRetailAgency ? 'retail_agent' : (isChurch ? 'worker' : 'teacher')));
             setRoles([defaultRole as Role]);
         } else if (activeTab === 'customer') {
             setRoles(['customer']);
@@ -1095,7 +1095,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             gender,
             role: activeTab === 'staff' ? roles[0] : (activeTab === 'customer' ? roles[0] || 'customer' : 'student'),
             roles: activeTab === 'staff' ? roles : (activeTab === 'customer' ? (roles.length > 0 ? roles : ['customer']) : ['student']),
-            institutionId: currentUser?.institutionId || '',
+            institutionId: currentInstitution?.id || currentUser?.institutionId || '',
             expertise: [],
             driverType: roles.includes('driver') ? driverType : undefined,
             createdAt: new Date().toISOString()

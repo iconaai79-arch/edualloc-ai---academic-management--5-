@@ -846,9 +846,20 @@ export const App: React.FC = () => {
             
             if (currentUser) {
                 const activeInst = insts?.find(i => i.id === currentUser.institutionId);
-                const effectiveInstId = currentUser?.role === 'super_admin' ? undefined : (activeInst?.id || currentUser.institutionId || instId || '');
+                let effectiveInstId: string | undefined = undefined;
                 
-                console.log("[Data Refresh] [DEBUG-ID-99] Loading institutional data for:", effectiveInstId || "Global");
+                if (currentUser.role === 'super_admin') {
+                    if (activeStoreTenantId) {
+                        const targetInst = insts?.find(i => i && (i.id === activeStoreTenantId || i.slug === activeStoreTenantId));
+                        effectiveInstId = targetInst?.id || activeStoreTenantId;
+                    } else {
+                        effectiveInstId = 'ALL';
+                    }
+                } else {
+                    effectiveInstId = activeInst?.id || currentUser.institutionId || instId || '';
+                }
+                
+                console.log("[Data Refresh] [DEBUG-ID-99] Loading institutional data for:", effectiveInstId);
             
                 const demoLeadsPromise = currentUser.role === 'super_admin' 
                     ? apiService.fetchDemoRequests().catch(() => []) 
@@ -1064,7 +1075,7 @@ export const App: React.FC = () => {
             setAppInitializing(false);
             isRefreshingRef.current = false;
         }
-    }, [currentUser?.id, currentUser?.role, currentUser?.institutionId, currentUser?.countyId, activityLogLimit, transactionLimit, receiptLimit, notificationLimit]);
+    }, [currentUser?.id, currentUser?.role, currentUser?.institutionId, currentUser?.countyId, activityLogLimit, transactionLimit, receiptLimit, notificationLimit, activeStoreTenantId]);
 
 
     const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(() => {
@@ -1211,6 +1222,13 @@ export const App: React.FC = () => {
 
     const activeInstitution = useMemo(() => {
         if (!currentUser || !Array.isArray(institutions)) return null;
+
+        // Support showroom context for SuperAdmins via URL param
+        if (currentUser.role === 'super_admin' && activeStoreTenantId) {
+            const found = institutions.find(i => i && (i.id === activeStoreTenantId || i.slug === activeStoreTenantId));
+            if (found) return found;
+        }
+
         const found = institutions.find(i => i && i.id === currentUser.institutionId);
         if (found) return found;
 
@@ -1231,7 +1249,7 @@ export const App: React.FC = () => {
             }
         }
         return null;
-    }, [currentUser, institutions, schoolRegistry]);
+    }, [currentUser, institutions, schoolRegistry, activeStoreTenantId]);
 
     const isAutoMarket = useMemo(() => {
         const type = activeInstitution?.institutionType;
@@ -3344,6 +3362,7 @@ export const App: React.FC = () => {
                                     />
                                 ) : activeRole === 'super_admin' ? (
                                     <SuperAdminView
+                                        currentInstitution={activeInstitution}
                                         isTimetableGenerating={false}
                                         timetableGenerationProgress={0}
                                         timetableGenerationMessage=""
@@ -3657,7 +3676,7 @@ export const App: React.FC = () => {
                                         onImportCourses={handleImportCourses}
                                         onAddUser={async (userData) => {
                                             try {
-                                                const targetInstitutionId = currentUser?.role === 'super_admin' ? 'SYSTEM' : currentUser?.institutionId;
+                                                                                                 const targetInstitutionId = userData.institutionId || (currentUser?.role === 'super_admin' ? (activeInstitution?.id || 'SYSTEM') : currentUser?.institutionId);
                                                 if (!targetInstitutionId) throw new Error("Institution context missing.");
                                                 await apiService.registerUser({
                                                     ...userData,

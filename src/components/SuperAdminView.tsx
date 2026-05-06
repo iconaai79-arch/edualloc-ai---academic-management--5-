@@ -1052,7 +1052,12 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         onLogAction
     } = props;
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'portal_links' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout' | 'campaigns' | 'financials' | 'integrations'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'portal_links' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout' | 'campaigns' | 'financials' | 'integrations'>(() => {
+        const params = new URLSearchParams(window.location.search);
+        const view = params.get('view');
+        if (view === 'showroom' || params.get('showroom')) return 'auto_marketplace';
+        return 'dashboard';
+    });
     const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry' | 'scouting' | 'branding' | 'political' | 'medical' | 'business_profile'>('list');
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses' | 'registry' | 'calendar' | 'timetable' | 'discipline' | 'insights' | 'reports'>('subjects');
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
@@ -1072,7 +1077,11 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isAddingInstitution, setIsAddingInstitution] = useState(false);
-    const [autoSubTab, setAutoSubTab] = useState<'dashboard' | 'inventory' | 'financials'>('dashboard');
+    const [autoSubTab, setAutoSubTab] = useState<'dashboard' | 'inventory' | 'financials'>(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('sub') === 'financials' || params.get('tab') === 'sales') return 'financials';
+        return 'dashboard';
+    });
     const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'sms_pricing' | 'marketplace' | 'showcase' | 'system_build' | 'storage'>('profile');
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways'>('mpesa');
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
