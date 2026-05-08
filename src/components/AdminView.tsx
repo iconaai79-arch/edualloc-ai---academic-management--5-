@@ -1749,6 +1749,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         payments={props.dsPayments || []}
                         users={props.users || []}
                         onLogAction={props.onLogAction}
+                        onImportStudents={props.onImportStudents}
                         externalTab={activeTab === 'ds_students' ? 'students' : 
                                      activeTab === 'ds_lessons' ? 'lessons' : 
                                      activeTab === 'ds_fleet' ? 'fleet' : 
