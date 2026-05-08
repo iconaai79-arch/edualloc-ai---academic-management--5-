@@ -421,6 +421,7 @@ export interface Institution {
     airtelMoneyConfig?: AirtelMoneyConfig;
     intasendConfig?: IntasendConfig;
     ncbaConfig?: NcbaConfig;
+    kcbConfig?: KcbConfig;
     googleDriveConfig?: GoogleDriveConfig;
     farmerSmsBillingEnabled?: boolean;
     moduleStates?: InstitutionModuleState[];
@@ -819,6 +820,17 @@ export interface IntasendConfig {
     environment?: 'sandbox' | 'test' | 'production';
 }
 
+export interface KcbConfig {
+    appKey: string;
+    appSecret: string;
+    baseUrl?: string;
+    stkPushUrl?: string;
+    queryUrl?: string;
+    passkey?: string;
+    shortCode?: string;
+    environment?: 'sandbox' | 'production';
+}
+
 export interface GoogleDriveConfig {
     clientId: string;
     clientSecret: string;
@@ -862,6 +874,7 @@ export interface CompanyDetails {
     airtelMoneyConfig?: AirtelMoneyConfig;
     intasendConfig?: IntasendConfig;
     ncbaConfig?: NcbaConfig;
+    kcbConfig?: KcbConfig;
     googleDriveConfig?: GoogleDriveConfig;
     emailConfig: EmailConfig;
     smsConfig: SmsConfig;

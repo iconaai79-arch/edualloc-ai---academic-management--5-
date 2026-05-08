@@ -537,7 +537,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     }, [props.currentInstitution]);
 
     const isDS = useMemo(() => {
-        return props.currentInstitution?.category === 'Driving School' || institutionType === 'Driving School';
+        const cat = props.currentInstitution?.category?.toLowerCase() || '';
+        const type = institutionType?.toLowerCase() || '';
+        return cat.includes('driving school') || type.includes('driving school');
     }, [props.currentInstitution, institutionType]);
 
     const isLaw = useMemo(() => {
@@ -640,7 +642,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 setActiveTab('hospitality');
             } else if (isRetailAgency) {
                 setActiveTab('retail');
-            } else if (isDS || role === 'driving_instructor') {
+            } else if (isDS || role === 'driving_instructor' || (institutionType?.toLowerCase().includes('driving school'))) {
                 setActiveTab('driving_school');
             } else if (isLaw || role === 'legal_admin') {
                 setActiveTab('law');
@@ -778,7 +780,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             if (tab.id === 'car_service') return isBusiness && (businessSubType === 'Car Service' || businessSubType === 'Mechanic');
             if (tab.id === 'church') return isChurch;
             if (tab.id === 'law') return roleToUse === 'legal_admin' || institutionType === 'Law Firm';
-            if (tab.id === 'driving_school') return roleToUse === 'driving_instructor' || institutionType === 'Driving School' || props.currentInstitution?.category === 'Driving School';
+            if (tab.id === 'driving_school') return roleToUse === 'driving_instructor' || isDS || institutionType?.toLowerCase().includes('driving school');
             if (tab.id === 'community') return isCommunity || roleToUse === 'community_admin';
             if (tab.id === 'alumni') return isAlumni || roleToUse === 'alumni_admin';
             if (tab.id === 'hospitality') return isHospitality || roleToUse === 'hospitality_admin';

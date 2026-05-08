@@ -123,3 +123,4 @@ export * from './NcbaIcon';
 export * from './PhotoIcon';
 export * from './VideoCameraIcon';
 export * from './DevicePhoneMobileIcon';
+export * from './KcbIcon';

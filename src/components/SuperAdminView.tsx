@@ -80,6 +80,7 @@ import { GlobeAltIcon } from './icons/GlobeAltIcon';
 import { CrossIcon } from './icons/CrossIcon';
 import { MegaphoneIcon } from './icons/MegaphoneIcon';
 import { PalmTreeIcon as Palmtree } from './icons/PalmTreeIcon';
+import { KcbIcon } from './icons/KcbIcon';
 import { CommunicationsManager } from './CommunicationsManager';
 import { EditInstitutionModal } from './EditInstitutionModal';
 import { apiService } from '../services/apiService';
@@ -578,7 +579,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         return 'dashboard';
     });
     const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'sms_pricing' | 'marketplace' | 'showcase' | 'system_build' | 'storage'>('profile');
-    const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways'>('mpesa');
+    const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'kcb'>('mpesa');
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
     const [extendingInstitution, setExtendingInstitution] = useState<Institution | null>(null);
     const [extensionDays, setExtensionDays] = useState(30);
@@ -747,6 +748,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [localMpesaConfig, setLocalMpesaConfig] = useState<MpesaConfig>(companyDetails?.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '' });
     const [localSubConfig, setLocalSubConfig] = useState<SubscriptionConfig>(companyDetails?.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
     const [localFtpConfig, setLocalFtpConfig] = useState<FtpConfig>(companyDetails?.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
+    const [localKcbConfig, setLocalKcbConfig] = useState<KcbConfig>(companyDetails?.kcbConfig || { appKey: '', appSecret: '', environment: 'sandbox' });
     const [localGoogleDriveConfig, setLocalGoogleDriveConfig] = useState<GoogleDriveConfig>(companyDetails?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', folderId: '', isActive: false });
     const [isTestingGoogleDrive, setIsTestingGoogleDrive] = useState(false);
     const [isTestingDriveUpload, setIsTestingDriveUpload] = useState(false);
@@ -784,6 +786,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             setLocalMpesaConfig(companyDetails.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '' });
             setLocalSubConfig(companyDetails.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
             setLocalFtpConfig(companyDetails.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
+            setLocalKcbConfig(companyDetails.kcbConfig || { appKey: '', appSecret: '', environment: 'sandbox' });
         }
     }, [companyDetails]);
 
@@ -848,6 +851,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     emailConfig: localEmailConfig,
                     mpesaConfig: localMpesaConfig,
                     subscriptionConfig: localSubConfig,
+                    kcbConfig: localKcbConfig,
                     chatAssistantConfig: {
                         ...companyDetails?.chatAssistantConfig,
                         welcomeMessage: localCompanyInfo.welcomeMessage,
@@ -917,6 +921,30 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         } catch (e: any) {
             console.error("Mpesa Test Error:", e);
             alert(`Mpesa Gateway test failed: ${e.message}`);
+        } finally {
+            setIsTesting(false);
+        }
+    };
+
+    const handleTestKcb = async () => {
+        if (!testRecipient) return alert("Enter a phone number for KCB STK Push test.");
+        setIsTesting(true);
+        try {
+            const result = await apiService.post('/api/payments/kcb-stk-push', {
+                phoneNumber: testRecipient,
+                amount: 1,
+                accountReference: 'EduAI-KCB-Test',
+                transactionDesc: 'KCB Connectivity Test',
+                config: localKcbConfig
+            });
+            if (result.success || result.ResponseCode === '0') {
+                alert("KCB STK Push initiated successfully. Check your phone.");
+            } else {
+                alert(`KCB STK Push failed: ${result.message || 'Unknown error'}`);
+            }
+        } catch (e: any) {
+            console.error("KCB Test Error:", e);
+            alert(`KCB Gateway test failed: ${e.message}`);
         } finally {
             setIsTesting(false);
         }
@@ -3760,6 +3788,12 @@ Please change it after login.`;
                                             >
                                                 <Cog8ToothIcon className="w-4 h-4" /> Gateways Control
                                             </button>
+                                            <button 
+                                                onClick={() => setBillingSubTab('kcb')} 
+                                                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${billingSubTab === 'kcb' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                                            >
+                                                <KcbIcon className="w-4 h-4" /> KCB Integration
+                                            </button>
                                         </div>
                                     </div>
 
@@ -3879,6 +3913,109 @@ Please change it after login.`;
                                             </div>
                                             <div className="pt-4">
                                                 <button onClick={handleSaveGlobalConfigs} className="btn-primary w-full h-14 shadow-indigo-100 dark:shadow-none uppercase tracking-widest text-xs">Update Gateway Visibility</button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {billingSubTab === 'kcb' && (
+                                        <div className="animate-fade-in space-y-6">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
+                                                    <div className="flex items-center gap-4 mb-6">
+                                                        <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl">
+                                                            <KcbIcon className="w-6 h-6 text-indigo-600" />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-sm font-black uppercase tracking-widest">KCB Buni Credentials</h4>
+                                                            <p className="text-[10px] font-bold text-slate-400">Production and Sandbox API keys</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-4">
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">App Key</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localKcbConfig.appKey}
+                                                                onChange={e => setLocalKcbConfig({ ...localKcbConfig, appKey: e.target.value })}
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all"
+                                                                placeholder="Enter KCB App Key"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">App Secret</label>
+                                                            <input
+                                                                type="password"
+                                                                value={localKcbConfig.appSecret}
+                                                                onChange={e => setLocalKcbConfig({ ...localKcbConfig, appSecret: e.target.value })}
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all"
+                                                                placeholder="Enter KCB App Secret"
+                                                            />
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div>
+                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Short Code</label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={localKcbConfig.shortCode || ''}
+                                                                    onChange={e => setLocalKcbConfig({ ...localKcbConfig, shortCode: e.target.value })}
+                                                                    className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all"
+                                                                    placeholder="Till/Paybill"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Environment</label>
+                                                                <select
+                                                                    value={localKcbConfig.environment}
+                                                                    onChange={e => setLocalKcbConfig({ ...localKcbConfig, environment: e.target.value as any })}
+                                                                    className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all"
+                                                                >
+                                                                    <option value="sandbox">Sandbox</option>
+                                                                    <option value="production">Production</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
+                                                    <div className="flex items-center gap-4 mb-6">
+                                                        <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-2xl">
+                                                            <ZapIcon className="w-6 h-6 text-amber-600" />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-sm font-black uppercase tracking-widest">KCB Connectivity Testing</h4>
+                                                            <p className="text-[10px] font-bold text-slate-400">Trigger simulated KCB STK push</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-6">
+                                                        <div className="p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-4">Test Phone Number</p>
+                                                            <div className="flex items-center gap-3">
+                                                                <input 
+                                                                    type="text" 
+                                                                    placeholder="2547XXXXXXXX"
+                                                                    value={testRecipient}
+                                                                    onChange={e => setTestRecipient(e.target.value)}
+                                                                    className="flex-1 h-12 px-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500"
+                                                                />
+                                                                <button 
+                                                                    onClick={handleTestKcb}
+                                                                    disabled={isTesting}
+                                                                    className="h-12 px-6 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-lg shadow-indigo-100 dark:shadow-none"
+                                                                >
+                                                                    {isTesting ? 'Sending...' : 'STK Push'}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-900/30">
+                                                            <InformationCircleIcon className="w-5 h-5 text-amber-600 mt-0.5" />
+                                                            <p className="text-[10px] font-bold text-amber-800 dark:text-amber-200"> Ensure your callback URL is correctly whitelisted on KCB Buni for production tests.</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-end pt-4">
+                                                <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-14 shadow-indigo-200 uppercase tracking-widest text-xs w-full sm:w-auto">Confirm KCB Configuration</button>
                                             </div>
                                         </div>
                                     )}

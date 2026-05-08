@@ -98,6 +98,11 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
         return ['director', 'finance', 'sales', 'reception', 'customer', 'lead'];
     }
 
+    // Driving School
+    if (type === 'Driving School' || subType.includes('driving school') || (institution?.category?.toLowerCase().includes('driving school'))) {
+        return ['admin', 'driving_instructor', 'staff', 'student', 'security', 'driver'];
+    }
+
     return ['admin', 'staff', 'customer'] as any[];
 };
 
