@@ -353,10 +353,11 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
 
     const isRetailAgency = RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
     const isAutoSales = currentInstitution?.businessSubType?.toLowerCase().includes('car') || currentInstitution?.businessSubType?.toLowerCase().includes('auto');
+    const isDS = currentInstitution?.institutionType === 'Driving School' || currentInstitution?.category === 'Driving School' || currentInstitution?.institutionType?.toLowerCase().includes('driving school');
     const isEdu = useMemo(() => {
         const type = currentInstitution?.institutionType;
-        return type === 'Education' || ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes((currentInstitution as any)?.institutionType || '');
-    }, [currentInstitution]);
+        return (type === 'Education' || ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes((currentInstitution as any)?.institutionType || '')) && !isDS;
+    }, [currentInstitution, isDS]);
 
     const [subTab, setSubTab] = useState('visuals');
     const [departmentFilter, setDepartmentFilter] = useState<string>('all');
@@ -678,6 +679,10 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
             }
             return allowed.includes(tab.key);
         }
+        if (isDS) {
+            const allowed = ['visuals', 'stats', 'audit', 'attendance', 'client_statements'];
+            return allowed.includes(tab.key);
+        }
         return true;
     });
 
@@ -725,6 +730,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             rooms={rooms || []}
                             visitors={visitors || []}
                             isAutoSales={isAutoSales}
+                            isDS={isDS}
                         />
                     )}
                     {subTab === 'stats' && (
@@ -759,11 +765,11 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{(isRetailAgency || isAutoSales) ? 'Total Units/Items' : 'Total Subjects'}</h3>
+                                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{(isRetailAgency || isAutoSales) ? 'Total Units/Items' : isDS ? 'Total Students Enrolled' : 'Total Subjects'}</h3>
                                     <p className="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">{totalSubjectsCount}</p>
                                 </div>
                                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{(isRetailAgency || isAutoSales) ? 'Active Assignments' : 'Allocated Subjects'}</h3>
+                                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{(isRetailAgency || isAutoSales) ? 'Active Assignments' : isDS ? 'Active Training Sessions' : 'Allocated Subjects'}</h3>
                                     <p className="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">{allocatedSubjectsCount}</p>
                                 </div>
                                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
@@ -771,7 +777,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                     <p className="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">{totalRequestsCount}</p>
                                 </div>
                                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{(isRetailAgency || isAutoSales) ? 'Total Personnel' : 'Total Staff'}</h3>
+                                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{(isRetailAgency || isAutoSales) ? 'Total Personnel' : isDS ? 'Total Instructors' : 'Total Staff'}</h3>
                                     <p className="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">{filteredLecturers.length}</p>
                                 </div>
                             </div>

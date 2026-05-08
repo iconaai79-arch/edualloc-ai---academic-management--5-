@@ -12,6 +12,7 @@ interface VisualReportsProps {
     rooms: Room[];
     visitors: Visitor[];
     isAutoSales?: boolean;
+    isDS?: boolean;
 }
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
@@ -110,7 +111,8 @@ export const VisualReports: React.FC<VisualReportsProps> = ({
     courses = [], 
     rooms = [], 
     visitors = [],
-    isAutoSales = false
+    isAutoSales = false,
+    isDS = false
 }) => {
     const safeLecturers = Array.isArray(lecturers) ? lecturers : [];
     const safeSubjects = Array.isArray(subjects) ? subjects : [];
@@ -244,14 +246,14 @@ export const VisualReports: React.FC<VisualReportsProps> = ({
             <h3 className="text-xl font-semibold text-slate-900 dark:text-white">Graphical Insights</h3>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {!isAutoSales && (
+                {!isAutoSales && !isDS && (
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
                         <h4 className="text-lg font-medium mb-4 text-slate-700 dark:text-slate-200">Request Status Overview</h4>
                         <SimpleDonutChart data={requestStatusData} />
                     </div>
                 )}
 
-                {!isAutoSales && (
+                {!isAutoSales && !isDS && (
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
                         <h4 className="text-lg font-medium mb-4 text-slate-700 dark:text-slate-200">Subject Allocation Progress</h4>
                         <SimpleDonutChart data={allocationStatusData} />
@@ -259,11 +261,11 @@ export const VisualReports: React.FC<VisualReportsProps> = ({
                 )}
 
                  <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
-                    <h4 className="text-lg font-medium mb-4 text-slate-700 dark:text-slate-200">Staff Gender Distribution</h4>
+                    <h4 className="text-lg font-medium mb-4 text-slate-700 dark:text-slate-200">{isDS ? 'Instructor Gender Distribution' : 'Staff Gender Distribution'}</h4>
                     <SimpleDonutChart data={staffGenderData} />
                 </div>
 
-                {!isAutoSales && (
+                {!isAutoSales && !isDS && (
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
                         <h4 className="text-lg font-medium mb-4 text-slate-700 dark:text-slate-200">Student Gender Distribution</h4>
                         <SimpleDonutChart data={studentGenderData} />
@@ -280,7 +282,7 @@ export const VisualReports: React.FC<VisualReportsProps> = ({
                     <SimpleBarChart data={visitorTrafficData} color="#f43f5e" />
                 </div>
 
-                {!isAutoSales && (
+                {!isAutoSales && !isDS && (
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
                         <h4 className="text-lg font-medium mb-6 text-slate-700 dark:text-slate-200">Subjects per Department</h4>
                         <SimpleBarChart data={deptWorkloadData} color="#8b5cf6" />
@@ -288,11 +290,11 @@ export const VisualReports: React.FC<VisualReportsProps> = ({
                 )}
 
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
-                    <h4 className="text-lg font-medium mb-6 text-slate-700 dark:text-slate-200">{isAutoSales ? 'Top Sales Agents' : 'Top Staff by Allocations'}</h4>
+                    <h4 className="text-lg font-medium mb-6 text-slate-700 dark:text-slate-200">{isAutoSales ? 'Top Sales Agents' : isDS ? 'Top Instructors by Sessions' : 'Top Staff by Allocations'}</h4>
                     <SimpleBarChart data={topLecturersData} color="#0ea5e9" />
                 </div>
                 
-                {!isAutoSales && (
+                {!isAutoSales && !isDS && (
                     <div className="col-span-1 lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
                         <h4 className="text-lg font-medium mb-6 text-slate-700 dark:text-slate-200">Courses per Department</h4>
                         <SimpleBarChart data={courseDistributionData} color="#ec4899" />

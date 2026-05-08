@@ -965,45 +965,61 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     {(props.users || []).filter(u => u && u.role !== 'student' && u.role !== 'super_admin' && u.role !== 'member' && u.role !== 'church_member').length}
                                 </p>
                             </div>
-                            {(isEdu || isChurch) && !isDS && (
-                                <>
-                                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                                        <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">{isEdu ? 'Registry Load' : 'Ministerial Registry'}</h3>
-                                        <div className="flex flex-col">
-                                            <p className="text-4xl font-black text-indigo-600 tracking-tighter">{(props.allocations || []).length}</p>
-                                            <div className="flex flex-col mt-2">
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Planned Periods</span>
-                                                    <span className="text-xs font-black text-indigo-500">
-                                                        {(props.allocations || []).reduce((sum, a) => {
-                                                            const subject = (props.subjects || []).find(s => s.id === a.subjectId);
-                                                            const periods = subject?.lessonStructure?.reduce((s, ls) => s + (ls.periods || 0) * (ls.count || 0), 0) || 0;
-                                                            const streams = (a.courseLevelIds || []).length || 1;
-                                                            return sum + (periods * streams);
-                                                        }, 0)}
-                                                    </span>
-                                                </div>
-                                                <div className="flex justify-between items-center mt-1">
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Lessons</span>
-                                                    <span className="text-xs font-black text-emerald-500">
-                                                        {(props.allocations || []).reduce((sum, a) => {
-                                                            const subject = (props.subjects || []).find(s => s.id === a.subjectId);
-                                                            const lessons = subject?.lessonStructure?.reduce((s, ls) => s + (ls.count || 0), 0) || 0;
-                                                            const streams = (a.courseLevelIds || []).length || 1;
-                                                            return sum + (lessons * streams);
-                                                        }, 0)}
-                                                    </span>
-                                                </div>
+                            {((isEdu || isChurch) && !isDS) && (
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                                    <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">{isEdu ? 'Registry Load' : 'Ministerial Registry'}</h3>
+                                    <div className="flex flex-col">
+                                        <p className="text-4xl font-black text-indigo-600 tracking-tighter">{(props.allocations || []).length}</p>
+                                        <div className="flex flex-col mt-2">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Planned Periods</span>
+                                                <span className="text-xs font-black text-indigo-500">
+                                                    {(props.allocations || []).reduce((sum, a) => {
+                                                        const subject = (props.subjects || []).find(s => s.id === a.subjectId);
+                                                        const periods = subject?.lessonStructure?.reduce((s, ls) => s + (ls.periods || 0) * (ls.count || 0), 0) || 0;
+                                                        const streams = (a.courseLevelIds || []).length || 1;
+                                                        return sum + (periods * streams);
+                                                    }, 0)}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between items-center mt-1">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Lessons</span>
+                                                <span className="text-xs font-black text-emerald-500">
+                                                    {(props.allocations || []).reduce((sum, a) => {
+                                                        const subject = (props.subjects || []).find(s => s.id === a.subjectId);
+                                                        const lessons = subject?.lessonStructure?.reduce((s, ls) => s + (ls.count || 0), 0) || 0;
+                                                        const streams = (a.courseLevelIds || []).length || 1;
+                                                        return sum + (lessons * streams);
+                                                    }, 0)}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                                        <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">{isEdu ? 'Total Students' : 'Total Congregation'}</h3>
-                                        <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                            {(props.users || []).filter(u => u && (u.role === 'student' || u.role === 'member' || u.role === 'church_member' || u.role === 'visitor')).length}
+                                </div>
+                            )}
+
+                            {isDS && (
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                                    <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Fleet Operational</h3>
+                                    <div className="flex flex-col">
+                                        <p className="text-4xl font-black text-emerald-600 tracking-tighter">
+                                            {(props.vehicles || []).filter(v => v.status === 'Operational').length}
                                         </p>
+                                        <div className="flex justify-between items-center mt-2">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Fleet</span>
+                                            <span className="text-xs font-black text-slate-600">{(props.vehicles || []).length} Vehicles</span>
+                                        </div>
                                     </div>
-                                </>
+                                </div>
+                            )}
+
+                            {(isEdu || isChurch || isDS) && (
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                                    <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">{isDS || isEdu ? 'Total Students' : 'Total Congregation'}</h3>
+                                    <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
+                                        {(props.users || []).filter(u => u && (u.role === 'student' || u.role === 'member' || u.role === 'church_member' || u.role === 'visitor')).length}
+                                    </p>
+                                </div>
                             )}
                         </div>
 
