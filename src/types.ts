@@ -4891,3 +4891,55 @@ export interface RiderPortalProps {
     payouts: CoopMonthlyPayout[];
     onLogout: () => void;
 }
+
+// KCB IPN API Interfaces
+export interface KCBIPNHeader {
+    messageID: string;
+    originatorConversationID?: string;
+    channelCode: string;
+    timeStamp: string;
+}
+
+export interface KCBIPNNotificationData {
+    businessKey: string; // Invoice Number / Bill Reference
+    businessKeyType: string; // e.g. BillReferenceNumber
+    debitMSISDN: string;
+    transactionAmt: string;
+    transactionDate: string;
+    transactionID: string;
+    firstName: string;
+    middleName?: string;
+    lastName?: string;
+    currency: string;
+    narration?: string;
+    transactionType?: string;
+    balance?: string;
+}
+
+export interface KCBIPNRequest {
+    header: KCBIPNHeader;
+    requestPayload: {
+        primaryData: {
+            businessKey: string;
+            businessKeyType: string;
+        };
+        additionalData: {
+            notificationData: KCBIPNNotificationData;
+        };
+    };
+}
+
+export interface KCBIPNResponse {
+    header: {
+        messageID: string;
+        originatorConversationID?: string;
+        statusCode: string; // "0" for success, "1" for failure
+        statusMessage: string;
+    };
+    responsePayload?: {
+        transactionInfo: {
+            transactionId: string;
+        };
+    };
+}
+
