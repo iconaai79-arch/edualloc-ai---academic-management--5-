@@ -44,10 +44,11 @@ interface DrivingSchoolManagerProps {
     onAddMastery: (data: any) => Promise<void>;
     onUpdateSettings: (data: any) => Promise<void>;
     onAddInvoice: (data: any) => Promise<void>;
-    onAddPayment: (data: any) => Promise<void>;
-    users: User[]; // All users to link students
     onLogAction: (msg: string) => void;
     onImportStudents?: (imported: any[]) => Promise<void>;
+    transactions?: any[];
+    bankTransactions?: any[];
+    onReconcileTransaction?: (txId: string, invId: string) => Promise<void>;
     externalTab?: 'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings';
 }
 
@@ -78,6 +79,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
     const [searchTerm, setSearchTerm] = useState('');
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [financeSubTab, setFinanceSubTab] = useState<'invoices' | 'payments' | 'bank_feed'>('invoices');
 
     // Stats
     const stats = useMemo(() => ({
@@ -573,88 +575,219 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 KSH {(invoices || []).reduce((sum, inv) => sum + (inv.balance || 0), 0).toLocaleString()}
                             </p>
                         </div>
+
+                    {/* Finance Sub-tabs */}
+                    <div className="flex items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-2xl w-fit border border-slate-100 dark:border-slate-800">
+                        {[
+                            { id: 'invoices', label: 'Invoices', count: (invoices || []).length },
+                            { id: 'payments', label: 'Payment Receipts', count: (payments || []).length },
+                            { id: 'bank_feed', label: 'Bank & MPESA Feeds', count: (bankTransactions || []).length + (transactions || []).length }
+                        ].map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setFinanceSubTab(tab.id as any)}
+                                className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 ${
+                                    financeSubTab === tab.id 
+                                    ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' 
+                                    : 'text-slate-400 hover:text-slate-600'
+                                }`}
+                            >
+                                <span>{tab.label}</span>
+                                <span className={`px-2 py-0.5 rounded-md text-[9px] ${financeSubTab === tab.id ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                                    {tab.count}
+                                </span>
+                            </button>
+                        ))}
                     </div>
 
-                    {/* Invoices Table */}
-                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
-                        <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Student Invoices</h2>
-                            <button 
-                                onClick={() => {
-                                    const studentId = prompt("Enter Student ID or Name:");
-                                    if (!studentId) return;
-                                    const classFee = settings?.feeStructures?.[0];
-                                    if (!classFee) {
-                                        alert("Please define at least one fee structure in Settings first.");
-                                        return;
-                                    }
-                                    onAddInvoice({
-                                        studentId,
-                                        studentName: studentId,
-                                        className: classFee.className,
-                                        items: classFee.items,
-                                        totalAmount: classFee.totalAmount,
-                                        paidAmount: 0,
-                                        balance: classFee.totalAmount,
-                                        status: 'Pending',
-                                        invoiceNumber: `INV-DS-${Math.floor(Math.random()*10000)}`,
-                                        createdAt: new Date().toISOString(),
-                                        updatedAt: new Date().toISOString()
-                                    });
-                                }}
-                                className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold transition-all hover:scale-105 shadow-lg shadow-indigo-600/20"
-                            >
-                                <PlusIcon className="w-5 h-5" />
-                                <span>Generate Invoice</span>
-                            </button>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead>
-                                    <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 dark:border-slate-800">
-                                        <th className="px-8 py-6">Invoice #</th>
-                                        <th className="px-8 py-6">Student</th>
-                                        <th className="px-8 py-6">Class</th>
-                                        <th className="px-8 py-6">Total</th>
-                                        <th className="px-8 py-6">Balance</th>
-                                        <th className="px-8 py-6">Status</th>
-                                        <th className="px-8 py-6 text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                                    {(invoices || []).map(inv => (
-                                        <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
-                                            <td className="px-8 py-6 font-bold text-indigo-600">{inv.invoiceNumber}</td>
-                                            <td className="px-8 py-6 text-slate-900 dark:text-white font-medium">{inv.studentName}</td>
-                                            <td className="px-8 py-6 text-slate-500 uppercase text-xs font-bold italic">{inv.className}</td>
-                                            <td className="px-8 py-6 font-black">KSH {(inv.totalAmount || 0).toLocaleString()}</td>
-                                            <td className="px-8 py-6 font-black text-red-500">KSH {(inv.balance || 0).toLocaleString()}</td>
-                                            <td className="px-8 py-6">
-                                                <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                                                    inv.status === 'Fully Paid' ? 'bg-emerald-50 text-emerald-600' :
-                                                    inv.status === 'Partially Paid' ? 'bg-amber-50 text-amber-600' :
-                                                    'bg-red-50 text-red-600'
-                                                }`}>
-                                                    {inv.status}
-                                                </span>
-                                            </td>
-                                            <td className="px-8 py-6 text-right">
-                                                <button className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"><EyeIcon className="w-6 h-6" /></button>
-                                            </td>
+                    {financeSubTab === 'invoices' && (
+                        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden animate-fade-in">
+                            <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Student Invoices</h2>
+                                <button 
+                                    onClick={() => {
+                                        const studentId = prompt("Enter Student ID or Name:");
+                                        if (!studentId) return;
+                                        const classFee = settings?.feeStructures?.[0];
+                                        if (!classFee) {
+                                            alert("Please define at least one fee structure in Settings first.");
+                                            return;
+                                        }
+                                        onAddInvoice({
+                                            studentId,
+                                            studentName: studentId,
+                                            className: classFee.className,
+                                            items: classFee.items,
+                                            totalAmount: classFee.totalAmount,
+                                            paidAmount: 0,
+                                            balance: classFee.totalAmount,
+                                            status: 'Pending',
+                                            invoiceNumber: `INV-DS-${Math.floor(Math.random()*10000)}`,
+                                            createdAt: new Date().toISOString(),
+                                            updatedAt: new Date().toISOString()
+                                        });
+                                    }}
+                                    className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold transition-all hover:scale-105 shadow-lg shadow-indigo-600/20"
+                                >
+                                    <PlusIcon className="w-5 h-5" />
+                                    <span>Generate Invoice</span>
+                                </button>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 dark:border-slate-800">
+                                            <th className="px-8 py-6">Invoice #</th>
+                                            <th className="px-8 py-6">Student</th>
+                                            <th className="px-8 py-6">Class</th>
+                                            <th className="px-8 py-6">Total</th>
+                                            <th className="px-8 py-6">Balance</th>
+                                            <th className="px-8 py-6">Status</th>
+                                            <th className="px-8 py-6 text-right">Actions</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                            {(invoices || []).length === 0 && (
-                                <div className="text-center py-20 bg-slate-50/50 dark:bg-slate-800/50">
-                                    <div className="w-20 h-20 bg-white dark:bg-slate-700 rounded-3xl shadow-sm flex items-center justify-center mx-auto mb-6">
-                                        <CurrencyIcon className="w-10 h-10 text-slate-200" />
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                        {(invoices || []).map(inv => (
+                                            <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
+                                                <td className="px-8 py-6 font-bold text-indigo-600">{inv.invoiceNumber}</td>
+                                                <td className="px-8 py-6 text-slate-900 dark:text-white font-medium">{inv.studentName}</td>
+                                                <td className="px-8 py-6 text-slate-500 uppercase text-xs font-bold italic">{inv.className}</td>
+                                                <td className="px-8 py-6 font-black">KSH {(inv.totalAmount || 0).toLocaleString()}</td>
+                                                <td className="px-8 py-6 font-black text-red-500">KSH {(inv.balance || 0).toLocaleString()}</td>
+                                                <td className="px-8 py-6">
+                                                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                                                        inv.status === 'Fully Paid' ? 'bg-emerald-50 text-emerald-600' :
+                                                        inv.status === 'Partially Paid' ? 'bg-amber-50 text-amber-600' :
+                                                        'bg-red-50 text-red-600'
+                                                    }`}>
+                                                        {inv.status}
+                                                    </span>
+                                                </td>
+                                                <td className="px-8 py-6 text-right">
+                                                    <button className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"><EyeIcon className="w-6 h-6" /></button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                {(invoices || []).length === 0 && (
+                                    <div className="text-center py-20 bg-slate-50/50 dark:bg-slate-800/50">
+                                        <div className="w-20 h-20 bg-white dark:bg-slate-700 rounded-3xl shadow-sm flex items-center justify-center mx-auto mb-6">
+                                            <CurrencyIcon className="w-10 h-10 text-slate-200" />
+                                        </div>
+                                        <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">No invoices generated yet</p>
                                     </div>
-                                    <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">No invoices generated yet</p>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    )}
+
+                    {financeSubTab === 'payments' && (
+                        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden animate-fade-in">
+                            <div className="p-8 border-b border-slate-50 dark:border-slate-800">
+                                <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Payment Receipts</h2>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">History of all student payments received</p>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 dark:border-slate-800">
+                                            <th className="px-8 py-6">Date</th>
+                                            <th className="px-8 py-6">Receipt #</th>
+                                            <th className="px-8 py-6">Student</th>
+                                            <th className="px-8 py-6">Method</th>
+                                            <th className="px-8 py-6">Amount</th>
+                                            <th className="px-8 py-6 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                        {(payments || []).map(payment => (
+                                            <tr key={payment.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                                                <td className="px-8 py-6 text-xs font-bold">{new Date(payment.paymentDate).toLocaleDateString()}</td>
+                                                <td className="px-8 py-6 text-xs font-black text-indigo-600">#{payment.receiptNumber}</td>
+                                                <td className="px-8 py-6 font-bold text-xs">{payment.studentName}</td>
+                                                <td className="px-8 py-6">
+                                                    <span className="text-[9px] font-black uppercase px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-md">{payment.paymentMethod}</span>
+                                                </td>
+                                                <td className="px-8 py-6 font-black text-sm text-emerald-600">KSH {payment.amount.toLocaleString()}</td>
+                                                <td className="px-8 py-6 text-right">
+                                                    <button className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline">Download Receipt</button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {financeSubTab === 'bank_feed' && (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
+                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between">
+                                    <div>
+                                        <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">MPESA Transactions</h2>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Real-time mobile money feed</p>
+                                    </div>
+                                    <div className="p-3 bg-emerald-50 dark:bg-emerald-900/30 rounded-2xl">
+                                        <TrendingUpIcon className="w-5 h-5 text-emerald-600" />
+                                    </div>
+                                </div>
+                                <div className="p-4 space-y-4 max-h-[600px] overflow-y-auto">
+                                    {(transactions || []).map(tx => (
+                                        <div key={tx.id} className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 group hover:border-indigo-500 transition-all">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className="text-xs font-black text-indigo-600">{tx.transactionId}</span>
+                                                <span className="text-sm font-black text-slate-900 dark:text-white">KSH {tx.amount.toLocaleString()}</span>
+                                            </div>
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase">{tx.senderName || tx.phoneNumber}</p>
+                                            <div className="flex items-center justify-between mt-4">
+                                                <span className="text-[9px] font-black text-slate-400 uppercase">{new Date(tx.timestamp).toLocaleString()}</span>
+                                                <button className="px-4 py-2 bg-indigo-600 text-white text-[9px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 transition-all">Reconcile</button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {(transactions || []).length === 0 && (
+                                        <div className="text-center py-12">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No mobile transactions detected</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between">
+                                    <div>
+                                        <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Bank Statements</h2>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Imported bank transaction feed</p>
+                                    </div>
+                                    <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-2xl">
+                                        <BriefcaseIcon className="w-5 h-5 text-blue-600" />
+                                    </div>
+                                </div>
+                                <div className="p-4 space-y-4 max-h-[600px] overflow-y-auto">
+                                    {(bankTransactions || []).map(tx => (
+                                        <div key={tx.id} className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 group hover:border-indigo-500 transition-all">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className="text-xs font-black text-blue-600">{tx.reference || 'BANK-TX'}</span>
+                                                <span className="text-sm font-black text-slate-900 dark:text-white">KSH {tx.amount.toLocaleString()}</span>
+                                            </div>
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase">{tx.description}</p>
+                                            <div className="flex items-center justify-between mt-4">
+                                                <span className="text-[9px] font-black text-slate-400 uppercase">{tx.date}</span>
+                                                <button className="px-4 py-2 bg-indigo-600 text-white text-[9px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 transition-all">Link to Student</button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {(bankTransactions || []).length === 0 && (
+                                        <div className="text-center py-12">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No bank transactions found</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
