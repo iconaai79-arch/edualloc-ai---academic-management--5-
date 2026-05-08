@@ -687,6 +687,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 KSH {(invoices || []).reduce((sum, inv) => sum + (inv.balance || 0), 0).toLocaleString()}
                             </p>
                         </div>
+                    </div>
 
                     {/* Finance Sub-tabs */}
                     <div className="flex items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-2xl w-fit border border-slate-100 dark:border-slate-800">
@@ -898,10 +899,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     )}
                                 </div>
                             </div>
-                        </div>
-                    )}
-                </div>
-            )}
+                        )}
+                    </div>
+                )}
 
             {activeTab === 'settings' && (
                 <div className="max-w-4xl bg-white dark:bg-slate-900 p-12 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm animate-fade-in">
