@@ -81,6 +81,7 @@ import { CrossIcon } from './icons/CrossIcon';
 import { MegaphoneIcon } from './icons/MegaphoneIcon';
 import { PalmTreeIcon as Palmtree } from './icons/PalmTreeIcon';
 import { KcbIcon } from './icons/KcbIcon';
+import { ZapIcon } from './icons/ZapIcon';
 import { CommunicationsManager } from './CommunicationsManager';
 import { EditInstitutionModal } from './EditInstitutionModal';
 import { apiService } from '../services/apiService';
