@@ -133,6 +133,177 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
     );
 };
 
+const DrivingSchoolActionModal: React.FC<{
+    type: 'student' | 'instructor' | 'vehicle' | 'lesson' | null;
+    onClose: () => void;
+    onSave: (data: any) => Promise<void>;
+    students?: DSStudent[];
+    instructors?: DSInstructor[];
+    vehicles?: DSVehicle[];
+}> = ({ type, onClose, onSave, students = [], instructors = [], vehicles = [] }) => {
+    const [formData, setFormData] = useState<any>({
+        status: type === 'student' ? 'Enrolled' : type === 'instructor' ? 'Active' : type === 'vehicle' ? 'Operational' : 'Scheduled',
+        enrollmentDate: new Date().toISOString().split('T')[0],
+        lessonDate: new Date().toISOString().split('T')[0],
+        startTime: '08:00',
+        endTime: '09:00',
+        lessonType: 'Practical',
+        theoryProgressPercent: 0,
+        practicalProgressPercent: 0,
+        rating: 5,
+        transmission: 'Manual'
+    });
+    const [isSaving, setIsSaving] = useState(false);
+
+    if (!type) return null;
+
+    const handleSave = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSaving(true);
+        try {
+            await onSave(formData);
+            onClose();
+        } catch (error) {
+            console.error("Save failed:", error);
+            alert("Failed to save. Please try again.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const title = {
+        student: 'Enrol New Student',
+        instructor: 'Add Instructor',
+        vehicle: 'Register Vehicle',
+        lesson: 'Schedule Lesson'
+    }[type];
+
+    return (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-scale-in">
+                <div className="p-10 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
+                    <div>
+                        <h3 className="text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white">{title}</h3>
+                        <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-1">Driving School Excellence</p>
+                    </div>
+                    <button onClick={onClose} className="p-3 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                        <XIcon className="w-6 h-6 text-slate-400" />
+                    </button>
+                </div>
+
+                <form onSubmit={handleSave} className="p-10 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {type === 'student' && (
+                            <>
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Full Name</label>
+                                    <input required type="text" value={formData.fullName || ''} onChange={e => setFormData({...formData, fullName: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. John Doe" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phone Number</label>
+                                    <input type="tel" value={formData.phone || ''} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="07XX XXX XXX" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">License Category</label>
+                                    <select value={formData.licenseTypeInterested || ''} onChange={e => setFormData({...formData, licenseTypeInterested: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="">Select Class</option>
+                                        <option value="Class A">Class A (Motorcycle)</option>
+                                        <option value="Class B">Class B (Light Vehicle)</option>
+                                        <option value="Class C1">Class C1 (Truck)</option>
+                                        <option value="Class D">Class D (Bus)</option>
+                                    </select>
+                                </div>
+                            </>
+                        )}
+
+                        {type === 'instructor' && (
+                            <>
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Instructor Name</label>
+                                    <input required type="text" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. Sarah Williams" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phone Number</label>
+                                    <input type="tel" value={formData.phone || ''} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">License Number</label>
+                                    <input type="text" value={formData.licenseNumber || ''} onChange={e => setFormData({...formData, licenseNumber: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                </div>
+                            </>
+                        )}
+
+                        {type === 'vehicle' && (
+                            <>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Make</label>
+                                    <input required type="text" value={formData.make || ''} onChange={e => setFormData({...formData, make: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. Toyota" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Model</label>
+                                    <input required type="text" value={formData.model || ''} onChange={e => setFormData({...formData, model: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. Vitz" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Plate Number</label>
+                                    <input required type="text" value={formData.plateNumber || ''} onChange={e => setFormData({...formData, plateNumber: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="KXX 000X" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Transmission</label>
+                                    <select value={formData.transmission || 'Manual'} onChange={e => setFormData({...formData, transmission: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="Manual">Manual</option>
+                                        <option value="Automatic">Automatic</option>
+                                    </select>
+                                </div>
+                            </>
+                        )}
+
+                        {type === 'lesson' && (
+                            <>
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Student</label>
+                                    <select required value={formData.studentId || ''} onChange={e => setFormData({...formData, studentId: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="">Select Student</option>
+                                        {students.map(s => <option key={s.id} value={s.id}>{s.fullName}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Instructor</label>
+                                    <select value={formData.instructorId || ''} onChange={e => setFormData({...formData, instructorId: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="">Select Instructor</option>
+                                        {instructors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Vehicle</label>
+                                    <select value={formData.vehicleId || ''} onChange={e => setFormData({...formData, vehicleId: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="">Select Vehicle</option>
+                                        {vehicles.map(v => <option key={v.id} value={v.id}>{v.make} {v.model} ({v.plateNumber})</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Date</label>
+                                    <input required type="date" value={formData.lessonDate || ''} onChange={e => setFormData({...formData, lessonDate: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Time</label>
+                                    <input required type="time" value={formData.startTime || ''} onChange={e => setFormData({...formData, startTime: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    <div className="pt-6 flex gap-3">
+                        <button type="button" onClick={onClose} className="flex-1 py-5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-[2rem] font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">Cancel</button>
+                        <button type="submit" disabled={isSaving} className="flex-[2] py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50">
+                            {isSaving ? 'Saving...' : 'Confirm Registration'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
 interface DrivingSchoolManagerProps {
     currentUser: User;
     currentInstitution: any;
@@ -191,6 +362,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
     const [searchTerm, setSearchTerm] = useState('');
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [actionModal, setActionModal] = useState<{ type: 'student' | 'instructor' | 'vehicle' | 'lesson' | null; data?: any }>({ type: null });
     const [financeSubTab, setFinanceSubTab] = useState<'invoices' | 'payments' | 'bank_feed'>('invoices');
 
     // Stats
@@ -222,7 +394,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                 </div>
                 <div className="flex items-center gap-3">
                     <button 
-                        onClick={() => activeTab === 'students' ? onAddStudent({}) : activeTab === 'instructors' ? onAddInstructor({}) : onAddLesson({})}
+                        onClick={() => {
+                            const type = activeTab === 'students' ? 'student' : 
+                                       activeTab === 'instructors' ? 'instructor' : 
+                                       activeTab === 'fleet' ? 'vehicle' : 
+                                       activeTab === 'lessons' ? 'lesson' : 
+                                       'student'; // Default to student on dashboard
+                            setActionModal({ type });
+                        }}
                         className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl font-bold transition-all hover:scale-105 active:scale-95 shadow-lg shadow-indigo-600/20"
                     >
                         <PlusIcon className="w-5 h-5" />
@@ -383,7 +562,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         </div>
                         <div className="flex gap-2">
                             <button 
-                                onClick={() => onAddStudent({})}
+                                onClick={() => setActionModal({ type: 'student' })}
                                 className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20"
                             >
                                 <PlusIcon className="w-4 h-4" />
@@ -495,7 +674,12 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Weekly Schedule</h2>
                             <div className="flex gap-2">
                                 <button className="p-3 bg-slate-50 rounded-2xl text-slate-400"><CalendarDaysIcon className="w-5 h-5" /></button>
-                                <button className="bg-indigo-600 text-white px-6 py-2 rounded-2xl font-bold text-xs">New Lesson</button>
+                                <button 
+                                    onClick={() => setActionModal({ type: 'lesson' })}
+                                    className="bg-indigo-600 text-white px-6 py-2 rounded-2xl font-bold text-xs"
+                                >
+                                    New Lesson
+                                </button>
                             </div>
                         </div>
                         {/* Weekly Grid Placeholder */}
@@ -600,7 +784,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         </div>
                     ))}
                     <button 
-                        onClick={() => onAddVehicle({})}
+                        onClick={() => setActionModal({ type: 'vehicle' })}
                         className="bg-slate-50 dark:bg-slate-900/50 rounded-[2.5rem] border-2 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center p-12 group hover:border-indigo-500 transition-all min-h-[400px]"
                     >
                         <div className="w-20 h-20 rounded-full bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
@@ -653,7 +837,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         </div>
                     ))}
                     <button 
-                        onClick={() => onAddInstructor({})}
+                        onClick={() => setActionModal({ type: 'instructor' })}
                         className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border-2 border-dashed border-slate-100 flex items-center justify-center gap-6 group hover:border-indigo-500 transition-all min-h-[160px]"
                     >
                         <PlusIcon className="w-8 h-8 text-slate-300 group-hover:text-indigo-600" />
@@ -947,7 +1131,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         const assessment = Number(prompt("Assessment Fee Amount:", "2000"));
                                         
                                         const newFee: DSFeeStructure = {
-                                            id: Math.random().toString(36).substr(2, 9),
+                                            id: `fee_${Math.random().toString(36).substr(2, 9)}`,
                                             institutionId: settings?.institutionId || '',
                                             className: className,
                                             items: [
@@ -959,9 +1143,17 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             createdAt: new Date().toISOString(),
                                             updatedAt: new Date().toISOString()
                                         };
-                                        onUpdateSettings({ 
+                                        
+                                        const updatedSettings = { 
                                             ...settings, 
                                             feeStructures: [...(settings?.feeStructures || []), newFee] 
+                                        };
+                                        
+                                        onUpdateSettings(updatedSettings).then(() => {
+                                            onLogAction(`Added fee structure: ${className}`);
+                                        }).catch(err => {
+                                            console.error("Failed to save fee structure:", err);
+                                            alert("Error saving fee structure. Please try again.");
                                         });
                                     }}
                                     className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all"
@@ -1009,7 +1201,16 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                         <div className="md:col-span-2 pt-8 border-t border-slate-50 dark:border-slate-800">
                             <button 
-                                onClick={() => { onLogAction("Updated DS Settings"); alert("Settings saved successfully."); }}
+                                onClick={async () => { 
+                                    try {
+                                        await onUpdateSettings(settings);
+                                        onLogAction("Updated DS Settings"); 
+                                        alert("Configuration saved successfully."); 
+                                    } catch (err) {
+                                        console.error("Failed to save settings:", err);
+                                        alert("Failed to save configuration.");
+                                    }
+                                }}
                                 className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-3xl font-black text-sm uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/30 transition-all hover:scale-[1.01] active:scale-[0.98]"
                             >
                                 Save Configuration
@@ -1018,6 +1219,22 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     </div>
                 </div>
             )}
+            {actionModal.type && (
+                <DrivingSchoolActionModal 
+                    type={actionModal.type}
+                    onClose={() => setActionModal({ type: null })}
+                    onSave={async (data) => {
+                        if (actionModal.type === 'student') await onAddStudent(data);
+                        else if (actionModal.type === 'instructor') await onAddInstructor(data);
+                        else if (actionModal.type === 'vehicle') await onAddVehicle(data);
+                        else if (actionModal.type === 'lesson') await onAddLesson(data);
+                    }}
+                    students={students}
+                    instructors={instructors}
+                    vehicles={vehicles}
+                />
+            )}
+
             {isImportModalOpen && (
                 <SmartStudentImporterModal 
                     onClose={() => setIsImportModalOpen(false)}

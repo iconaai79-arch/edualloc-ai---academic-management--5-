@@ -98,7 +98,9 @@ import type {
     LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction, LawAgreementTemplate, LawAgreement,
     DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
     CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry, BankTransaction,
-    DisciplineIncident, Expense, FinancialGoal, PayrollRecord, CampaignProfile
+    DisciplineIncident, Expense, FinancialGoal, PayrollRecord, CampaignProfile,
+    AcademicsOfficerProps, LecturerProps, ParentProps,
+    CountyAdminProps, HROfficerProps, FinanceOfficerProps, SupportStaffProps
 } from '../types';
 import { XIcon } from './icons/XIcon';
 import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
@@ -995,6 +997,8 @@ export const App: React.FC = () => {
     const getLecturerById = useCallback((id: string) => (Array.isArray(users) ? users : []).find(u => u && u.id === id), [users]);
     const getSubjectById = useCallback((id: string) => (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === id), [subjects]);
     const getRoomById = useCallback((id: string) => (Array.isArray(rooms) ? rooms : []).find(r => r && r.id === id), [rooms]);
+    const getCountyById = useCallback((id: string) => (Array.isArray(counties) ? counties : []).find(c => c && c.id === id), [counties]);
+    const getInstitutionById = useCallback((id: string) => (Array.isArray(institutions) ? institutions : []).find(i => i && i.id === id), [institutions]);
 
     const activeInstitution = useMemo(() => {
         if (!currentUser || !Array.isArray(institutions)) return null;
@@ -1028,6 +1032,8 @@ export const App: React.FC = () => {
     const handleTeacherLessonCheckIn = async (id: string, type: 'start' | 'end') => {
         try {
             await apiService.processTeacherCheckIn({
+                teacher_id: currentUser?.id,
+                institution_id: activeInstitution?.id,
                 timetable_entry_id: id,
                 checkin_type: type,
                 timestamp: new Date().toISOString()
@@ -1093,17 +1099,17 @@ export const App: React.FC = () => {
         if (!currentUser || !Array.isArray(counties)) return null;
 
         // Match by current user's institutionId (if it's a county ID)
-        const directMatch = counties.find((c: any) => c.id === currentUser.institutionId);
+        const directMatch = getCountyById(currentUser.institutionId);
         if (directMatch) return directMatch;
 
         // Alternative check: find user's institution and check its countyId
-        const myInst = institutions.find((i: any) => i.id === currentUser.institutionId);
+        const myInst = getInstitutionById(currentUser.institutionId);
         if (myInst?.countyId) {
-            return counties.find((c: any) => c.id === myInst.countyId) || null;
+            return getCountyById(myInst.countyId) || null;
         }
 
         return null;
-    }, [counties, currentUser, institutions]);
+    }, [counties, currentUser, getCountyById, getInstitutionById]);
 
     const activeBranding = useMemo(() => {
         const isCountyContext = activeRole === 'county_admin' || activeRole?.startsWith('county_');
@@ -1156,6 +1162,225 @@ export const App: React.FC = () => {
 
     const activeLetterheadConfig = useMemo(() => activeInstitution?.letterheadConfig || companyDetails.letterheadConfig, [activeInstitution, companyDetails]);
     const activeFooterImageUrl = useMemo(() => activeInstitution?.footerImageUrl || companyDetails.footerImageUrl || null, [activeInstitution, companyDetails]);
+    
+    const academicsOfficerProps = useMemo<Partial<AcademicsOfficerProps>>(() => ({
+        currentUser,
+        currentInstitution: activeInstitution!,
+        academicYears,
+        semesters,
+        academicLevels,
+        departments,
+        subjects,
+        courses,
+        users,
+        rooms,
+        assessments,
+        marks: assessmentMarks,
+        incidents,
+        activeAcademicYear,
+        activeSemester,
+        examTimetable,
+        getSubjectById,
+        getLecturerById,
+        getRoomById,
+        courseSizes,
+        timetableSettings: timetableSettings!,
+        buildings,
+        letterheadConfig: activeLetterheadConfig,
+        logoUrl: activeBranding.logoUrl,
+        footerImageUrl: activeFooterImageUrl,
+        emailConfig: companyDetails.emailConfig,
+        smsConfig: companyDetails.smsConfig,
+        themeColor: activeBranding.primaryColor,
+        examTimetableSettings: activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS,
+        lessonRatings,
+        schoolRegistry,
+        companyDetails
+    }), [currentUser, activeInstitution, academicYears, semesters, academicLevels, departments, subjects, courses, users, rooms, assessments, assessmentMarks, incidents, activeAcademicYear, activeSemester, examTimetable, getSubjectById, getLecturerById, getRoomById, courseSizes, timetableSettings, buildings, activeLetterheadConfig, activeBranding, activeFooterImageUrl, companyDetails, lessonRatings, schoolRegistry]);
+
+    const lecturerProps = useMemo<Partial<LecturerProps>>(() => ({
+        user: currentUser,
+        users,
+        courses,
+        subjects,
+        rooms,
+        academicYears,
+        semesters,
+        requests,
+        generatedTimetable,
+        getSubjectById,
+        getRoomById,
+        timetableSettings: timetableSettings!,
+        assignments,
+        submissions,
+        teacherCheckIns,
+        observationNotes,
+        timeOffRequests,
+        userTasks,
+        assessments,
+        assessmentMarks,
+        studentAttendances
+    }), [currentUser, users, courses, subjects, rooms, academicYears, semesters, requests, generatedTimetable, getSubjectById, getRoomById, timetableSettings, assignments, submissions, teacherCheckIns, observationNotes, timeOffRequests, userTasks, assessments, assessmentMarks, studentAttendances]);
+
+    const parentProps = useMemo<Partial<ParentProps>>(() => ({
+        user: currentUser,
+        users,
+        subjects,
+        getSubjectById,
+        generatedTimetable,
+        examTimetable,
+        letterheadConfig: activeLetterheadConfig,
+        logoUrl: activeBranding.logoUrl,
+        footerImageUrl: activeFooterImageUrl,
+        transportOnboarding,
+        vehicles,
+        invoices,
+        receipts,
+        studentAbsenceRequests,
+        assessments,
+        assessmentMarks
+    }), [currentUser, users, subjects, getSubjectById, generatedTimetable, examTimetable, activeLetterheadConfig, activeBranding, activeFooterImageUrl, transportOnboarding, vehicles, invoices, receipts, studentAbsenceRequests, assessments, assessmentMarks]);
+
+    const countyAdminProps = useMemo<Partial<CountyAdminProps>>(() => ({
+        currentUser,
+        counties,
+        institutions,
+        users,
+        onLogout: handleLogout,
+        onUpdateInstitution,
+        onAccessAlumnaPortal: handleAccessAlumnaPortal,
+        onGenerateReceipt: handleGenerateReceipt,
+        onUpdateCounty: handleUpdateCounty,
+        onAddInstitution: handleAddCountyInstitution,
+        onLoginAsAdmin,
+        onImportInstitutions: handleImportCountyInstitutions,
+        onUpdateUser: onEditUser,
+        onDeleteUser,
+        inventoryItems: countyInventory,
+        inventoryCategories: countyInventoryCategories,
+        stores: countyStores,
+        bursaryApplications,
+        bursaryFunds,
+        onLogAction: handleLogAction,
+        activityLogLimit,
+        setActivityLogLimit,
+        receiptLimit,
+        setReceiptLimit,
+        transactionLimit,
+        setTransactionLimit
+    }), [currentUser, counties, institutions, users, onUpdateInstitution, activeLetterheadConfig, activeBranding, activeFooterImageUrl, countyInventory, countyInventoryCategories, countyStores, bursaryApplications, bursaryFunds, activityLogLimit, receiptLimit, transactionLimit]);
+
+    const hrOfficerProps = useMemo<Partial<HROfficerProps>>(() => ({
+        currentUser,
+        currentInstitution: activeInstitution!,
+        users,
+        payrollRecords,
+        leaveRequests: timeOffRequests,
+        onProcessPayroll: async (records) => { await apiService.saveModuleRecord('payroll_runs', { id: `pr_${Date.now()}`, institutionId: currentUser.institutionId, records, timestamp: new Date().toISOString() }); loadData(); },
+        onUpdateLeaveStatus: async (id, status) => { const req = timeOffRequests.find(t => t.id === id); if (req) { await apiService.saveModuleRecord('time_off_requests', { ...req, status }); loadData(); } }
+    }), [currentUser, activeInstitution, users, payrollRecords, timeOffRequests]);
+
+    const financeOfficerProps = useMemo<Partial<FinanceOfficerProps>>(() => ({
+        currentUser,
+        currentInstitution: activeInstitution!,
+        invoices,
+        receipts,
+        expenses,
+        goals: financialGoals,
+        feeStructures,
+        students: users.filter(u => u.role === 'student'),
+        academicYears,
+        semesters,
+        receiptLimit,
+        setReceiptLimit,
+        transactionLimit,
+        setTransactionLimit,
+        transactions,
+        onLogAction: handleLogAction
+    }), [currentUser, activeInstitution, invoices, receipts, expenses, financialGoals, feeStructures, users, academicYears, semesters, receiptLimit, transactionLimit, transactions]);
+
+    const supportStaffProps = useMemo<Partial<SupportStaffProps>>(() => ({
+        user: currentUser,
+        currentUser,
+        currentInstitution: activeInstitution,
+        users,
+        visitors,
+        onAddVisitor: handleAddVisitor,
+        onCheckoutVisitor: handleCheckoutVisitor,
+        onAddAppointment: handleAddAppointment,
+        onUpdateVisitor: handleUpdateVisitor,
+        generatedTimetable,
+        timetableSettings: timetableSettings!,
+        rooms,
+        subjects,
+        getSubjectById,
+        getRoomById,
+        getLecturerById,
+        securityAlerts,
+        onAddAlert: handleAddAlert,
+        onResolveAlert: handleResolveAlert,
+        onAddIncident: async (d) => { await apiService.saveModuleRecord('discipline_incidents', { ...d, id: `disc_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); },
+        appointments,
+        onUpdateAppointmentStatus: handleUpdateAppointmentStatus,
+        inventory: storeInventory,
+        stockTransactions: storeTransactions,
+        suppliers,
+        onAddItem: handleAddStoreItem,
+        onAddSupplier: handleAddSupplier,
+        onAddItems: handleImportStoreItems,
+        onAddStoreTransaction: handleAddStoreTransaction,
+        transactions,
+        invoices,
+        receipts,
+        requisitions,
+        onLogAction: handleLogAction,
+        vehicles,
+        vehicleLogs,
+        transportOnboarding,
+        onLogGateAction: handleLogGateAction,
+        onAddInvoice: handleAddInvoice,
+        onAddReceipt: handleAddReceipt,
+        onVerifyRequisition: handleVerifyRequisition,
+        companyDetails,
+        courses,
+        onUpdateInstitution,
+        voteHeads,
+        feeStructures,
+        financialPeriods,
+        countyInventory,
+        onMarkInventoryReceived: handleMarkInventoryReceived,
+        academicYears,
+        semesters,
+        departments,
+        teacherCheckIns,
+        timeOffRequests,
+        studentAbsenceRequests,
+        leaveOutRequests,
+        bulletinItems,
+        documentCollections,
+        watchlist,
+        maintenanceRequests,
+        studentAttendances,
+        onOnboardStudent: handleOnboardStudent,
+        onOffboardStudent: handleOffboardStudent,
+        onSwitchPerspective: (role) => setImpersonatedRole(role),
+        onAddUser: async (d) => { await apiService.registerUser({ ...d, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); loadData(); },
+        onEditUser,
+        onDeleteUser,
+        onAddDepartment: handleAddDepartment,
+        onUpdateDepartment: handleUpdateDepartment,
+        onDeleteDepartment: handleDeleteDepartment,
+        onImportStudents: handleImportStudents,
+        smsConfig: activeInstitution?.smsConfig || companyDetails.smsConfig,
+        letterheadConfig: activeLetterheadConfig,
+        logoUrl: activeBranding.logoUrl,
+        footerImageUrl: activeFooterImageUrl,
+        onSendSms: async (r, m, c, u, i) => apiService.sendSms(r, m, c, u, i),
+        onAddTransaction: apiService.onAddTransaction.bind(apiService),
+        onRefreshData: async () => await loadData(false, true),
+        onAccessAlumnaPortal: handleAccessAlumnaPortal,
+        schoolRegistry
+    }), [currentUser, activeInstitution, users, visitors, generatedTimetable, timetableSettings, rooms, subjects, getSubjectById, getRoomById, getLecturerById, securityAlerts, appointments, storeInventory, storeTransactions, suppliers, transactions, invoices, receipts, requisitions, vehicles, vehicleLogs, transportOnboarding, companyDetails, courses, onUpdateInstitution, voteHeads, feeStructures, financialPeriods, countyInventory, academicYears, semesters, departments, teacherCheckIns, timeOffRequests, studentAbsenceRequests, leaveOutRequests, bulletinItems, documentCollections, watchlist, maintenanceRequests, studentAttendances, activeLetterheadConfig, activeBranding, activeFooterImageUrl, schoolRegistry]);
 
 
     useEffect(() => {
@@ -2308,10 +2533,25 @@ export const App: React.FC = () => {
     const handleUpdateDSSettings = useCallback(async (data: any) => {
         const instId = activeInstitution?.id || currentUser?.institutionId;
         if (!instId) return;
-        await apiService.saveModuleRecord('ds_settings', { ...data, institutionId: instId, updatedAt: new Date().toISOString() });
-        await handleLogAction(`Updated driving school settings`);
-        await loadData(false, true);
-    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+        
+        // Ensure we are updating the existing record if it exists
+        const existingId = data.id || dsSettings?.id;
+        const payload = { 
+            ...data, 
+            id: existingId, // If null, apiService.saveModuleRecord will create a new one
+            institutionId: instId, 
+            updatedAt: new Date().toISOString() 
+        };
+
+        try {
+            await apiService.saveModuleRecord('ds_settings', payload);
+            await handleLogAction(`Updated driving school settings`);
+            await loadData(false, true);
+        } catch (err) {
+            console.error("Failed to update DS settings:", err);
+            throw err;
+        }
+    }, [activeInstitution, currentUser, dsSettings, loadData, handleLogAction]);
 
     const handleAddPayouts = useCallback(async (payouts: any[]) => {
         try {
@@ -3657,7 +3897,7 @@ export const App: React.FC = () => {
                                         }}
                                     />
                                 ) : (activeRole === 'county_admin' || activeRole?.startsWith('county_')) ? (
-                                    <CountyAdminView {...countyAdminProps as any}
+                                    <CountyAdminView {...countyAdminProps as CountyAdminProps}
                                         currentUser={currentUser}
                                         counties={counties}
                                         institutions={institutions}
@@ -3703,7 +3943,7 @@ export const App: React.FC = () => {
                                         setTransactionLimit={setTransactionLimit}
                                     />
                                 ) : activeRole === 'academics_officer' ? (
-                                    <AcademicsOfficerView {...academicsOfficerProps as any}
+                                    <AcademicsOfficerView {...academicsOfficerProps as AcademicsOfficerProps}
                                         currentUser={currentUser}
                                         currentInstitution={activeInstitution!}
                                         academicYears={academicYears}
@@ -3789,7 +4029,7 @@ export const App: React.FC = () => {
                                         onAccessAlumnaPortal={handleAccessAlumnaPortal}
                                     />
                                 ) : activeRole === 'lecturer' ? (
-                                    <LecturerView {...lecturerProps as any}
+                                    <LecturerView {...lecturerProps as LecturerProps}
                                         user={currentUser}
                                         users={users}
                                         courses={courses}
@@ -3891,7 +4131,7 @@ export const App: React.FC = () => {
                                         books={books}
                                     />
                                 ) : activeRole === 'parent' ? (
-                                    <ParentView {...({} as any)} {...parentProps as any}
+                                    <ParentView {...parentProps as ParentProps}
                                         user={currentUser}
                                         users={users}
                                         subjects={subjects}
@@ -3942,7 +4182,7 @@ export const App: React.FC = () => {
                                         onLogAction={handleLogAction}
                                     />
                                 ) : activeRole === 'info_desk' ? (
-                                    <InfoDeskView {...infoDeskProps as any}
+                                    <InfoDeskView {...supportStaffProps as SupportStaffProps}
                                         currentUser={currentUser}
                                         currentInstitution={activeInstitution!}
                                         visitors={visitors}
@@ -3980,7 +4220,7 @@ export const App: React.FC = () => {
                                         setTransactionLimit={setTransactionLimit}
                                     />
                                 ) : activeRole === 'hr_officer' ? (
-                                    <HROfficerView {...({} as any)} {...hrOfficerProps as any}
+                                    <HROfficerView {...hrOfficerProps as HROfficerProps}
                                         currentUser={currentUser}
                                         currentInstitution={activeInstitution!}
                                         users={users}
@@ -4081,7 +4321,11 @@ export const App: React.FC = () => {
                                             setReceiptLimit={setReceiptLimit}
                                             notificationLimit={notificationLimit}
                                             setNotificationLimit={setNotificationLimit}
-                                            {...({} as any)} 
+                                            getLecturerById={getLecturerById}
+                                            getSubjectById={getSubjectById}
+                                            getRoomById={getRoomById}
+                                            getCountyById={getCountyById}
+                                            getInstitutionById={getInstitutionById}
                                         />
                                     )
                                 ) : (activeRole === 'church_admin' || activeRole === 'church_member') ? (
@@ -4098,7 +4342,7 @@ export const App: React.FC = () => {
                                         invoices={invoices}
                                     />
                                 ) : activeRole === 'county_admin' ? (
-                                    <CountyAdminView {...countyAdminProps as any}
+                                    <CountyAdminView {...countyAdminProps as CountyAdminProps}
                                         onUpdateBursaryApplication={async (id, data) => { await apiService.saveModuleRecord('bursary_applications', { ...data, id }); await loadData(); }}
                                     onAddBursaryFund={async (data) => { await apiService.saveModuleRecord('county_bursary_funds', data); await loadData(); }}
                                     onUpdateBursaryFund={async (id, data) => { await apiService.saveModuleRecord('county_bursary_funds', { ...data, id }); await loadData(); }}
@@ -4358,7 +4602,7 @@ export const App: React.FC = () => {
                                     onLogAction={handleLogAction}
                                  />
                             ) : activeRole === 'hr_officer' ? (
-                                <HROfficerView {...({} as any)} {...hrOfficerProps as any}
+                                <HROfficerView {...hrOfficerProps as HROfficerProps}
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
                                     staff={users.filter(u => u.role !== 'student' && u.role !== 'parent')}
@@ -4389,7 +4633,7 @@ export const App: React.FC = () => {
                                     onLogAction={handleLogAction}
                                 />
                             ) : activeRole === 'info_desk' ? (
-                                <InfoDeskView {...infoDeskProps as any}
+                                <InfoDeskView {...supportStaffProps as SupportStaffProps}
                                     user={currentUser}
                                     users={users}
                                     visitors={visitors}
@@ -5407,7 +5651,7 @@ export const App: React.FC = () => {
                                     setTransactionLimit={setTransactionLimit}
                                  />
                             ) : activeRole === 'hr_officer' ? (
-                                <HROfficerView {...({} as any)} {...hrOfficerProps as any}
+                                <HROfficerView {...hrOfficerProps as HROfficerProps}
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
                                     staff={users.filter(u => u.role !== 'student' && u.role !== 'parent')}
@@ -5438,7 +5682,7 @@ export const App: React.FC = () => {
                                     onLogAction={handleLogAction}
                                 />
                             ) : activeRole === 'info_desk' ? (
-                                <InfoDeskView {...infoDeskProps as any}
+                                <InfoDeskView {...supportStaffProps as SupportStaffProps}
                                     user={currentUser}
                                     users={users}
                                     visitors={visitors}

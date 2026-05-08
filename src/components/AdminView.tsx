@@ -275,6 +275,8 @@ export interface AdminViewProps {
     getLecturerById?: (id: string) => User | undefined;
     getSubjectById?: (id: string) => Subject | undefined;
     getRoomById?: (id: string) => Room | undefined;
+    getCountyById?: (id: string) => County | undefined;
+    getInstitutionById?: (id: string) => Institution | undefined;
     
     coopFarmers?: CoopFarmer[];
     coopCollections?: CoopCollection[];
@@ -1287,9 +1289,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     setActiveTab={(tab: string) => setActiveTab(tab as any)}
                                     onSaveTimetableSettings={props.onSaveTimetableSettings}
                                     onTimetableGenerated={props.onTimetableGenerated as any}
-                                    getLecturerById={props.getLecturerById || (id => (props.users || []).find(u => u && u.id === id))}
-                                    getSubjectById={props.getSubjectById || (id => (props.subjects || []).find(s => s && s.id === id))}
-                                    getRoomById={props.getRoomById || (id => (props.rooms || []).find(r => r && r.id === id))}
+                                    getLecturerById={props.getLecturerById || ((id: string) => (props.users || []).find(u => u && u.id === id))}
+                                    getSubjectById={props.getSubjectById || ((id: string) => (props.subjects || []).find(s => s && s.id === id))}
+                                    getRoomById={props.getRoomById || ((id: string) => (props.rooms || []).find(r => r && r.id === id))}
                                 />
                             )}
                         </div>
@@ -1913,9 +1915,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 {...props}
                                 lecturers={props.users || []}
                                 allTimetableEntries={props.allTimetableEntries || []}
-                                getLecturerById={props.getLecturerById || (id => (props.users || []).find(u => u && u.id === id))}
-                                getSubjectById={props.getSubjectById || (id => (props.subjects || []).find(s => s && s.id === id))}
-                                getRoomById={props.getRoomById || (id => (props.rooms || []).find(r => r && r.id === id))}
+                                getLecturerById={props.getLecturerById || ((id: string) => (props.users || []).find(u => u && u.id === id))}
+                                getSubjectById={props.getSubjectById || ((id: string) => (props.subjects || []).find(s => s && s.id === id))}
+                                getRoomById={props.getRoomById || ((id: string) => (props.rooms || []).find(r => r && r.id === id))}
                                 currentInstitution={props.currentInstitution}
                                 requests={requests || []}
                                 contracts={props.contracts || []}
