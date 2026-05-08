@@ -20,7 +20,7 @@ import {
     CurrencyIcon
 } from '../icons';
 import type { 
-    User, DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings 
+    User, DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, DSFeeStructure 
 } from '../../types';
 
 interface DrivingSchoolManagerProps {
@@ -32,12 +32,16 @@ interface DrivingSchoolManagerProps {
     lessons: DSLesson[];
     mastery: DSSkillMastery[];
     settings: DSSettings | null;
+    invoices: DSInvoice[];
+    payments: DSPayment[];
     onAddInstructor: (data: any) => Promise<void>;
     onAddVehicle: (data: any) => Promise<void>;
     onAddStudent: (data: any) => Promise<void>;
     onAddLesson: (data: any) => Promise<void>;
     onAddMastery: (data: any) => Promise<void>;
     onUpdateSettings: (data: any) => Promise<void>;
+    onAddInvoice: (data: any) => Promise<void>;
+    onAddPayment: (data: any) => Promise<void>;
     users: User[]; // All users to link students
     onLogAction: (msg: string) => void;
 }
@@ -49,16 +53,20 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     lessons,
     mastery,
     settings,
+    invoices,
+    payments,
     onAddInstructor,
     onAddVehicle,
     onAddStudent,
     onAddLesson,
     onAddMastery,
     onUpdateSettings,
+    onAddInvoice,
+    onAddPayment,
     users,
     onLogAction
 }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'settings'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings'>('dashboard');
     const [searchTerm, setSearchTerm] = useState('');
 
     // Stats
@@ -107,6 +115,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     { id: 'lessons', label: 'Schedule', icon: <CalendarIcon className="w-4 h-4" /> },
                     { id: 'fleet', label: 'Fleet', icon: <TruckIcon className="w-4 h-4" /> },
                     { id: 'instructors', label: 'Instructors', icon: <BriefcaseIcon className="w-4 h-4" /> },
+                    { id: 'finance', label: 'Finance', icon: <CurrencyIcon className="w-4 h-4" /> },
                     { id: 'settings', label: 'Settings', icon: <GearIcon className="w-4 h-4" /> },
                 ].map(tab => (
                     <button
@@ -518,6 +527,113 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                 </div>
             )}
 
+            {activeTab === 'finance' && (
+                <div className="space-y-6 animate-fade-in">
+                    {/* Finance Header */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                            <h3 className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mb-1">Total Invoiced</h3>
+                            <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
+                                KSH {(invoices || []).reduce((sum, inv) => sum + (inv.totalAmount || 0), 0).toLocaleString()}
+                            </p>
+                        </div>
+                        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                            <h3 className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mb-1">Total Paid</h3>
+                            <p className="text-4xl font-black text-emerald-600 tracking-tighter">
+                                KSH {(invoices || []).reduce((sum, inv) => sum + (inv.paidAmount || 0), 0).toLocaleString()}
+                            </p>
+                        </div>
+                        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                            <h3 className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mb-1">Outstanding Balance</h3>
+                            <p className="text-4xl font-black text-red-600 tracking-tighter">
+                                KSH {(invoices || []).reduce((sum, inv) => sum + (inv.balance || 0), 0).toLocaleString()}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Invoices Table */}
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Student Invoices</h2>
+                            <button 
+                                onClick={() => {
+                                    const studentId = prompt("Enter Student ID or Name:");
+                                    if (!studentId) return;
+                                    const classFee = settings?.feeStructures?.[0];
+                                    if (!classFee) {
+                                        alert("Please define at least one fee structure in Settings first.");
+                                        return;
+                                    }
+                                    onAddInvoice({
+                                        studentId,
+                                        studentName: studentId,
+                                        className: classFee.className,
+                                        items: classFee.items,
+                                        totalAmount: classFee.totalAmount,
+                                        paidAmount: 0,
+                                        balance: classFee.totalAmount,
+                                        status: 'Pending',
+                                        invoiceNumber: `INV-DS-${Math.floor(Math.random()*10000)}`,
+                                        createdAt: new Date().toISOString(),
+                                        updatedAt: new Date().toISOString()
+                                    });
+                                }}
+                                className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold transition-all hover:scale-105 shadow-lg shadow-indigo-600/20"
+                            >
+                                <PlusIcon className="w-5 h-5" />
+                                <span>Generate Invoice</span>
+                            </button>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 dark:border-slate-800">
+                                        <th className="px-8 py-6">Invoice #</th>
+                                        <th className="px-8 py-6">Student</th>
+                                        <th className="px-8 py-6">Class</th>
+                                        <th className="px-8 py-6">Total</th>
+                                        <th className="px-8 py-6">Balance</th>
+                                        <th className="px-8 py-6">Status</th>
+                                        <th className="px-8 py-6 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                    {(invoices || []).map(inv => (
+                                        <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
+                                            <td className="px-8 py-6 font-bold text-indigo-600">{inv.invoiceNumber}</td>
+                                            <td className="px-8 py-6 text-slate-900 dark:text-white font-medium">{inv.studentName}</td>
+                                            <td className="px-8 py-6 text-slate-500 uppercase text-xs font-bold italic">{inv.className}</td>
+                                            <td className="px-8 py-6 font-black">KSH {(inv.totalAmount || 0).toLocaleString()}</td>
+                                            <td className="px-8 py-6 font-black text-red-500">KSH {(inv.balance || 0).toLocaleString()}</td>
+                                            <td className="px-8 py-6">
+                                                <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                                                    inv.status === 'Fully Paid' ? 'bg-emerald-50 text-emerald-600' :
+                                                    inv.status === 'Partially Paid' ? 'bg-amber-50 text-amber-600' :
+                                                    'bg-red-50 text-red-600'
+                                                }`}>
+                                                    {inv.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-6 text-right">
+                                                <button className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"><EyeIcon className="w-6 h-6" /></button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            {(invoices || []).length === 0 && (
+                                <div className="text-center py-20 bg-slate-50/50 dark:bg-slate-800/50">
+                                    <div className="w-20 h-20 bg-white dark:bg-slate-700 rounded-3xl shadow-sm flex items-center justify-center mx-auto mb-6">
+                                        <CurrencyIcon className="w-10 h-10 text-slate-200" />
+                                    </div>
+                                    <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">No invoices generated yet</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {activeTab === 'settings' && (
                 <div className="max-w-4xl bg-white dark:bg-slate-900 p-12 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm animate-fade-in">
                     <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Platform <span className="text-indigo-600">Settings</span></h2>
@@ -571,6 +687,82 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         />
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* Fee Structures Section */}
+                        <div className="md:col-span-2 pt-12 mt-12 border-t border-slate-100 dark:border-slate-800">
+                            <div className="flex items-center justify-between mb-8">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Fee Structures</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Define costs for different driving classes</p>
+                                </div>
+                                <button 
+                                    onClick={() => {
+                                        const className = prompt("Enter Class Name (e.g. CLASS C1):", "CLASS C1");
+                                        if (!className) return;
+                                        const tuition = Number(prompt("Tuition Fee Amount:", "15000"));
+                                        const pdl = Number(prompt("PDL Fee Amount:", "1500"));
+                                        const assessment = Number(prompt("Assessment Fee Amount:", "2000"));
+                                        
+                                        const newFee: DSFeeStructure = {
+                                            id: Math.random().toString(36).substr(2, 9),
+                                            institutionId: settings?.institutionId || '',
+                                            className: className,
+                                            items: [
+                                                { name: 'Tuition Fee', amount: tuition },
+                                                { name: 'PDL', amount: pdl },
+                                                { name: 'Assessment', amount: assessment }
+                                            ],
+                                            totalAmount: tuition + pdl + assessment,
+                                            createdAt: new Date().toISOString(),
+                                            updatedAt: new Date().toISOString()
+                                        };
+                                        onUpdateSettings({ 
+                                            ...settings, 
+                                            feeStructures: [...(settings?.feeStructures || []), newFee] 
+                                        });
+                                    }}
+                                    className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all"
+                                >
+                                    <PlusIcon className="w-4 h-4" />
+                                    <span>Add Class Fee</span>
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {(settings?.feeStructures || []).map((fee) => (
+                                    <div key={fee.id} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <span className="text-sm font-black text-indigo-600 uppercase tracking-widest">{fee.className}</span>
+                                            <span className="text-lg font-black text-slate-900 dark:text-white">KSH {fee.totalAmount.toLocaleString()}</span>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {fee.items.map((item, i) => (
+                                                <div key={i} className="flex items-center justify-between text-xs">
+                                                    <span className="text-slate-500 font-medium">{item.name}</span>
+                                                    <span className="text-slate-700 dark:text-slate-300 font-bold">KSH {item.amount.toLocaleString()}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <button 
+                                            onClick={() => {
+                                                onUpdateSettings({
+                                                    ...settings,
+                                                    feeStructures: settings?.feeStructures?.filter(f => f.id !== fee.id)
+                                                });
+                                            }}
+                                            className="mt-4 text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"
+                                        >
+                                            Remove Structure
+                                        </button>
+                                    </div>
+                                ))}
+                                {(settings?.feeStructures || []).length === 0 && (
+                                    <div className="md:col-span-2 py-12 text-center bg-slate-50/50 dark:bg-slate-800/50 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No fee structures defined yet</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

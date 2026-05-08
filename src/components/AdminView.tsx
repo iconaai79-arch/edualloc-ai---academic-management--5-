@@ -16,7 +16,7 @@ import type {
     CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome,
     LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction,
     LawAgreement, LawAgreementTemplate,
-    DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
+    DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment,
     CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry, BankTransaction
 } from '../types';
 const UserManager = lazy(() => import('./UserManager').then(m => ({ default: m.UserManager })));
@@ -377,12 +377,16 @@ export interface AdminViewProps {
     dsLessons?: DSLesson[];
     dsMastery?: DSSkillMastery[];
     dsSettings?: DSSettings | null;
+    dsInvoices?: DSInvoice[];
+    dsPayments?: DSPayment[];
     onAddDSInstructor?: (data: any) => Promise<void>;
     onAddDSVehicle?: (data: any) => Promise<void>;
     onAddDSStudent?: (data: any) => Promise<void>;
     onAddDSLesson?: (data: any) => Promise<void>;
     onAddDSMastery?: (data: any) => Promise<void>;
     onUpdateDSSettings?: (data: any) => Promise<void>;
+    onAddDSInvoice?: (data: any) => Promise<void>;
+    onAddDSPayment?: (data: any) => Promise<void>;
 
     // Car Sales Props
     carListings?: CarListing[];
@@ -1725,6 +1729,10 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onAddLesson={props.onAddDSLesson || (async () => {})}
                         onAddMastery={props.onAddDSMastery || (async () => {})}
                         onUpdateSettings={props.onUpdateDSSettings || (async () => {})}
+                        onAddInvoice={props.onAddDSInvoice || (async () => {})}
+                        onAddPayment={props.onAddDSPayment || (async () => {})}
+                        invoices={props.dsInvoices || []}
+                        payments={props.dsPayments || []}
                         users={props.users || []}
                         onLogAction={props.onLogAction}
                     />

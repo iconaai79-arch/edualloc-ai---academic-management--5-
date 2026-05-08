@@ -3852,9 +3852,57 @@ export interface DSSettings {
     institutionId: string;
     lessonPricePractical?: number;
     lessonPriceTheory?: number;
+    feeStructures?: DSFeeStructure[];
     cancellationPolicy?: string;
     workingHours?: any;
     updatedAt: string;
+}
+
+export interface DSFeeItem {
+    name: string;
+    amount: number;
+}
+
+export interface DSFeeStructure {
+    id: string;
+    institutionId: string;
+    className: string;
+    items: DSFeeItem[];
+    totalAmount: number;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface DSInvoice {
+    id: string;
+    institutionId: string;
+    studentId: string;
+    studentName: string;
+    feeStructureId?: string;
+    className: string;
+    items: DSFeeItem[];
+    totalAmount: number;
+    paidAmount: number;
+    balance: number;
+    status: 'Pending' | 'Partially Paid' | 'Fully Paid' | 'Cancelled';
+    invoiceNumber: string;
+    dueDate?: string;
+    notes?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface DSPayment {
+    id: string;
+    institutionId: string;
+    invoiceId: string;
+    amount: number;
+    paymentMethod: string;
+    transactionReference?: string;
+    paymentDate: string;
+    receiptNumber: string;
+    receivedBy?: string;
+    createdAt: string;
 }
 
 export interface SchoolRegistry {
