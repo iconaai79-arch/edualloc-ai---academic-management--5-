@@ -3896,6 +3896,7 @@ export interface DSPayment {
     id: string;
     institutionId: string;
     invoiceId: string;
+    studentName?: string;
     amount: number;
     paymentMethod: string;
     transactionReference?: string;
