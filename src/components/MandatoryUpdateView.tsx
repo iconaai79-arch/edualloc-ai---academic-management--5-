@@ -63,9 +63,7 @@ export const MandatoryUpdateView: React.FC<MandatoryUpdateViewProps> = ({ user, 
                         {logoUrl ? (
                             <img loading="lazy" src={logoUrl} alt="Logo" className="mx-auto h-16 w-auto mb-4" />
                         ) : (
-                            <div className="mx-auto h-16 w-16 bg-indigo-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
-                                <ShieldExclamationIcon className="w-10 h-10" />
-                            </div>
+                            <img loading="lazy" src="/eduai_logo_3d.png" alt="EduAI Logo" className="mx-auto h-16 w-auto mb-4" />
                         )}
                         <h2 className="text-2xl font-black uppercase tracking-tighter">Account Activation</h2>
                         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-medium">

@@ -117,64 +117,60 @@ const FuelStationDashboard = lazy(() => import('./FuelStationDashboard').then(m 
 import { isSchoolInstitution, isHigherEdInstitution, isEduInstitution } from '../utils/roleUtils';
 
 export interface AdminViewProps {
-    currentUser: User;
-    users: User[];
-    requests: AllocationRequest[];
-    allocations: AllocationRequest[];
-    departments: Department[];
-    subjects: Subject[];
-    courses: Course[];
-    rooms: Room[];
-    buildings: Building[];
-    academicLevels: AcademicLevel[];
-    academicYears: AcademicYear[];
-    semesters: Semester[];
-    activeAcademicYear: AcademicYear | null;
-    activeSemester: Semester | null;
-    timetableSettings: TimetableSettings;
-    examTimetableSettings: ExamTimetableSettings;
-    logoUrl: string | null;
-    footerImageUrl: string | null;
-    themeColor: string;
-    companyDetails: CompanyDetails;
-    activityLog: ActivityLog[];
-    transactions: MpesaTransaction[];
-    receipts: Receipt[];
-    invoices: Invoice[];
-    extensionRequests: ExtensionRequest[];
-    voteHeads: VoteHead[];
-    feeStructures: FeeStructure[];
-    financialPeriods: FinancialPeriod[];
-    userTasks: UserTask[];
-    generatedTimetable: TimetableEntry[];
-    allTimetableEntries: TimetableEntry[];
-    finalTimetableUrl: string | null;
-    letterheadConfig: LetterheadConfig;
-    smsConfig: SmsConfig;
-    emailConfig: EmailConfig;
-    timetableConflicts: Conflict[];
+    currentUser?: User;
+    users?: User[];
+    requests?: AllocationRequest[];
+    allocations?: AllocationRequest[];
+    departments?: Department[];
+    subjects?: Subject[];
+    courses?: Course[];
+    rooms?: Room[];
+    buildings?: Building[];
+    academicLevels?: AcademicLevel[];
+    academicYears?: AcademicYear[];
+    semesters?: Semester[];
+    activeAcademicYear?: AcademicYear | null;
+    activeSemester?: Semester | null;
+    timetableSettings?: TimetableSettings;
+    examTimetableSettings?: ExamTimetableSettings;
+    logoUrl?: string | null;
+    footerImageUrl?: string | null;
+    themeColor?: string;
+    companyDetails?: CompanyDetails;
+    activityLog?: ActivityLog[];
+    transactions?: MpesaTransaction[];
+    receipts?: Receipt[];
+    invoices?: Invoice[];
+    extensionRequests?: ExtensionRequest[];
+    voteHeads?: VoteHead[];
+    feeStructures?: FeeStructure[];
+    financialPeriods?: FinancialPeriod[];
+    userTasks?: UserTask[];
+    generatedTimetable?: TimetableEntry[];
+    allTimetableEntries?: TimetableEntry[];
+    finalTimetableUrl?: string | null;
+    letterheadConfig?: LetterheadConfig;
+    smsConfig?: SmsConfig;
+    emailConfig?: EmailConfig;
+    timetableConflicts?: Conflict[];
     currentInstitution?: Institution | null;
     institutions?: Institution[];
-    counties: County[];
+    counties?: County[];
     schoolRegistry?: SchoolRegistry[];
     carBankTransactions?: BankTransaction[];
     activityLogLimit?: number;
     setActivityLogLimit?: React.Dispatch<React.SetStateAction<number>>;
-    transactionLimit: number;
-    setTransactionLimit: React.Dispatch<React.SetStateAction<number>>;
-    receiptLimit: number;
-    setReceiptLimit: React.Dispatch<React.SetStateAction<number>>;
+    transactionLimit?: number;
+    setTransactionLimit?: React.Dispatch<React.SetStateAction<number>>;
+    receiptLimit?: number;
+    setReceiptLimit?: React.Dispatch<React.SetStateAction<number>>;
     notificationLimit?: number;
     setNotificationLimit?: React.Dispatch<React.SetStateAction<number>>;
     
     // Academic Lifecycle Props
     incidents?: DisciplineIncident[];
-    assessments?: Assessment[];
     marks?: AssessmentMark[];
     onAddIncident?: (data: any) => Promise<void>;
-    onAddAssessment?: (data: any) => Promise<void>;
-    onDeleteAssessment?: (id: string) => Promise<void>;
-    onSaveAssessmentMarks?: (id: string, marks: any[]) => Promise<void>;
 
     onAddUser?: (userData: any) => Promise<void>;
     onEditUser?: (id: string, data: any) => Promise<void>;
@@ -205,8 +201,8 @@ export interface AdminViewProps {
     onAddSemester?: (data: any) => void;
     onUpdateSemester?: (id: string, data: any) => Promise<void>;
     onDeleteSemester?: (id: string) => void;
-    onUpdateRequestStatus?: (id: string, status: RequestStatus) => Promise<void>;
-    onBulkUpdateRequestStatus?: (status: RequestStatus, deptId?: string) => Promise<void>;
+    onUpdateRequeststatus?: (id: string, status: RequestStatus) => Promise<void>;
+    onBulkUpdateRequeststatus?: (status: RequestStatus, deptid: string) => Promise<void>;
     onDirectAssign?: (lecturerId: string, subjectIds: string[], priority: Priority, justification: string, courseLevelSelections: Record<string, string[]>) => void;
     onTimetableGenerated?: (timetable: any[], academicYearId: string, semesterId: string) => Promise<void> | void;
     onExamTimetableGenerated?: (entries: ExamTimetableEntry[], ay: string, sem: string) => Promise<void>;
@@ -219,29 +215,29 @@ export interface AdminViewProps {
     onAddTask?: (data: any) => Promise<void> | void;
     onUpdateTask?: (id: string, isComplete: boolean) => Promise<void>;
     onDeleteTask?: (id: string) => Promise<void>;
-    onLogAction: (message: string) => Promise<void>;
+    onLogAction?: (message: string) => Promise<void>;
 
     // Legal & Law Firm Props
-    lawClients: LawClient[];
-    lawMatters: LawMatter[];
-    lawDocuments: LawDocument[];
-    lawTimeEntries: LawTimeEntry[];
-    lawInvoices: LawInvoice[];
-    lawTrustTransactions: LawTrustTransaction[];
-    onAddLawClient: (data: any) => Promise<void>;
-    onAddLawMatter: (data: any) => Promise<void>;
-    onAddLawTimeEntry: (data: any) => Promise<void>;
-    onAddLawTrustTransaction: (data: any) => Promise<void>;
-    onAddLawInvoice: (data: any) => Promise<void>;
-    onUpdateLawMatter: (id: string, data: any) => Promise<void>;
-    lawAgreementTemplates: LawAgreementTemplate[];
-    lawAgreements: LawAgreement[];
-    onAddLawAgreementTemplate: (data: any) => Promise<void>;
-    onGenerateLawAgreement: (data: any) => Promise<void>;
-    onApproveLawAgreement: (id: string, notes: string) => Promise<void>;
+    lawClients?: LawClient[];
+    lawMatters?: LawMatter[];
+    lawDocuments?: LawDocument[];
+    lawTimeEntries?: LawTimeEntry[];
+    lawInvoices?: LawInvoice[];
+    lawTrustTransactions?: LawTrustTransaction[];
+    onAddLawClient?: (data: any) => Promise<void>;
+    onAddLawMatter?: (data: any) => Promise<void>;
+    onAddLawTimeEntry?: (data: any) => Promise<void>;
+    onAddLawTrustTransaction?: (data: any) => Promise<void>;
+    onAddLawInvoice?: (data: any) => Promise<void>;
+    onUpdateLawMatter?: (id: string, data: any) => Promise<void>;
+    lawAgreementTemplates?: LawAgreementTemplate[];
+    lawAgreements?: LawAgreement[];
+    onAddLawAgreementTemplate?: (data: any) => Promise<void>;
+    onGenerateLawAgreement?: (data: any) => Promise<void>;
+    onApproveLawAgreement?: (id: string, notes: string) => Promise<void>;
 
     onSendBulkCredentials?: (users: User[], method: 'sms' | 'email') => Promise<{ success_count: number, fail_count: number }>;
-    onSendSms?: (recipient: string | string[], message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<{ success: boolean; message: string; }>;
+    onSendSms?: (recipient: string | string[], message: string, config?: SmsConfig, units?: number, institutionId: string) => Promise<{ success: boolean; message: string; }>;
     onSaveSmsConfig?: (config: SmsConfig) => void;
     onUpdateRequest?: (id: string, data: Partial<Omit<AllocationRequest, 'id'>>) => void;
     onWithdrawRequest?: (id: string) => Promise<void>;
@@ -249,7 +245,7 @@ export interface AdminViewProps {
     onAddUnavailability?: (userId: string, u: Omit<Unavailability, 'id' | 'status'>) => void;
     onUpdateUnavailability?: (userId: string, id: string, data: any) => void;
     onDeleteUnavailability?: (userId: string, id: string) => void;
-    onUpdateTimeOffRequestStatus?: (id: string, status: TimeOffRequestStatus) => Promise<void>;
+    onUpdateTimeOffRequeststatus?: (id: string, status: TimeOffRequestStatus) => Promise<void>;
     onMoveTimetableEntry?: (entryId: string, newDay: string, newStartTime: string) => void;
     onActivateModuleTrial?: (moduleId: string) => Promise<void>;
     onAddFarmer?: (data: any) => Promise<void>;
@@ -267,7 +263,7 @@ export interface AdminViewProps {
     onAddCoopAgrovetSale?: (data: Partial<CoopAgrovetSales>) => Promise<void>;
     onAddCoopAgrovetSales?: (data: Partial<CoopAgrovetSales>[]) => Promise<void>;
     onInitiatePayouts?: (data: any) => Promise<void>;
-    onApprovePayouts?: (payoutIds: string[], status?: 'initiated' | 'approved' | 'paid' | 'rejected' | 'pending') => Promise<void>;
+    onApprovePayouts?: (payoutIds: string[], status: 'initiated' | 'approved' | 'paid' | 'rejected' | 'pending') => Promise<void>;
     onDisbursePayouts?: (payoutIds: string[]) => Promise<void>;
     onAddPayouts?: (payouts: any[]) => Promise<void>;
     onUpdateCompanyDetails?: (data: Partial<CompanyDetails>) => Promise<void>;
@@ -296,10 +292,10 @@ export interface AdminViewProps {
     onUpdateVehicle?: (id: string, updates: Partial<TransportVehicle>) => Promise<void>;
     onDeleteVehicle?: (id: string) => Promise<void>;
     courseSizes?: Map<string, number>;
-    timeOffRequests: TimeOffRequest[];
-    enrollmentRequests: EnrollmentRequest[];
-    onImportSubjectsAndAssociate?: (subjects: (Omit<Subject, 'id' | 'institutionId'> & { targetCourseLevelId?: string })[]) => Promise<void>;
-    requisitions: Requisition[];
+    timeOffRequests?: TimeOffRequest[];
+    enrollmentRequests?: EnrollmentRequest[];
+    onImportSubjectsAndAssociate?: (subjects: (Omit<Subject, 'id' | 'institutionId'> & { targetCourseLevelid: string })[]) => Promise<void>;
+    requisitions?: Requisition[];
     onAddRequisition?: (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => Promise<void>;
     onUpdateRequisition?: (reqId: string, data: Partial<Requisition>) => Promise<void>;
     onAddTimeOffRequest?: (data: Partial<TimeOffRequest>) => Promise<void>;
@@ -319,7 +315,7 @@ export interface AdminViewProps {
     onImportRooms?: (rooms: Omit<Room, 'id' | 'institutionId'>[]) => void;
     onAssociateSubjectToCourseLevel?: (subjectId: string, courseLevelId: string) => void;
     onDisassociateSubjectFromCourseLevel?: (subjectId: string, courseLevelId: string) => void;
-    onUpdateExtensionRequestStatus?: (requestId: string, status: 'approved' | 'rejected', extensionDays?: number) => void;
+    onUpdateExtensionRequeststatus?: (requestId: string, status: 'approved' | 'rejected', extensionDays?: number) => void;
     
     // Bank Reconciliation
     onReconcileBankTransaction?: (transactionId: string, invoiceId: string) => Promise<void>;
@@ -335,7 +331,7 @@ export interface AdminViewProps {
     onDeleteBuilding?: (id: string) => void;
     onAddInstitution?: (data: Omit<Institution, 'id'>) => void;
     onDeleteInstitution?: (institutionId: string) => void;
-    onToggleInstitutionStatus?: (institutionId: string) => void;
+    onToggleInstitutionstatus?: (institutionId: string) => void;
     onLoginAsAdmin?: (institutionId: string) => void;
     onGenerateReceipt?: (transaction: MpesaTransaction) => void;
     assignments?: Assignment[];
@@ -368,10 +364,10 @@ export interface AdminViewProps {
     visitors?: Visitor[];
     studentAttendances?: StudentAttendance[];
     studentCheckIns?: Record<string, string>;
-    onUpdateFeedbackStatus?: (id: string, status: string) => Promise<void> | void;
+    onUpdateFeedbackstatus?: (id: string, status: string) => Promise<void> | void;
     onAddAssessment?: (data: any) => Promise<void> | void;
     onDeleteAssessment?: (id: string) => Promise<void> | void;
-    onUpdateAssessmentStatus?: (id: string, status: string) => Promise<void> | void;
+    onUpdateAssessmentstatus?: (id: string, status: string) => Promise<void> | void;
     onSaveAssessmentMarks?: (id: string, marks: any[]) => Promise<void> | void;
 
     // Driving School Props
@@ -397,23 +393,51 @@ export interface AdminViewProps {
     onAddCarListing?: (data: Partial<CarListing>) => Promise<void>;
     onAddCarInvoice?: (data: Partial<CarInvoice>) => Promise<void>;
     onAddCarPayment?: (data: Partial<CarPayment>) => Promise<void>;
-    onUpdateCarTestDriveStatus?: (id: string, status: any) => Promise<void>;
+    onUpdateCarTestDrivestatus?: (id: string, status: any) => Promise<void>;
     onAddCarAppraisal?: (data: Partial<CarAppraisal>) => Promise<void>;
     onManualInvoice?: (institutionId: string, items: InvoiceItem[], totalAmount: number, dueDate: string) => void;
-    onUpdateAssessmentStatus?: (id: string, status: string) => Promise<void> | void;
-    onAccessAlumnaPortal: (school: SchoolRegistry) => void;
+    onAccessAlumnaPortal?: (school: SchoolRegistry) => void;
 }
 
 
 export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
-    const { activeAcademicYear, activeSemester, requests = [] } = props;
-    const { subjects, users, rooms, courses, currentInstitution, companyDetails, courseSizes, retailStores = [], inventory = [], suppliers = [], retailExpenses = [], securityAlerts = [], assessments = [], assessmentMarks = [], visitors = [], studentAttendances = [], studentCheckIns = {} } = props;
+    const { 
+        activeAcademicYear, 
+        activeSemester, 
+        requests = [],
+        subjects = [], users = [], rooms = [], courses = [], 
+        currentInstitution, 
+        companyDetails = {} as any, 
+        courseSizes = new Map(), 
+        retailStores = [], 
+        inventory = [], 
+        suppliers = [], 
+        retailExpenses = [], 
+        securityAlerts = [], 
+        assessments = [], 
+        assessmentMarks = [], 
+        visitors = [], 
+        studentAttendances = [], 
+        studentCheckIns = {},
+        onAddUser = async () => {},
+        onEditUser = async () => {},
+        onDeleteUser = async () => {},
+        onLogAction = async () => {},
+        getLecturerById = () => undefined,
+        getSubjectById = () => undefined,
+        getRoomById = () => undefined,
+        timetableSettings = {} as any,
+        examTimetableSettings = {} as any,
+        letterheadConfig = {} as any,
+        smsConfig = {} as any,
+        emailConfig = {} as any
+    } = props;
     const { 
         coopFarmers = [], coopCollections = [], coopRiders = [], 
         coopAgrovetInventory = [], coopAgrovetSales = [], 
         saccoAccounts = [], saccoTransactions = [], coopPayouts = [],
         coopExpenses = [], coopIncome = [],
-        onActivateModuleTrial
+        onActivateModuleTrial = async () => {}
     } = props;
     const scrollRef = React.useRef<HTMLDivElement>(null);
 
@@ -1196,13 +1220,13 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
                                     <DisciplineManager
                                         incidents={props.incidents || []}
-                                        students={props.users.filter(u => u.role === 'student')}
-                                        onAddIncident={props.onAddIncident}
+                                        students={(props.users || []).filter(u => u && u.role === 'student')}
+                                        onAddIncident={props.onAddIncident || (async () => {})}
                                     />
                                 </Suspense>
                             ) : timetableSubTab === 'registry' ? (
                                 <InteractionsManager
-                                    {...props}
+                                    {...props as any}
                                     absenceRequests={props.absenceRequests || []}
                                     contracts={props.contracts || []}
                                     feedbackSubmissions={props.feedbackSubmissions || []}
@@ -1210,14 +1234,14 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     studentAbsenceRequests={props.studentAbsenceRequests || []}
                                     enrollmentRequests={props.enrollmentRequests || []}
                                     onOpenDirectAssign={() => setIsDirectAssignOpen(true)}
-                                    onUpdateRequestStatus={props.onUpdateRequestStatus}
-                                    onBulkUpdateRequestStatus={props.onBulkUpdateRequestStatus}
-                                    getLecturerById={props.getLecturerById || ((id) => (props.users || []).find(u => u && u.id === id))}
-                                    getSubjectById={props.getSubjectById || ((id) => (props.subjects || []).find(s => s && s.id === id))}
+                                    onUpdateRequestStatus={props.onUpdateRequestStatus || (async () => {})}
+                                    onBulkUpdateRequestStatus={props.onBulkUpdateRequestStatus || (async () => {})}
+                                    getLecturerById={props.getLecturerById || ((id: string) => (props.users || []).find(u => u && u.id === id))}
+                                    getSubjectById={props.getSubjectById || ((id: string) => (props.subjects || []).find(s => s && s.id === id))}
                                     allocations={props.allocations || []}
                                 />
                             ) : (
-                                <TimetableGenerator
+                                <TimetableGenerator {...props as any}
                                     {...props}
                                     examTimetable={[]}
                                     courseSizes={props.courseSizes || new Map()}
@@ -1236,7 +1260,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 )}
 
                 {activeTab === 'users' && (
-                    <UserManager
+                    <UserManager {...props as any}
                         {...props}
                         user={props.currentUser}
                         showOnly="staff"
@@ -1257,7 +1281,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 )}
 
                 {activeTab === 'customers' && (
-                    <UserManager
+                    <UserManager {...props as any}
                         {...props}
                         user={props.currentUser}
                         showOnly="customer"
@@ -1284,7 +1308,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
                         <div className="animate-fade-in-up">
                             {coursesSubTab === 'registry' ? (
-                                <CourseManager
+                                <CourseManager {...props as any}
                                     courses={courses}
                                     buildings={props.buildings || []}
                                     rooms={rooms}
@@ -2001,17 +2025,17 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onClose={() => setIsAddCarLeadModalOpen(false)}
                         onSave={async (lead) => {
                             const userData: Partial<User> = {
-                                name: lead.customerName,
-                                phoneNumber: lead.customerPhone,
-                                email: lead.customerEmail || '',
-                                role: 'lead',
+                                name?: lead.customerName,
+                                phoneNumber?: lead.customerPhone,
+                                email?: lead.customerEmail || '',
+                                role?: 'lead',
                                 institutionId: props.currentInstitution!.id,
-                                metadata: {
-                                    enquiredModels: lead.enquiredModels,
-                                    source: lead.source,
+                                metadata?: {
+                                    enquiredModels?: lead.enquiredModels,
+                                    source?: lead.source,
                                     status: lead.status,
-                                    notes: lead.notes,
-                                    leadType: 'walk-in'
+                                    notes?: lead.notes,
+                                    leadtype: 'walk-in'
                                 }
                             };
                             if (props.onAddUser) {

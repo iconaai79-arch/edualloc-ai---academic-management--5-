@@ -30,13 +30,13 @@ import { BulkImportWizard } from './BulkImportWizard';
 import { DisciplineManager } from './Academics/DisciplineManager';
 
 interface AcademicsOfficerViewProps {
-    currentUser: User;
-    subjects: Subject[];
-    onUpdateSubject: (subjectId: string, updatedData: Partial<Omit<Subject, 'id' | 'institutionId'>>) => void;
-    courses: Course[];
+    currentUser?: User;
+    subjects?: Subject[];
+    onUpdateSubject?: (subjectId: string, updatedData: Partial<Omit<Subject, 'id' | 'institutionId'>>) => void;
+    courses?: Course[];
     onUpdateCourse?: (courseId: string, updatedData: Partial<Omit<Course, 'id' | 'institutionId'>>) => void;
-    users: User[];
-    rooms: Room[];
+    users?: User[];
+    rooms?: Room[];
     assessments?: Assessment[];
     marks?: AssessmentMark[];
     activityLog?: ActivityLog[];
@@ -48,55 +48,55 @@ interface AcademicsOfficerViewProps {
     onDeleteRoom?: (roomId: string) => void;
     onImportRooms?: (rooms: Omit<Room, 'id' | 'institutionId'>[]) => void;
 
-    departments: Department[];
+    departments?: Department[];
     onAddDepartment?: (name: string) => Promise<void> | void;
     onUpdateDepartment?: (id: string, name: string) => void;
     onDeleteDepartment?: (id: string) => void;
     onImportDepartments?: (departments: Omit<Department, 'id' | 'institutionId'>[]) => Promise<void>;
 
-    activeAcademicYear: AcademicYear | null;
-    activeSemester: Semester | null;
+    activeAcademicYear?: AcademicYear | null;
+    activeSemester?: Semester | null;
     // Updated to accept full ExamTimetableEntry array
-    onExamTimetableGenerated: (entries: ExamTimetableEntry[], academicYearId: string, semesterId: string) => Promise<void>;
-    examTimetable: ExamTimetableEntry[];
-    getSubjectById: (id: string) => Subject | undefined;
-    getLecturerById: (id: string) => User | undefined;
-    getRoomById: (id: string) => Room | undefined;
-    courseSizes: Map<string, number>;
-    academicYears: AcademicYear[];
+    onExamTimetableGenerated?: (entries: ExamTimetableEntry[], academicYearId: string, semesterId: string) => Promise<void>;
+    examTimetable?: ExamTimetableEntry[];
+    getSubjectById?: (id: string) => Subject | undefined;
+    getLecturerById?: (id: string) => User | undefined;
+    getRoomById?: (id: string) => Room | undefined;
+    courseSizes?: Map<string, number>;
+    academicYears?: AcademicYear[];
     onAddAcademicYear?: (data: Omit<AcademicYear, 'id' | 'institutionId' | 'status'>) => void;
     onUpdateAcademicYear?: (yearId: string, data: Partial<Omit<AcademicYear, 'id' | 'institutionId'>>) => Promise<void>;
     onDeleteAcademicYear?: (yearId: string) => void;
-    semesters: Semester[];
+    semesters?: Semester[];
     onAddSemester?: (data: Omit<Semester, 'id' | 'institutionId'>) => void;
     onUpdateSemester?: (semesterId: string, data: Partial<Omit<Semester, 'id' | 'institutionId' | 'academicYearId'>>) => Promise<void>;
     onDeleteSemester?: (semesterId: string) => void;
-    timetableSettings: TimetableSettings;
+    timetableSettings?: TimetableSettings;
     onSaveTimetableSettings?: (config: TimetableSettings) => void;
     onPublishTimetable?: (config: any) => void;
     onAssociateSubjectToCourseLevel?: (subjectId: string, levelId: string) => void;
     onDisassociateSubjectFromCourseLevel?: (subjectId: string, levelId: string) => void;
-    lessonRatings: any[];
-    buildings: Building[];
+    lessonRatings?: any[];
+    buildings?: Building[];
     onAddBuilding?: (name: string) => Promise<boolean>;
     onAddBuildings?: (buildings: Omit<Building, 'id' | 'institutionId'>[]) => Promise<void>;
     onUpdateBuilding?: (buildingId: string, data: Partial<Omit<Building, 'id' | 'institutionId'>>) => void;
     onDeleteBuilding?: (buildingId: string) => void;
 
-    academicLevels: AcademicLevel[];
-    letterheadConfig: LetterheadConfig;
-    logoUrl: string | null;
-    footerImageUrl: string | null;
-    emailConfig: EmailConfig;
-    onSaveEmailConfig: (config: EmailConfig) => void;
-    onSendTestEmail: (recipient: string) => Promise<{ success: boolean; message: string; }>;
+    academicLevels?: AcademicLevel[];
+    letterheadConfig?: LetterheadConfig;
+    logoUrl?: string | null;
+    footerImageUrl?: string | null;
+    emailConfig?: EmailConfig;
+    onSaveEmailConfig?: (config: EmailConfig) => void;
+    onSendTestEmail?: (recipient: string) => Promise<{ success?: boolean; message?: string; }>;
     currentInstitution?: Institution | null;
     onUpdateInstitution?: (institutionId: string, data: Partial<Omit<Institution, 'id'>>) => void;
-    smsConfig: SmsConfig;
-    themeColor: string;
-    examTimetableSettings: ExamTimetableSettings;
-    onSaveExamTimetableSettings: (config: ExamTimetableSettings) => void;
-    companyDetails: any; // Using any here for simplicity or can import CompanyDetails if available
+    smsConfig?: SmsConfig;
+    themeColor?: string;
+    examTimetableSettings?: ExamTimetableSettings;
+    onSaveExamTimetableSettings?: (config: ExamTimetableSettings) => void;
+    companyDetails?: any; // Using any here for simplicity or can import CompanyDetails if available
     // Added for Wizard
     onTimetableGenerated?: (timetable: Omit<TimetableEntry, 'id' | 'institutionId' | 'academicYearId' | 'semesterId'>[], academicYearId: string, semesterId: string) => Promise<void>;
     allocations?: AllocationRequest[];
@@ -109,21 +109,50 @@ interface AcademicsOfficerViewProps {
     onAddAssessment?: (data: any) => Promise<void>;
     onDeleteAssessment?: (id: string) => Promise<void>;
     onSaveAssessmentMarks?: (id: string, marks: any[]) => Promise<void>;
-    onAccessAlumnaPortal: (school: any) => void;
+    onAccessAlumnaPortal?: (school?: any) => void;
     schoolRegistry?: any[];
 }
 
 export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props) => {
     const {
-        currentUser, subjects = [], courses = [], users = [], rooms = [], departments = [],
-        activeAcademicYear, activeSemester, onExamTimetableGenerated, examTimetable = [],
-        getSubjectById, getLecturerById, getRoomById, courseSizes, letterheadConfig,
-        logoUrl, footerImageUrl, currentInstitution, timetableSettings,
-        onUpdateSubject, examTimetableSettings, buildings = [], academicYears = [],
-        onLogAction, onAssociateSubjectToCourseLevel, onDisassociateSubjectFromCourseLevel,
-        companyDetails, assessments = [], marks = [], activityLog = [],
-        incidents = [], onAddIncident, onAddAssessment, onDeleteAssessment, onSaveAssessmentMarks,
-        onAccessAlumnaPortal, schoolRegistry
+        currentUser, 
+        subjects = [], 
+        courses = [], 
+        users = [], 
+        rooms = [], 
+        departments = [],
+        activeAcademicYear, 
+        activeSemester, 
+        onExamTimetableGenerated = async () => {}, 
+        examTimetable = [],
+        getSubjectById = () => undefined, 
+        getLecturerById = () => undefined, 
+        getRoomById = () => undefined, 
+        courseSizes = new Map(), 
+        letterheadConfig = {} as any,
+        logoUrl, 
+        footerImageUrl, 
+        currentInstitution, 
+        timetableSettings = {} as any,
+        onUpdateSubject = () => {}, 
+        examTimetableSettings = {} as any, 
+        buildings = [], 
+        academicYears = [],
+        onLogAction = async () => {}, 
+        onAssociateSubjectToCourseLevel = () => {}, 
+        onDisassociateSubjectFromCourseLevel = () => {},
+        companyDetails = {} as any, 
+        assessments = [], 
+        marks = [], 
+        activityLog = [],
+        incidents = [], 
+        onAddIncident = async () => {}, 
+        onAddAssessment = async () => {}, 
+        onDeleteAssessment = async () => {}, 
+        onSaveAssessmentMarks = async () => {},
+        onAccessAlumnaPortal = () => {}, 
+        schoolRegistry = [], 
+        onTimetableGenerated = async () => {}
     } = props;
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'exam_units' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline'>('dashboard');
@@ -163,12 +192,12 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                     end: new Date(Math.max(...allEndDates.map(d => d.getTime()))).toISOString().split('T')[0]
                 };
 
-                const rawTimetable = await generateExamTimetable(subjectsWithExams, Array.isArray(courses) ? courses : [], lecturers, Array.isArray(rooms) ? rooms : [], examPeriod, courseSizes, examTimetableSettings);
-                await onExamTimetableGenerated(rawTimetable, activeAcademicYear.id, activeSemester.id);
+                const rawTimetable = await generateExamTimetable(subjectsWithExams, Array.isArray(courses) ? courses : [], lecturers, Array.isArray(rooms) ? rooms : [], examPeriod, (courseSizes || new Map()), (examTimetableSettings || {} as any));
+                await onExamTimetableGenerated(rawTimetable, (activeAcademicYear?.id || ""), (activeSemester?.id || ""));
                 onLogAction?.(`Generated AI exam timetable for ${activeSemester.name} (${activeAcademicYear.name})`);
             } else {
-                const standardEntries = generateStandardExamTimetable(subjectsWithExams, Array.isArray(courses) ? courses : [], Array.isArray(users) ? users : [], Array.isArray(rooms) ? rooms : [], activeSemester, examTimetableSettings);
-                await onExamTimetableGenerated(standardEntries, activeAcademicYear.id, activeSemester.id);
+                const standardEntries = generateStandardExamTimetable(subjectsWithExams, Array.isArray(courses) ? courses : [], Array.isArray(users) ? users : [], Array.isArray(rooms) ? rooms : [], activeSemester, (examTimetableSettings || {} as any));
+                await onExamTimetableGenerated(standardEntries, (activeAcademicYear?.id || ""), (activeSemester?.id || ""));
                 onLogAction?.(`Generated standard exam timetable for ${activeSemester.name} (${activeAcademicYear.name})`);
             }
         } catch (err: any) {

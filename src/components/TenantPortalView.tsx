@@ -16,12 +16,18 @@ import { ArrowRightIcon } from './icons/ArrowRightIcon';
 import { NotificationBell } from './NotificationBell';
 
 interface TenantPortalViewProps {
-    currentUser: User;
-    currentInstitution: Institution;
-    onLogout: () => void;
+    currentUser?: User;
+    currentInstitution?: Institution;
+    onLogout?: () => void;
+    onLogAction?: (action: string) => Promise<void>;
 }
 
-export const TenantPortalView: React.FC<TenantPortalViewProps> = ({ currentUser, currentInstitution, onLogout }) => {
+export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
+    const { 
+        currentUser, 
+        currentInstitution = {} as any, 
+        onLogout = () => {} 
+    } = props;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'lease' | 'payments' | 'maintenance' | 'profile'>('dashboard');
     const [loading, setLoading] = useState(true);
 

@@ -1,0 +1,807 @@
+src/components/Academics/DisciplineManager.tsx(32,29): error TS2345: Argument of type '{ studentName: string; studentId: string; incidentType: string; severity: any; description: string; actionTaken: string; status: any; }' is not assignable to parameter of type 'Omit<DisciplineIncident, "id" | "timestamp" | "institutionId" | "recordedBy">'.
+  Property 'type' is missing in type '{ studentName: string; studentId: string; incidentType: string; severity: any; description: string; actionTaken: string; status: any; }' but required in type 'Omit<DisciplineIncident, "id" | "timestamp" | "institutionId" | "recordedBy">'.
+src/components/AcademicsOfficerView.tsx(162,26): error TS1162: An object member cannot be declared optional.
+src/components/AcademicsOfficerView.tsx(163,24): error TS1162: An object member cannot be declared optional.
+src/components/AcademicsOfficerView.tsx(166,182): error TS2345: Argument of type 'Map<string, number> | undefined' is not assignable to parameter of type 'Map<string, number>'.
+  Type 'undefined' is not assignable to type 'Map<string, number>'.
+src/components/AcademicsOfficerView.tsx(167,23): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/AcademicsOfficerView.tsx(170,215): error TS2345: Argument of type 'ExamTimetableSettings | undefined' is not assignable to parameter of type 'ExamTimetableSettings'.
+  Type 'undefined' is not assignable to type 'ExamTimetableSettings'.
+src/components/AcademicsOfficerView.tsx(171,23): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/AcademicsOfficerView.tsx(207,82): error TS2345: Argument of type '((id?: string | undefined) => Subject | undefined) | undefined' is not assignable to parameter of type '(id: string) => Subject | undefined'.
+  Type 'undefined' is not assignable to type '(id: string) => Subject | undefined'.
+src/components/AcademicsOfficerView.tsx(261,49): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/AcademicsOfficerView.tsx(344,33): error TS2322: Type '((id?: string | undefined) => Subject | undefined) | undefined' is not assignable to type '(id: string) => Subject | undefined'.
+  Type 'undefined' is not assignable to type '(id: string) => Subject | undefined'.
+src/components/AcademicsOfficerView.tsx(345,33): error TS2322: Type '((id?: string | undefined) => User | undefined) | undefined' is not assignable to type '(id: string) => User | undefined'.
+  Type 'undefined' is not assignable to type '(id: string) => User | undefined'.
+src/components/AcademicsOfficerView.tsx(346,33): error TS2322: Type '((id?: string | undefined) => Room | undefined) | undefined' is not assignable to type '(id: string) => Room | undefined'.
+  Type 'undefined' is not assignable to type '(id: string) => Room | undefined'.
+src/components/AcademicsOfficerView.tsx(347,33): error TS2322: Type 'Building[] | undefined' is not assignable to type 'Building[]'.
+  Type 'undefined' is not assignable to type 'Building[]'.
+src/components/AcademicsOfficerView.tsx(381,68): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/AcademicsOfficerView.tsx(490,18): error TS2322: Type '{ onAssociateSubjectToCourseLevel: ((subjectId: string, levelId: string) => void) | undefined; onDisassociateSubjectFromCourseLevel: ((subjectId: string, levelId: string) => void) | undefined; ... 73 more ...; schoolRegistry?: any[] | undefined; }' is not assignable to type 'SettingsManagerProps'.
+  Types of property 'currentUser' are incompatible.
+    Type 'User | undefined' is not assignable to type 'User'.
+      Type 'undefined' is not assignable to type 'User'.
+src/components/AcademicsOfficerView.tsx(508,21): error TS2322: Type 'TimetableSettings | undefined' is not assignable to type 'TimetableSettings'.
+  Type 'undefined' is not assignable to type 'TimetableSettings'.
+src/components/AcademicsOfficerView.tsx(509,21): error TS2322: Type 'AcademicYear | null | undefined' is not assignable to type 'AcademicYear | null'.
+  Type 'undefined' is not assignable to type 'AcademicYear | null'.
+src/components/AcademicsOfficerView.tsx(510,21): error TS2322: Type 'Semester | null | undefined' is not assignable to type 'Semester | null'.
+  Type 'undefined' is not assignable to type 'Semester | null'.
+src/components/AcademicsOfficerView.tsx(512,21): error TS2322: Type 'Map<string, number> | undefined' is not assignable to type 'Map<string, number>'.
+  Type 'undefined' is not assignable to type 'Map<string, number>'.
+src/components/AdminView.tsx(171,17): error TS2304: Cannot find name 'DisciplineIncident'.
+src/components/AdminView.tsx(172,5): error TS2300: Duplicate identifier 'assessments'.
+src/components/AdminView.tsx(175,5): error TS2300: Duplicate identifier 'onAddAssessment'.
+src/components/AdminView.tsx(176,5): error TS2300: Duplicate identifier 'onDeleteAssessment'.
+src/components/AdminView.tsx(177,5): error TS2300: Duplicate identifier 'onSaveAssessmentMarks'.
+src/components/AdminView.tsx(366,5): error TS2300: Duplicate identifier 'assessments'.
+src/components/AdminView.tsx(372,5): error TS2300: Duplicate identifier 'onAddAssessment'.
+src/components/AdminView.tsx(372,5): error TS2717: Subsequent property declarations must have the same type.  Property 'onAddAssessment' must be of type '((data: any) => Promise<void>) | undefined', but here has type '((data: any) => void | Promise<void>) | undefined'.
+src/components/AdminView.tsx(373,5): error TS2300: Duplicate identifier 'onDeleteAssessment'.
+src/components/AdminView.tsx(373,5): error TS2717: Subsequent property declarations must have the same type.  Property 'onDeleteAssessment' must be of type '((id: string) => Promise<void>) | undefined', but here has type '((id: string) => void | Promise<void>) | undefined'.
+src/components/AdminView.tsx(374,5): error TS2300: Duplicate identifier 'onUpdateAssessmentStatus'.
+src/components/AdminView.tsx(375,5): error TS2300: Duplicate identifier 'onSaveAssessmentMarks'.
+src/components/AdminView.tsx(375,5): error TS2717: Subsequent property declarations must have the same type.  Property 'onSaveAssessmentMarks' must be of type '((id: string, marks: any[]) => Promise<void>) | undefined', but here has type '((id: string, marks: any[]) => void | Promise<void>) | undefined'.
+src/components/AdminView.tsx(403,5): error TS2300: Duplicate identifier 'onUpdateAssessmentStatus'.
+src/components/AdminView.tsx(473,17): error TS2345: Argument of type 'string | null | undefined' is not assignable to parameter of type 'string | null'.
+  Type 'undefined' is not assignable to type 'string | null'.
+src/components/AdminView.tsx(489,17): error TS2345: Argument of type 'string | null | undefined' is not assignable to parameter of type 'string | null'.
+  Type 'undefined' is not assignable to type 'string | null'.
+src/components/AdminView.tsx(508,17): error TS2345: Argument of type 'string | null | undefined' is not assignable to parameter of type 'string | null'.
+  Type 'undefined' is not assignable to type 'string | null'.
+src/components/AdminView.tsx(900,54): error TS2322: Type 'User | undefined' is not assignable to type 'User'.
+  Type 'undefined' is not assignable to type 'User'.
+src/components/AdminView.tsx(904,34): error TS2741: Property 'currentUser' is missing in type '{ listings: CarListing[]; invoices: CarInvoice[]; payments: CarPayment[]; testDrives: TestDriveBooking[]; users: User[]; institution: Institution; ... 5 more ...; onSwitchPerspective: () => void; }' but required in type 'CarShowroomDashboardProps'.
+src/components/AdminView.tsx(1146,37): error TS2322: Type 'TimetableSettings | undefined' is not assignable to type 'TimetableSettings'.
+  Type 'undefined' is not assignable to type 'TimetableSettings'.
+src/components/AdminView.tsx(1147,37): error TS2322: Type 'AcademicYear | null | undefined' is not assignable to type 'AcademicYear | null'.
+  Type 'undefined' is not assignable to type 'AcademicYear | null'.
+src/components/AdminView.tsx(1148,37): error TS2322: Type 'Semester | null | undefined' is not assignable to type 'Semester | null'.
+  Type 'undefined' is not assignable to type 'Semester | null'.
+src/components/AdminView.tsx(1178,83): error TS2322: Type 'LetterheadConfig | { institutionName: string; institutionAddress: string; institutionPhone: string; institutionEmail: string; institutionWebsite: string; headerText: string; footerText: string; }' is not assignable to type 'LetterheadConfig'.
+  Object literal may only specify known properties, and 'institutionName' does not exist in type 'LetterheadConfig'.
+src/components/AdminView.tsx(1181,37): error TS2322: Type 'User | undefined' is not assignable to type 'User'.
+  Type 'undefined' is not assignable to type 'User'.
+src/components/AdminView.tsx(1185,37): error TS2322: Type 'Semester | null | undefined' is not assignable to type 'Semester | null'.
+  Type 'undefined' is not assignable to type 'Semester | null'.
+src/components/AdminView.tsx(1195,41): error TS2322: Type 'Subject[] | undefined' is not assignable to type 'Subject[]'.
+  Type 'undefined' is not assignable to type 'Subject[]'.
+src/components/AdminView.tsx(1196,51): error TS18048: 'props.users' is possibly 'undefined'.
+src/components/AdminView.tsx(1202,51): error TS18048: 'props.users' is possibly 'undefined'.
+src/components/AdminView.tsx(1205,41): error TS2322: Type 'Subject[] | undefined' is not assignable to type 'Subject[]'.
+  Type 'undefined' is not assignable to type 'Subject[]'.
+src/components/AdminView.tsx(1207,98): error TS2339: Property 'gradingSystem' does not exist on type 'AcademicConfig'.
+src/components/AdminView.tsx(1214,51): error TS18048: 'props.users' is possibly 'undefined'.
+src/components/AdminView.tsx(1215,41): error TS2322: Type '((data: any) => Promise<void>) | undefined' is not assignable to type '(incident: Omit<DisciplineIncident, "id" | "timestamp" | "institutionId" | "recordedBy">) => Promise<void>'.
+  Type 'undefined' is not assignable to type '(incident: Omit<DisciplineIncident, "id" | "timestamp" | "institutionId" | "recordedBy">) => Promise<void>'.
+src/components/AdminView.tsx(1219,34): error TS2322: Type '{ absenceRequests: AbsenceRequest[]; contracts: LecturerContract[]; feedbackSubmissions: FeedbackSubmission[]; lessonRatings: LessonRating[]; ... 261 more ...; onAccessAlumnaPortal?: ((school?: SchoolRegistry | undefined) => void) | undefined; }' is not assignable to type 'InteractionsManagerProps'.
+  Types of property 'currentUser' are incompatible.
+    Type 'User | undefined' is not assignable to type 'User'.
+      Type 'undefined' is not assignable to type 'User'.
+src/components/AdminView.tsx(1235,34): error TS2322: Type '{ examTimetable: never[]; courseSizes: Map<any, any>; allocations: AllocationRequest[]; lecturers: User[]; setActiveTab: (tab: string) => void; onSaveTimetableSettings: ((config: TimetableSettings) => void) | undefined; ... 260 more ...; onAccessAlumnaPortal?: ((school?: SchoolRegistry | undefined) => void) | undefi...' is not assignable to type 'TimetableGeneratorProps'.
+  Types of property 'subjects' are incompatible.
+    Type 'Subject[] | undefined' is not assignable to type 'Subject[]'.
+      Type 'undefined' is not assignable to type 'Subject[]'.
+src/components/AdminView.tsx(1254,22): error TS2322: Type '{ user: User | undefined; showOnly: "staff"; allocations: AllocationRequest[]; onImportUsers: ((imported: any[]) => Promise<void>) | undefined; onImportStudents: ((imported: any[]) => Promise<...>) | undefined; ... 263 more ...; onAccessAlumnaPortal?: ((school?: SchoolRegistry | undefined) => void) | undefined; }' is not assignable to type 'UserManagerProps'.
+  Types of property 'users' are incompatible.
+    Type 'User[] | undefined' is not assignable to type 'User[]'.
+      Type 'undefined' is not assignable to type 'User[]'.
+src/components/AdminView.tsx(1275,22): error TS2322: Type '{ user: User | undefined; showOnly: "customer"; onImportUsers: ((imported: any[]) => Promise<void>) | undefined; onImportStudents: ((imported: any[]) => Promise<void>) | undefined; ... 263 more ...; onAccessAlumnaPortal?: ((school?: SchoolRegistry | undefined) => void) | undefined; }' is not assignable to type 'UserManagerProps'.
+  Types of property 'allocations' are incompatible.
+    Type 'AllocationRequest[] | undefined' is not assignable to type 'AllocationRequest[]'.
+      Type 'undefined' is not assignable to type 'AllocationRequest[]'.
+src/components/AdminView.tsx(1311,37): error TS2322: Type '{ courses: Course[]; buildings: Building[]; rooms: Room[]; subjects: Subject[]; onAddCourse: ((data: any) => void) | undefined; onUpdateCourse: ((id: string, data: any) => void) | undefined; ... 8 more ...; currentInstitution: Institution | ... 1 more ... | undefined; }' is not assignable to type 'IntrinsicAttributes & CourseManagerProps'.
+  Property 'onAddAcademicLevel' does not exist on type 'IntrinsicAttributes & CourseManagerProps'. Did you mean 'academicLevels'?
+src/components/AdminView.tsx(1341,37): error TS2322: Type 'User | undefined' is not assignable to type 'User'.
+  Type 'undefined' is not assignable to type 'User'.
+src/components/AdminView.tsx(1360,38): error TS18048: 'props.companyDetails' is possibly 'undefined'.
+src/components/AdminView.tsx(1363,25): error TS2322: Type '"school" | "agrovet" | "cooperative" | "church" | "auto_marketplace"' is not assignable to type '"school" | "property" | "agrovet" | "cooperative" | "church" | "carwash" | undefined'.
+  Type '"auto_marketplace"' is not assignable to type '"school" | "property" | "agrovet" | "cooperative" | "church" | "carwash" | undefined'.
+src/components/AdminView.tsx(1386,29): error TS2322: Type 'User | undefined' is not assignable to type 'User'.
+  Type 'undefined' is not assignable to type 'User'.
+src/components/AdminView.tsx(1407,33): error TS2322: Type 'User | undefined' is not assignable to type 'User'.
+  Type 'undefined' is not assignable to type 'User'.
+src/components/AdminView.tsx(1444,33): error TS2322: Type 'User | undefined' is not assignable to type 'User'.
+  Type 'undefined' is not assignable to type 'User'.
+src/components/AdminView.tsx(1530,25): error TS2322: Type 'User | undefined' is not assignable to type 'User'.
+  Type 'undefined' is not assignable to type 'User'.
+src/components/AdminView.tsx(1559,25): error TS2322: Type 'User | undefined' is not assignable to type 'User'.
+  Type 'undefined' is not assignable to type 'User'.
+src/components/AdminView.tsx(1572,25): error TS2322: Type 'AcademicYear[] | undefined' is not assignable to type 'AcademicYear[]'.
+  Type 'undefined' is not assignable to type 'AcademicYear[]'.
+src/components/AdminView.tsx(1573,25): error TS2322: Type 'Semester[] | undefined' is not assignable to type 'Semester[]'.
+  Type 'undefined' is not assignable to type 'Semester[]'.
+src/components/AdminView.tsx(1614,25): error TS2322: Type 'User | undefined' is not assignable to type 'User'.
+  Type 'undefined' is not assignable to type 'User'.
+src/components/AdminView.tsx(1616,25): error TS2322: Type 'CompanyDetails | undefined' is not assignable to type 'CompanyDetails'.
+  Type 'undefined' is not assignable to type 'CompanyDetails'.
+src/components/AdminView.tsx(1617,25): error TS2322: Type 'User[] | undefined' is not assignable to type 'User[]'.
+  Type 'undefined' is not assignable to type 'User[]'.
+src/components/AdminView.tsx(1618,25): error TS2322: Type 'AcademicYear[] | undefined' is not assignable to type 'AcademicYear[]'.
+  Type 'undefined' is not assignable to type 'AcademicYear[]'.
+src/components/AdminView.tsx(1619,25): error TS2322: Type 'Semester[] | undefined' is not assignable to type 'Semester[]'.
+  Type 'undefined' is not assignable to type 'Semester[]'.
+src/components/AdminView.tsx(1620,25): error TS2322: Type 'Course[] | undefined' is not assignable to type 'Course[]'.
+  Type 'undefined' is not assignable to type 'Course[]'.
+src/components/AdminView.tsx(1621,25): error TS2322: Type 'Department[] | undefined' is not assignable to type 'Department[]'.
+  Type 'undefined' is not assignable to type 'Department[]'.
+src/components/AdminView.tsx(1628,25): error TS2322: Type 'User | undefined' is not assignable to type 'User'.
+  Type 'undefined' is not assignable to type 'User'.
+src/components/AdminView.tsx(1660,25): error TS2322: Type 'User | undefined' is not assignable to type 'User'.
+  Type 'undefined' is not assignable to type 'User'.
+src/components/AdminView.tsx(1662,25): error TS2322: Type 'LawClient[] | undefined' is not assignable to type 'LawClient[]'.
+  Type 'undefined' is not assignable to type 'LawClient[]'.
+src/components/AdminView.tsx(1663,25): error TS2322: Type 'LawMatter[] | undefined' is not assignable to type 'LawMatter[]'.
+  Type 'undefined' is not assignable to type 'LawMatter[]'.
+src/components/AdminView.tsx(1664,25): error TS2322: Type 'LawDocument[] | undefined' is not assignable to type 'LawDocument[]'.
+  Type 'undefined' is not assignable to type 'LawDocument[]'.
+src/components/AdminView.tsx(1665,25): error TS2322: Type 'LawTimeEntry[] | undefined' is not assignable to type 'LawTimeEntry[]'.
+  Type 'undefined' is not assignable to type 'LawTimeEntry[]'.
+src/components/AdminView.tsx(1666,25): error TS2322: Type 'LawInvoice[] | undefined' is not assignable to type 'LawInvoice[]'.
+  Type 'undefined' is not assignable to type 'LawInvoice[]'.
+src/components/AdminView.tsx(1667,25): error TS2322: Type 'LawTrustTransaction[] | undefined' is not assignable to type 'LawTrustTransaction[]'.
+  Type 'undefined' is not assignable to type 'LawTrustTransaction[]'.
+src/components/AdminView.tsx(1668,25): error TS2322: Type 'User[] | undefined' is not assignable to type 'User[]'.
+  Type 'undefined' is not assignable to type 'User[]'.
+src/components/AdminView.tsx(1669,25): error TS2322: Type '((data?: any) => Promise<void>) | undefined' is not assignable to type '(data: Partial<LawClient>) => Promise<void>'.
+  Type 'undefined' is not assignable to type '(data: Partial<LawClient>) => Promise<void>'.
+src/components/AdminView.tsx(1670,25): error TS2322: Type '((data?: any) => Promise<void>) | undefined' is not assignable to type '(data: Partial<LawMatter>) => Promise<void>'.
+  Type 'undefined' is not assignable to type '(data: Partial<LawMatter>) => Promise<void>'.
+src/components/AdminView.tsx(1671,25): error TS2322: Type '((data?: any) => Promise<void>) | undefined' is not assignable to type '(data: Partial<LawTimeEntry>) => Promise<void>'.
+  Type 'undefined' is not assignable to type '(data: Partial<LawTimeEntry>) => Promise<void>'.
+src/components/AdminView.tsx(1672,25): error TS2322: Type '((data?: any) => Promise<void>) | undefined' is not assignable to type '(data: Partial<LawTrustTransaction>) => Promise<void>'.
+  Type 'undefined' is not assignable to type '(data: Partial<LawTrustTransaction>) => Promise<void>'.
+src/components/AdminView.tsx(1673,25): error TS2322: Type '((data?: any) => Promise<void>) | undefined' is not assignable to type '(data: Partial<LawInvoice>) => Promise<void>'.
+  Type 'undefined' is not assignable to type '(data: Partial<LawInvoice>) => Promise<void>'.
+src/components/AdminView.tsx(1674,25): error TS2322: Type '((id?: string | undefined, data?: any) => Promise<void>) | undefined' is not assignable to type '(id: string, data: Partial<LawMatter>) => Promise<void>'.
+  Type 'undefined' is not assignable to type '(id: string, data: Partial<LawMatter>) => Promise<void>'.
+src/components/AdminView.tsx(1675,25): error TS2322: Type 'LawAgreementTemplate[] | undefined' is not assignable to type 'LawAgreementTemplate[]'.
+  Type 'undefined' is not assignable to type 'LawAgreementTemplate[]'.
+src/components/AdminView.tsx(1676,25): error TS2322: Type 'LawAgreement[] | undefined' is not assignable to type 'LawAgreement[]'.
+  Type 'undefined' is not assignable to type 'LawAgreement[]'.
+src/components/AdminView.tsx(1677,25): error TS2322: Type '((data?: any) => Promise<void>) | undefined' is not assignable to type '(data: Partial<LawAgreementTemplate>) => Promise<void>'.
+  Type 'undefined' is not assignable to type '(data: Partial<LawAgreementTemplate>) => Promise<void>'.
+src/components/AdminView.tsx(1678,25): error TS2322: Type '((data?: any) => Promise<void>) | undefined' is not assignable to type '(data: Partial<LawAgreement>) => Promise<void>'.
+  Type 'undefined' is not assignable to type '(data: Partial<LawAgreement>) => Promise<void>'.
+src/components/AdminView.tsx(1679,25): error TS2322: Type '((id?: string | undefined, notes?: string | undefined) => Promise<void>) | undefined' is not assignable to type '(id: string, notes: string) => Promise<void>'.
+  Type 'undefined' is not assignable to type '(id: string, notes: string) => Promise<void>'.
+src/components/AdminView.tsx(1685,25): error TS2322: Type 'User | undefined' is not assignable to type 'User'.
+  Type 'undefined' is not assignable to type 'User'.
+src/components/AdminView.tsx(1700,25): error TS2322: Type '((message?: string | undefined) => Promise<void>) | undefined' is not assignable to type '(msg: string) => void'.
+  Type 'undefined' is not assignable to type '(msg: string) => void'.
+src/components/AdminView.tsx(1775,37): error TS2322: Type 'User | undefined' is not assignable to type 'User'.
+  Type 'undefined' is not assignable to type 'User'.
+src/components/AdminView.tsx(1815,37): error TS2322: Type '{ invoices: CarInvoice[]; payments: CarPayment[]; listings: CarListing[]; onAddInvoice: () => void; onAddPayment: (invoice: CarInvoice | undefined) => void; onPrintInvoice: (invoice: CarInvoice) => Promise<...>; onPrintReceipt: (pay: CarPayment) => void; onPrintAgreement: (invoice: CarInvoice) => Promise<...>; }' is not assignable to type 'IntrinsicAttributes & CarSalesLedgerProps'.
+  Property 'onPrintAgreement' does not exist on type 'IntrinsicAttributes & CarSalesLedgerProps'.
+src/components/AdminView.tsx(1831,37): error TS2322: Type 'User | undefined' is not assignable to type 'User'.
+  Type 'undefined' is not assignable to type 'User'.
+src/components/AdminView.tsx(1879,33): error TS2322: Type '((recipient: string | string[], message: string, config?: SmsConfig | undefined, units?: number | undefined, institutionId?: string | undefined) => Promise<{ success: boolean; message: string; }>) | undefined' is not assignable to type '((data: any) => Promise<any>) | undefined'.
+  Type '(recipient: string | string[], message: string, config?: SmsConfig | undefined, units?: number | undefined, institutionId?: string | undefined) => Promise<{ success: boolean; message: string; }>' is not assignable to type '(data: any) => Promise<any>'.
+    Target signature provides too few arguments. Expected 2 or more, but got 1.
+src/components/AdminView.tsx(1973,46): error TS1162: An object member cannot be declared optional.
+src/components/AdminView.tsx(1974,35): error TS1162: An object member cannot be declared optional.
+src/components/AdminView.tsx(1975,42): error TS1162: An object member cannot be declared optional.
+src/components/AdminView.tsx(1992,25): error TS2322: Type 'User | undefined' is not assignable to type 'User'.
+  Type 'undefined' is not assignable to type 'User'.
+src/components/AdminView.tsx(2007,25): error TS2322: Type 'User | undefined' is not assignable to type 'User'.
+  Type 'undefined' is not assignable to type 'User'.
+src/components/AdminView.tsx(2019,37): error TS1162: An object member cannot be declared optional.
+src/components/AdminView.tsx(2020,44): error TS1162: An object member cannot be declared optional.
+src/components/AdminView.tsx(2021,38): error TS1162: An object member cannot be declared optional.
+src/components/AdminView.tsx(2022,37): error TS1162: An object member cannot be declared optional.
+src/components/AdminView.tsx(2023,46): error TS1162: An object member cannot be declared optional.
+src/components/AdminView.tsx(2024,41): error TS1162: An object member cannot be declared optional.
+src/components/AdminView.tsx(2025,51): error TS1162: An object member cannot be declared optional.
+src/components/AdminView.tsx(2026,43): error TS1162: An object member cannot be declared optional.
+src/components/AdminView.tsx(2027,43): error TS1162: An object member cannot be declared optional.
+src/components/AdminView.tsx(2028,42): error TS1162: An object member cannot be declared optional.
+src/components/AdminView.tsx(2029,45): error TS1162: An object member cannot be declared optional.
+src/components/AgrovetView.tsx(71,98): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/components/AgrovetView.tsx(73,92): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/components/AgrovetView.tsx(74,98): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/components/AgrovetView.tsx(76,108): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/components/AlumnaeRegistrationView.tsx(197,64): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/AlumnaeRegistrationView.tsx(199,81): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(3926,41): error TS2322: Type '{ currentUser: User; counties: County[]; institutions: Institution[]; users: User[]; onLogout: () => void; onUpdateInstitution: (id: string, data: any) => Promise<void>; ... 32 more ...; setTransactionLimit: Dispatch<...>; }' is not assignable to type 'IntrinsicAttributes & CountyAdminViewProps'.
+  Property 'onAddTransaction' does not exist on type 'IntrinsicAttributes & CountyAdminViewProps'. Did you mean 'onAddStockTransaction'?
+src/components/App.tsx(3948,41): error TS2322: Type '(id: string, data: any) => Promise<void>' is not assignable to type '(subjectId?: string | undefined, updatedData?: Partial<Omit<Subject, "id" | "institutionId">> | undefined) => void'.
+  Types of parameters 'id' and 'subjectId' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(3996,41): error TS2322: Type '(entries: any, ay: string, sem: string) => Promise<void>' is not assignable to type '(entries?: ExamTimetableEntry[] | undefined, academicYearId?: string | undefined, semesterId?: string | undefined) => Promise<void>'.
+  Types of parameters 'ay' and 'academicYearId' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(3998,41): error TS2322: Type '(id: string) => Subject | undefined' is not assignable to type '(id?: string | undefined) => Subject | undefined'.
+  Types of parameters 'id' and 'id' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(3999,41): error TS2322: Type '(id: string) => User | undefined' is not assignable to type '(id?: string | undefined) => User | undefined'.
+  Types of parameters 'id' and 'id' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(4000,41): error TS2322: Type '(id: string) => Room | undefined' is not assignable to type '(id?: string | undefined) => Room | undefined'.
+  Types of parameters 'id' and 'id' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(4013,41): error TS2322: Type '(r: string) => Promise<{ success: true; message: string; }>' is not assignable to type '(recipient?: string | undefined) => Promise<{ success?: boolean | undefined; message?: string | undefined; }>'.
+  Types of parameters 'r' and 'recipient' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(4036,41): error TS2322: Type '{ user: User; users: User[]; courses: Course[]; subjects: Subject[]; rooms: Room[]; academicYears: AcademicYear[]; semesters: Semester[]; ... 29 more ...; onAccessAlumnaPortal: (school: SchoolRegistry) => void; }' is not assignable to type 'IntrinsicAttributes & LecturerViewProps'.
+  Property 'onAddRequest' does not exist on type 'IntrinsicAttributes & LecturerViewProps'.
+src/components/App.tsx(4134,41): error TS2322: Type '{ user: User; users: User[]; subjects: Subject[]; getSubjectById: (id: string) => Subject | undefined; generatedTimetable: TimetableEntry[]; ... 15 more ...; onAccessAlumnaPortal: (school: SchoolRegistry) => void; }' is not assignable to type 'IntrinsicAttributes & ParentViewProps'.
+  Property 'examTimetable' does not exist on type 'IntrinsicAttributes & ParentViewProps'.
+src/components/App.tsx(4146,79): error TS7006: Parameter 'req' implicitly has an 'any' type.
+src/components/App.tsx(4165,41): error TS2322: Type '{ currentUser: User; currentInstitution: any; securityAlerts: SecurityAlert[]; visitors: Visitor[]; vehicles: TransportVehicle[]; vehicleLogs: VehicleLog[]; ... 5 more ...; onLogAction: (action: string) => Promise<...>; }' is not assignable to type 'IntrinsicAttributes & SupportStaffViewProps'.
+  Property 'currentUser' does not exist on type 'IntrinsicAttributes & SupportStaffViewProps'.
+src/components/App.tsx(4175,63): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/components/App.tsx(4175,67): error TS7006: Parameter 'status' implicitly has an 'any' type.
+src/components/App.tsx(4180,41): error TS2322: Type '{ currentUser: User; currentInstitution: any; visitors: Visitor[]; appointments: Appointment[]; onAddVisitor: (v: Omit<Visitor, "id">) => Promise<void>; onAddAppointment: (a: Omit<...>) => Promise<...>; onUpdateAppointment: (id: any, status: any) => Promise<...>; onLogAction: (action: string) => Promise<...>; }' is not assignable to type 'IntrinsicAttributes & SupportStaffViewProps'.
+  Property 'currentUser' does not exist on type 'IntrinsicAttributes & SupportStaffViewProps'.
+src/components/App.tsx(4186,69): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/components/App.tsx(4186,73): error TS7006: Parameter 'status' implicitly has an 'any' type.
+src/components/App.tsx(4191,41): error TS2322: Type '{ currentUser: User; currentInstitution: any; inventoryItems: RetailInventoryItem[]; requisitions: Requisition[]; onAddInventoryItem: (i: any) => Promise<...>; onUpdateInventoryItem: (id: any, data: any) => Promise<...>; onAddRequisition: (req: Omit<...>) => Promise<...>; onUpdateRequisition: (reqId: string, data: P...' is not assignable to type 'IntrinsicAttributes & SupportStaffViewProps'.
+  Property 'currentUser' does not exist on type 'IntrinsicAttributes & SupportStaffViewProps'.
+src/components/App.tsx(4195,68): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/components/App.tsx(4196,71): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/components/App.tsx(4196,75): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/components/App.tsx(4221,41): error TS2322: Type '{ currentUser: User; currentInstitution: any; users: User[]; contracts: LecturerContract[]; payrollRecords: PayrollRecord[]; onAddUser: (u: any) => Promise<...>; onUpdateUser: (id: string, data: any) => Promise<...>; onDeleteUser: (id: string) => Promise<...>; onLogAction: (action: string) => Promise<...>; }' is not assignable to type 'IntrinsicAttributes & HROfficerViewProps'.
+  Property 'contracts' does not exist on type 'IntrinsicAttributes & HROfficerViewProps'.
+src/components/App.tsx(4223,59): error TS7006: Parameter 'u' implicitly has an 'any' type.
+src/components/App.tsx(4252,41): error TS2322: Type '{ currentUser: User; currentInstitution: any; vehicles: TransportVehicle[]; transportOnboarding: TransportOnboarding[]; vehicleLogs: VehicleLog[]; onLogGateAction: (vehicleId: string, eventType: "entry" | "exit", notes?: string | undefined) => Promise<...>; onOnboardStudent: (studentId: string, vehicleId: string, di...' is not assignable to type 'IntrinsicAttributes & SupportStaffViewProps'.
+  Property 'currentUser' does not exist on type 'IntrinsicAttributes & SupportStaffViewProps'.
+src/components/App.tsx(4267,58): error TS7006: Parameter 'j' implicitly has an 'any' type.
+src/components/App.tsx(4268,67): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/components/App.tsx(4268,71): error TS7006: Parameter 'status' implicitly has an 'any' type.
+src/components/App.tsx(4270,41): error TS2322: Type '(action: string) => Promise<void>' is not assignable to type 'CafeOrder[]'.
+src/components/App.tsx(4274,42): error TS2741: Property 'onLogout' is missing in type '{ currentUser: User; currentInstitution: any; onLogAction: (action: string) => Promise<void>; }' but required in type 'TenantPortalViewProps'.
+src/components/App.tsx(4280,42): error TS2741: Property 'onLogout' is missing in type '{ currentUser: User; currentInstitution: any; onLogAction: (action: string) => Promise<void>; }' but required in type 'LandlordPortalViewProps'.
+src/components/App.tsx(4286,42): error TS2740: Type '{ currentUser: User; currentInstitution: any; onLogAction: (action: string) => Promise<void>; }' is missing the following properties from type 'PropertyManagementViewProps': companyDetails, users, onDataChange, onAddUser, and 10 more.
+src/components/App.tsx(4296,45): error TS2322: Type '{ currentUser: User; currentInstitution: any; onLogAction: (action: string) => Promise<void>; }' is not assignable to type 'IntrinsicAttributes & FarmerPortalProps'.
+  Property 'currentInstitution' does not exist on type 'IntrinsicAttributes & FarmerPortalProps'.
+src/components/App.tsx(4302,45): error TS2322: Type '{ currentUser: User; currentInstitution: any; onLogAction: (action: string) => Promise<void>; }' is not assignable to type 'IntrinsicAttributes & RiderPortalProps'.
+  Property 'currentInstitution' does not exist on type 'IntrinsicAttributes & RiderPortalProps'.
+src/components/App.tsx(4334,37): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 44 more ... | null' and '"county_admin"' have no overlap.
+src/components/App.tsx(4371,37): error TS2322: Type '(id: string, notes: string) => Promise<void>' is not assignable to type '(id: string) => void'.
+  Target signature provides too few arguments. Expected 2 or more, but got 1.
+src/components/App.tsx(4377,37): error TS2322: Type 'DSSettings | null' is not assignable to type 'DSSettings'.
+  Type 'null' is not assignable to type 'DSSettings'.
+src/components/App.tsx(4389,37): error TS2322: Type '(riderId: string, pendingCollections: any[]) => Promise<void>' is not assignable to type '(ids: string[]) => void'.
+  Target signature provides too few arguments. Expected 2 or more, but got 1.
+src/components/App.tsx(4391,37): error TS2322: Type '(id: string, qty: number) => Promise<void>' is not assignable to type '(id: string) => void'.
+  Target signature provides too few arguments. Expected 2 or more, but got 1.
+src/components/App.tsx(4392,37): error TS2322: Type '(id: string, status: "approved" | "rejected") => Promise<void>' is not assignable to type '(id: string) => void'.
+  Target signature provides too few arguments. Expected 2 or more, but got 1.
+src/components/App.tsx(4412,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 44 more ... | null' and '"academics_officer"' have no overlap.
+src/components/App.tsx(4417,37): error TS2322: Type '(id: string, data: any) => Promise<void>' is not assignable to type '(subjectId?: string | undefined, updatedData?: Partial<Omit<Subject, "id" | "institutionId">> | undefined) => void'.
+  Types of parameters 'id' and 'subjectId' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(4433,37): error TS2322: Type '(entries: any, ay: string, sem: string) => Promise<void>' is not assignable to type '(entries?: ExamTimetableEntry[] | undefined, academicYearId?: string | undefined, semesterId?: string | undefined) => Promise<void>'.
+  Types of parameters 'ay' and 'academicYearId' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(4435,37): error TS2322: Type '(id: string) => Subject | undefined' is not assignable to type '(id?: string | undefined) => Subject | undefined'.
+  Types of parameters 'id' and 'id' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(4436,37): error TS2322: Type '(id: string) => User | undefined' is not assignable to type '(id?: string | undefined) => User | undefined'.
+  Types of parameters 'id' and 'id' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(4437,37): error TS2322: Type '(id: string) => Room | undefined' is not assignable to type '(id?: string | undefined) => Room | undefined'.
+  Types of parameters 'id' and 'id' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(4461,37): error TS2322: Type '(r: string) => Promise<{ success: true; message: string; }>' is not assignable to type '(recipient?: string | undefined) => Promise<{ success?: boolean | undefined; message?: string | undefined; }>'.
+  Types of parameters 'r' and 'recipient' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(4512,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 44 more ... | null' and '"security"' have no overlap.
+src/components/App.tsx(4563,96): error TS2345: Argument of type 'string' is not assignable to parameter of type 'SetStateAction<Role | null>'.
+src/components/App.tsx(4565,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 44 more ... | null' and '"finance_officer"' have no overlap.
+src/components/App.tsx(4594,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 44 more ... | null' and '"hr_officer"' have no overlap.
+src/components/App.tsx(4598,37): error TS2322: Type '{ currentUser: User; currentInstitution: any; staff: User[]; payrollRecords: PayrollRecord[]; leaveRequests: { staffId: string; type: any; status: any; appliedAt: string; ... 11 more ...; institutionId: string; }[]; onProcessPayroll: (recs: any[]) => Promise<...>; onUpdateLeaveStatus: (id: string, status: string) =>...' is not assignable to type 'IntrinsicAttributes & HROfficerViewProps'.
+  Property 'staff' does not exist on type 'IntrinsicAttributes & HROfficerViewProps'.
+src/components/App.tsx(4613,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 44 more ... | null' and '"librarian"' have no overlap.
+src/components/App.tsx(4625,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 44 more ... | null' and '"info_desk"' have no overlap.
+src/components/App.tsx(4661,96): error TS2345: Argument of type 'string' is not assignable to parameter of type 'SetStateAction<Role | null>'.
+src/components/App.tsx(4663,61): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 43 more ... | null' and '"transport_assistant"' have no overlap.
+src/components/App.tsx(4675,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 43 more ... | null' and '"store"' have no overlap.
+src/components/App.tsx(4686,41): error TS2322: Type 'RetailInventoryItem[]' is not assignable to type 'InventoryItem[]'.
+  Property 'location' is missing in type 'RetailInventoryItem' but required in type 'InventoryItem'.
+src/components/App.tsx(4723,100): error TS2345: Argument of type 'string' is not assignable to parameter of type 'SetStateAction<Role | null>'.
+src/components/App.tsx(4739,41): error TS2322: Type '(r: any, m: string, config: any, units: number, instId?: string) => Promise<any>' is not assignable to type '(recipient: string, message: string, config?: SmsConfig | undefined, units?: number | undefined, institutionId?: string | undefined) => Promise<any>'.
+  Types of parameters 'units' and 'units' are incompatible.
+    Type 'number | undefined' is not assignable to type 'number'.
+      Type 'undefined' is not assignable to type 'number'.
+src/components/App.tsx(4746,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 43 more ... | null' and '"librarian"' have no overlap.
+src/components/App.tsx(4758,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 43 more ... | null' and '"parent"' have no overlap.
+src/components/App.tsx(4759,34): error TS2741: Property 'onAccessAlumnaPortal' is missing in type '{ user: User; users: User[]; courses: Course[]; studentAttendances: StudentAttendance[]; generatedTimetable: TimetableEntry[]; subjects: Subject[]; ... 7 more ...; onUpdateLeaveOut: (id: string, data: any) => Promise<...>; }' but required in type 'ParentViewProps'.
+src/components/App.tsx(4781,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 43 more ... | null' and '"boarding_master"' have no overlap.
+src/components/App.tsx(4801,37): error TS2322: Type '(r: any, m: string, config: any, units: number, instId?: string) => Promise<any>' is not assignable to type '(recipient: string, message: string, config?: SmsConfig | undefined, units?: number | undefined, institutionId?: string | undefined) => Promise<any>'.
+  Types of parameters 'units' and 'units' are incompatible.
+    Type 'number | undefined' is not assignable to type 'number'.
+      Type 'undefined' is not assignable to type 'number'.
+src/components/App.tsx(4805,34): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 43 more ... | null' and '"carwash_admin"' have no overlap.
+src/components/App.tsx(4812,37): error TS2322: Type '(r: any, m: string, config: any, units: number, instId?: string) => Promise<any>' is not assignable to type '(recipient: string, message: string, config?: any, units?: number | undefined, institutionId?: string | undefined) => Promise<any>'.
+  Types of parameters 'units' and 'units' are incompatible.
+    Type 'number | undefined' is not assignable to type 'number'.
+      Type 'undefined' is not assignable to type 'number'.
+src/components/App.tsx(4836,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 42 more ... | null' and '"farmer"' have no overlap.
+src/components/App.tsx(4851,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 42 more ... | null' and '"rider"' have no overlap.
+src/components/App.tsx(4865,41): error TS2322: Type '(data: any, items: any[]) => Promise<void>' is not assignable to type '(data: any, items?: any[] | undefined) => Promise<void>'.
+  Types of parameters 'items' and 'items' are incompatible.
+    Type 'any[] | undefined' is not assignable to type 'any[]'.
+      Type 'undefined' is not assignable to type 'any[]'.
+src/components/App.tsx(4879,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 39 more ... | null' and '"tenant"' have no overlap.
+src/components/App.tsx(4885,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 39 more ... | null' and '"landlord"' have no overlap.
+src/components/App.tsx(4891,34): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 39 more ... | null' and '"property_admin"' have no overlap.
+src/components/App.tsx(4926,97): error TS2345: Argument of type 'string' is not assignable to parameter of type '"email" | "sms"'.
+src/components/App.tsx(5087,37): error TS2322: Type '(school: SchoolRegistry) => void' is not assignable to type '(school?: SchoolRegistry | undefined) => void'.
+  Types of parameters 'school' and 'school' are incompatible.
+    Type 'SchoolRegistry | undefined' is not assignable to type 'SchoolRegistry'.
+      Type 'undefined' is not assignable to type 'SchoolRegistry'.
+src/components/App.tsx(5092,37): error TS2322: Type '(action: string) => Promise<void>' is not assignable to type '(message?: string | undefined) => Promise<void>'.
+  Types of parameters 'action' and 'message' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(5135,37): error TS2322: Type '(id: string, data: any) => Promise<void>' is not assignable to type '(id?: string | undefined, data?: any) => Promise<void>'.
+  Types of parameters 'id' and 'id' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(5140,37): error TS2322: Type '(id: string, notes: string) => Promise<void>' is not assignable to type '(id?: string | undefined, notes?: string | undefined) => Promise<void>'.
+  Types of parameters 'id' and 'id' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(5276,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 38 more ... | null' and '"student"' have no overlap.
+src/components/App.tsx(5322,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 38 more ... | null' and '"reseller"' have no overlap.
+src/components/App.tsx(5331,34): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 38 more ... | null' and '"church_admin"' have no overlap.
+src/components/App.tsx(5331,67): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 38 more ... | null' and '"church_member"' have no overlap.
+src/components/App.tsx(5335,34): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 38 more ... | null' and '"county_admin"' have no overlap.
+src/components/App.tsx(5432,37): error TS2322: Type '(id: string, notes: string) => Promise<void>' is not assignable to type '(id: string) => void'.
+  Target signature provides too few arguments. Expected 2 or more, but got 1.
+src/components/App.tsx(5438,37): error TS2322: Type 'DSSettings | null' is not assignable to type 'DSSettings'.
+  Type 'null' is not assignable to type 'DSSettings'.
+src/components/App.tsx(5450,37): error TS2322: Type '(riderId: string, pendingCollections: any[]) => Promise<void>' is not assignable to type '(ids: string[]) => void'.
+  Target signature provides too few arguments. Expected 2 or more, but got 1.
+src/components/App.tsx(5452,37): error TS2322: Type '(id: string, qty: number) => Promise<void>' is not assignable to type '(id: string) => void'.
+  Target signature provides too few arguments. Expected 2 or more, but got 1.
+src/components/App.tsx(5453,37): error TS2322: Type '(id: string, status: "approved" | "rejected") => Promise<void>' is not assignable to type '(id: string) => void'.
+  Target signature provides too few arguments. Expected 2 or more, but got 1.
+src/components/App.tsx(5479,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 38 more ... | null' and '"academics_officer"' have no overlap.
+src/components/App.tsx(5488,37): error TS2322: Type '(id: string, data: any) => Promise<void>' is not assignable to type '(subjectId?: string | undefined, updatedData?: Partial<Omit<Subject, "id" | "institutionId">> | undefined) => void'.
+  Types of parameters 'id' and 'subjectId' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(5534,37): error TS2322: Type '(entries: any, ay: string, sem: string) => Promise<void>' is not assignable to type '(entries?: ExamTimetableEntry[] | undefined, academicYearId?: string | undefined, semesterId?: string | undefined) => Promise<void>'.
+  Types of parameters 'ay' and 'academicYearId' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(5536,37): error TS2322: Type '(id: string) => Subject | undefined' is not assignable to type '(id?: string | undefined) => Subject | undefined'.
+  Types of parameters 'id' and 'id' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(5537,37): error TS2322: Type '(id: string) => User | undefined' is not assignable to type '(id?: string | undefined) => User | undefined'.
+  Types of parameters 'id' and 'id' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(5538,37): error TS2322: Type '(id: string) => Room | undefined' is not assignable to type '(id?: string | undefined) => Room | undefined'.
+  Types of parameters 'id' and 'id' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(5551,37): error TS2322: Type '(r: string) => Promise<{ success: true; message: string; }>' is not assignable to type '(recipient?: string | undefined) => Promise<{ success?: boolean | undefined; message?: string | undefined; }>'.
+  Types of parameters 'r' and 'recipient' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(5563,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 38 more ... | null' and '"security"' have no overlap.
+src/components/App.tsx(5618,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 38 more ... | null' and '"finance_officer"' have no overlap.
+src/components/App.tsx(5643,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 38 more ... | null' and '"hr_officer"' have no overlap.
+src/components/App.tsx(5647,37): error TS2322: Type '{ currentUser: User; currentInstitution: any; staff: User[]; payrollRecords: PayrollRecord[]; leaveRequests: { staffId: string; type: any; status: any; appliedAt: string; ... 11 more ...; institutionId: string; }[]; onProcessPayroll: (recs: PayrollRecord[]) => Promise<...>; onUpdateLeaveStatus: (id: string, status: ...' is not assignable to type 'IntrinsicAttributes & HROfficerViewProps'.
+  Property 'staff' does not exist on type 'IntrinsicAttributes & HROfficerViewProps'.
+src/components/App.tsx(5662,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 38 more ... | null' and '"librarian"' have no overlap.
+src/components/App.tsx(5674,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 38 more ... | null' and '"info_desk"' have no overlap.
+src/components/App.tsx(5712,34): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 38 more ... | null' and '"driver"' have no overlap.
+src/components/App.tsx(5712,61): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 38 more ... | null' and '"transport_assistant"' have no overlap.
+src/components/App.tsx(5724,33): error TS2367: This comparison appears to be unintentional because the types '"county_staff" | "admin" | "staff" | "hod" | "practice_teacher" | "supplier" | "head_teacher" | "dos" | "teacher" | "deputy" | "tto" | "county_secretary" | "county_driver" | ... 38 more ... | null' and '"store"' have no overlap.
+src/components/App.tsx(5939,68): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/App.tsx(6298,18): error TS2741: Property 'onAccessAlumnaPortal' is missing in type '{ role: Role | null; isImpersonatedSession: boolean; hasCurrentUser: boolean; isPublicView: boolean; hideReturnToLogin: boolean; onReturn: () => void; onRestoreSession: () => void; }' but required in type '{ role: Role | null; isImpersonatedSession?: boolean | undefined; onReturn: () => void; onAccessAlumnaPortal: (school: any) => void; onRestoreSession?: (() => void) | undefined; hasCurrentUser?: boolean | undefined; isPublicView?: boolean | undefined; hideReturnToLogin?: boolean | undefined; }'.
+src/components/automotive/CarInventoryList.tsx(40,57): error TS2339: Property 'vin' does not exist on type 'CarListing'.
+src/components/automotive/CarSalesLedger.tsx(11,5): error TS2724: '"lucide-react"' has no exported member named 'ArrowDownTray'. Did you mean 'ArrowDown'?
+src/components/automotive/CarSalesLedger.tsx(166,160): error TS2339: Property 'invoiceDate' does not exist on type 'CarInvoice'.
+src/components/automotive/CarSalesLedger.tsx(209,144): error TS2339: Property 'transactionId' does not exist on type 'CarPayment'.
+src/components/BoardingMasterView.tsx(497,25): error TS2322: Type 'CompanyDetails | undefined' is not assignable to type 'CompanyDetails'.
+  Type 'undefined' is not assignable to type 'CompanyDetails'.
+src/components/BoardingMasterView.tsx(517,22): error TS2741: Property 'onAccessAlumnaPortal' is missing in type '{ currentUser: User; currentInstitution: Institution; users: User[]; courses: Course[]; departments: Department[]; onLogAction: (action: string) => Promise<...>; ... 15 more ...; onDeleteParent: ((studentId: string, parentId: string) => void) | undefined; }' but required in type 'UserManagerProps'.
+src/components/BulkImportWizard.tsx(6,27): error TS2307: Cannot find module './icons/XMarkIcon' or its corresponding type declarations.
+src/components/BulkImportWizard.tsx(7,32): error TS2307: Cannot find module './icons/TableCellsIcon' or its corresponding type declarations.
+src/components/CampaignCommandView.tsx(384,76): error TS18048: 'profile.agendas' is possibly 'undefined'.
+src/components/CampaignCommandView.tsx(1078,54): error TS2304: Cannot find name 'TrashIcon'.
+src/components/CampaignLoginView.tsx(42,85): error TS2345: Argument of type '{ email: string; }' is not assignable to parameter of type 'string'.
+src/components/CampaignSocialPortal.tsx(163,96): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Object literal may only specify known properties, and 'className' does not exist in type 'Partial<unknown> & Attributes'.
+src/components/CampaignSocialPortal.tsx(369,29): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Object literal may only specify known properties, and 'className' does not exist in type 'Partial<unknown> & Attributes'.
+src/components/CarWashView.tsx(66,5): error TS7008: Member 'cafeOrders' implicitly has an 'any' type.
+src/components/CarWashView.tsx(66,17): error TS2300: Duplicate identifier 'jobs'.
+src/components/CarWashView.tsx(66,17): error TS2687: All declarations of 'jobs' must have identical modifiers.
+src/components/CarWashView.tsx(66,23): error TS2304: Cannot find name 'passedJobs'.
+src/components/CarWashView.tsx(66,35): error TS2300: Duplicate identifier 'onAddJob'.
+src/components/CarWashView.tsx(66,35): error TS2687: All declarations of 'onAddJob' must have identical modifiers.
+src/components/CarWashView.tsx(66,35): error TS7008: Member 'onAddJob' implicitly has an 'any' type.
+src/components/CarWashView.tsx(66,45): error TS2300: Duplicate identifier 'onUpdateJobStatus'.
+src/components/CarWashView.tsx(66,45): error TS2687: All declarations of 'onUpdateJobStatus' must have identical modifiers.
+src/components/CarWashView.tsx(66,45): error TS7008: Member 'onUpdateJobStatus' implicitly has an 'any' type.
+src/components/CarWashView.tsx(66,64): error TS2300: Duplicate identifier 'onLogAction'.
+src/components/CarWashView.tsx(67,5): error TS2300: Duplicate identifier 'jobs'.
+src/components/CarWashView.tsx(67,5): error TS2687: All declarations of 'jobs' must have identical modifiers.
+src/components/CarWashView.tsx(68,5): error TS2300: Duplicate identifier 'onAddJob'.
+src/components/CarWashView.tsx(68,5): error TS2687: All declarations of 'onAddJob' must have identical modifiers.
+src/components/CarWashView.tsx(68,5): error TS2717: Subsequent property declarations must have the same type.  Property 'onAddJob' must be of type 'any', but here has type '((job: any) => Promise<void>) | undefined'.
+src/components/CarWashView.tsx(69,5): error TS2300: Duplicate identifier 'onUpdateJobStatus'.
+src/components/CarWashView.tsx(69,5): error TS2687: All declarations of 'onUpdateJobStatus' must have identical modifiers.
+src/components/CarWashView.tsx(69,5): error TS2717: Subsequent property declarations must have the same type.  Property 'onUpdateJobStatus' must be of type 'any', but here has type '((id: string, status: string) => Promise<void>) | undefined'.
+src/components/CarWashView.tsx(70,5): error TS2300: Duplicate identifier 'onLogAction'.
+src/components/CarWashView.tsx(70,5): error TS2717: Subsequent property declarations must have the same type.  Property 'onLogAction' must be of type 'CafeOrder[] | undefined', but here has type '((action: string) => Promise<void>) | undefined'.
+src/components/CarWashView.tsx(251,12): error TS2451: Cannot redeclare block-scoped variable 'jobs'.
+src/components/CarWashView.tsx(251,18): error TS2451: Cannot redeclare block-scoped variable 'setJobs'.
+src/components/CarWashView.tsx(288,12): error TS2451: Cannot redeclare block-scoped variable 'jobs'.
+src/components/CarWashView.tsx(288,18): error TS2451: Cannot redeclare block-scoped variable 'setJobs'.
+src/components/CarWashView.tsx(372,106): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/components/CarWashView.tsx(864,110): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/components/CarWashView.tsx(893,64): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/components/CarWashView.tsx(940,54): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/components/CarWashView.tsx(1024,36): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/components/CarWashView.tsx(1721,88): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/components/CarWashView.tsx(2509,29): error TS2322: Type '(recipient: string, message: string, config?: any, units?: number | undefined, institutionId?: string | undefined) => Promise<any>' is not assignable to type '(recipient: string | string[], message: string, config?: SmsConfig | undefined, units?: number | undefined, institutionId?: string | undefined) => Promise<{ success: boolean; message: string; }>'.
+  Types of parameters 'recipient' and 'recipient' are incompatible.
+    Type 'string | string[]' is not assignable to type 'string'.
+      Type 'string[]' is not assignable to type 'string'.
+src/components/CarWashView.tsx(3688,123): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/components/CarWashView.tsx(3690,72): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/components/CommunicationsManager.tsx(55,13): error TS2367: This comparison appears to be unintentional because the types '"school" | "property" | "agrovet" | "cooperative" | "church" | "carwash"' and '"auto_marketplace"' have no overlap.
+src/components/CommunityLoginBlock.tsx(1,47): error TS2304: Cannot find name 'regData'.
+src/components/CommunityLoginBlock.tsx(3,71): error TS2304: Cannot find name 'labelClasses'.
+src/components/CommunityLoginBlock.tsx(5,68): error TS2304: Cannot find name 'inputClasses'.
+src/components/CommunityLoginBlock.tsx(6,64): error TS2304: Cannot find name 'regData'.
+src/components/CommunityLoginBlock.tsx(7,72): error TS2304: Cannot find name 'setRegData'.
+src/components/CommunityLoginBlock.tsx(7,88): error TS2304: Cannot find name 'regData'.
+src/components/ConstructionManager.tsx(77,45): error TS2554: Expected 3 arguments, but got 2.
+src/components/ConstructionManager.tsx(78,17): error TS18047: 'result' is possibly 'null'.
+src/components/ConstructionManager.tsx(78,24): error TS2339: Property 'success' does not exist on type 'string'.
+src/components/ConstructionManager.tsx(79,76): error TS18047: 'result' is possibly 'null'.
+src/components/ConstructionManager.tsx(79,83): error TS2339: Property 'url' does not exist on type 'string'.
+src/components/ContractModal.tsx(123,71): error TS2339: Property 'signatureUrl' does not exist on type 'LecturerContract'.
+src/components/ContractModal.tsx(141,71): error TS2339: Property 'signatureUrl' does not exist on type 'LecturerContract'.
+src/components/ContractModal.tsx(196,32): error TS2339: Property 'signatureUrl' does not exist on type 'LecturerContract'.
+src/components/ContractModal.tsx(202,55): error TS2339: Property 'signatureUrl' does not exist on type 'LecturerContract'.
+src/components/CountyAdminView.tsx(1062,26): error TS2367: This comparison appears to be unintentional because the types '"inventory"' and '"bursaries"' have no overlap.
+src/components/CountyAdminView.tsx(1110,124): error TS2339: Property 'studentEmail' does not exist on type 'BursaryApplication'.
+src/components/CountyAdminView.tsx(1141,26): error TS2367: This comparison appears to be unintentional because the types '"inventory"' and '"academic_view"' have no overlap.
+src/components/CountyAdminView.tsx(1156,45): error TS2322: Type '{ institutionId: string; assessments: Assessment[]; marks: AssessmentMark[]; subjects: never[]; students: User[]; }' is not assignable to type 'IntrinsicAttributes & AcademicReportsHubProps'.
+  Property 'institutionId' does not exist on type 'IntrinsicAttributes & AcademicReportsHubProps'.
+src/components/CountyAdminView.tsx(1165,45): error TS2322: Type '(data: any) => void' is not assignable to type '(incident: Omit<DisciplineIncident, "id" | "timestamp" | "institutionId" | "recordedBy">) => Promise<void>'.
+  Type 'void' is not assignable to type 'Promise<void>'.
+src/components/CountyAdminView.tsx(1172,26): error TS2367: This comparison appears to be unintentional because the types '"inventory"' and '"settings"' have no overlap.
+src/components/CourseManager.tsx(324,17): error TS2304: Cannot find name 'Building'.
+src/components/Finance/FinanceOfficerView.tsx(54,14): error TS2739: Type '{ currentUser: User; institutionName: string; onLogout: () => void; }' is missing the following properties from type 'HeaderProps': onEditProfile, logoUrl, systemLogoUrl, notifications, onMarkAsRead
+src/components/Finance/FinanceOfficerView.tsx(77,21): error TS2322: Type 'Expense[] | undefined' is not assignable to type 'Expense[]'.
+  Type 'undefined' is not assignable to type 'Expense[]'.
+src/components/Finance/FinanceOfficerView.tsx(78,21): error TS2322: Type 'FinancialGoal[] | undefined' is not assignable to type 'FinancialGoal[]'.
+  Type 'undefined' is not assignable to type 'FinancialGoal[]'.
+src/components/Finance/FinanceOfficerView.tsx(79,21): error TS2322: Type 'FeeStructure[] | undefined' is not assignable to type 'FeeStructure[]'.
+  Type 'undefined' is not assignable to type 'FeeStructure[]'.
+src/components/Finance/FinanceOfficerView.tsx(80,21): error TS2322: Type 'User[] | undefined' is not assignable to type 'User[]'.
+  Type 'undefined' is not assignable to type 'User[]'.
+src/components/Finance/FinanceOfficerView.tsx(81,21): error TS2322: Type 'AcademicYear[] | undefined' is not assignable to type 'AcademicYear[]'.
+  Type 'undefined' is not assignable to type 'AcademicYear[]'.
+src/components/Finance/FinanceOfficerView.tsx(82,21): error TS2322: Type 'Semester[] | undefined' is not assignable to type 'Semester[]'.
+  Type 'undefined' is not assignable to type 'Semester[]'.
+src/components/Finance/FinanceOfficerView.tsx(84,21): error TS2322: Type '((invoices: any[]) => Promise<void>) | undefined' is not assignable to type '(invoices: any[]) => Promise<void>'.
+  Type 'undefined' is not assignable to type '(invoices: any[]) => Promise<void>'.
+src/components/Finance/FinanceOfficerView.tsx(85,21): error TS2322: Type '((expense: any) => Promise<void>) | undefined' is not assignable to type '(expense: any) => Promise<void>'.
+  Type 'undefined' is not assignable to type '(expense: any) => Promise<void>'.
+src/components/FuelStationDashboard.tsx(21,5): error TS2741: Property 'createdAt' is missing in type '{ id: string; institutionId: string; name: string; location: string; contactNumber: string; isActive: true; }' but required in type 'FuelStation'.
+src/components/FuelStationDashboard.tsx(22,5): error TS2741: Property 'createdAt' is missing in type '{ id: string; institutionId: string; name: string; location: string; contactNumber: string; isActive: true; }' but required in type 'FuelStation'.
+src/components/FuelStationDashboard.tsx(23,5): error TS2741: Property 'createdAt' is missing in type '{ id: string; institutionId: string; name: string; location: string; contactNumber: string; isActive: true; }' but required in type 'FuelStation'.
+src/components/FuelStationDashboard.tsx(27,5): error TS2741: Property 'createdAt' is missing in type '{ id: string; institutionId: string; stationId: string; name: string; fuelType: any; capacityLiters: number; currentLevelLiters: number; lastTemperature: number; lowLevelThreshold: number; sensorId: string; sensorVendor: string; }' but required in type 'FuelTank'.
+src/components/FuelStationDashboard.tsx(28,5): error TS2741: Property 'createdAt' is missing in type '{ id: string; institutionId: string; stationId: string; name: string; fuelType: any; capacityLiters: number; currentLevelLiters: number; lastTemperature: number; lowLevelThreshold: number; sensorId: string; sensorVendor: string; }' but required in type 'FuelTank'.
+src/components/FuelStationDashboard.tsx(29,5): error TS2741: Property 'createdAt' is missing in type '{ id: string; institutionId: string; stationId: string; name: string; fuelType: any; capacityLiters: number; currentLevelLiters: number; lastTemperature: number; lowLevelThreshold: number; sensorId: string; sensorVendor: string; }' but required in type 'FuelTank'.
+src/components/FuelStationDashboard.tsx(30,5): error TS2741: Property 'createdAt' is missing in type '{ id: string; institutionId: string; stationId: string; name: string; fuelType: any; capacityLiters: number; currentLevelLiters: number; lastTemperature: number; lowLevelThreshold: number; sensorId: string; sensorVendor: string; }' but required in type 'FuelTank'.
+src/components/FuelStationDashboard.tsx(34,5): error TS2741: Property 'createdAt' is missing in type '{ id: string; tankId: string; stationId: string; pumpNumber: string; nozzleCount: number; currentTotalizerReading: number; status: "active"; }' but required in type 'FuelPump'.
+src/components/FuelStationDashboard.tsx(35,5): error TS2741: Property 'createdAt' is missing in type '{ id: string; tankId: string; stationId: string; pumpNumber: string; nozzleCount: number; currentTotalizerReading: number; status: "active"; }' but required in type 'FuelPump'.
+src/components/FuelStationDashboard.tsx(36,5): error TS2741: Property 'createdAt' is missing in type '{ id: string; tankId: string; stationId: string; pumpNumber: string; nozzleCount: number; currentTotalizerReading: number; status: "maintenance"; }' but required in type 'FuelPump'.
+src/components/FuelStationDashboard.tsx(40,5): error TS2741: Property 'pumpId' is missing in type '{ id: string; institutionId: string; stationId: string; fuelType: "Petrol"; litersSold: number; pricePerLiter: number; totalAmount: number; paymentMethod: "mpesa"; paymentStatus: "completed"; createdAt: string; }' but required in type 'FuelSale'.
+src/components/FuelStationDashboard.tsx(41,5): error TS2741: Property 'pumpId' is missing in type '{ id: string; institutionId: string; stationId: string; fuelType: "Diesel"; litersSold: number; pricePerLiter: number; totalAmount: number; paymentMethod: "card"; paymentStatus: "completed"; createdAt: string; }' but required in type 'FuelSale'.
+src/components/FuelStationDashboard.tsx(42,5): error TS2741: Property 'pumpId' is missing in type '{ id: string; institutionId: string; stationId: string; fuelType: "V-Power"; litersSold: number; pricePerLiter: number; totalAmount: number; paymentMethod: "cash"; paymentStatus: "completed"; createdAt: string; }' but required in type 'FuelSale'.
+src/components/FuelStationDashboard.tsx(171,22): error TS2304: Cannot find name 'fleetCards'.
+src/components/FuelStationDashboard.tsx(171,38): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/FuelStationDashboard.tsx(186,22): error TS2304: Cannot find name 'fleetCards'.
+src/components/FuelStationDashboard.tsx(186,38): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/FuelStationDashboard.tsx(195,180): error TS2551: Property 'creditBalance' does not exist on type 'FleetAccount'. Did you mean 'currentBalance'?
+src/components/FuelStationDashboard.tsx(499,63): error TS2304: Cannot find name 'currentStation'.
+src/components/FuelStationDashboard.tsx(501,40): error TS2304: Cannot find name 'currentStation'.
+src/components/FuelStationDashboard.tsx(610,89): error TS2304: Cannot find name 'currentStation'.
+src/components/FuelStationDashboard.tsx(620,45): error TS2304: Cannot find name 'Smartphone'.
+src/components/FuelStationDashboard.tsx(766,60): error TS2304: Cannot find name 'currentStation'.
+src/components/FuelStationDashboard.tsx(1016,38): error TS2304: Cannot find name 'renderFuelLevelIndicator'.
+src/components/FuelStationDashboard.tsx(1752,14): error TS2367: This comparison appears to be unintentional because the types 'TabType' and '"finance"' have no overlap.
+src/components/FuelStationDashboard.tsx(1761,34): error TS2304: Cannot find name 'FileText'.
+src/components/FuelStationDashboard.tsx(1828,42): error TS2304: Cannot find name 'fleetCards'.
+src/components/FuelStationDashboard.tsx(1828,60): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/FuelStationDashboard.tsx(1828,88): error TS7006: Parameter 'card' implicitly has an 'any' type.
+src/components/FuelStationDashboard.tsx(1918,34): error TS2304: Cannot find name 'PlusCircle'.
+src/components/FuelStationDashboard.tsx(1979,38): error TS2304: Cannot find name 'ClipboardList'.
+src/components/FuelStationDashboard.tsx(2001,58): error TS2304: Cannot find name 'Calendar'.
+src/components/FuelStationDashboard.tsx(2045,38): error TS2304: Cannot find name 'Zap'.
+src/components/his/ModernPharmacyManager.tsx(242,26): error TS2339: Property 'footerImageUrl' does not exist on type 'PharmacySettings'.
+src/components/his/ModernPharmacyManager.tsx(1510,81): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/his/ModernPharmacyManager.tsx(1513,64): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/his/ModernPharmacyManager.tsx(1641,77): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/his/ModernPharmacyManager.tsx(1644,60): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/his/RegisterPatientModal.tsx(37,30): error TS2345: Argument of type '{ fullName: string; dob: string; gender: string; bloodGroup: string; contact: string; insuranceProvider: string; shaNumber: string; emergencyContactName: string; emergencyContactPhone: string; }' is not assignable to parameter of type 'Omit<HISPatient, "id" | "institutionId" | "createdAt" | "updatedAt">'.
+  Types of property 'gender' are incompatible.
+    Type 'string' is not assignable to type '"Other" | "Male" | "Female"'.
+src/components/hospitality/HospitalityMarketplace.tsx(57,15): error TS2551: Property 'institutionId' does not exist on type 'Institution'. Did you mean 'institutionCode'?
+src/components/hospitality/HospitalityMarketplace.tsx(109,99): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/components/HospitalityManager.tsx(102,28): error TS2345: Argument of type '(prev: { name: string; description: string; price: string; category: string; features: string; location: string; duration: string; images: string[]; featuresString: string; }) => { images: (string | undefined)[]; ... 7 more ...; featuresString: string; }' is not assignable to parameter of type 'SetStateAction<{ name: string; description: string; price: string; category: string; features: string; location: string; duration: string; images: string[]; featuresString: string; }>'.
+  Type '(prev: { name: string; description: string; price: string; category: string; features: string; location: string; duration: string; images: string[]; featuresString: string; }) => { images: (string | undefined)[]; ... 7 more ...; featuresString: string; }' is not assignable to type '(prevState: { name: string; description: string; price: string; category: string; features: string; location: string; duration: string; images: string[]; featuresString: string; }) => { name: string; ... 7 more ...; featuresString: string; }'.
+    Call signature return types '{ images: (string | undefined)[]; name: string; description: string; price: string; category: string; features: string; location: string; duration: string; featuresString: string; }' and '{ name: string; description: string; price: string; category: string; features: string; location: string; duration: string; images: string[]; featuresString: string; }' are incompatible.
+      The types of 'images' are incompatible between these types.
+        Type '(string | undefined)[]' is not assignable to type 'string[]'.
+          Type 'string | undefined' is not assignable to type 'string'.
+            Type 'undefined' is not assignable to type 'string'.
+src/components/HR/HRManager.tsx(114,50): error TS2304: Cannot find name 'CalendarIcon'.
+src/components/HR/HROfficerView.tsx(28,14): error TS2739: Type '{ currentUser: User; institutionName: string; onLogout: () => void; }' is missing the following properties from type 'HeaderProps': onEditProfile, logoUrl, systemLogoUrl, notifications, onMarkAsRead
+src/components/HR/PayrollEngine.tsx(26,71): error TS18048: 'r.netSalary' is possibly 'undefined'.
+src/components/HR/PayrollEngine.tsx(137,54): error TS18048: 'record.basicSalary' is possibly 'undefined'.
+src/components/HR/PayrollEngine.tsx(140,54): error TS18048: 'record.netSalary' is possibly 'undefined'.
+src/components/LecturerInteractionManager.tsx(102,9): error TS2339: Property 'contracts' does not exist on type '{ letterheadConfig: LetterheadConfig; footerImageUrl: string | null; activeSemester?: Semester | null | undefined; allocations: AllocationRequest[]; subjects: Subject[]; }'.
+src/components/LecturerInteractionManager.tsx(102,20): error TS2339: Property 'users' does not exist on type '{ letterheadConfig: LetterheadConfig; footerImageUrl: string | null; activeSemester?: Semester | null | undefined; allocations: AllocationRequest[]; subjects: Subject[]; }'.
+src/components/LecturerInteractionManager.tsx(102,27): error TS2339: Property 'currentInstitution' does not exist on type '{ letterheadConfig: LetterheadConfig; footerImageUrl: string | null; activeSemester?: Semester | null | undefined; allocations: AllocationRequest[]; subjects: Subject[]; }'.
+src/components/LecturerInteractionManager.tsx(112,33): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/LecturerInteractionManager.tsx(116,37): error TS7006: Parameter 'u' implicitly has an 'any' type.
+src/components/LecturerInteractionManager.tsx(120,141): error TS2339: Property 'signatureUrl' does not exist on type 'LecturerContract'.
+src/components/LecturerInteractionManager.tsx(132,37): error TS7006: Parameter 'u' implicitly has an 'any' type.
+src/components/LecturerInteractionManager.tsx(136,141): error TS2339: Property 'signatureUrl' does not exist on type 'LecturerContract'.
+src/components/LecturerInteractionManager.tsx(174,48): error TS7006: Parameter 'contract' implicitly has an 'any' type.
+src/components/LecturerInteractionManager.tsx(175,57): error TS7006: Parameter 'u' implicitly has an 'any' type.
+src/components/LecturerInteractionManager.tsx(228,38): error TS7006: Parameter 'u' implicitly has an 'any' type.
+src/components/LecturerInteractionManager.tsx(316,21): error TS2322: Type '{ contracts: LecturerContract[]; users: User[]; activeSemester: Semester | null | undefined; currentInstitution: Institution | null | undefined; letterheadConfig: LetterheadConfig; footerImageUrl: string | null; allocations: AllocationRequest[]; subjects: Subject[]; }' is not assignable to type 'IntrinsicAttributes & { letterheadConfig: LetterheadConfig; footerImageUrl: string | null; activeSemester?: Semester | null | undefined; allocations: AllocationRequest[]; subjects: Subject[]; }'.
+  Property 'contracts' does not exist on type 'IntrinsicAttributes & { letterheadConfig: LetterheadConfig; footerImageUrl: string | null; activeSemester?: Semester | null | undefined; allocations: AllocationRequest[]; subjects: Subject[]; }'.
+src/components/LecturerView.tsx(97,31): error TS2339: Property 'schoolRegistry' does not exist on type 'LecturerViewProps'.
+src/components/LecturerView.tsx(146,31): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/LecturerView.tsx(146,31): error TS18048: 'onSubmitRequest' is possibly 'undefined'.
+src/components/LecturerView.tsx(234,21): error TS2322: Type '((data: { title: string; dueDate?: string | undefined; }) => void) | undefined' is not assignable to type '(task: { title: string; dueDate?: string | undefined; }) => void'.
+  Type 'undefined' is not assignable to type '(task: { title: string; dueDate?: string | undefined; }) => void'.
+src/components/LecturerView.tsx(235,21): error TS2322: Type '((taskId: string, isComplete: boolean) => void) | undefined' is not assignable to type '(taskId: string, isComplete: boolean) => void'.
+  Type 'undefined' is not assignable to type '(taskId: string, isComplete: boolean) => void'.
+src/components/LecturerView.tsx(236,21): error TS2322: Type '((taskId: string) => void) | undefined' is not assignable to type '(taskId: string) => void'.
+  Type 'undefined' is not assignable to type '(taskId: string) => void'.
+src/components/LecturerView.tsx(246,21): error TS2322: Type '((school: any) => void) | undefined' is not assignable to type '(school: any) => void'.
+  Type 'undefined' is not assignable to type '(school: any) => void'.
+src/components/LecturerView.tsx(290,37): error TS2322: Type 'LetterheadConfig | undefined' is not assignable to type 'LetterheadConfig'.
+  Type 'undefined' is not assignable to type 'LetterheadConfig'.
+src/components/LecturerView.tsx(533,53): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/LecturerView.tsx(541,52): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/Library/LibraryWarRoom.tsx(22,14): error TS2739: Type '{ currentUser: User; institutionName: string; onLogout: () => void; }' is missing the following properties from type 'HeaderProps': onEditProfile, logoUrl, systemLogoUrl, notifications, onMarkAsRead
+src/components/LoginView.tsx(43,22): error TS2304: Cannot find name 'SchoolRegistry'.
+src/components/LoginView.tsx(50,96): error TS2339: Property 'onForgotPassword' does not exist on type 'LoginViewProps'.
+src/components/LoginView.tsx(51,31): error TS2339: Property 'onVerifyResetOtp' does not exist on type 'LoginViewProps'.
+src/components/LogisticsDashboard.tsx(15,45): error TS2561: Object literal may only specify known properties, but 'plate_number' does not exist in type 'LogisticVehicle'. Did you mean to write 'plateNumber'?
+src/components/LogisticsDashboard.tsx(16,45): error TS2561: Object literal may only specify known properties, but 'plate_number' does not exist in type 'LogisticVehicle'. Did you mean to write 'plateNumber'?
+src/components/LogisticsDashboard.tsx(17,45): error TS2561: Object literal may only specify known properties, but 'plate_number' does not exist in type 'LogisticVehicle'. Did you mean to write 'plateNumber'?
+src/components/LogisticsDashboard.tsx(98,157): error TS2551: Property 'plate_number' does not exist on type 'LogisticVehicle'. Did you mean 'plateNumber'?
+src/components/LogisticsDashboard.tsx(143,97): error TS2551: Property 'license_number' does not exist on type 'LogisticDriver'. Did you mean 'licenseNumber'?
+src/components/LogisticsDashboard.tsx(149,99): error TS2551: Property 'plate_number' does not exist on type 'LogisticVehicle'. Did you mean 'plateNumber'?
+src/components/LogisticsDashboard.tsx(218,56): error TS2551: Property 'license_number' does not exist on type 'LogisticDriver'. Did you mean 'licenseNumber'?
+src/components/LogisticsDashboard.tsx(221,123): error TS2551: Property 'license_number' does not exist on type 'LogisticDriver'. Did you mean 'licenseNumber'?
+src/components/LogisticsManager.tsx(20,5): error TS2300: Duplicate identifier 'CheckCircle2'.
+src/components/LogisticsManager.tsx(21,5): error TS2300: Duplicate identifier 'CheckCircle2'.
+src/components/MandatoryUpdateView.tsx(48,17): error TS2345: Argument of type '{ name: string; gender: "Other" | "Male" | "Female"; phoneNumber: string; email: string; }' is not assignable to parameter of type 'ProfileUpdateData & { email?: string | undefined; }'.
+  Property 'expertise' is missing in type '{ name: string; gender: "Other" | "Male" | "Female"; phoneNumber: string; email: string; }' but required in type 'ProfileUpdateData'.
+src/components/MasterCourseTimetableGrid.tsx(31,19): error TS2304: Cannot find name 'AllocationRequest'.
+src/components/MasterCourseTimetableGrid.tsx(571,20): error TS2322: Type '{ children: string; jsx: true; }' is not assignable to type 'DetailedHTMLProps<StyleHTMLAttributes<HTMLStyleElement>, HTMLStyleElement>'.
+  Property 'jsx' does not exist on type 'DetailedHTMLProps<StyleHTMLAttributes<HTMLStyleElement>, HTMLStyleElement>'.
+src/components/modals/CarReceiptModal.tsx(58,99): error TS2339: Property 'address' does not exist on type 'Institution'.
+src/components/ParentView.tsx(27,19): error TS2304: Cannot find name 'Assessment'.
+src/components/PracticeTeacherView.tsx(21,10): error TS2304: Cannot find name 'Book'.
+src/components/ProfileModal.tsx(8,24): error TS2304: Cannot find name 'Institution'.
+src/components/PropertyManagementView.tsx(2428,22): error TS2741: Property 'onAccessAlumnaPortal' is missing in type '{ currentInstitution: Institution; currentUser: User; users: User[]; showOnly: "staff"; onAddUser: (userData: any) => Promise<void>; onEditUser: (userId: string, data: UserUpdateData) => Promise<...>; ... 15 more ...; onSendBulkCredentials: ((users: User[], method: "email" | "sms") => Promise<...>) | undefined; }' but required in type 'UserManagerProps'.
+src/components/PropertyMarketplaceView.tsx(473,52): error TS2339: Property 'description' does not exist on type 'CarListing'.
+src/components/public/SchoolStorefrontView.tsx(22,33): error TS2304: Cannot find name 'useState'.
+src/components/public/SchoolStorefrontView.tsx(23,29): error TS2304: Cannot find name 'useState'.
+src/components/public/SchoolStorefrontView.tsx(24,35): error TS2304: Cannot find name 'useState'.
+src/components/public/SchoolStorefrontView.tsx(25,33): error TS2304: Cannot find name 'useState'.
+src/components/public/SchoolStorefrontView.tsx(26,35): error TS2304: Cannot find name 'useState'.
+src/components/public/SchoolStorefrontView.tsx(27,27): error TS2304: Cannot find name 'useState'.
+src/components/public/SchoolStorefrontView.tsx(28,47): error TS2304: Cannot find name 'useState'.
+src/components/public/SchoolStorefrontView.tsx(29,47): error TS2304: Cannot find name 'useState'.
+src/components/public/SchoolStorefrontView.tsx(30,35): error TS2304: Cannot find name 'useState'.
+src/components/public/SchoolStorefrontView.tsx(31,47): error TS2304: Cannot find name 'useState'.
+src/components/public/SchoolStorefrontView.tsx(33,5): error TS2304: Cannot find name 'useEffect'.
+src/components/public/SchoolStorefrontView.tsx(59,62): error TS2339: Property 'status' does not exist on type 'BulletinItem'.
+src/components/public/SchoolStorefrontView.tsx(59,112): error TS2339: Property 'publishDate' does not exist on type 'BulletinItem'.
+src/components/public/SchoolStorefrontView.tsx(59,148): error TS2339: Property 'publishDate' does not exist on type 'BulletinItem'.
+src/components/public/SchoolStorefrontView.tsx(270,43): error TS7006: Parameter 'course' implicitly has an 'any' type.
+src/components/public/SchoolStorefrontView.tsx(297,58): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/components/public/SchoolStorefrontView.tsx(378,64): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/components/ReportCard.tsx(153,67): error TS2339: Property 'letterheadConfig' does not exist on type 'AcademicConfig'.
+src/components/ReportsDashboard.tsx(454,48): error TS2367: This comparison appears to be unintentional because the types '"pending" | "expired" | "signed"' and '"accepted"' have no overlap.
+src/components/ReportsDashboard.tsx(455,48): error TS2367: This comparison appears to be unintentional because the types '"pending" | "expired" | "signed"' and '"rejected"' have no overlap.
+src/components/ReportsDashboard.tsx(1052,107): error TS2304: Cannot find name 'ArrowPathIcon'.
+src/components/ReportsDashboard.tsx(1066,33): error TS2322: Type '{ user: User; users: User[]; showOnly: "staff"; onAddUser: (data: any) => Promise<void>; onEditUser: (id: string, data: any) => Promise<void>; onDeleteUser: (id: string) => Promise<...>; ... 9 more ...; courses: Course[]; }' is not assignable to type 'IntrinsicAttributes & UserManagerProps'.
+  Property 'onRefreshData' does not exist on type 'IntrinsicAttributes & UserManagerProps'.
+src/components/retail/RetailInventoryManager.tsx(514,87): error TS2304: Cannot find name 'handleFileUpload'.
+src/components/SettingsManager.tsx(332,13): error TS2353: Object literal may only specify known properties, and 'googleDriveConfig' does not exist in type 'SetStateAction<{ email: string; phoneNumber: string; useAllocationRequests: boolean; aiModelTier: "free" | "premium"; isOtpEnabled: boolean; parentAbsenceNotificationsEnabled: boolean; farmerSmsBillingEnabled: boolean; slug: string; }>'.
+src/components/SettingsManager.tsx(3226,22): error TS2741: Property 'onAccessAlumnaPortal' is missing in type '{ user: User; showOnly: "staff"; currentInstitution: Institution | null | undefined; smsConfig: SmsConfig; onWithdrawRequest: (id: string) => Promise<void>; ... 92 more ...; setActivityLogLimit?: ((limit: number | ((prev: number) => number)) => void) | undefined; }' but required in type 'UserManagerProps'.
+src/components/StudentDashboard.tsx(51,12): error TS2304: Cannot find name 'Book'.
+src/components/StudentView.tsx(349,40): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/StudentView.tsx(399,21): error TS2322: Type '((lesson: TimetableEntry) => void) | undefined' is not assignable to type '(lesson: TimetableEntry) => void'.
+  Type 'undefined' is not assignable to type '(lesson: TimetableEntry) => void'.
+src/components/StudentView.tsx(401,21): error TS2322: Type '((data: { title: string; }) => void) | undefined' is not assignable to type '(task: { title: string; }) => void'.
+  Type 'undefined' is not assignable to type '(task: { title: string; }) => void'.
+src/components/StudentView.tsx(402,21): error TS2322: Type '((taskId: string, isComplete: boolean) => void) | undefined' is not assignable to type '(taskId: string, isComplete: boolean) => void'.
+  Type 'undefined' is not assignable to type '(taskId: string, isComplete: boolean) => void'.
+src/components/StudentView.tsx(403,21): error TS2322: Type '((taskId: string) => void) | undefined' is not assignable to type '(taskId: string) => void'.
+  Type 'undefined' is not assignable to type '(taskId: string) => void'.
+src/components/StudentView.tsx(407,21): error TS2322: Type '((school: any) => void) | undefined' is not assignable to type '(school: any) => void'.
+  Type 'undefined' is not assignable to type '(school: any) => void'.
+src/components/StudentView.tsx(505,68): error TS2322: Type '((title: string, content: string, isAnonymous: boolean) => void) | undefined' is not assignable to type '(title: string, content: string, isAnonymous: boolean) => void'.
+  Type 'undefined' is not assignable to type '(title: string, content: string, isAnonymous: boolean) => void'.
+src/components/StudentView.tsx(526,25): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/SuperAdminView.tsx(428,17): error TS2304: Cannot find name 'DisciplineIncident'.
+src/components/SuperAdminView.tsx(461,95): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/components/SuperAdminView.tsx(462,90): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/components/SuperAdminView.tsx(463,73): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/components/SuperAdminView.tsx(781,95): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/components/SuperAdminView.tsx(1659,23): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/SuperAdminView.tsx(1676,32): error TS2345: Argument of type '{ name: string; email: string; phoneNumber: string; institutionType: "Education"; category: string; countyId: string; }' is not assignable to parameter of type 'SetStateAction<{ name: string; email: string; phoneNumber: string; institutionType: "Education" | "Business" | "Broadcaster" | "Reseller" | "HIS" | "Cooperative" | "SACCO" | "Agrovet" | "Church" | ... 15 more ... | "Car Showroom"; category: string; businessSubType: string; countyId: string; }>'.
+  Property 'businessSubType' is missing in type '{ name: string; email: string; phoneNumber: string; institutionType: "Education"; category: string; countyId: string; }' but required in type '{ name: string; email: string; phoneNumber: string; institutionType: Institution["institutionType"]; category: string; businessSubType: string; countyId: string; }'.
+src/components/SuperAdminView.tsx(1820,600): error TS2322: Type 'string | null | undefined' is not assignable to type 'string | null'.
+  Type 'undefined' is not assignable to type 'string | null'.
+src/components/SuperAdminView.tsx(1820,632): error TS2322: Type 'string | null | undefined' is not assignable to type 'string | null'.
+  Type 'undefined' is not assignable to type 'string | null'.
+src/components/SuperAdminView.tsx(1820,1323): error TS2322: Type 'string | null | undefined' is not assignable to type 'string | null'.
+  Type 'undefined' is not assignable to type 'string | null'.
+src/components/SuperAdminView.tsx(1828,765): error TS2322: Type '(id: string) => Subject | undefined' is not assignable to type '(id?: string | undefined) => Subject | undefined'.
+  Types of parameters 'id' and 'id' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/SuperAdminView.tsx(1828,834): error TS2322: Type '(id: string) => User | undefined' is not assignable to type '(id?: string | undefined) => User | undefined'.
+  Types of parameters 'id' and 'id' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/SuperAdminView.tsx(1828,905): error TS2322: Type '(id: string) => Room | undefined' is not assignable to type '(id?: string | undefined) => Room | undefined'.
+  Types of parameters 'id' and 'id' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/SuperAdminView.tsx(1828,2198): error TS2339: Property 'marks' does not exist on type 'SuperAdminViewProps'.
+src/components/SuperAdminView.tsx(1836,18): error TS2741: Property 'onAccessAlumnaPortal' is missing in type '{ user: User; users: User[]; courses: Course[]; studentAttendances: StudentAttendance[]; generatedTimetable: TimetableEntry[]; subjects: Subject[]; ... 7 more ...; onUpdateLeaveOut: (id: string, data: Partial<...>) => Promise<...>; }' but required in type 'ParentViewProps'.
+src/components/SuperAdminView.tsx(1890,21): error TS2322: Type '(id: string, data: any) => Promise<void>' is not assignable to type '(id?: string | undefined, data?: any) => Promise<void>'.
+  Types of parameters 'id' and 'id' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/SuperAdminView.tsx(1908,21): error TS2322: Type '(action: string) => Promise<void>' is not assignable to type '(message?: string | undefined) => Promise<void>'.
+  Types of parameters 'action' and 'message' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/components/SuperAdminView.tsx(2098,45): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/SuperAdminView.tsx(2100,45): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/SuperAdminView.tsx(2707,84): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/SuperAdminView.tsx(2774,84): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/SuperAdminView.tsx(2849,88): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/SuperAdminView.tsx(2938,84): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/SuperAdminView.tsx(2945,84): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/SuperAdminView.tsx(3049,37): error TS2322: Type '((transaction: MpesaTransaction) => void) | undefined' is not assignable to type '(transaction: MpesaTransaction) => void'.
+  Type 'undefined' is not assignable to type '(transaction: MpesaTransaction) => void'.
+src/components/SuperAdminView.tsx(3051,37): error TS2322: Type 'string | null | undefined' is not assignable to type 'string | null'.
+  Type 'undefined' is not assignable to type 'string | null'.
+src/components/SuperAdminView.tsx(3180,26): error TS2322: Type '{ users: User[]; departments: Department[]; courses: Course[]; subjects: Subject[]; currentUser: User; onImportUsers: (imported: any[]) => Promise<void>; ... 274 more ...; onRunAlumniMigration?: (() => Promise<...>) | undefined; }' is not assignable to type 'UserManagerProps'.
+  Types of property 'smsConfig' are incompatible.
+    Type 'SmsConfig | undefined' is not assignable to type 'SmsConfig'.
+      Type 'undefined' is not assignable to type 'SmsConfig'.
+src/components/SuperAdminView.tsx(3280,33): error TS2322: Type 'string | null | undefined' is not assignable to type 'string | null'.
+  Type 'undefined' is not assignable to type 'string | null'.
+src/components/SuperAdminView.tsx(3281,33): error TS2322: Type 'string | null | undefined' is not assignable to type 'string | null'.
+  Type 'undefined' is not assignable to type 'string | null'.
+src/components/SuperAdminView.tsx(3298,33): error TS2322: Type 'string | null | undefined' is not assignable to type 'string | null'.
+  Type 'undefined' is not assignable to type 'string | null'.
+src/components/SuperAdminView.tsx(3299,33): error TS2322: Type 'string | null | undefined' is not assignable to type 'string | null'.
+  Type 'undefined' is not assignable to type 'string | null'.
+src/components/SuperAdminView.tsx(3329,30): error TS2304: Cannot find name 'Suspense'.
+src/components/SuperAdminView.tsx(3335,31): error TS2304: Cannot find name 'Suspense'.
+src/components/SuperAdminView.tsx(3339,30): error TS2304: Cannot find name 'Suspense'.
+src/components/SuperAdminView.tsx(3341,37): error TS2322: Type '{ assessments: Assessment[]; marks: AssessmentMark[]; subjects: Subject[]; students: User[]; }' is not assignable to type 'IntrinsicAttributes & ExamInsightsProps'.
+  Property 'assessments' does not exist on type 'IntrinsicAttributes & ExamInsightsProps'. Did you mean 'assessment'?
+src/components/SuperAdminView.tsx(3346,31): error TS2304: Cannot find name 'Suspense'.
+src/components/SuperAdminView.tsx(3350,30): error TS2304: Cannot find name 'Suspense'.
+src/components/SuperAdminView.tsx(3356,37): error TS2322: Type '{ students: User[]; assessments: Assessment[]; marks: AssessmentMark[]; subjects: Subject[]; institution: Institution; gradingSystem: any; }' is not assignable to type 'IntrinsicAttributes & AcademicReportsHubProps'.
+  Property 'institution' does not exist on type 'IntrinsicAttributes & AcademicReportsHubProps'.
+src/components/SuperAdminView.tsx(3357,88): error TS2339: Property 'gradingSystem' does not exist on type 'AcademicConfig'.
+src/components/SuperAdminView.tsx(3359,31): error TS2304: Cannot find name 'Suspense'.
+src/components/SuperAdminView.tsx(3401,34): error TS2304: Cannot find name 'Suspense'.
+src/components/SuperAdminView.tsx(3424,35): error TS2304: Cannot find name 'Suspense'.
+src/components/SuperAdminView.tsx(3428,34): error TS2304: Cannot find name 'Suspense'.
+src/components/SuperAdminView.tsx(3433,41): error TS2322: Type '{ invoices: CarInvoice[]; payments: CarPayment[]; listings: CarListing[]; institution: Institution; onAddInvoice: () => Promise<void> | undefined; onAddPayment: () => Promise<...> | undefined; onGenerateReceipt: () => void; }' is not assignable to type 'IntrinsicAttributes & CarSalesLedgerProps'.
+  Property 'institution' does not exist on type 'IntrinsicAttributes & CarSalesLedgerProps'.
+src/components/SuperAdminView.tsx(3438,35): error TS2304: Cannot find name 'Suspense'.
+src/components/SuperAdminView.tsx(3619,76): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/SuperAdminView.tsx(3693,29): error TS2322: Type 'TimetableEntry[] | undefined' is not assignable to type 'TimetableEntry[]'.
+  Type 'undefined' is not assignable to type 'TimetableEntry[]'.
+src/components/SuperAdminView.tsx(3695,29): error TS2322: Type 'LetterheadConfig | undefined' is not assignable to type 'LetterheadConfig'.
+  Type 'undefined' is not assignable to type 'LetterheadConfig'.
+src/components/SuperAdminView.tsx(3696,29): error TS2322: Type 'string | null | undefined' is not assignable to type 'string | null'.
+  Type 'undefined' is not assignable to type 'string | null'.
+src/components/SuperAdminView.tsx(5798,41): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/components/SupportStaffViews.tsx(1883,21): error TS2322: Type '((school: any) => void) | undefined' is not assignable to type '(school: any) => void'.
+  Type 'undefined' is not assignable to type '(school: any) => void'.
+src/components/SupportStaffViews.tsx(1924,21): error TS2322: Type '((school: any) => void) | undefined' is not assignable to type '(school: any) => void'.
+  Type 'undefined' is not assignable to type '(school: any) => void'.
+src/components/TimetableGenerator.tsx(251,39): error TS2339: Property 'lessonStructure' does not exist on type 'AllocationRequest'.
+src/components/TimetableGenerator.tsx(251,70): error TS7006: Parameter 'acc' implicitly has an 'any' type.
+src/components/TimetableGenerator.tsx(251,75): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/components/TimetableGenerator.tsx(274,45): error TS2339: Property 'lessonStructure' does not exist on type 'AllocationRequest'.
+src/components/TimetableGenerator.tsx(274,76): error TS7006: Parameter 'acc' implicitly has an 'any' type.
+src/components/TimetableGenerator.tsx(274,81): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/components/UserManager.tsx(350,21): error TS2353: Object literal may only specify known properties, and 'createdAt' does not exist in type 'StaffImportPreviewUser'.
+src/services/apiService.ts(641,64): error TS2304: Cannot find name 'TeacherCheckInWithDetails'.
+src/services/apiService.ts(642,61): error TS2304: Cannot find name 'TeacherCheckInWithDetails'.
+src/services/apiService.ts(834,29): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/services/apiService.ts(1518,17): error TS2322: Type 'string | null' is not assignable to type 'string'.
+  Type 'null' is not assignable to type 'string'.
+src/services/apiService.ts(2308,17): error TS2322: Type 'string | null' is not assignable to type 'string'.
+  Type 'null' is not assignable to type 'string'.
+src/services/apiService.ts(2357,17): error TS2322: Type 'string | null' is not assignable to type 'string'.
+  Type 'null' is not assignable to type 'string'.
+src/services/apiService.ts(2391,17): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(input: string | URL | Request, init?: RequestInit | undefined): Promise<Response>', gave the following error.
+    Type '{ 'Content-Type': string; apikey: string | null; }' is not assignable to type 'HeadersInit | undefined'.
+      Types of property ''apikey'' are incompatible.
+        Type 'string | null' is not assignable to type 'string | undefined'.
+          Type 'null' is not assignable to type 'string | undefined'.
+  Overload 2 of 2, '(input: URL | RequestInfo, init?: RequestInit | undefined): Promise<Response>', gave the following error.
+    Type '{ 'Content-Type': string; apikey: string | null; }' is not assignable to type 'HeadersInit | undefined'.
+      Types of property ''apikey'' are incompatible.
+        Type 'string | null' is not assignable to type 'string | undefined'.
+          Type 'null' is not assignable to type 'string | undefined'.
+src/services/apiService.ts(2528,61): error TS2552: Cannot find name 'CarInvoice'. Did you mean 'Invoice'?
+src/services/apiService.ts(2531,40): error TS2552: Cannot find name 'CarInvoice'. Did you mean 'Invoice'?
+src/services/apiService.ts(2534,81): error TS2304: Cannot find name 'CarPayment'.
+src/services/apiService.ts(2540,40): error TS2304: Cannot find name 'CarPayment'.
+src/services/pdfService.ts(295,23): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | number | Date'.
+      Type 'undefined' is not assignable to type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | number'.
+      Type 'undefined' is not assignable to type 'string | number'.
+src/services/pdfService.ts(415,37): error TS2339: Property 'chassisNumber' does not exist on type 'CarListing'.
+src/services/pdfService.ts(416,36): error TS2339: Property 'engineNumber' does not exist on type 'CarListing'.
+src/services/pdfService.ts(1016,57): error TS2339: Property 'acceptanceTimestamp' does not exist on type 'LecturerContract'.
+src/services/pdfService.ts(5590,28): error TS2339: Property 'letterheadConfig' does not exist on type 'PharmacySettings'.
+src/services/pdfService.ts(5613,41): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/services/pdfService.ts(5616,24): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/utils/demoData.ts(60,9): error TS2741: Property 'expertise' is missing in type '{ id: string; name: string; email: string; phoneNumber: string; role: "admin"; roles: "admin"[]; institutionId: string; password: string; }' but required in type 'User'.
+src/utils/demoData.ts(154,111): error TS2353: Object literal may only specify known properties, and 'status' does not exist in type 'InventoryItem'.
+src/utils/demoData.ts(155,111): error TS2353: Object literal may only specify known properties, and 'status' does not exist in type 'InventoryItem'.
+src/utils/demoData.ts(156,111): error TS2353: Object literal may only specify known properties, and 'status' does not exist in type 'InventoryItem'.
+src/utils/demoData.ts(160,34): error TS2353: Object literal may only specify known properties, and 'fullName' does not exist in type 'Visitor'.
+src/utils/demoData.ts(161,34): error TS2353: Object literal may only specify known properties, and 'fullName' does not exist in type 'Visitor'.
+src/utils/demoData.ts(165,34): error TS2353: Object literal may only specify known properties, and 'title' does not exist in type 'SecurityAlert'.
+src/utils/demoData.ts(166,84): error TS2322: Type '"open"' is not assignable to type '"active" | "resolved"'.

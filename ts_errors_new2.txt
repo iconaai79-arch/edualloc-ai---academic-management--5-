@@ -1,0 +1,1 @@
+src/components/CarWashView.tsx(547,37): error TS1005: ';' expected.

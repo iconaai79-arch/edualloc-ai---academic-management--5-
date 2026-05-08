@@ -27,15 +27,15 @@ import { SmsConfig, Subject, LetterheadConfig } from '../types';
 
 
 interface BoardingMasterViewProps {
-    currentUser: User;
-    currentInstitution: Institution;
-    companyDetails: CompanyDetails;
-    users: User[];
-    academicYears: AcademicYear[];
-    semesters: Semester[];
-    courses: Course[];
-    departments: Department[];
-    onLogAction: (action: string) => Promise<void>;
+    currentUser?: User;
+    currentInstitution?: Institution;
+    companyDetails?: CompanyDetails;
+    users?: User[];
+    academicYears?: AcademicYear[];
+    semesters?: Semester[];
+    courses?: Course[];
+    departments?: Department[];
+    onLogAction?: (action: string) => Promise<void>;
     // New Props for Student Management
     onAddUser?: (userData: any) => Promise<void>;
     onEditUser?: (id: string, data: any) => Promise<void>;
@@ -49,35 +49,48 @@ interface BoardingMasterViewProps {
     onSendSms?: (recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
     onAddParent?: (studentId: string, parentData: { name: string, email: string, phone: string }) => Promise<{ success: boolean, message: string, credentials?: { email: string, password: string } }>;
     onDeleteParent?: (studentId: string, parentId: string) => void;
+    rooms?: any[];
+    buildings?: any[];
+    leaveOutRequests?: any[];
+    incidents?: any[];
+    onUpdateLeaveOutStatus?: (id: string, status: string) => Promise<void>;
+    onAddIncident?: (data: any) => Promise<void>;
 }
 
 
 type BoardingTab = 'dashboard' | 'houses' | 'rooms' | 'allocations' | 'checkin' | 'leaveout' | 'maintenance' | 'reports' | 'students';
 
 
-const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
-    currentUser,
-    currentInstitution,
-    companyDetails,
-    users,
-    academicYears,
-    semesters,
-    courses,
-    departments,
-    onLogAction,
-    onAddUser,
-    onEditUser,
-    onDeleteUser,
-    onImportStudents,
-    smsConfig,
-    subjects,
-    letterheadConfig,
-    logoUrl,
-    footerImageUrl,
-    onSendSms,
-    onAddParent,
-    onDeleteParent
-}) => {
+const BoardingMasterView: React.FC<BoardingMasterViewProps> = (props) => {
+    const {
+        currentUser = { name: 'User', role: 'boarding_master' } as any,
+        currentInstitution = { name: 'Institution', id: 'inst_1' } as any,
+        companyDetails,
+        users = [],
+        academicYears = [],
+        semesters = [],
+        courses = [],
+        departments = [],
+        onLogAction = async () => {},
+        onAddUser,
+        onEditUser,
+        onDeleteUser,
+        onImportStudents,
+        smsConfig,
+        subjects = [],
+        letterheadConfig,
+        logoUrl,
+        footerImageUrl,
+        onSendSms,
+        onAddParent,
+        onDeleteParent,
+        rooms = [],
+        buildings = [],
+        leaveOutRequests = [],
+        incidents = [],
+        onUpdateLeaveOutStatus = async () => {},
+        onAddIncident = async () => {}
+    } = props;
 
     const isAuthorized = ['boarding_master', 'admin', 'super_admin', 'house_master', 'head_teacher', 'boarding_mistress'].includes(currentUser.role || '');
 

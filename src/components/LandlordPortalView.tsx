@@ -26,12 +26,17 @@ import { XIcon } from './icons/XIcon';
 import { PaperAirplaneIcon } from './icons/PaperAirplaneIcon';
 
 interface LandlordPortalViewProps {
-    currentUser: User;
-    currentInstitution: Institution;
-    onLogout: () => void;
+    currentUser?: User;
+    currentInstitution?: Institution;
+    onLogout?: () => void; onLogAction?: (action: string) => Promise<void>;
 }
 
-export const LandlordPortalView: React.FC<LandlordPortalViewProps> = ({ currentUser, currentInstitution, onLogout }) => {
+export const LandlordPortalView: React.FC<LandlordPortalViewProps> = (props) => {
+    const { 
+        currentUser, 
+        currentInstitution = {} as any, 
+        onLogout = () => {} 
+    } = props;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'financials' | 'maintenance' | 'marketing' | 'profile'>('dashboard');
     const [loading, setLoading] = useState(true);
 

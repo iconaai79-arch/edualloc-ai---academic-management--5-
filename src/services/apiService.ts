@@ -646,18 +646,22 @@ export const apiService = {
         return records.length > 0 ? records[0] : null;
     },
     async processTeacherCheckIn(payload: {
-        teacher_id: string;
-        institution_id: string;
+        teacher_id?: string;
+        institution_id?: string;
         checkin_type: string;
         location?: string;
         notes?: string;
+        timetable_entry_id?: string;
+        timestamp?: string;
     }): Promise<any> {
         return apiService.invokeRpc('process_teacher_checkin', {
             p_teacher_id: payload.teacher_id,
             p_institution_id: payload.institution_id,
             p_checkin_type: payload.checkin_type,
             p_location: payload.location || '',
-            p_notes: payload.notes || ''
+            p_notes: payload.notes || '',
+            p_timetable_entry_id: payload.timetable_entry_id,
+            p_timestamp: payload.timestamp
         });
     },
     sanitizePayload(module: string, payload: any): any {
@@ -879,10 +883,11 @@ export const apiService = {
             throw e;
         }
     },
-    async fetchNotifications(userId: string): Promise<AppNotification[]> {
+    async fetchNotifications(userId: string, options: any = {}): Promise<AppNotification[]> {
         return apiService.fetchModuleRecords('app_notifications', undefined, undefined, {
             filter: { user_id: userId },
-            order: 'timestamp.desc'
+            order: 'timestamp.desc',
+            ...options
         });
     },
     async createNotification(userId: string, message: string, type: string = 'info'): Promise<void> {
@@ -1806,12 +1811,12 @@ export const apiService = {
     async fetchVoteHeads(instId?: string): Promise<VoteHead[]> { return apiService.fetchModuleRecords('vote_heads', instId); },
     async fetchFeeStructures(instId?: string): Promise<FeeStructure[]> { return apiService.fetchModuleRecords('fee_structures', instId); },
     async fetchFinancialPeriods(instId?: string): Promise<FinancialPeriod[]> { return apiService.fetchModuleRecords('financial_periods', instId); },
-    async fetchTransactions(instId?: string): Promise<MpesaTransaction[]> { 
+    async fetchTransactions(instId?: string, options: any = {}): Promise<MpesaTransaction[]> { 
         const [mpesa, airtel, intasend, ncba] = await Promise.all([
-            apiService.fetchModuleRecords('mpesa_transactions', instId).catch(() => []),
-            apiService.fetchModuleRecords('airtel_transactions', instId).catch(() => []),
-            apiService.fetchModuleRecords('intasend_transactions', instId).catch(() => []),
-            apiService.fetchModuleRecords('ncba_transactions', instId).catch(() => [])
+            apiService.fetchModuleRecords('mpesa_transactions', instId, undefined, options).catch(() => []),
+            apiService.fetchModuleRecords('airtel_transactions', instId, undefined, options).catch(() => []),
+            apiService.fetchModuleRecords('intasend_transactions', instId, undefined, options).catch(() => []),
+            apiService.fetchModuleRecords('ncba_transactions', instId, undefined, options).catch(() => [])
         ]);
         
         // Merge and ensure all have a valid timestamp property for the UI

@@ -228,7 +228,7 @@ export interface User {
     institutionId: string;
     password?: string;
     departmentId?: string;
-    expertise: string[];
+    expertise?: string[];
     unavailability?: Unavailability[];
     courseId?: string;
     courseLevelId?: string;
@@ -1161,30 +1161,35 @@ export interface ExtensionRequest {
 export interface SecurityAlert {
     id: string;
     institutionId: string;
-    createdBy: string;
-    createdAt: string;
-    status: 'active' | 'resolved';
-    targetId: string;
-    targetName: string;
-    targetRole: 'student' | 'lecturer' | 'guest';
-    type: 'Disciplinary' | 'Fee Balance' | 'Security Risk' | 'Other';
-    severity: 'Low' | 'Medium' | 'High';
+    createdBy?: string;
+    createdAt?: string;
+    status: 'active' | 'resolved' | 'open';
+    targetId?: string;
+    targetName?: string;
+    targetRole?: 'student' | 'lecturer' | 'guest' | string;
+    type?: 'Disciplinary' | 'Fee Balance' | 'Security Risk' | 'Other' | string;
+    severity?: 'Low' | 'Medium' | 'High' | string;
     description: string;
+    title?: string;
+    timestamp?: string;
 }
 
 export interface Visitor {
     id: string;
-    name: string;
+    name?: string;
+    fullName?: string;
     email?: string;
     phoneNumber?: string;
     purpose: string;
-    visitDate: string;
+    visitDate?: string;
     timeIn?: string;
     timeOut?: string;
     institutionId?: string;
     hostId?: string;
     vehiclePlate?: string;
     vehicleModel?: string;
+    idNumber?: string;
+    checkIn?: string;
 }
 
 export interface Requisition {
@@ -1393,13 +1398,15 @@ export interface InventoryItem {
     category: string;
     quantity: number;
     unit: string;
-    reorderLevel: number;
-    location: string;
-    lastUpdated: string;
+    reorderLevel?: number;
+    location?: string;
+    lastUpdated?: string;
     institutionId: string;
     expiryDate?: string;
     itemType?: 'consumable' | 'asset';
     price?: number;
+    status?: string;
+    minThreshold?: number;
 }
 
 export interface TransportBill {

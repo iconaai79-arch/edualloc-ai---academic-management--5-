@@ -5,24 +5,25 @@ import { HRManager } from './HRManager';
 import { Header } from '../Header';
 
 interface HROfficerViewProps {
-    currentUser: User;
-    currentInstitution: Institution;
-    staff: User[];
-    payrollRecords: PayrollRecord[];
-    leaveRequests: LeaveRequest[];
-    onProcessPayroll: (records: PayrollRecord[]) => Promise<void>;
-    onUpdateLeaveStatus: (id: string, status: 'approved' | 'rejected') => Promise<void>;
+    currentUser?: User;
+    currentInstitution?: Institution;
+    users?: User[];
+    payrollRecords?: PayrollRecord[];
+    leaveRequests?: LeaveRequest[];
+    onProcessPayroll?: (records: PayrollRecord[]) => Promise<void>;
+    onUpdateLeaveStatus?: (id: string, status: 'approved' | 'rejected') => Promise<void>;
 }
 
-export const HROfficerView: React.FC<HROfficerViewProps> = ({
-    currentUser,
-    currentInstitution,
-    staff,
-    payrollRecords,
-    leaveRequests,
-    onProcessPayroll,
-    onUpdateLeaveStatus
-}) => {
+export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {
+    const {
+        currentUser = { name: 'User' } as any,
+        currentInstitution = { name: 'Institution' } as any,
+        users = [],
+        payrollRecords = [],
+        leaveRequests = [],
+        onProcessPayroll = async () => {},
+        onUpdateLeaveStatus = async () => {}
+    } = props;
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col">
             <Header 
@@ -40,13 +41,13 @@ export const HROfficerView: React.FC<HROfficerViewProps> = ({
                             <span className="text-[10px] font-black uppercase tracking-widest">Workforce Integrity active</span>
                         </div>
                         <h1 className="text-5xl font-black text-slate-900 tracking-tighter">Human Capital Command</h1>
-                        <p className="text-slate-500 font-medium">Welcome back, {currentUser.name}. Managing <span className="text-indigo-600 font-black">{staff.length} professional staff</span> for {currentInstitution.name}.</p>
+                        <p className="text-slate-500 font-medium">Welcome back, {currentUser.name}. Managing <span className="text-indigo-600 font-black">{users.length} professional staff</span> for {currentInstitution.name}.</p>
                     </div>
                 </div>
 
                 {/* Centralized HR Hub */}
                 <HRManager 
-                    staff={staff}
+                    staff={users}
                     payrollRecords={payrollRecords}
                     leaveRequests={leaveRequests}
                     institution={currentInstitution}

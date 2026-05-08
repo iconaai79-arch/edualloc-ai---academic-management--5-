@@ -143,7 +143,7 @@ const SystemPulseLoader: React.FC<{ message: string; onRetry?: () => void; statu
                 <div className="absolute inset-0 bg-indigo-500 rounded-3xl blur-2xl opacity-20 animate-pulse"></div>
                 <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center text-white shadow-2xl relative border border-white/10 animate-float overflow-hidden">
                     <img loading="lazy" 
-                        src="/logo.png" 
+                        src="/eduai_logo_3d.png" 
                         alt="EduAI Logo" 
                         className="w-16 h-16 object-contain drop-shadow-[0_0_10px_rgba(79,70,229,0.4)]" 
                     />
@@ -272,7 +272,7 @@ const SchemaInitializationView: React.FC<{ onComplete: () => void }> = ({ onComp
                     <div className="relative text-center">
                         <div className="inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-white mb-8 shadow-2xl shadow-indigo-500/20 animate-float border border-white/20 overflow-hidden relative">
                             <img loading="lazy" 
-                                src="/logo.png" 
+                                src="/eduai_logo_3d.png" 
                                 alt="EduAI Logo" 
                                 className="w-16 h-16 object-contain" 
                             />
@@ -1249,17 +1249,43 @@ export const App: React.FC = () => {
                 return {
                     id: currentUser.institutionId,
                     name: registryEntry.name,
-                    institutionType: registryEntry.institutionType || 'School',
+                    email: '',
+                    phoneNumber: '',
+                    institutionType: (registryEntry.institutionType || 'Education') as any,
                     status: 'active',
-                    isMock: true,
-                    portalSettings: {
-                        alumnaeRegistrationFeeEnabled: true
-                    }
                 } as any;
             }
         }
         return null;
     }, [currentUser, institutions, schoolRegistry, activeStoreTenantId]);
+
+    const handleTeacherLessonCheckIn = async (id: string, type: 'start' | 'end') => {
+        try {
+            await apiService.processTeacherCheckIn({
+                timetable_entry_id: id,
+                checkin_type: type,
+                timestamp: new Date().toISOString()
+            });
+            loadData();
+        } catch (e) {
+            console.error('[App] Teacher check-in error:', e);
+        }
+    };
+
+    const handleStudentLessonCheckIn = async (entryId: string) => {
+        try {
+            await apiService.saveModuleRecord('student_check_ins', {
+                id: `sci_${Date.now()}`,
+                studentId: currentUser!.id,
+                timetableEntryId: entryId,
+                timestamp: new Date().toISOString(),
+                institutionId: currentUser!.institutionId
+            });
+            loadData();
+        } catch (e) {
+            console.error('[App] Student check-in error:', e);
+        }
+    };
 
     const isAutoMarket = useMemo(() => {
         const type = activeInstitution?.institutionType;
@@ -1278,7 +1304,7 @@ export const App: React.FC = () => {
         const roleToUse = selectedRole || currentUser.role;
 
         // Redirect school administrators to the County Portal if their school is registered to a county
-        const inst = institutions.find(i => i.id === currentUser.institutionId);
+        const inst = institutions.find(i => (i as any).id === currentUser.institutionId);
         if (inst?.countyId && (roleToUse === 'admin' || roleToUse === 'head_teacher')) {
             return 'county_admin';
         }
@@ -1301,13 +1327,13 @@ export const App: React.FC = () => {
         if (!currentUser || !Array.isArray(counties)) return null;
 
         // Match by current user's institutionId (if it's a county ID)
-        const directMatch = counties.find(c => c.id === currentUser.institutionId);
+        const directMatch = counties.find((c: any) => c.id === currentUser.institutionId);
         if (directMatch) return directMatch;
 
         // Alternative check: find user's institution and check its countyId
-        const myInst = institutions.find(i => i.id === currentUser.institutionId);
+        const myInst = institutions.find((i: any) => i.id === currentUser.institutionId);
         if (myInst?.countyId) {
-            return counties.find(c => c.id === myInst.countyId) || null;
+            return counties.find((c: any) => c.id === myInst.countyId) || null;
         }
 
         return null;
@@ -1634,8 +1660,8 @@ export const App: React.FC = () => {
         let subjectIdsToAdd = [subjectId];
 
         // Check for Option Blocks (Pathways)
-        const pathwayConstraints = (timetableSettings?.constraints || []).filter(c => c.type === 'same_time_subjects');
-        const group = pathwayConstraints.find(c => c.subjectIds.includes(subjectId));
+        const pathwayConstraints = (timetableSettings?.constraints || []).filter((c: any) => c.type === 'same_time_subjects');
+        const group = pathwayConstraints.find((c: any) => c.subjectIds.includes(subjectId));
         if (group) {
             subjectIdsToAdd = group.subjectIds;
             const subjectName = subjects.find(s => s.id === subjectId)?.name || subjectId;
@@ -3865,7 +3891,7 @@ export const App: React.FC = () => {
                                         }}
                                     />
                                 ) : (activeRole === 'county_admin' || activeRole?.startsWith('county_')) ? (
-                                    <CountyAdminView
+                                    <CountyAdminView {...countyAdminProps as any}
                                         currentUser={currentUser}
                                         counties={counties}
                                         institutions={institutions}
@@ -3878,30 +3904,30 @@ export const App: React.FC = () => {
                                         onAddInstitution={handleAddCountyInstitution}
                                         onLoginAsAdmin={onLoginAsAdmin}
                                         onImportInstitutions={handleImportCountyInstitutions}
-                                        onAddUser={async (data) => { await apiService.registerUser({ ...data, id: `u_county_${Date.now()}` }, 'County Portal'); loadData(); }}
+                                        onAddUser={async (data: any) => { await apiService.registerUser({ ...data, id: `u_county_${Date.now()}` }, 'County Portal'); loadData(); }}
                                         onUpdateUser={onEditUser}
                                         onDeleteUser={onDeleteUser}
                                         inventoryItems={countyInventory}
                                         inventoryCategories={countyInventoryCategories}
-                                        onAddInventoryItem={async (data) => {
+                                        onAddInventoryItem={async (data: any) => {
                                             const id = data.id || `cinv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
                                             await apiService.saveModuleRecord('county_inventory', { ...data, id });
                                             loadData();
                                         }}
-                                        onUpdateInventoryItem={async (id, data) => { await apiService.saveModuleRecord('county_inventory', { ...data, id }); loadData(); }}
-                                        onDeleteInventoryItem={async (id) => { await apiService.deleteModuleRecord('county_inventory', id); loadData(); }}
-                                        onAddInventoryCategory={async (data) => { const id = data.id || `cat_${Date.now()}`; await apiService.saveModuleRecord('county_inventory_categories', { ...data, id }); loadData(); }}
-                                        onUpdateInventoryCategory={async (id, data) => { await apiService.saveModuleRecord('county_inventory_categories', { ...data, id }); loadData(); }}
-                                        onDeleteInventoryCategory={async (id) => { await apiService.deleteModuleRecord('county_inventory_categories', id); loadData(); }}
+                                        onUpdateInventoryItem={async (id: string, data: any) => { await apiService.saveModuleRecord('county_inventory', { ...data, id }); loadData(); }}
+                                        onDeleteInventoryItem={async (id: string) => { await apiService.deleteModuleRecord('county_inventory', id); loadData(); }}
+                                        onAddInventoryCategory={async (data: any) => { const id = data.id || `cat_${Date.now()}`; await apiService.saveModuleRecord('county_inventory_categories', { ...data, id }); loadData(); }}
+                                        onUpdateInventoryCategory={async (id: string, data: any) => { await apiService.saveModuleRecord('county_inventory_categories', { ...data, id }); loadData(); }}
+                                        onDeleteInventoryCategory={async (id: string) => { await apiService.deleteModuleRecord('county_inventory_categories', id); loadData(); }}
                                         stores={countyStores}
-                                        onAddStore={async (data) => { const id = data.id || `store_${Date.now()}`; await apiService.saveModuleRecord('county_stores', { ...data, id }); loadData(); }}
-                                        onUpdateStore={async (id, data) => { await apiService.saveModuleRecord('county_stores', { ...data, id }); loadData(); }}
-                                        onDeleteStore={async (id) => { await apiService.deleteModuleRecord('county_stores', id); loadData(); }}
+                                        onAddStore={async (data: any) => { const id = data.id || `store_${Date.now()}`; await apiService.saveModuleRecord('county_stores', { ...data, id }); loadData(); }}
+                                        onUpdateStore={async (id: string, data: any) => { await apiService.saveModuleRecord('county_stores', { ...data, id }); loadData(); }}
+                                        onDeleteStore={async (id: string) => { await apiService.deleteModuleRecord('county_stores', id); loadData(); }}
                                         onAddTransaction={apiService.onAddTransaction.bind(apiService)}
                                         bursaryApplications={bursaryApplications}
                                         bursaryFunds={bursaryFunds}
-                                        onAddBursaryFund={async (data) => { await apiService.saveModuleRecord('county_bursary_funds', { ...data, id: `fund_${Date.now()}`, createdAt: new Date().toISOString() }); loadData(); }}
-                                        onUpdateBursaryApplicationStatus={async (id, status, notes) => { const app = bursaryApplications.find(a => a.id === id); if (app) { await apiService.saveModuleRecord('bursary_applications', { ...app, status, internalNotes: notes, updatedAt: new Date().toISOString() }); loadData(); } }}
+                                        onAddBursaryFund={async (data: any) => { await apiService.saveModuleRecord('county_bursary_funds', { ...data, id: `fund_${Date.now()}`, createdAt: new Date().toISOString() }); loadData(); }}
+                                        onUpdateBursaryApplicationStatus={async (id: string, status: string, notes: string) => { const app = bursaryApplications.find(a => a.id === id); if (app) { await apiService.saveModuleRecord('bursary_applications', { ...app, status, internalNotes: notes, updatedAt: new Date().toISOString() }); loadData(); } }}
                                         onLogAction={handleLogAction}
                                         activityLogLimit={activityLogLimit}
                                         setActivityLogLimit={setActivityLogLimit}
@@ -3911,7 +3937,7 @@ export const App: React.FC = () => {
                                         setTransactionLimit={setTransactionLimit}
                                     />
                                 ) : activeRole === 'academics_officer' ? (
-                                    <AcademicsOfficerView
+                                    <AcademicsOfficerView {...academicsOfficerProps as any}
                                         currentUser={currentUser}
                                         currentInstitution={activeInstitution!}
                                         academicYears={academicYears}
@@ -3919,8 +3945,19 @@ export const App: React.FC = () => {
                                         academicLevels={academicLevels}
                                         departments={departments}
                                         subjects={subjects}
+                                        onUpdateSubject={handleUpdateSubject}
                                         courses={courses}
+                                        onUpdateCourse={handleUpdateCourse}
                                         users={users}
+                                        rooms={rooms}
+                                        onAddRoom={handleAddRoom}
+                                        onUpdateRoom={handleUpdateRoom}
+                                        onDeleteRoom={handleDeleteRoom}
+                                        onImportRooms={handleImportRooms}
+                                        onAddDepartment={handleAddDepartment}
+                                        onUpdateDepartment={handleUpdateDepartment}
+                                        onDeleteDepartment={handleDeleteDepartment}
+                                        onImportDepartments={handleImportDepartments}
                                         assessments={assessments}
                                         marks={assessmentMarks}
                                         incidents={incidents}
@@ -3944,7 +3981,7 @@ export const App: React.FC = () => {
                                             await Promise.all(promises);
                                             loadData();
                                         }}
-                                        onAddIncident={async (data) => {
+                                        onAddIncident={async (data: any) => {
                                             await apiService.saveModuleRecord('discipline_incidents', {
                                                 ...data,
                                                 id: `disc_${Date.now()}`,
@@ -3954,11 +3991,39 @@ export const App: React.FC = () => {
                                             });
                                             loadData();
                                         }}
-                                         onLogAction={handleLogAction}
-                                         schoolRegistry={schoolRegistry}
-                                     />
+                                        activeAcademicYear={activeAcademicYear}
+                                        activeSemester={activeSemester}
+                                        onExamTimetableGenerated={async (entries: any, ay: string, sem: string) => { await apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries); loadData(); }}
+                                        examTimetable={examTimetable}
+                                        getSubjectById={getSubjectById}
+                                        getLecturerById={getLecturerById}
+                                        getRoomById={getRoomById}
+                                        courseSizes={courseSizes}
+                                        timetableSettings={timetableSettings!}
+                                        onSaveTimetableSettings={(config: any) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: config })}
+                                        buildings={buildings}
+                                        onAddBuilding={handleAddBuilding}
+                                        onUpdateBuilding={handleUpdateBuilding}
+                                        onDeleteBuilding={handleDeleteBuilding}
+                                        letterheadConfig={activeLetterheadConfig}
+                                        logoUrl={activeBranding.logoUrl}
+                                        footerImageUrl={activeFooterImageUrl}
+                                        emailConfig={companyDetails.emailConfig}
+                                        onSaveEmailConfig={(config: any) => onUpdateInstitution(activeInstitution!.id, { emailConfig: config })}
+                                        onSendTestEmail={async (r: string) => ({ success: true, message: 'Test email functionality bypassed.' })}
+                                        smsConfig={companyDetails.smsConfig}
+                                        themeColor={activeBranding.primaryColor}
+                                        examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
+                                        onSaveExamTimetableSettings={(config: any) => onUpdateInstitution(activeInstitution!.id, { examTimetableSettings: config })}
+                                        lessonRatings={lessonRatings}
+                                        onTimetableGenerated={async (entries: any, ay: string, sem: string) => { await apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[]); loadData(); }}
+                                        onLogAction={handleLogAction}
+                                        schoolRegistry={schoolRegistry}
+                                        companyDetails={companyDetails}
+                                        onAccessAlumnaPortal={handleAccessAlumnaPortal}
+                                    />
                                 ) : activeRole === 'lecturer' ? (
-                                    <LecturerView
+                                    <LecturerView {...lecturerProps as any}
                                         user={currentUser}
                                         users={users}
                                         courses={courses}
@@ -3968,31 +4033,31 @@ export const App: React.FC = () => {
                                         semesters={semesters}
                                         requests={requests}
                                         generatedTimetable={generatedTimetable}
-                                        onAddRequest={async (data) => { await apiService.saveModuleRecord('allocation_requests', { ...data, id: `req_${Date.now()}`, status: 'pending', createdAt: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); }}
-                                        onUpdateRequest={async (id, data) => { await apiService.saveModuleRecord('allocation_requests', { id, ...data }); loadData(); }}
-                                        onWithdrawRequest={async (id) => { await apiService.deleteModuleRecord('allocation_requests', id); loadData(); }}
+                                        onAddRequest={async (data: any) => { await apiService.saveModuleRecord('allocation_requests', { ...data, id: `req_${Date.now()}`, status: 'pending', createdAt: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); }}
+                                        onUpdateRequest={async (id: string, data: any) => { await apiService.saveModuleRecord('allocation_requests', { id, ...data }); loadData(); }}
+                                        onWithdrawRequest={async (id: string) => { await apiService.deleteModuleRecord('allocation_requests', id); loadData(); }}
                                         getSubjectById={getSubjectById}
                                         getRoomById={getRoomById}
                                         timetableSettings={timetableSettings!}
                                         assignments={assignments}
                                         submissions={submissions}
-                                        onAddAssignment={async (d) => { await apiService.saveModuleRecord('assignments', { ...d, id: `asn_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); }}
-                                        onDeleteAssignment={async (id) => { await apiService.deleteModuleRecord('assignments', id); loadData(); }}
-                                        onAddFeedback={async (sid, f) => { const sub = submissions.find(x => x.id === sid); if (sub) { await apiService.saveModuleRecord('submissions', { ...sub, feedback: f, gradedAt: new Date().toISOString() }); loadData(); } }}
+                                        onAddAssignment={async (d: any) => { await apiService.saveModuleRecord('assignments', { ...d, id: `asn_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); }}
+                                        onDeleteAssignment={async (id: string) => { await apiService.deleteModuleRecord('assignments', id); loadData(); }}
+                                        onAddFeedback={async (sid: string, f: string) => { const sub = submissions.find(x => x.id === sid); if (sub) { await apiService.saveModuleRecord('submissions', { ...sub, feedback: f, gradedAt: new Date().toISOString() }); loadData(); } }}
                                         teacherCheckIns={teacherCheckIns}
-                                        onTeacherLessonCheckIn={onTeacherLessonCheckIn}
+                                        onTeacherLessonCheckIn={handleTeacherLessonCheckIn}
                                         observationNotes={observationNotes}
-                                        onAddObservationNote={async (n) => { await apiService.saveModuleRecord('observation_notes', { ...n, id: `obs_${Date.now()}`, lecturerId: currentUser.id, timestamp: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); }}
+                                        onAddObservationNote={async (n: any) => { await apiService.saveModuleRecord('observation_notes', { ...n, id: `obs_${Date.now()}`, lecturerId: currentUser.id, timestamp: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); }}
                                         timeOffRequests={timeOffRequests}
                                         onAddTimeOffRequest={handleAddTimeOffRequest}
                                         userTasks={userTasks}
-                                        onAddTask={async (t) => { await apiService.saveModuleRecord('tasks', { ...t, userId: currentUser.id, id: `t_${Date.now()}`, createdAt: new Date().toISOString() }); loadData(); }}
-                                        onUpdateTask={async (id, c) => { const task = userTasks.find(x => x.id === id); if (task) { await apiService.saveModuleRecord('tasks', { ...task, isComplete: c }); loadData(); } }}
-                                        onDeleteTask={async (id) => { await apiService.deleteModuleRecord('tasks', id); loadData(); }}
+                                        onAddTask={async (t: any) => { await apiService.saveModuleRecord('tasks', { ...t, userId: currentUser.id, id: `t_${Date.now()}`, createdAt: new Date().toISOString() }); loadData(); }}
+                                        onUpdateTask={async (id: string, c: boolean) => { const task = userTasks.find(x => x.id === id); if (task) { await apiService.saveModuleRecord('tasks', { ...task, isComplete: c }); loadData(); } }}
+                                        onDeleteTask={async (id: string) => { await apiService.deleteModuleRecord('tasks', id); loadData(); }}
                                         assessments={assessments}
                                         assessmentMarks={assessmentMarks}
-                                        onAddAssessment={async (d) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); }}
-                                        onSaveAssessmentMarks={async (aid, marks) => { 
+                                        onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); }}
+                                        onSaveAssessmentMarks={async (aid: string, marks: any[]) => { 
                                             for (const m of marks) {
                                                 const existing = assessmentMarks.find(am => am.assessmentId === aid && am.studentId === m.studentId);
                                                 await apiService.saveModuleRecord('assessment_marks', {
@@ -4060,7 +4125,7 @@ export const App: React.FC = () => {
                                         books={books}
                                     />
                                 ) : activeRole === 'parent' ? (
-                                    <ParentView
+                                    <ParentView {...({} as any)} {...parentProps as any}
                                         user={currentUser}
                                         users={users}
                                         subjects={subjects}
@@ -4111,7 +4176,7 @@ export const App: React.FC = () => {
                                         onLogAction={handleLogAction}
                                     />
                                 ) : activeRole === 'info_desk' ? (
-                                    <InfoDeskView
+                                    <InfoDeskView {...infoDeskProps as any}
                                         currentUser={currentUser}
                                         currentInstitution={activeInstitution!}
                                         visitors={visitors}
@@ -4149,7 +4214,7 @@ export const App: React.FC = () => {
                                         setTransactionLimit={setTransactionLimit}
                                     />
                                 ) : activeRole === 'hr_officer' ? (
-                                    <HROfficerView
+                                    <HROfficerView {...({} as any)} {...hrOfficerProps as any}
                                         currentUser={currentUser}
                                         currentInstitution={activeInstitution!}
                                         users={users}
@@ -4161,7 +4226,7 @@ export const App: React.FC = () => {
                                         onLogAction={handleLogAction}
                                     />
                                 ) : activeRole === 'boarding_master' ? (
-                                    <BoardingMasterView
+                                    <BoardingMasterView {...boardingMasterProps as any}
                                         currentUser={currentUser}
                                         currentInstitution={activeInstitution!}
                                         users={users}
@@ -4195,7 +4260,7 @@ export const App: React.FC = () => {
                                         onLogAction={handleLogAction}
                                     />
                                 ) : (activeRole === 'carwash_admin' || activeRole === 'carwash_cashier') ? (
-                                    <CarWashView
+                                    <CarWashView {...carWashProps as any}
                                         currentUser={currentUser}
                                         currentInstitution={activeInstitution!}
                                         jobs={jobs}
@@ -4206,19 +4271,19 @@ export const App: React.FC = () => {
                                     />
                                 ) : (activeRole === 'landlord' || activeRole === 'tenant' || activeRole === 'property_admin') ? (
                                     activeRole === 'tenant' ? (
-                                        <TenantPortalView 
+                                        <TenantPortalView {...({} as any)} {...tenantPortalProps as any} 
                                             currentUser={currentUser}
                                             currentInstitution={activeInstitution!}
                                             onLogAction={handleLogAction}
                                         />
                                     ) : activeRole === 'landlord' ? (
-                                        <LandlordPortalView
+                                        <LandlordPortalView {...({} as any)} {...landlordPortalProps as any}
                                             currentUser={currentUser}
                                             currentInstitution={activeInstitution!}
                                             onLogAction={handleLogAction}
                                         />
                                     ) : (
-                                        <PropertyManagementView
+                                        <PropertyManagementView {...({} as any)} {...propertyManagementProps as any}
                                             currentUser={currentUser}
                                             currentInstitution={activeInstitution!}
                                             onLogAction={handleLogAction}
@@ -4226,13 +4291,13 @@ export const App: React.FC = () => {
                                     )
                                 ) : (activeRole === 'farmer' || activeRole === 'rider' || activeRole === 'coop_admin') ? (
                                     activeRole === 'farmer' ? (
-                                        <FarmerPortal 
+                                        <FarmerPortal {...({} as any)} {...farmerPortalProps as any} 
                                             currentUser={currentUser}
                                             currentInstitution={activeInstitution!}
                                             onLogAction={handleLogAction}
                                         />
                                     ) : activeRole === 'rider' ? (
-                                        <RiderPortal
+                                        <RiderPortal {...({} as any)} {...riderPortalProps as any}
                                             currentUser={currentUser}
                                             currentInstitution={activeInstitution!}
                                             onLogAction={handleLogAction}
@@ -4267,7 +4332,7 @@ export const App: React.FC = () => {
                                         invoices={invoices}
                                     />
                                 ) : activeRole === 'county_admin' ? (
-                                    <CountyAdminView
+                                    <CountyAdminView {...countyAdminProps as any}
                                         onUpdateBursaryApplication={async (id, data) => { await apiService.saveModuleRecord('bursary_applications', { ...data, id }); await loadData(); }}
                                     onAddBursaryFund={async (data) => { await apiService.saveModuleRecord('county_bursary_funds', data); await loadData(); }}
                                     onUpdateBursaryFund={async (id, data) => { await apiService.saveModuleRecord('county_bursary_funds', { ...data, id }); await loadData(); }}
@@ -4345,8 +4410,9 @@ export const App: React.FC = () => {
                                     onAddPayouts={handleAddPayouts}
                                 />
                             ) : activeRole === 'academics_officer' ? (
-                                <AcademicsOfficerView
+                                <AcademicsOfficerView {...academicsOfficerProps as any}
                                     currentUser={currentUser}
+                                    currentInstitution={activeInstitution!}
                                     subjects={subjects}
                                     onUpdateSubject={handleUpdateSubject}
                                     courses={courses}
@@ -4364,26 +4430,26 @@ export const App: React.FC = () => {
                                     onImportDepartments={handleImportDepartments}
                                     activeAcademicYear={activeAcademicYear}
                                     activeSemester={activeSemester}
-                                    onExamTimetableGenerated={async (entries, ay, sem) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)}
+                                    onExamTimetableGenerated={async (entries: any, ay: string, sem: string) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)}
                                     examTimetable={examTimetable}
                                     getSubjectById={getSubjectById}
                                     getLecturerById={getLecturerById}
                                     getRoomById={getRoomById}
                                     courseSizes={courseSizes}
                                     academicYears={academicYears}
-                                    onAddAcademicYear={async (data) => { await apiService.saveModuleRecord('academic_years', { ...data, id: `ay_${Date.now()}`, institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); }}
-                                    onUpdateAcademicYear={async (id, data) => { const existing = academicYears.find(y => y.id === id); await apiService.saveModuleRecord('academic_years', { ...existing, ...data, id }); loadData(); }}
-                                    onDeleteAcademicYear={async (id) => { await apiService.deleteModuleRecord('academic_years', id); loadData(); }}
+                                    onAddAcademicYear={async (data: any) => { await apiService.saveModuleRecord('academic_years', { ...data, id: `ay_${Date.now()}`, institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); }}
+                                    onUpdateAcademicYear={async (id: string, data: any) => { const existing = academicYears.find(y => y.id === id); await apiService.saveModuleRecord('academic_years', { ...existing, ...data, id }); loadData(); }}
+                                    onDeleteAcademicYear={async (id: string) => { await apiService.deleteModuleRecord('academic_years', id); loadData(); }}
                                     semesters={semesters}
-                                    onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: `sem_${Date.now()}`, institutionId: currentUser!.institutionId }); loadData(); }}
-                                    onUpdateSemester={async (id, data) => { const existing = semesters.find(s => s.id === id); await apiService.saveModuleRecord('semesters', { ...existing, ...data, id }); loadData(); }}
-                                    onDeleteSemester={async (id) => { await apiService.deleteModuleRecord('semesters', id); loadData(); }}
-                                    timetableSettings={timetableSettings}
-                                    onSaveTimetableSettings={(config) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: config })}
+                                    onAddSemester={async (data: any) => { await apiService.saveModuleRecord('semesters', { ...data, id: `sem_${Date.now()}`, institutionId: currentUser!.institutionId }); loadData(); }}
+                                    onUpdateSemester={async (id: string, data: any) => { const existing = semesters.find(s => s.id === id); await apiService.saveModuleRecord('semesters', { ...existing, ...data, id }); loadData(); }}
+                                    onDeleteSemester={async (id: string) => { await apiService.deleteModuleRecord('semesters', id); loadData(); }}
+                                    timetableSettings={timetableSettings!}
+                                    onSaveTimetableSettings={(config: any) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: config })}
                                     lessonRatings={lessonRatings}
                                     buildings={buildings}
                                     onAddBuilding={handleAddBuilding}
-                                    onAddBuildings={async (b) => { }}
+                                    onAddBuildings={async (b: any) => { }}
                                     onUpdateBuilding={handleUpdateBuilding}
                                     onDeleteBuilding={handleDeleteBuilding}
                                     academicLevels={academicLevels}
@@ -4391,9 +4457,8 @@ export const App: React.FC = () => {
                                     logoUrl={activeBranding.logoUrl}
                                     footerImageUrl={activeFooterImageUrl}
                                     emailConfig={companyDetails.emailConfig}
-                                    onSaveEmailConfig={() => { }}
-                                    onSendTestEmail={async (r) => ({ success: true, message: 'Test email sent.' })}
-                                    currentInstitution={activeInstitution}
+                                    onSaveEmailConfig={(config: any) => { }}
+                                    onSendTestEmail={async (r: string) => ({ success: true, message: 'Test email sent.' })}
                                     onUpdateInstitution={onUpdateInstitution}
                                     smsConfig={companyDetails.smsConfig}
                                     themeColor={activeBranding.primaryColor}
@@ -4421,7 +4486,7 @@ export const App: React.FC = () => {
                                         await Promise.all(promises);
                                         loadData();
                                     }}
-                                    onAddIncident={async (data) => {
+                                    onAddIncident={async (data: any) => {
                                         await apiService.saveModuleRecord('discipline_incidents', {
                                             ...data,
                                              id: `disc_${Date.now()}`,
@@ -4431,22 +4496,18 @@ export const App: React.FC = () => {
                                          });
                                          loadData();
                                      }}
-                                    onSaveExamTimetableSettings={(config) => onUpdateInstitution(activeInstitution!.id, { examTimetableSettings: config })}
-                                    onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[])}
+                                    onSaveExamTimetableSettings={(config: any) => onUpdateInstitution(activeInstitution!.id, { examTimetableSettings: config })}
+                                    onTimetableGenerated={async (entries: any, ay: string, sem: string) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[])}
                                     allocations={allocations}
                                     timeOffRequests={timeOffRequests}
                                     onAssociateSubjectToCourseLevel={handleAssociateSubjectToCourseLevel}
                                     onDisassociateSubjectFromCourseLevel={handleDisassociateSubjectFromCourseLevel}
                                     onImportStudents={onImportStudents}
-                                    onWithdrawRequest={async (id) => { await apiService.deleteModuleRecord('allocation_requests', id); await handleLogAction("Withdrew allocation request"); loadData(); }}
+                                    onWithdrawRequest={async (id: string) => { await apiService.deleteModuleRecord('allocation_requests', id); await handleLogAction("Withdrew allocation request"); loadData(); }}
                                     onAddExtensionRequest={handleAddExtensionRequest}
                                     onLogAction={handleLogAction}
-                                     companyDetails={companyDetails}
-                                     onAccessAlumnaPortal={handleAccessAlumnaPortal}
-
-
-
-
+                                    companyDetails={companyDetails}
+                                    onAccessAlumnaPortal={handleAccessAlumnaPortal}
                                 />
                             ) : activeRole === 'security' ? (
                                 <SecurityView
@@ -4455,13 +4516,12 @@ export const App: React.FC = () => {
                                     visitors={visitors}
                                     securityAlerts={securityAlerts}
                                     appointments={appointments}
-                                    // Actually appointments are used. Adding fetching for them.
-                                    onAddVisitor={async (v) => {
+                                    onAddVisitor={async (v: any) => {
                                         await apiService.saveModuleRecord('visitors', { ...v, id: `vis_${Date.now()}` });
                                         await handleLogAction(`Registered visitor: ${v.name}`);
                                         loadData();
                                     }}
-                                    onCheckoutVisitor={async (id) => {
+                                    onCheckoutVisitor={async (id: string) => {
                                         const v = visitors.find(x => x.id === id);
                                         if (v) {
                                             await apiService.saveModuleRecord('visitors', { ...v, timeOut: new Date().toLocaleTimeString() });
@@ -4469,12 +4529,12 @@ export const App: React.FC = () => {
                                         }
                                         loadData();
                                     }}
-                                    onAddAlert={async (a) => {
+                                    onAddAlert={async (a: any) => {
                                         await apiService.saveModuleRecord('security_alerts', { ...a, id: `alert_${Date.now()}`, institutionId: currentUser.institutionId, createdBy: currentUser.id, createdAt: new Date().toISOString(), status: 'active' });
                                         await handleLogAction(`Logged security alert: ${a.type} - ${a.severity}`);
                                         loadData();
                                     }}
-                                    onResolveAlert={async (id) => {
+                                    onResolveAlert={async (id: string) => {
                                         const a = securityAlerts.find(x => x.id === id);
                                         if (a) {
                                             await apiService.saveModuleRecord('security_alerts', { ...a, status: 'resolved' });
@@ -4482,7 +4542,7 @@ export const App: React.FC = () => {
                                         }
                                         loadData();
                                     }}
-                                    onUpdateAppointmentStatus={async (id, status) => {
+                                    onUpdateAppointmentStatus={async (id: string, status: string) => {
                                         const apt = appointments.find(a => a.id === id);
                                         if (apt) {
                                             await apiService.saveModuleRecord('appointments', { ...apt, status });
@@ -4500,9 +4560,8 @@ export const App: React.FC = () => {
                                     vehicles={vehicles}
                                     vehicleLogs={vehicleLogs}
                                     onLogGateAction={handleLogGateAction}
-                                    onSwitchPerspective={setImpersonatedRole}
+                                    onSwitchPerspective={(role: string) => setImpersonatedRole(role)}
                                 />
-
                             ) : activeRole === 'finance_officer' ? (
                                 <FinanceOfficerView
                                     currentUser={currentUser}
@@ -4510,16 +4569,16 @@ export const App: React.FC = () => {
                                     invoices={invoices}
                                     receipts={receipts}
                                     expenses={expenses}
-                                    goals={[]} // Placeholder for goals
+                                    goals={[]}
                                     feeStructures={feeStructures}
                                     students={users.filter(u => u.role === 'student')}
                                     academicYears={academicYears}
                                     semesters={semesters}
-                                    onGenerateInvoices={async (invs) => {
+                                    onGenerateInvoices={async (invs: any[]) => {
                                         await apiService.saveModuleRecords('invoices', invs);
                                         loadData();
                                     }}
-                                    onAddExpense={async (exp) => {
+                                    onAddExpense={async (exp: any) => {
                                          await apiService.saveModuleRecord('expenses', { ...exp, id: `exp_${Date.now()}`, institutionId: currentUser.institutionId });
                                          loadData();
                                      }}
@@ -4533,17 +4592,17 @@ export const App: React.FC = () => {
                                     onLogAction={handleLogAction}
                                  />
                             ) : activeRole === 'hr_officer' ? (
-                                <HROfficerView
+                                <HROfficerView {...({} as any)} {...hrOfficerProps as any}
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
                                     staff={users.filter(u => u.role !== 'student' && u.role !== 'parent')}
                                     payrollRecords={payrollRecords}
                                     leaveRequests={timeOffRequests.map(t => ({ ...t, staffId: t.lecturerId, type: t.category as any, status: t.status as any, appliedAt: t.timestamp || new Date().toISOString() }))}
-                                    onProcessPayroll={async (recs) => {
+                                    onProcessPayroll={async (recs: any[]) => {
                                         await apiService.saveModuleRecords('payroll_records', recs);
                                         loadData();
                                     }}
-                                    onUpdateLeaveStatus={async (id, status) => {
+                                    onUpdateLeaveStatus={async (id: string, status: string) => {
                                         const req = timeOffRequests.find(r => r.id === id);
                                         if (req) {
                                             await apiService.saveModuleRecord('time_off_requests', { ...req, status });
@@ -4564,12 +4623,12 @@ export const App: React.FC = () => {
                                     onLogAction={handleLogAction}
                                 />
                             ) : activeRole === 'info_desk' ? (
-                                <InfoDeskView
+                                <InfoDeskView {...infoDeskProps as any}
                                     user={currentUser}
                                     users={users}
                                     visitors={visitors}
                                     generatedTimetable={generatedTimetable}
-                                    timetableSettings={timetableSettings}
+                                    timetableSettings={timetableSettings!}
                                     getSubjectById={getSubjectById}
                                     getRoomById={getRoomById}
                                     getLecturerById={getLecturerById}
@@ -4584,22 +4643,22 @@ export const App: React.FC = () => {
                                     studentAttendances={studentAttendances}
                                     invoices={invoices}
                                     rooms={rooms}
-                                    onAddBulletinItem={async (item) => {
+                                    onAddBulletinItem={async (item: any) => {
                                         await apiService.saveModuleRecord('bulletin_items', { ...item, id: `bulletin_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() });
                                         loadData();
                                     }}
-                                    onUpdateDocumentStatus={async (id, status) => {
+                                    onUpdateDocumentStatus={async (id: string, status: string) => {
                                         const doc = documentCollections.find(d => d.id === id);
                                         if (doc) {
                                             await apiService.saveModuleRecord('document_collections', { ...doc, status, collectedDate: status === 'Collected' ? new Date().toISOString() : doc.collectedDate });
                                             loadData();
                                         }
                                     }}
-                                    onAddMaintenanceRequest={async (req) => {
+                                    onAddMaintenanceRequest={async (req: any) => {
                                         await apiService.saveModuleRecord('maintenance_requests', { ...req, id: `maint_${Date.now()}`, institutionId: currentUser.institutionId, reportedAt: new Date().toISOString(), status: 'Pending' });
                                         loadData();
                                     }}
-                                    onSwitchPerspective={setImpersonatedRole}
+                                    onSwitchPerspective={(role: string) => setImpersonatedRole(role)}
                                 />
                             ) : (activeRole === 'driver' || activeRole === 'transport_assistant') ? (
                                 <TransportAssistantView
@@ -4624,10 +4683,10 @@ export const App: React.FC = () => {
                                 >
                                     <StoreView
                                         user={currentUser}
-                                        inventory={inventory}
+                                        inventory={retailInventory}
                                         suppliers={suppliers}
                                         stockTransactions={stockTransactions}
-                                        onAddItem={async (item) => { 
+                                        onAddItem={async (item: any) => { 
                                             await apiService.saveModuleRecord('inventory', { 
                                                 ...item, 
                                                 id: `inv_${Date.now()}`, 
@@ -4636,7 +4695,7 @@ export const App: React.FC = () => {
                                             }); 
                                             loadData(); 
                                         }}
-                                        onAddSupplier={async (supplier) => {
+                                        onAddSupplier={async (supplier: any) => {
                                             await apiService.saveModuleRecord('suppliers', {
                                                 ...supplier,
                                                 id: `sup_${Date.now()}`,
@@ -4644,8 +4703,8 @@ export const App: React.FC = () => {
                                             });
                                             loadData();
                                         }}
-                                        onAddStoreTransaction={async (transaction) => {
-                                            const item = inventory.find(i => i.id === transaction.itemId);
+                                        onAddStoreTransaction={async (transaction: any) => {
+                                            const item = retailInventory.find(i => i.id === transaction.itemId);
                                             if (item) {
                                                 const newQty = transaction.type === 'Restock' ? item.quantity + transaction.quantity : item.quantity - transaction.quantity;
                                                 await apiService.saveModuleRecord('inventory', { ...item, quantity: newQty, lastUpdated: new Date().toISOString() });
@@ -4661,10 +4720,10 @@ export const App: React.FC = () => {
                                         }}
                                         countyInventory={countyInventory.filter(i => i.targetInstitutionId === currentUser.institutionId)}
                                         onMarkInventoryReceived={onMarkInventoryReceived}
-                                        onSwitchPerspective={setImpersonatedRole}
+                                        onSwitchPerspective={(role: string) => setImpersonatedRole(role)}
                                         users={users}
                                         departments={departments}
-                                        onAddUser={async (data) => { await apiService.registerUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }, activeInstitution?.name); loadData(); }}
+                                        onAddUser={async (data: any) => { await apiService.registerUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }, activeInstitution?.name); loadData(); }}
                                         onEditUser={onEditUser}
                                         onDeleteUser={onDeleteUser}
                                         onAddDepartment={handleAddDepartment}
@@ -4677,7 +4736,7 @@ export const App: React.FC = () => {
                                         letterheadConfig={activeLetterheadConfig}
                                         logoUrl={activeBranding.logoUrl}
                                         footerImageUrl={activeFooterImageUrl}
-                                        onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId || activeInstitution?.id); await handleLogAction(`Sent SMS to ${Array.isArray(r) ? r.length + ' recipients' : r}`); return res; }}
+                                        onSendSms={async (r: any, m: string, config: any, units: number, instId?: string) => { const res = await apiService.sendSms(r, m, config, units, instId || activeInstitution?.id); await handleLogAction(`Sent SMS to ${Array.isArray(r) ? r.length + ' recipients' : r}`); return res; }}
                                         companyDetails={companyDetails}
                                         onAddTransaction={apiService.onAddTransaction.bind(apiService)}
                                         onLogAction={handleLogAction}
@@ -4697,8 +4756,7 @@ export const App: React.FC = () => {
                                     onLogAction={handleLogAction}
                                 />
                             ) : activeRole === 'parent' ? (
-
-                                <ParentView
+                                <ParentView {...({} as any)} {...parentProps as any}
                                     user={currentUser}
                                     users={users}
                                     courses={courses}
@@ -4712,7 +4770,7 @@ export const App: React.FC = () => {
                                     buildings={buildings}
                                     studentCheckIns={studentCheckIns}
                                     leaveOutRequests={leaveOutRequests}
-                                    onUpdateLeaveOut={async (id, data) => {
+                                    onUpdateLeaveOut={async (id: string, data: any) => {
                                         const req = leaveOutRequests.find(r => r.id === id);
                                         if (req) {
                                             await apiService.saveModuleRecord('leave_out_requests', { ...req, ...data, updatedAt: new Date().toISOString() });
@@ -4721,8 +4779,7 @@ export const App: React.FC = () => {
                                     }}
                                 />
                             ) : activeRole === 'boarding_master' ? (
-
-                                <BoardingMasterView
+                                <BoardingMasterView {...boardingMasterProps as any}
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
                                     companyDetails={companyDetails}
@@ -4732,7 +4789,7 @@ export const App: React.FC = () => {
                                     courses={courses}
                                     departments={departments}
                                     onLogAction={handleLogAction}
-                                    onAddUser={async (data) => { await apiService.registerUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }, activeInstitution?.name); loadData(); }}
+                                    onAddUser={async (data: any) => { await apiService.registerUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }, activeInstitution?.name); loadData(); }}
                                     onEditUser={onEditUser}
                                     onDeleteUser={onDeleteUser}
                                     onImportStudents={onImportStudents}
@@ -4741,19 +4798,18 @@ export const App: React.FC = () => {
                                     letterheadConfig={activeLetterheadConfig}
                                     logoUrl={activeBranding.logoUrl}
                                     footerImageUrl={activeFooterImageUrl}
-                                    onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId); await handleLogAction(`Sent SMS to ${Array.isArray(r) ? r.length + ' recipients' : r}`); return res; }}
-                                    onAddParent={async (sid, p) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => { handleLogAction(`Added parent for student ${sid}`); return { success: true, message: 'Parent added.' }; })}
+                                    onSendSms={async (r: any, m: string, config: any, units: number, instId?: string) => { const res = await apiService.sendSms(r, m, config, units, instId); await handleLogAction(`Sent SMS to ${Array.isArray(r) ? r.length + ' recipients' : r}`); return res; }}
+                                    onAddParent={async (sid: string, p: any) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => { handleLogAction(`Added parent for student ${sid}`); return { success: true, message: 'Parent added.' }; })}
                                     onDeleteParent={() => { }}
                                 />
-
                             ) : (activeRole === 'carwash_admin' || (isAdminCatchAll && (activeInstitution?.businessSubType?.toLowerCase().includes('car wash') || activeInstitution?.businessSubType?.toLowerCase().includes('carwash')))) ? (
-                                <CarWashView
+                                <CarWashView {...carWashProps as any}
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
                                     companyDetails={companyDetails}
                                     users={users.filter(u => u.institutionId === currentUser.institutionId)}
                                     onDataChange={loadData}
-                                    onSendSms={async (r, m, config, units, instId) => {
+                                    onSendSms={async (r: any, m: string, config: any, units: number, instId?: string) => {
                                         const res = await apiService.sendSms(r, m, config || activeInstitution?.smsConfig || companyDetails.smsConfig, units, instId || activeInstitution?.id);
                                         await handleLogAction(`Sent SMS to ${Array.isArray(r) ? r.length + ' recipients' : r}`);
                                         return res;
@@ -4764,7 +4820,7 @@ export const App: React.FC = () => {
                                     mpesaConfig={activeInstitution?.mpesaConfig || companyDetails.mpesaConfig}
                                     departments={departments}
                                     courses={courses}
-                                    onRegisterUser={async (userData) => {
+                                    onRegisterUser={async (userData: any) => {
                                         await apiService.registerUser(userData, activeInstitution?.name);
                                         loadData();
                                     }}
@@ -4778,7 +4834,7 @@ export const App: React.FC = () => {
                                     onLogAction={handleLogAction}
                                 />
                             ) : activeRole === 'farmer' ? (
-                                <FarmerPortal
+                                <FarmerPortal {...({} as any)} {...farmerPortalProps as any}
                                     currentUser={currentUser}
                                     farmer={coopFarmers.find(f => f.id === currentUser.farmerId || f.phone === currentUser.phoneNumber)}
                                     collections={coopCollections.filter(c => c.farmerId === currentUser.id || c.farmerId === (users.find(u => u.id === currentUser.id) as any)?.farmerId)}
@@ -4793,7 +4849,7 @@ export const App: React.FC = () => {
                                     onLogout={handleLogout}
                                 />
                             ) : activeRole === 'rider' ? (
-                                <RiderPortal
+                                <RiderPortal {...({} as any)} {...riderPortalProps as any}
                                     currentUser={currentUser}
                                     rider={coopRiders.find(r => r.id === currentUser.riderId || r.phone === currentUser.phoneNumber)}
                                     collections={coopCollections.filter(c => c.riderId === currentUser.riderId || c.riderId === coopRiders.find(r => r.id === currentUser.riderId || r.phone === currentUser.phoneNumber)?.id)}
@@ -4806,7 +4862,7 @@ export const App: React.FC = () => {
                                 (activeRole === 'carwash_customer' || (activeInstitution?.businessSubType?.toLowerCase().includes('car wash') || activeInstitution?.businessSubType?.toLowerCase().includes('carwash'))) ? (
                                     <CarWashCustomerPortal
                                         currentUser={currentUser}
-                                        onAddTransaction={async (data, items) => { await apiService.onAddTransaction(data, items as any); }}
+                                        onAddTransaction={async (data: any, items: any[]) => { await apiService.onAddTransaction(data, items as any); }}
                                         cafeOrders={cafeOrders}
                                         retailSales={retailSales}
                                     />
@@ -4821,25 +4877,25 @@ export const App: React.FC = () => {
                                     onDataChange={loadData}
                                 />
                             ) : activeRole === 'tenant' ? (
-                                <TenantPortalView
+                                <TenantPortalView {...({} as any)} {...tenantPortalProps as any}
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
                                     onLogout={handleLogout}
                                 />
                             ) : activeRole === 'landlord' ? (
-                                <LandlordPortalView
+                                <LandlordPortalView {...({} as any)} {...landlordPortalProps as any}
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
                                     onLogout={handleLogout}
                                 />
                             ) : (activeRole === 'property_admin' || activeInstitution?.institutionType === 'Property Management' || (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('property management'))) ? (
-                                <PropertyManagementView
+                                <PropertyManagementView {...({} as any)} {...propertyManagementProps as any}
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
                                     companyDetails={companyDetails}
                                     users={users.filter(u => u.institutionId === currentUser.institutionId)}
                                     onDataChange={loadData}
-                                    onAddUser={async (userData) => {
+                                    onAddUser={async (userData: any) => {
                                         try {
                                             const targetInstitutionId = currentUser?.institutionId;
                                             if (!targetInstitutionId) throw new Error("Institution context missing.");
@@ -4866,7 +4922,7 @@ export const App: React.FC = () => {
                                     logoUrl={activeBranding.logoUrl}
                                     footerImageUrl={activeFooterImageUrl}
                                     transactions={transactions}
-                                    onSendBulkCredentials={async (users, method) => {
+                                    onSendBulkCredentials={async (users: any[], method: string) => {
                                         const res = await apiService.sendBulkCredentials(users, method);
                                         await handleLogAction(`Sent bulk credentials to ${res.success_count} users via ${method}`);
                                         return res;
@@ -4888,13 +4944,6 @@ export const App: React.FC = () => {
                             ) : isAdminCatchAll ? (
                                 <AdminView
                                     currentUser={currentUser}
-                                    activeRole={activeRole || undefined}
-                                    activityLogLimit={activityLogLimit}
-                                    setActivityLogLimit={setActivityLogLimit}
-                                    transactionLimit={transactionLimit}
-                                    setTransactionLimit={setTransactionLimit}
-                                    receiptLimit={receiptLimit}
-                                    setReceiptLimit={setReceiptLimit}
                                     users={users}
                                     requests={requests}
                                     allocations={allocations}
@@ -4906,53 +4955,16 @@ export const App: React.FC = () => {
                                     academicLevels={academicLevels}
                                     academicYears={academicYears}
                                     semesters={semesters}
-                                    onActivateModuleTrial={handleActivateModuleTrial}
                                     activeAcademicYear={activeAcademicYear}
                                     activeSemester={activeSemester}
-                                    timetableSettings={timetableSettings}
+                                    timetableSettings={activeInstitution?.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                                     examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
-                                    assessments={assessments}
-                                    marks={assessmentMarks}
-                                    incidents={incidents}
-                                    onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
-                                    onDeleteAssessment={async (id: string) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
-                                    onSaveAssessmentMarks={async (id: string, marks: any[]) => {
-                                        const promises = marks.map(m => {
-                                            const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
-                                            const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()}`;
-                                            return apiService.saveModuleRecord('assessment_marks', {
-                                                id: recordId,
-                                                assessmentId: id,
-                                                studentId: m.studentId,
-                                                marks: m.marks,
-                                                comments: m.comments,
-                                                gradedBy: currentUser.id,
-                                                timestamp: new Date().toISOString(),
-                                                institutionId: currentUser.institutionId
-                                            });
-                                        });
-                                        await Promise.all(promises);
-                                        loadData();
-                                    }}
-                                    onAddIncident={async (data) => {
-                                        await apiService.saveModuleRecord('discipline_incidents', {
-                                            ...data,
-                                             id: `disc_${Date.now()}`,
-                                             institutionId: currentUser!.institutionId,
-                                             timestamp: new Date().toISOString(),
-                                             recordedBy: currentUser!.name
-                                         });
-                                         loadData();
-                                     }}
                                     logoUrl={activeBranding.logoUrl}
                                     footerImageUrl={activeFooterImageUrl}
                                     themeColor={activeBranding.primaryColor}
                                     companyDetails={companyDetails}
-                                    onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d as any); loadData(); }}
                                     activityLog={activityLog}
                                     transactions={transactions}
-                                    onAddTransaction={apiService.onAddTransaction.bind(apiService)}
-                                    onRefreshData={async () => await loadData(false, true)}
                                     receipts={receipts}
                                     invoices={invoices}
                                     extensionRequests={extensionRequests}
@@ -4962,10 +4974,6 @@ export const App: React.FC = () => {
                                     userTasks={userTasks}
                                     generatedTimetable={generatedTimetable}
                                     allTimetableEntries={generatedTimetable}
-                                    finalTimetableUrl={null}
-                                    letterheadConfig={activeLetterheadConfig}
-                                    smsConfig={activeInstitution?.smsConfig || companyDetails.smsConfig}
-                                    emailConfig={activeInstitution?.emailConfig || companyDetails.emailConfig}
                                     timetableConflicts={timetableConflicts}
                                     retailExpenses={retailExpenses}
                                     onAddRetailExpense={handleAddRetailExpense}
@@ -4976,26 +4984,6 @@ export const App: React.FC = () => {
                                     suppliers={suppliers}
                                     currentInstitution={activeInstitution}
                                     counties={counties}
-                                    onAddUser={async (userData) => {
-                                        try {
-                                            const targetInstitutionId = currentUser?.institutionId;
-                                            if (!targetInstitutionId) throw new Error("Institution context missing.");
-
-                                            await apiService.registerUser({
-                                                ...userData,
-                                                id: generateUserId(),
-                                                institutionId: targetInstitutionId
-                                            }, activeInstitution?.name);
-
-                                            loadData();
-                                        } catch (err: any) {
-                                            console.error("User registration failed:", err);
-                                            throw err;
-                                        }
-                                    }}
-                                    onEditUser={onEditUser}
-                                    onDeleteUser={onDeleteUser}
-                                    onImportUsers={onImportUsers}
                                     onImportStudents={onImportStudents}
                                     onAddDepartment={handleAddDepartment}
                                     onUpdateDepartment={handleUpdateDepartment}
@@ -5345,7 +5333,7 @@ export const App: React.FC = () => {
                                     <ChurchDashboard />
                                 </ChurchDenominationProvider>
                             ) : (activeRole === 'county_admin' || activeRole?.startsWith('county_')) ? (
-                                <CountyAdminView
+                                <CountyAdminView {...countyAdminProps as any}
                                     currentUser={currentUser}
                                     counties={counties}
                                     institutions={institutions}
@@ -5489,8 +5477,13 @@ export const App: React.FC = () => {
                                     setTransactionLimit={setTransactionLimit}
                                 />
                             ) : activeRole === 'academics_officer' ? (
-                                <AcademicsOfficerView
+                                <AcademicsOfficerView {...academicsOfficerProps as any}
                                     currentUser={currentUser}
+                                    currentInstitution={activeInstitution!}
+                                    academicYears={academicYears}
+                                    semesters={semesters}
+                                    academicLevels={academicLevels}
+                                    departments={departments}
                                     subjects={subjects}
                                     onUpdateSubject={handleUpdateSubject}
                                     courses={courses}
@@ -5501,58 +5494,20 @@ export const App: React.FC = () => {
                                     onUpdateRoom={handleUpdateRoom}
                                     onDeleteRoom={handleDeleteRoom}
                                     onImportRooms={handleImportRooms}
-                                    departments={departments}
                                     onAddDepartment={handleAddDepartment}
                                     onUpdateDepartment={handleUpdateDepartment}
                                     onDeleteDepartment={handleDeleteDepartment}
                                     onImportDepartments={handleImportDepartments}
-                                    activeAcademicYear={activeAcademicYear}
-                                    activeSemester={activeSemester}
-                                    onExamTimetableGenerated={async (entries, ay, sem) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)}
-                                    examTimetable={examTimetable}
-                                    getSubjectById={getSubjectById}
-                                    getLecturerById={getLecturerById}
-                                    getRoomById={getRoomById}
-                                    courseSizes={courseSizes}
-                                    academicYears={academicYears}
-                                    onAddAcademicYear={async (data) => { await apiService.saveModuleRecord('academic_years', { ...data, id: `ay_${Date.now()}`, institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); }}
-                                    onUpdateAcademicYear={async (id, data) => { const existing = academicYears.find(y => y.id === id); await apiService.saveModuleRecord('academic_years', { ...existing, ...data, id }); loadData(); }}
-                                    onDeleteAcademicYear={async (id) => { await apiService.deleteModuleRecord('academic_years', id); loadData(); }}
-                                    semesters={semesters}
-                                    onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: `sem_${Date.now()}`, institutionId: currentUser!.institutionId }); loadData(); }}
-                                    onUpdateSemester={async (id, data) => { const existing = semesters.find(s => s.id === id); await apiService.saveModuleRecord('semesters', { ...existing, ...data, id }); loadData(); }}
-                                    onDeleteSemester={async (id) => { await apiService.deleteModuleRecord('semesters', id); loadData(); }}
-                                    timetableSettings={timetableSettings}
-                                    onSaveTimetableSettings={(config) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: config })}
-                                    lessonRatings={lessonRatings}
-                                    buildings={buildings}
-                                    onAddBuilding={handleAddBuilding}
-                                    onAddBuildings={async (b) => { }}
-                                    onUpdateBuilding={handleUpdateBuilding}
-                                    onDeleteBuilding={handleDeleteBuilding}
-                                    academicLevels={academicLevels}
-                                    letterheadConfig={activeLetterheadConfig}
-                                    logoUrl={activeBranding.logoUrl}
-                                    footerImageUrl={activeFooterImageUrl}
-                                    emailConfig={companyDetails.emailConfig}
-                                    onSaveEmailConfig={() => { }}
-                                    onSendTestEmail={async (r) => ({ success: true, message: 'Test email sent.' })}
-                                    currentInstitution={activeInstitution}
-                                    onUpdateInstitution={onUpdateInstitution}
-                                    smsConfig={companyDetails.smsConfig}
-                                    themeColor={activeBranding.primaryColor}
-                                    examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
                                     assessments={assessments}
                                     marks={assessmentMarks}
                                     incidents={incidents}
                                     onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
                                     onDeleteAssessment={async (id: string) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
                                     onSaveAssessmentMarks={async (id: string, marks: any[]) => {
-                                        const promises = marks.map(m => {
+                                        for (const m of marks) {
                                             const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
-                                            const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()}`;
-                                            return apiService.saveModuleRecord('assessment_marks', {
-                                                id: recordId,
+                                            await apiService.saveModuleRecord('assessment_marks', {
+                                                id: existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()}`,
                                                 assessmentId: id,
                                                 studentId: m.studentId,
                                                 marks: m.marks,
@@ -5561,37 +5516,49 @@ export const App: React.FC = () => {
                                                 timestamp: new Date().toISOString(),
                                                 institutionId: currentUser.institutionId
                                             });
-                                        });
-                                        await Promise.all(promises);
+                                        }
                                         loadData();
                                     }}
-                                    onAddIncident={async (data) => {
+                                    onAddIncident={async (data: any) => {
                                         await apiService.saveModuleRecord('discipline_incidents', {
                                             ...data,
-                                             id: `disc_${Date.now()}`,
-                                             institutionId: currentUser!.institutionId,
-                                             timestamp: new Date().toISOString(),
-                                             recordedBy: currentUser!.name
-                                         });
-                                         loadData();
-                                     }}
-                                    onSaveExamTimetableSettings={(config) => onUpdateInstitution(activeInstitution!.id, { examTimetableSettings: config })}
-                                    onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[])}
-                                    allocations={allocations}
-                                    timeOffRequests={timeOffRequests}
-                                    onAssociateSubjectToCourseLevel={handleAssociateSubjectToCourseLevel}
-                                    onDisassociateSubjectFromCourseLevel={handleDisassociateSubjectFromCourseLevel}
-                                    onImportStudents={onImportStudents}
-                                    onWithdrawRequest={async (id) => { await apiService.deleteModuleRecord('allocation_requests', id); await handleLogAction("Withdrew allocation request"); loadData(); }}
-                                    onAddExtensionRequest={handleAddExtensionRequest}
+                                            id: `disc_${Date.now()}`,
+                                            institutionId: currentUser!.institutionId,
+                                            timestamp: new Date().toISOString(),
+                                            recordedBy: currentUser!.name
+                                        });
+                                        loadData();
+                                    }}
+                                    activeAcademicYear={activeAcademicYear}
+                                    activeSemester={activeSemester}
+                                    onExamTimetableGenerated={async (entries: any, ay: string, sem: string) => { await apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries); loadData(); }}
+                                    examTimetable={examTimetable}
+                                    getSubjectById={getSubjectById}
+                                    getLecturerById={getLecturerById}
+                                    getRoomById={getRoomById}
+                                    courseSizes={courseSizes}
+                                    timetableSettings={timetableSettings!}
+                                    onSaveTimetableSettings={(config: any) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: config })}
+                                    buildings={buildings}
+                                    onAddBuilding={handleAddBuilding}
+                                    onUpdateBuilding={handleUpdateBuilding}
+                                    onDeleteBuilding={handleDeleteBuilding}
+                                    letterheadConfig={activeLetterheadConfig}
+                                    logoUrl={activeBranding.logoUrl}
+                                    footerImageUrl={activeFooterImageUrl}
+                                    emailConfig={companyDetails.emailConfig}
+                                    onSaveEmailConfig={(config: any) => onUpdateInstitution(activeInstitution!.id, { emailConfig: config })}
+                                    onSendTestEmail={async (r: string) => ({ success: true, message: 'Test email bypassed.' })}
+                                    smsConfig={companyDetails.smsConfig}
+                                    themeColor={activeBranding.primaryColor}
+                                    examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
+                                    onSaveExamTimetableSettings={(config: any) => onUpdateInstitution(activeInstitution!.id, { examTimetableSettings: config })}
+                                    lessonRatings={lessonRatings}
+                                    onTimetableGenerated={async (entries: any, ay: string, sem: string) => { await apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[]); loadData(); }}
                                     onLogAction={handleLogAction}
-                                     companyDetails={companyDetails}
-                                     onAccessAlumnaPortal={handleAccessAlumnaPortal}
-                                     schoolRegistry={schoolRegistry}
-
-
-
-
+                                    schoolRegistry={schoolRegistry}
+                                    companyDetails={companyDetails}
+                                    onAccessAlumnaPortal={handleAccessAlumnaPortal}
                                 />
                             ) : activeRole === 'security' ? (
                                 <SecurityView
@@ -5674,7 +5641,7 @@ export const App: React.FC = () => {
                                     setTransactionLimit={setTransactionLimit}
                                  />
                             ) : activeRole === 'hr_officer' ? (
-                                <HROfficerView
+                                <HROfficerView {...({} as any)} {...hrOfficerProps as any}
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
                                     staff={users.filter(u => u.role !== 'student' && u.role !== 'parent')}
@@ -5705,7 +5672,7 @@ export const App: React.FC = () => {
                                     onLogAction={handleLogAction}
                                 />
                             ) : activeRole === 'info_desk' ? (
-                                <InfoDeskView
+                                <InfoDeskView {...infoDeskProps as any}
                                     user={currentUser}
                                     users={users}
                                     visitors={visitors}

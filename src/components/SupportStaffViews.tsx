@@ -68,7 +68,9 @@ import { PdfPreviewModal } from './PdfPreviewModal';
 
 
 export interface SupportStaffViewProps {
-    user: User;
+    user?: User | null;
+    currentUser?: User | null;
+    currentInstitution?: Institution | null;
     users?: User[];
     visitors?: Visitor[];
     onAddVisitor?: (visitor: Omit<Visitor, 'id'>) => void;
@@ -85,6 +87,7 @@ export interface SupportStaffViewProps {
     securityAlerts?: SecurityAlert[];
     onAddAlert?: (alert: Omit<SecurityAlert, 'id' | 'institutionId' | 'createdBy' | 'createdAt' | 'status'>) => void;
     onResolveAlert?: (id: string) => void;
+    onAddIncident?: (data: any) => Promise<void>;
     appointments?: Appointment[];
     onUpdateAppointmentStatus?: (id: string, status: Appointment['status']) => void;
     inventory?: InventoryItem[];
@@ -98,13 +101,17 @@ export interface SupportStaffViewProps {
     invoices?: Invoice[];
     receipts?: Receipt[];
     requisitions?: Requisition[];
+    onLogAction?: (action: string) => void;
+    vehicles?: TransportVehicle[];
+    vehicleLogs?: VehicleLog[];
+    transportOnboarding?: TransportOnboarding[];
+    onLogGateAction?: (vehicleId: string, eventType: 'entry' | 'exit', notes?: string) => Promise<void>;
     onAddInvoice?: (invoice: Invoice) => void;
     onAddInvoices?: (invoices: Invoice[]) => void;
     onAddReceipt?: (receipt: Receipt) => void;
     onVerifyRequisition?: (id: string, status: Requisition['status'], reason?: string) => void;
     companyDetails?: CompanyDetails;
     courses?: Course[];
-    currentInstitution?: Institution | null;
     onUpdateInstitution?: (institutionId: string, data: Partial<Omit<Institution, 'id'>>) => Promise<void> | void;
     voteHeads?: VoteHead[];
     onUpdateVoteHeads?: (heads: VoteHead[]) => void;
@@ -156,7 +163,7 @@ export interface SupportStaffViewProps {
     onSendSms?: (recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
     onAddTransaction?: (data: any, items: any[]) => Promise<any>;
     onRefreshData?: () => Promise<void>;
-    onAccessAlumnaPortal: (school: any) => void;
+    onAccessAlumnaPortal?: (school: any) => void;
 }
 
 
@@ -198,6 +205,7 @@ const formatDuration = (timeIn?: string, timeOut?: string) => {
 
 export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     const {
+        user = { name: 'User', institutionId: '' } as any,
         securityAlerts = [], visitors = [], appointments = [], users = [],
         onCheckoutVisitor, onAddVisitor, onAddAlert, onResolveAlert, onUpdateAppointmentStatus,
         onLogAction
@@ -674,7 +682,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
 
 export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
     const { 
-        user,
+        user = { name: 'User', institutionId: '' } as any,
         inventory = [], 
         suppliers = [], 
         users = [], 
@@ -1970,6 +1978,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
 
 export const InfoDeskView: React.FC<SupportStaffViewProps> = (props) => {
     const {
+        user = { name: 'User' } as any,
         visitors = [],
         generatedTimetable = [],
         getSubjectById,
@@ -2516,7 +2525,7 @@ export const InfoDeskView: React.FC<SupportStaffViewProps> = (props) => {
 };
 
 export const SupplierView: React.FC<SupportStaffViewProps> = (props) => {
-    const { supplierProfile, requisitions = [], onUpdateRequisition } = props;
+    const { user = { name: 'User' } as any, supplierProfile, requisitions = [], onUpdateRequisition } = props;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'catalog' | 'profile'>('dashboard');
 
     if (!supplierProfile) return <div className="p-20 text-center font-black uppercase text-slate-400 tracking-widest animate-pulse">Authenticating Supplier Profile...</div>;
@@ -2553,29 +2562,38 @@ export const SupplierView: React.FC<SupportStaffViewProps> = (props) => {
 };
 
 export const TransportAssistantView: React.FC<SupportStaffViewProps> = (props) => {
-    if (props.user.driverType === 'private') {
+    const { 
+        user = { name: 'User', driverType: 'standard' } as any,
+        users = [],
+        vehicles = [],
+        transportOnboarding = [],
+        currentInstitution = {} as any,
+        onOnboardStudent,
+        onOffboardStudent
+    } = props;
+    if (user.driverType === 'private') {
         return (
             <PrivateDriverBillingPortal
-                user={props.user}
-                users={props.users || []}
-                vehicles={props.vehicles || []}
-                transportOnboarding={props.transportOnboarding || []}
-                currentInstitution={props.currentInstitution!}
-                onOnboardStudent={props.onOnboardStudent!}
-                onOffboardStudent={props.onOffboardStudent!}
+                user={user}
+                users={users}
+                vehicles={vehicles}
+                transportOnboarding={transportOnboarding}
+                currentInstitution={currentInstitution}
+                onOnboardStudent={onOnboardStudent!}
+                onOffboardStudent={onOffboardStudent!}
             />
         );
     }
 
     return (
         <TransportOnboardingView
-            currentUser={props.user}
-            currentInstitution={props.currentInstitution!}
-            vehicles={props.vehicles || []}
-            users={props.users || []}
-            onboardingRecords={props.transportOnboarding || []}
-            onOnboardStudent={props.onOnboardStudent!}
-            onOffboardStudent={props.onOffboardStudent!}
+            currentUser={user}
+            currentInstitution={currentInstitution}
+            vehicles={vehicles}
+            users={users}
+            onboardingRecords={transportOnboarding}
+            onOnboardStudent={onOnboardStudent!}
+            onOffboardStudent={onOffboardStudent!}
         />
     );
 };

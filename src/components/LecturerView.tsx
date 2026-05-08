@@ -29,35 +29,35 @@ import { ChartBarIcon } from './icons/ChartBarIcon';
 
 
 interface LecturerViewProps {
-    user: User;
-    users: User[];
-    subjects: Subject[];
-    departments: Department[];
-    courses: Course[];
-    rooms: any[];
-    requests: AllocationRequest[];
-    allocations: AllocationRequest[];
-    timeOffRequests: any[];
-    onSubmitRequest: (subjectIds: string[], justification: string, signatureUrl: string | null, priority: Priority, academicYearId: string, semesterId: string, preferences: AllocationRequestPreferences | undefined, courseLevelSelections: Record<string, string[]>) => Promise<boolean>;
-    onWithdrawRequest: (requestId: string) => void;
-    onDeallocationRequest: (requestId: string, justification: string) => void;
-    onAllocationChangeRequest: (requestId: string, justification: string, newPriority: Priority) => void;
-    getSubjectById: (id: string) => Subject | undefined;
-    getRoomById: (id: string) => any | undefined;
-    getLecturerById: (id: string) => User | undefined;
-    generatedTimetable: TimetableEntry[];
-    allTimetableEntries: TimetableEntry[];
+    user?: User;
+    users?: User[];
+    subjects?: Subject[];
+    departments?: Department[];
+    courses?: Course[];
+    rooms?: any[];
+    requests?: AllocationRequest[];
+    allocations?: AllocationRequest[];
+    timeOffRequests?: any[];
+    onSubmitRequest?: (subjectIds: string[], justification: string, signatureUrl: string | null, priority: Priority, academicYearId: string, semesterId: string, preferences: AllocationRequestPreferences | undefined, courseLevelSelections: Record<string, string[]>) => Promise<boolean>;
+    onWithdrawRequest?: (requestId: string) => void;
+    onDeallocationRequest?: (requestId: string, justification: string) => void;
+    onAllocationChangeRequest?: (requestId: string, justification: string, newPriority: Priority) => void;
+    getSubjectById?: (id: string) => Subject | undefined;
+    getRoomById?: (id: string) => any | undefined;
+    getLecturerById?: (id: string) => User | undefined;
+    generatedTimetable?: TimetableEntry[];
+    allTimetableEntries?: TimetableEntry[];
     activeAcademicYear?: AcademicYear | null;
     activeSemester?: Semester | null;
-    academicYears: AcademicYear[];
-    semesters: Semester[];
-    timetableSettings: TimetableSettings;
-    letterheadConfig: LetterheadConfig;
-    footerImageUrl: string | null;
-    userTasks: UserTask[];
-    onAddTask: (data: { title: string; dueDate?: string; }) => void;
-    onUpdateTask: (taskId: string, isComplete: boolean) => void;
-    onDeleteTask: (taskId: string) => void;
+    academicYears?: AcademicYear[];
+    semesters?: Semester[];
+    timetableSettings?: TimetableSettings;
+    letterheadConfig?: LetterheadConfig;
+    footerImageUrl?: string | null;
+    userTasks?: UserTask[];
+    onAddTask?: (data: { title: string; dueDate?: string; }) => void;
+    onUpdateTask?: (taskId: string, isComplete: boolean) => void;
+    onDeleteTask?: (taskId: string) => void;
     currentInstitution?: Institution | null;
     onShareLesson?: (entryId: string, teacherId: string | null) => void;
     assignments?: any[];
@@ -75,7 +75,8 @@ interface LecturerViewProps {
     studentAttendances?: any[];
     studentAbsenceRequests?: any[];
     onSaveAttendance?: (lessonId: string, attendance: any[]) => Promise<void>;
-    onAccessAlumnaPortal: (school: any) => void;
+    onAccessAlumnaPortal?: (school: any) => void;
+    schoolRegistry?: any[];
 }
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
@@ -89,12 +90,32 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 
 export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     const {
-        user, subjects = [], departments = [], courses = [], requests = [], allocations = [],
-        onSubmitRequest, onWithdrawRequest, onDeallocationRequest, onAllocationChangeRequest,
-        getSubjectById, getRoomById, getLecturerById, generatedTimetable = [],
-        activeAcademicYear, activeSemester, academicYears = [], semesters = [], timetableSettings,
-        userTasks = [], onAddTask, onUpdateTask, onDeleteTask, currentInstitution,
-        onAccessAlumnaPortal, schoolRegistry
+        user = { name: 'User', id: 'user_1' } as any,
+        subjects = [],
+        departments = [],
+        courses = [],
+        requests = [],
+        allocations = [],
+        onSubmitRequest = async () => true,
+        onWithdrawRequest = () => {},
+        onDeallocationRequest,
+        onAllocationChangeRequest,
+        getSubjectById = () => undefined,
+        getRoomById = () => undefined,
+        getLecturerById = () => undefined,
+        generatedTimetable = [],
+        activeAcademicYear,
+        activeSemester,
+        academicYears = [],
+        semesters = [],
+        timetableSettings = {} as any,
+        userTasks = [],
+        onAddTask,
+        onUpdateTask,
+        onDeleteTask,
+        currentInstitution,
+        onAccessAlumnaPortal,
+        schoolRegistry
     } = props;
 
     const [activeTab, setActiveTab] = useState('dashboard');

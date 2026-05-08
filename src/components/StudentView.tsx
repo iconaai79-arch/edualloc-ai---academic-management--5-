@@ -175,9 +175,9 @@ interface StudentViewProps {
     submissions: Submission[];
     onAddSubmission: (data: Omit<Submission, 'id' | 'institutionId'>) => void;
     lessonRatings: LessonRating[];
-    onAddLessonRating: (timetableEntryId: string, rating: number, comment: string) => void;
-    onRateLesson: (lesson: TimetableEntry) => void;
-    onAddFeedback: (title: string, content: string, isAnonymous: boolean) => void;
+    onAddLessonRating?: (timetableEntryId: string, rating: number, comment: string) => void;
+    onRateLesson?: (lesson: TimetableEntry) => void;
+    onAddFeedback?: (title: string, content: string, isAnonymous: boolean) => void;
     feedbackSubmissions: FeedbackSubmission[];
     studentAbsenceRequests: StudentAbsenceRequest[];
     onSubmitStudentAbsenceRequest: (data: Omit<StudentAbsenceRequest, 'id' | 'studentId' | 'status' | 'institutionId' | 'timestamp'>) => void;
@@ -186,9 +186,9 @@ interface StudentViewProps {
     activeSemester?: Semester | null;
     taAssignments: TaAssignment[];
     userTasks: UserTask[];
-    onAddTask: (data: { title: string }) => void;
-    onUpdateTask: (taskId: string, isComplete: boolean) => void;
-    onDeleteTask: (taskId: string) => void;
+    onAddTask?: (data: { title: string }) => void;
+    onUpdateTask?: (taskId: string, isComplete: boolean) => void;
+    onDeleteTask?: (taskId: string) => void;
     currentInstitution?: Institution | null;
     assessments: Assessment[];
     assessmentMarks: AssessmentMark[];
@@ -198,7 +198,7 @@ interface StudentViewProps {
     // Fix: Changed return type to Promise to match App.tsx implementation.
     onAddParent: (studentId: string, parentData: { name: string, email: string, phone: string }) => Promise<{ success: boolean, message: string, credentials?: { email: string, password: string } }>;
     onDeleteParent: (studentId: string, parentId: string) => void;
-    onAccessAlumnaPortal: (school: any) => void;
+    onAccessAlumnaPortal?: (school: any) => void;
     schoolRegistry?: any[];
     books: Book[];
 }

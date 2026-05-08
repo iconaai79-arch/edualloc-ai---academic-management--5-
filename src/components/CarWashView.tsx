@@ -63,7 +63,11 @@ interface CarWashViewProps {
     departments?: any[];
     courses?: any[];
     onRegisterUser?: (userData: Partial<User>) => Promise<void>;
-    cafeOrders?: CafeOrder[];
+    cafeOrders, jobs: passedJobs, onAddJob, onUpdateJobStatus, onLogAction?: CafeOrder[];
+    jobs?: CarWashJob[];
+    onAddJob?: (job: any) => Promise<void>;
+    onUpdateJobStatus?: (id: string, status: string) => Promise<void>;
+    onLogAction?: (action: string) => Promise<void>;
 }
 
 const AnimatedProfitBar = ({ d, i, maxGraphValue }: { d: any, i: number, maxGraphValue: number }) => {
@@ -216,7 +220,7 @@ const ActivityHeatmap = ({ data }: { data: number[][] }) => {
 export const CarWashView: React.FC<CarWashViewProps> = ({
     currentUser, currentInstitution, companyDetails, users, onDataChange,
     onSendSms, onAddTransaction, smsConfig, smsBalance, mpesaConfig, departments, courses, onRegisterUser,
-    cafeOrders
+    cafeOrders, jobs: passedJobs, onAddJob, onUpdateJobStatus, onLogAction
 }) => {
     const institutionId = currentInstitution.id;
     const [perspective, setPerspective] = useState<'admin' | 'attendant' | 'waiter' | 'cashier'>(() => {
@@ -244,7 +248,11 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [packages, setPackages] = useState<CarWashPackage[]>([]);
     const [customers, setCustomers] = useState<CarWashCustomer[]>([]);
     const [vehicles, setVehicles] = useState<CarWashVehicle[]>([]);
-    const [jobs, setJobs] = useState<CarWashJob[]>([]);
+    const [jobs, setJobs] = useState<CarWashJob[]>(passedJobs || []);
+
+    useEffect(() => {
+        if (passedJobs) setJobs(passedJobs);
+    }, [passedJobs]);
     const [transactions, setTransactions] = useState<MpesaTransaction[]>([]);
 
     // Accounting State
@@ -276,7 +284,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [addOns, setAddOns] = useState<CarWashAddOn[]>([]);
     const [feedbacks, setFeedbacks] = useState<CarWashFeedback[]>([]);
     const [shifts, setShifts] = useState<CarWashShiftLog[]>([]);
-    const [localCafeOrders, setLocalCafeOrders] = useState<CafeOrder[]>([]);
+    const [localcafeOrders, setLocalcafeOrders] = useState<CafeOrder[]>(cafeOrders || []);
+    const [jobs, setJobs] = useState<CarWashJob[]>(passedJobs || []);
     const [loading, setLoading] = useState(true);
 
     const [carWashSettings, setCarWashSettings] = useState<CarWashSettings | null>(null);
@@ -360,7 +369,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const waiters = staff.filter(u => u.role === 'carwash_waiter' || u.role === 'carwash_admin');
 
     const getJobTabTotal = (job: CarWashJob) => {
-        const relevantCafe = (cafeOrders && cafeOrders.length > 0 ? cafeOrders : localCafeOrders).filter(s => s.jobId === job.id && s.paymentMethod === 'tab');
+        const relevantCafe = (cafeOrders && cafeOrders.length > 0 ? cafeOrders : localcafeOrders).filter(s => s.jobId === job.id && s.paymentMethod === 'tab');
         const relevantRetail = retailSales.filter(s => s.unifiedTabId === job.id && s.paymentMethod === 'tab');
         const tabTotal = [...relevantCafe, ...relevantRetail].reduce((sum, s) => sum + s.totalAmount, 0);
         return (job.amountCharged || 0) + tabTotal;
@@ -535,7 +544,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             setRetailSales(rSales || []);
             setRetailInventory(rInv || []);
             setCafeInventory(cInv || []);
-            setLocalCafeOrders(cOrders || []);
+            setLocalcafeOrders(cOrders || []);
             setAddOns(ads || []);
 
             const settings = await apiService.fetchModuleRecords<CarWashSettings>('carwash_settings', institutionId);
@@ -852,7 +861,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             const customer = customers.find(c => c.id === job.customerId);
 
             // Calculate linked cafe orders (tabs) from both new dedicated table and legacy retail sales
-            const relevantCafe = (cafeOrders && cafeOrders.length > 0 ? cafeOrders : localCafeOrders).filter(s => s.jobId === job.id && s.paymentMethod === 'tab');
+            const relevantCafe = (cafeOrders && cafeOrders.length > 0 ? cafeOrders : localcafeOrders).filter(s => s.jobId === job.id && s.paymentMethod === 'tab');
             const relevantRetail = retailSales.filter(s => s.unifiedTabId === job.id && s.paymentMethod === 'tab');
             const relevantOrders = [...relevantCafe, ...relevantRetail];
             const tabTotal = relevantOrders.reduce((sum, s) => sum + s.totalAmount, 0);
@@ -1709,7 +1718,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     ].filter(t => t && perspectiveTabs[perspective].includes(t.id)) as { id: string, label: string, icon: React.ReactNode }[];
 
     const checkoutOrders = showCheckoutModal ? [
-        ...(cafeOrders && cafeOrders.length > 0 ? cafeOrders : localCafeOrders).filter(s => s.jobId === showCheckoutModal.id && s.paymentMethod === 'tab'),
+        ...(cafeOrders && cafeOrders.length > 0 ? cafeOrders : localcafeOrders).filter(s => s.jobId === showCheckoutModal.id && s.paymentMethod === 'tab'),
         ...retailSales.filter(s => s.unifiedTabId === showCheckoutModal.id && s.paymentMethod === 'tab')
     ] : [];
     const checkoutTabTotal = checkoutOrders.reduce((sum, s) => sum + s.totalAmount, 0);
@@ -3668,7 +3677,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             {!loading && activeTab === 'kds' && (
                 <KitchenDisplaySystem
                     retailSales={retailSales}
-                    cafeOrders={cafeOrders && cafeOrders.length > 0 ? cafeOrders : localCafeOrders}
+                    cafeOrders={cafeOrders && cafeOrders.length > 0 ? cafeOrders : localcafeOrders}
                     onUpdateItemStatus={async (orderId, itemId, newStatus, source) => {
                         if (source === 'retail') {
                             const targetSale = retailSales.find(s => s.id === orderId);
@@ -3676,7 +3685,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             const updatedItems = targetSale.items.map(i => i.itemId === itemId ? { ...i, kitchenStatus: newStatus } : i);
                             await apiService.saveModuleRecord('retail_sales', { ...targetSale, items: updatedItems });
                         } else {
-                            const targetOrder = (cafeOrders && cafeOrders.length > 0 ? cafeOrders : localCafeOrders).find(o => o.id === orderId);
+                            const targetOrder = (cafeOrders && cafeOrders.length > 0 ? cafeOrders : localcafeOrders).find(o => o.id === orderId);
                             if (!targetOrder) return;
                             const updatedItems = targetOrder.items.map(i => i.itemId === itemId ? { ...i, kitchenStatus: newStatus } : i);
                             await apiService.saveModuleRecord('cafe_orders', { ...targetOrder, items: updatedItems });

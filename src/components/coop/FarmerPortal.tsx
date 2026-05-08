@@ -30,7 +30,7 @@ import { XIcon } from '../icons/XIcon';
 import { ExclamationIcon as AlertIcon } from '../icons/ExclamationIcon';
 
 interface FarmerPortalProps {
-    currentUser: User;
+    currentUser?: User;
     collections: CoopCollection[];
     saccoAccounts: SaccoAccount[];
     saccoTransactions: SaccoTransaction[];
@@ -44,20 +44,21 @@ interface FarmerPortalProps {
     onLogout: () => void;
 }
 
-export const FarmerPortal: React.FC<FarmerPortalProps> = ({
-    currentUser,
-    collections = [],
-    saccoAccounts = [],
-    saccoTransactions = [],
-    payouts = [],
-    agrovetSales = [],
-    agrovetInventory = [],
-    notifications = [],
-    farmer = null,
-    onUpdateFarmer,
-    onAddSaccoAccount,
-    onLogout
-}) => {
+export const FarmerPortal: React.FC<FarmerPortalProps> = (props) => {
+    const {
+        currentUser = { name: 'User', institutionId: '' } as any,
+        collections = [],
+        saccoAccounts = [],
+        saccoTransactions = [],
+        payouts = [],
+        agrovetSales = [],
+        agrovetInventory = [],
+        notifications = [],
+        farmer = null,
+        onUpdateFarmer,
+        onAddSaccoAccount,
+        onLogout = () => {}
+    } = props;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'collections' | 'sacco' | 'agrovet' | 'statements' | 'notifications' | 'settings'>('dashboard');
     const [isSaving, setIsSaving] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);

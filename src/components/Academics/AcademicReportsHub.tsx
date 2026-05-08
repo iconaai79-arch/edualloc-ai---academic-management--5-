@@ -8,19 +8,20 @@ import { FingerPrintIcon } from '../icons/FingerPrintIcon';
 import { ExclamationTriangleIcon } from '../icons/ExclamationTriangleIcon';
 
 interface AcademicReportsHubProps {
-    assessments: Assessment[];
-    marks: AssessmentMark[];
-    students: User[];
-    subjects: Subject[];
-    activityLogs: ActivityLog[];
+    assessments?: Assessment[];
+    marks?: AssessmentMark[];
+    students?: User[];
+    subjects?: Subject[];
+    activityLogs?: ActivityLog[];
+    [key: string]: any;
 }
 
 export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
-    assessments,
-    marks,
-    students,
-    subjects,
-    activityLogs
+    assessments = [],
+    marks = [],
+    students = [],
+    subjects = [],
+    activityLogs = []
 }) => {
     const [activeTab, setActiveTab] = useState<'missing_marks' | 'broadsheet' | 'audit' | 'analysis'>('missing_marks');
 

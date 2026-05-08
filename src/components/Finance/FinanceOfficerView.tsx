@@ -9,22 +9,22 @@ interface FinanceOfficerViewProps {
     currentInstitution: Institution;
     invoices: Invoice[];
     receipts: Receipt[];
-    expenses: Expense[];
-    goals: FinancialGoal[];
-    feeStructures: FeeStructure[];
-    students: User[];
-    academicYears: AcademicYear[];
-    semesters: Semester[];
-    onGenerateInvoices: (invoices: any[]) => Promise<void>;
-    onAddExpense: (expense: any) => Promise<void>;
+    expenses?: Expense[];
+    goals?: FinancialGoal[];
+    feeStructures?: FeeStructure[];
+    students?: User[];
+    academicYears?: AcademicYear[];
+    semesters?: Semester[];
+    onGenerateInvoices?: (invoices: any[]) => Promise<void>;
+    onAddExpense?: (expense: any) => Promise<void>;
     receiptLimit: number;
     setReceiptLimit: React.Dispatch<React.SetStateAction<number>>;
     transactionLimit: number;
     setTransactionLimit: React.Dispatch<React.SetStateAction<number>>;
-    transactions: any[];
-    onAddTransaction: (data: any, items: any[]) => Promise<any>;
-    onGenerateReceipt: (transaction: any) => void;
-    onLogAction: (action: string) => void;
+    transactions?: any[];
+    onAddTransaction?: (data: any, items: any[]) => Promise<any>;
+    onGenerateReceipt?: (transaction: any) => void;
+    onLogAction?: (action: string) => void;
 }
 
 export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
@@ -43,7 +43,11 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
     receiptLimit,
     setReceiptLimit,
     transactionLimit,
-    setTransactionLimit
+    setTransactionLimit,
+    transactions,
+    onAddTransaction,
+    onGenerateReceipt,
+    onLogAction
 }) => {
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col">

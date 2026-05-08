@@ -1,0 +1,47 @@
+src/components/CarWashView.tsx(287,33): error TS1005: ',' expected.
+src/components/CarWashView.tsx(287,113): error TS1005: ',' expected.
+src/components/CarWashView.tsx(371,47): error TS1005: ')' expected.
+src/components/CarWashView.tsx(371,102): error TS1005: ',' expected.
+src/components/CarWashView.tsx(371,121): error TS1005: ';' expected.
+src/components/CarWashView.tsx(371,199): error TS1005: ':' expected.
+src/components/CarWashView.tsx(371,205): error TS1005: ';' expected.
+src/components/CarWashView.tsx(371,260): error TS1005: ';' expected.
+src/components/CarWashView.tsx(371,283): error TS1005: ';' expected.
+src/components/CarWashView.tsx(371,337): error TS1005: ';' expected.
+src/components/CarWashView.tsx(371,338): error TS1128: Declaration or statement expected.
+src/components/CarWashView.tsx(546,37): error TS1005: ';' expected.
+src/components/CarWashView.tsx(863,51): error TS1005: ')' expected.
+src/components/CarWashView.tsx(863,106): error TS1005: ',' expected.
+src/components/CarWashView.tsx(863,125): error TS1005: ';' expected.
+src/components/CarWashView.tsx(863,203): error TS1005: ':' expected.
+src/components/CarWashView.tsx(863,209): error TS1005: ';' expected.
+src/components/CarWashView.tsx(863,264): error TS1005: ';' expected.
+src/components/CarWashView.tsx(863,287): error TS1005: ';' expected.
+src/components/CarWashView.tsx(863,341): error TS1005: ';' expected.
+src/components/CarWashView.tsx(863,342): error TS1128: Declaration or statement expected.
+src/components/CarWashView.tsx(1720,29): error TS1005: ')' expected.
+src/components/CarWashView.tsx(1720,103): error TS1005: ',' expected.
+src/components/CarWashView.tsx(1720,181): error TS1005: ':' expected.
+src/components/CarWashView.tsx(1720,187): error TS1005: ',' expected.
+src/components/CarWashView.tsx(1720,242): error TS1005: ',' expected.
+src/components/CarWashView.tsx(1720,265): error TS1005: ',' expected.
+src/components/CarWashView.tsx(1720,319): error TS1005: ',' expected.
+src/components/CarWashView.tsx(1720,320): error TS1109: Expression expected.
+src/components/CarWashView.tsx(3679,31): error TS1003: Identifier expected.
+src/components/CarWashView.tsx(3679,37): error TS1005: ')' expected.
+src/components/CarWashView.tsx(3679,109): error TS1005: '}' expected.
+src/components/CarWashView.tsx(3679,245): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+src/components/CarWashView.tsx(3679,399): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/components/CarWashView.tsx(3687,66): error TS1005: ')' expected.
+src/components/CarWashView.tsx(3687,202): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+src/components/CarWashView.tsx(3687,366): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+src/components/CarWashView.tsx(3689,75): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+src/components/CarWashView.tsx(3689,120): error TS1005: '}' expected.
+src/components/CarWashView.tsx(3689,132): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/components/CarWashView.tsx(3690,101): error TS1005: '}' expected.
+src/components/CarWashView.tsx(3690,116): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/components/CarWashView.tsx(3691,25): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/components/CarWashView.tsx(3694,21): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/components/CarWashView.tsx(3694,22): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+src/components/CarWashView.tsx(3695,18): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+src/components/CarWashView.tsx(3696,14): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?

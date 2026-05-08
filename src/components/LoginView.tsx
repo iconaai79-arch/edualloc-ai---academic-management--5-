@@ -331,9 +331,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                         {logoUrl ? (
                             <img loading="lazy" className="mx-auto h-16 w-auto mb-4" src={logoUrl} alt="Logo" />
                         ) : (
-                            <div className="mx-auto h-16 w-16 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg bg-blue-600">
-                                <AcademicCapIcon className="w-10 h-10" />
-                            </div>
+                            <img loading="lazy" className="mx-auto h-16 w-auto mb-4" src="/eduai_logo_3d.png" alt="EduAI Logo" />
                         )}
                         <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tighter uppercase">
                             {applicationTitle || 'EduAi'}

@@ -61,8 +61,8 @@ const dataUriToBlob = (dataUri: string) => {
 };
 
 interface PropertyManagementViewProps {
-    currentUser: User;
-    currentInstitution: Institution;
+    currentUser?: User;
+    currentInstitution?: Institution;
     companyDetails: CompanyDetails;
     users: User[];
     onDataChange: () => void;
@@ -80,15 +80,28 @@ interface PropertyManagementViewProps {
     footerImageUrl: string | null;
     onSendBulkCredentials?: (users: User[], method: 'email' | 'sms') => Promise<{ success_count: number; fail_count: number }>;
     transactions?: any[];
+    onAddProperty?: (p: any) => Promise<void>;
+    onEditProperty?: (id: string, p: any) => Promise<void>;
+    onDeleteProperty?: (id: string) => Promise<void>;
+    onAddUnit?: (u: any) => Promise<void>;
+    onEditUnit?: (id: string, u: any) => Promise<void>;
+    onDeleteUnit?: (id: string) => Promise<void>;
+    onAddLandlord?: (l: any) => Promise<void>;
+    onEditLandlord?: (id: string, l: any) => Promise<void>;
+    onDeleteLandlord?: (id: string) => Promise<void>;
 }
 
-export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
-    currentUser, currentInstitution, companyDetails, users, onDataChange,
-    onAddUser, onEditUser, onDeleteUser, onImportUsers, onLogAction,
-    smsConfig, departments, subjects, courses, letterheadConfig, logoUrl, footerImageUrl,
-    onSendBulkCredentials, transactions = []
-}) => {
-    const institutionId = currentInstitution.id;
+export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (props) => {
+    const { 
+        currentUser, currentInstitution = {} as any, companyDetails = {} as any, users = [], onDataChange = () => {},
+        onAddUser = async () => {}, onEditUser = async () => {}, onDeleteUser = async () => {}, onImportUsers = async () => {}, onLogAction = async () => {},
+        smsConfig = {} as any, departments = [], subjects = [], courses = [], letterheadConfig = {} as any, logoUrl, footerImageUrl,
+        onSendBulkCredentials = async () => ({ success_count: 0, fail_count: 0 }), transactions = [],
+        onAddProperty = async () => {}, onEditProperty = async () => {}, onDeleteProperty = async () => {},
+        onAddUnit = async () => {}, onEditUnit = async () => {}, onDeleteUnit = async () => {},
+        onAddLandlord = async () => {}, onEditLandlord = async () => {}, onDeleteLandlord = async () => {}
+    } = props;
+    const institutionId = currentInstitution?.id;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'payouts' | 'reports' | 'listings' | 'comms' | 'inquiries' | 'staff' | 'config'>('dashboard');
     const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'invoices'>('properties');
     const [reportsSubTab, setReportsSubTab] = useState<'analytics' | 'statements'>('analytics');

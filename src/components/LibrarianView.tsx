@@ -6,28 +6,29 @@ import { BookOpenIcon } from './icons/BookOpenIcon';
 
 
 interface LibrarianViewProps {
-    user: User;
-    users: User[];
-    books: Book[];
-    onAddBook: (book: Omit<Book, 'id' | 'institutionId' | 'addedDate'>) => void;
-    onUpdateBook: (bookId: string, data: Partial<Book>) => void;
-    onDeleteBook: (bookId: string) => void;
-    transactions: LibraryTransaction[];
-    onIssueBook: (bookId: string, userId: string, dueDate: string) => void;
-    onReturnBook: (transactionId: string) => void;
+    user?: User;
+    users?: User[];
+    books?: Book[];
+    onAddBook?: (book: Omit<Book, 'id' | 'institutionId' | 'addedDate'>) => void;
+    onUpdateBook?: (bookId: string, data: Partial<Book>) => void;
+    onDeleteBook?: (bookId: string) => void;
+    transactions?: LibraryTransaction[];
+    onIssueBook?: (bookId: string, userId: string, dueDate: string) => void;
+    onReturnBook?: (transactionId: string) => void;
 }
 
-export const LibrarianView: React.FC<LibrarianViewProps> = ({
-    user,
-    users,
-    books,
-    onAddBook,
-    onUpdateBook,
-    onDeleteBook,
-    transactions,
-    onIssueBook,
-    onReturnBook,
-}) => {
+export const LibrarianView: React.FC<LibrarianViewProps> = (props) => {
+    const {
+        user = { name: 'User' } as any,
+        users = [],
+        books = [],
+        onAddBook = () => {},
+        onUpdateBook = () => {},
+        onDeleteBook = () => {},
+        transactions = [],
+        onIssueBook = () => {},
+        onReturnBook = () => {},
+    } = props;
     const [activeTab, setActiveTab] = useState('dashboard');
     const [isAddingBook, setIsAddingBook] = useState(false);
     const [newBook, setNewBook] = useState({ title: '', author: '', isbn: '', quantity: 1, category: '', location: '', accessionNumber: '' });

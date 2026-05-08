@@ -7,19 +7,19 @@ import { UserIcon } from './icons/UserIcon';
 
 
 interface ParentViewProps {
-    user: User;
-    users: User[];
-    courses: Course[];
-    studentAttendances: StudentAttendance[];
-    generatedTimetable: TimetableEntry[];
-    subjects: Subject[];
+    user?: User;
+    users?: User[];
+    courses?: Course[];
+    studentAttendances?: StudentAttendance[];
+    generatedTimetable?: TimetableEntry[];
+    subjects?: Subject[];
     getSubjectById: (id: string) => Subject | undefined;
     getLecturerById: (id: string) => User | undefined;
     getRoomById: (id: string) => Room | undefined;
-    timetableSettings: TimetableSettings;
-    buildings: Building[];
-    studentCheckIns: Record<string, string>;
-    leaveOutRequests: LeaveOutRequest[];
+    timetableSettings?: TimetableSettings;
+    buildings?: Building[];
+    studentCheckIns?: Record<string, string>;
+    leaveOutRequests?: LeaveOutRequest[];
     onUpdateLeaveOut?: (id: string, data: Partial<LeaveOutRequest>) => Promise<void>;
     transportOnboarding?: TransportOnboarding[];
     vehicles?: TransportVehicle[];
@@ -27,7 +27,7 @@ interface ParentViewProps {
     assessments?: Assessment[];
     onAddAssessment?: (data: any) => Promise<void>;
     onDeleteAssessment?: (id: string) => Promise<void>;
-    onAccessAlumnaPortal: (school: any) => void;
+    onAccessAlumnaPortal?: (school: any) => void;
 }
 
 import { AttendanceAnalytics } from './AttendanceAnalytics';
@@ -154,8 +154,23 @@ const LeaveOutManager: React.FC<{
 };
 
 export const ParentView: React.FC<ParentViewProps> = (props) => {
-    const { user, users, courses, studentAttendances, generatedTimetable, subjects } = props;
-    const children = users.filter(u => user.studentIds?.includes(u.id));
+    const { 
+        user, 
+        users = [], 
+        courses = [], 
+        studentAttendances = [], 
+        generatedTimetable = [], 
+        subjects = [],
+        getSubjectById = () => undefined,
+        getLecturerById = () => undefined,
+        getRoomById = () => undefined,
+        timetableSettings = {} as any,
+        buildings = [],
+        studentCheckIns = {},
+        leaveOutRequests = [],
+        onAccessAlumnaPortal = () => {}
+    } = props;
+    const children = users.filter(u => u && user?.studentIds?.includes(u.id));
 
     return (
         <div className="space-y-10 py-6">

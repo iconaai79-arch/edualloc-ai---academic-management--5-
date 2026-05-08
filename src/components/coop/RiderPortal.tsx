@@ -22,7 +22,7 @@ import { CalendarDaysIcon as Calendar } from '../icons/CalendarDaysIcon';
 import { CheckCircleIcon as CircleCheck } from '../icons/CheckCircleIcon';
 
 interface RiderPortalProps {
-    currentUser: User;
+    currentUser?: User;
     rider?: CoopRider;
     collections: CoopCollection[];
     saccoAccounts: SaccoAccount[];
@@ -31,15 +31,16 @@ interface RiderPortalProps {
     onLogout: () => void;
 }
 
-export const RiderPortal: React.FC<RiderPortalProps> = ({
-    currentUser,
-    rider,
-    collections = [],
-    saccoAccounts = [],
-    saccoTransactions = [],
-    payouts = [],
-    onLogout
-}) => {
+export const RiderPortal: React.FC<RiderPortalProps> = (props) => {
+    const {
+        currentUser = { name: 'User' } as any,
+        rider,
+        collections = [],
+        saccoAccounts = [],
+        saccoTransactions = [],
+        payouts = [],
+        onLogout = () => {}
+    } = props;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'deliveries' | 'sacco' | 'statements'>('dashboard');
 
     const myDeliveries = useMemo(() => 

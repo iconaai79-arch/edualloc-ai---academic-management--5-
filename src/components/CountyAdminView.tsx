@@ -33,121 +33,122 @@ import { ActivityLogView } from './ActivityLogView';
 import { apiService } from '../services/apiService';
 
 interface CountyAdminViewProps {
-    currentUser: User;
-    counties: County[];
-    institutions: Institution[];
-    users: User[];
-    onLogout: () => void;
-    onUpdateInstitution: (id: string, data: Partial<Institution>) => void;
-    onGenerateReceipt: (data: any) => void;
-    onUpdateCounty: (id: string, data: Partial<County>) => void;
-    onAddInstitution: (data: any) => void;
+    currentUser?: User;
+    counties?: County[];
+    institutions?: Institution[];
+    users?: User[];
+    onLogout?: () => void;
+    onUpdateInstitution?: (id: string, data: Partial<Institution>) => void;
+    onGenerateReceipt?: (data: any) => void;
+    onUpdateCounty?: (id: string, data: Partial<County>) => void;
+    onAddInstitution?: (data: any) => void;
     onLoginAsAdmin?: (institutionId: string) => void;
-    onImportInstitutions: (data: any[]) => void;
-    onAddUser: (data: any) => Promise<void>;
-    onUpdateUser: (id: string, data: any) => void;
-    onDeleteUser: (id: string) => void;
-    inventoryItems: CountyInventoryItem[];
-    inventoryCategories: CountyInventoryCategory[];
-    onAddInventoryItem: (data: any) => Promise<void>;
-    onUpdateInventoryItem: (id: string, data: any) => Promise<void>;
-    onDeleteInventoryItem: (id: string) => Promise<void>;
-    onAddInventoryCategory: (data: any) => Promise<void>;
-    onUpdateInventoryCategory: (id: string, data: any) => Promise<void>;
-    onDeleteInventoryCategory: (id: string) => Promise<void>;
-    stores: CountyStore[];
-    onAddStore: (data: any) => Promise<void>;
-    onUpdateStore: (id: string, data: any) => Promise<void>;
-    onDeleteStore: (id: string) => Promise<void>;
-    onAddStockTransaction: (data: any) => Promise<void>;
-    stockTransactions: StockTransaction[];
-    bursaryApplications: BursaryApplication[];
-    bursaryFunds: CountyBursaryFund[];
-    onUpdateBursaryApplication: (id: string, data: any) => Promise<void>;
-    onAddBursaryFund: (data: any) => Promise<void>;
-    onUpdateBursaryFund: (id: string, data: any) => Promise<void>;
-    onDeleteBursaryFund: (id: string) => Promise<void>;
-    activityLog: ActivityLog[];
-    onLogAction: (action: string) => void;
-    incidents: DisciplineIncident[];
-    onAddIncident: (data: any) => void;
-    books: Book[];
-    assessments: Assessment[];
-    assessmentMarks: AssessmentMark[];
+    onImportInstitutions?: (data: any[]) => void;
+    onAddUser?: (data: any) => Promise<void>;
+    onUpdateUser?: (id: string, data: any) => void;
+    onDeleteUser?: (id: string) => void;
+    inventoryItems?: CountyInventoryItem[];
+    inventoryCategories?: CountyInventoryCategory[];
+    onAddInventoryItem?: (data: any) => Promise<void>;
+    onUpdateInventoryItem?: (id: string, data: any) => Promise<void>;
+    onDeleteInventoryItem?: (id: string) => Promise<void>;
+    onAddInventoryCategory?: (data: any) => Promise<void>;
+    onUpdateInventoryCategory?: (id: string, data: any) => Promise<void>;
+    onDeleteInventoryCategory?: (id: string) => Promise<void>;
+    stores?: CountyStore[];
+    onAddStore?: (data: any) => Promise<void>;
+    onUpdateStore?: (id: string, data: any) => Promise<void>;
+    onDeleteStore?: (id: string) => Promise<void>;
+    onAddStockTransaction?: (data: any) => Promise<void>;
+    stockTransactions?: StockTransaction[];
+    bursaryApplications?: BursaryApplication[];
+    bursaryFunds?: CountyBursaryFund[];
+    onUpdateBursaryApplication?: (id: string, data: any) => Promise<void>;
+    onAddBursaryFund?: (data: any) => Promise<void>;
+    onUpdateBursaryFund?: (id: string, data: any) => Promise<void>;
+    onDeleteBursaryFund?: (id: string) => Promise<void>;
+    activityLog?: ActivityLog[];
+    onLogAction?: (action: string) => void;
+    incidents?: DisciplineIncident[];
+    onAddIncident?: (data: any) => void;
+    books?: Book[];
+    assessments?: Assessment[];
+    assessmentMarks?: AssessmentMark[];
     // Agrovet, Sacco, Law, DS props
-    countyAgrovetInventory: CoopAgrovetInventory[];
-    countyAgrovetSales: CoopAgrovetSales[];
-    saccoAccounts: SaccoAccount[];
-    saccoTransactions: SaccoTransaction[];
-    coopPayouts: CoopMonthlyPayout[];
-    coopExpenses: CoopExpense[];
-    coopIncome: CoopIncome[];
-    lawClients: LawClient[];
-    lawMatters: LawMatter[];
-    lawDocuments: LawDocument[];
-    lawTimeEntries: LawTimeEntry[];
-    lawInvoices: LawInvoice[];
-    lawTrustTransactions: LawTrustTransaction[];
-    onAddLawClient: (data: any) => void;
-    onAddLawMatter: (data: any) => void;
-    onAddLawTimeEntry: (data: any) => void;
-    onAddLawTrustTransaction: (data: any) => void;
-    onAddLawInvoice: (data: any) => void;
-    onUpdateLawMatter: (id: string, data: any) => void;
-    lawAgreementTemplates: LawAgreementTemplate[];
-    lawAgreements: LawAgreement[];
-    onAddLawAgreementTemplate: (data: any) => void;
-    onGenerateLawAgreement: (templateId: string, clientId: string, data: any) => void;
-    onApproveLawAgreement: (id: string) => void;
-    dsInstructors: DSInstructor[];
-    dsVehicles: DSVehicle[];
-    dsStudents: DSStudent[];
-    dsLessons: DSLesson[];
-    dsMastery: DSSkillMastery[];
-    dsSettings: DSSettings;
-    onAddDSInstructor: (data: any) => void;
-    onAddDSVehicle: (data: any) => void;
-    onAddDSStudent: (data: any) => void;
-    onAddDSLesson: (data: any) => void;
-    onAddDSMastery: (data: any) => void;
-    onUpdateDSSettings: (data: any) => void;
-    onAddFarmer: (data: any) => void;
-    onUpdateFarmer: (id: string, data: any) => void;
-    onImportFarmers: (data: any[]) => void;
-    onLogCollection: (data: any) => void;
-    onImportCollections: (data: any[]) => void;
-    onBulkConfirmCollections: (ids: string[]) => void;
-    onAddRider: (data: any) => void;
-    onConfirmCollection: (id: string) => void;
-    onApproveCollection: (id: string) => void;
-    onAddCoopExpense: (data: any) => void;
-    onAddCoopIncome: (data: any) => void;
-    onInitiatePayouts: (data: any) => void;
-    onApprovePayouts: (ids: string[]) => void;
-    onDisbursePayouts: (ids: string[]) => void;
-    onAddPayouts: (data: any) => void;
-    onAccessAlumnaPortal: (school: SchoolRegistry) => void;
+    countyAgrovetInventory?: CoopAgrovetInventory[];
+    countyAgrovetSales?: CoopAgrovetSales[];
+    saccoAccounts?: SaccoAccount[];
+    saccoTransactions?: SaccoTransaction[];
+    coopPayouts?: CoopMonthlyPayout[];
+    coopExpenses?: CoopExpense[];
+    coopIncome?: CoopIncome[];
+    lawClients?: LawClient[];
+    lawMatters?: LawMatter[];
+    lawDocuments?: LawDocument[];
+    lawTimeEntries?: LawTimeEntry[];
+    lawInvoices?: LawInvoice[];
+    lawTrustTransactions?: LawTrustTransaction[];
+    onAddLawClient?: (data: any) => void;
+    onAddLawMatter?: (data: any) => void;
+    onAddLawTimeEntry?: (data: any) => void;
+    onAddLawTrustTransaction?: (data: any) => void;
+    onAddLawInvoice?: (data: any) => void;
+    onUpdateLawMatter?: (id: string, data: any) => void;
+    lawAgreementTemplates?: LawAgreementTemplate[];
+    lawAgreements?: LawAgreement[];
+    onAddLawAgreementTemplate?: (data: any) => void;
+    onGenerateLawAgreement?: (templateId: string, clientId: string, data: any) => void;
+    onApproveLawAgreement?: (id: string) => void;
+    dsInstructors?: DSInstructor[];
+    dsVehicles?: DSVehicle[];
+    dsStudents?: DSStudent[];
+    dsLessons?: DSLesson[];
+    dsMastery?: DSSkillMastery[];
+    dsSettings?: DSSettings;
+    onAddDSInstructor?: (data: any) => void;
+    onAddDSVehicle?: (data: any) => void;
+    onAddDSStudent?: (data: any) => void;
+    onAddDSLesson?: (data: any) => void;
+    onAddDSMastery?: (data: any) => void;
+    onUpdateDSSettings?: (data: any) => void;
+    onAddFarmer?: (data: any) => void;
+    onUpdateFarmer?: (id: string, data: any) => void;
+    onImportFarmers?: (data: any[]) => void;
+    onLogCollection?: (data: any) => void;
+    onImportCollections?: (data: any[]) => void;
+    onBulkConfirmCollections?: (ids: string[]) => void;
+    onAddRider?: (data: any) => void;
+    onConfirmCollection?: (id: string) => void;
+    onApproveCollection?: (id: string) => void;
+    onAddCoopExpense?: (data: any) => void;
+    onAddCoopIncome?: (data: any) => void;
+    onInitiatePayouts?: (data: any) => void;
+    onApprovePayouts?: (ids: string[]) => void;
+    onDisbursePayouts?: (ids: string[]) => void;
+    onAddPayouts?: (data: any) => void;
+    onAccessAlumnaPortal?: (school: SchoolRegistry) => void;
     schoolRegistry?: SchoolRegistry[];
     activityLogLimit?: number;
     setActivityLogLimit?: React.Dispatch<React.SetStateAction<number>>;
-    receiptLimit: number;
-    setReceiptLimit: React.Dispatch<React.SetStateAction<number>>;
-    transactionLimit: number;
-    setTransactionLimit: React.Dispatch<React.SetStateAction<number>>;
+    receiptLimit?: number;
+    setReceiptLimit?: React.Dispatch<React.SetStateAction<number>>;
+    transactionLimit?: number;
+    setTransactionLimit?: React.Dispatch<React.SetStateAction<number>>;
 }
 
 export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
     const { 
-        currentUser, counties, institutions, users, onLogout, onUpdateInstitution, 
+        currentUser = { name: 'User', countyId: 'county_1' } as any, 
+        counties = [], institutions = [], users = [], onLogout = () => {}, onUpdateInstitution, 
         onGenerateReceipt, onUpdateCounty, onAddInstitution, 
         onLoginAsAdmin, onImportInstitutions, onAddUser, onUpdateUser, onDeleteUser, 
-        inventoryItems, inventoryCategories, onAddInventoryItem, onUpdateInventoryItem, 
+        inventoryItems = [], inventoryCategories = [], onAddInventoryItem, onUpdateInventoryItem, 
         onDeleteInventoryItem, onAddInventoryCategory, onUpdateInventoryCategory, 
-        onDeleteInventoryCategory, stores, onAddStore, onUpdateStore, onDeleteStore, 
-        onAddStockTransaction, stockTransactions, bursaryApplications, bursaryFunds, 
+        onDeleteInventoryCategory, stores = [], onAddStore, onUpdateStore, onDeleteStore, 
+        onAddStockTransaction, stockTransactions = [], bursaryApplications = [], bursaryFunds = [], 
         onUpdateBursaryApplication, onAddBursaryFund, onUpdateBursaryFund, 
-        onDeleteBursaryFund, activityLog, onLogAction, incidents, onAddIncident, books,
-        assessments, assessmentMarks
+        onDeleteBursaryFund, activityLog = [], onLogAction, incidents = [], onAddIncident, books = [],
+        assessments = [], assessmentMarks = []
     } = props;
 
     const [activeTab, setActiveTab] = useState('dashboard');
