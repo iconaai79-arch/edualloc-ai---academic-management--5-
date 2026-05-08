@@ -118,7 +118,25 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: false,
-      chunkSizeWarningLimit: 1000
+      chunkSizeWarningLimit: 2000,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              return 'vendor';
+            }
+            if (id.includes('src/components/icons')) {
+              return 'ui-icons';
+            }
+            if (id.includes('src/components/SuperAdminView')) {
+              return 'view-superadmin';
+            }
+            if (id.includes('src/components/AdminView')) {
+              return 'view-admin';
+            }
+          }
+        }
+      }
     }
   };
 });

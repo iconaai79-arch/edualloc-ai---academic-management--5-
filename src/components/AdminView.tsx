@@ -2025,16 +2025,16 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onClose={() => setIsAddCarLeadModalOpen(false)}
                         onSave={async (lead) => {
                             const userData: Partial<User> = {
-                                name?: lead.customerName,
-                                phoneNumber?: lead.customerPhone,
-                                email?: lead.customerEmail || '',
-                                role?: 'lead',
+                                name: lead.customerName,
+                                phoneNumber: lead.customerPhone,
+                                email: lead.customerEmail || '',
+                                role: 'lead' as any,
                                 institutionId: props.currentInstitution!.id,
-                                metadata?: {
-                                    enquiredModels?: lead.enquiredModels,
-                                    source?: lead.source,
+                                metadata: {
+                                    enquiredModels: lead.enquiredModels,
+                                    source: lead.source,
                                     status: lead.status,
-                                    notes?: lead.notes,
+                                    notes: lead.notes,
                                     leadtype: 'walk-in'
                                 }
                             };

@@ -63,7 +63,7 @@ interface CarWashViewProps {
     departments?: any[];
     courses?: any[];
     onRegisterUser?: (userData: Partial<User>) => Promise<void>;
-    cafeOrders, jobs: passedJobs, onAddJob, onUpdateJobStatus, onLogAction?: CafeOrder[];
+    cafeOrders?: CafeOrder[];
     jobs?: CarWashJob[];
     onAddJob?: (job: any) => Promise<void>;
     onUpdateJobStatus?: (id: string, status: string) => Promise<void>;
@@ -285,7 +285,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [feedbacks, setFeedbacks] = useState<CarWashFeedback[]>([]);
     const [shifts, setShifts] = useState<CarWashShiftLog[]>([]);
     const [localcafeOrders, setLocalcafeOrders] = useState<CafeOrder[]>(cafeOrders || []);
-    const [jobs, setJobs] = useState<CarWashJob[]>(passedJobs || []);
+
     const [loading, setLoading] = useState(true);
 
     const [carWashSettings, setCarWashSettings] = useState<CarWashSettings | null>(null);
