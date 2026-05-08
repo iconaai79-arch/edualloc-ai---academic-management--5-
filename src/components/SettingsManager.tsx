@@ -8,12 +8,15 @@ import type {
     MpesaTransaction, InvoiceItem, TransactionStatus, ExtensionRequest,
     CompanyDetails, MpesaConfig, SubscriptionConfig, ScheduleProfile,
     TimetableConstraint, TimetableConstraintType, Break, TimetablePeriod, AcademicLevel,
-    TeacherLogicRule, TeacherRuleType, Invoice, Receipt, NcbaConfig, FtpConfig, GoogleDriveConfig
+    TeacherLogicRule, TeacherRuleType, Invoice, Receipt, NcbaConfig, FtpConfig, GoogleDriveConfig,
+    DSSettings, DSFeeStructure
 } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
 import { AcademicYearManager } from './AcademicYearManager';
 import { LocationSettings } from './LocationSettings';
 import { BrandedPaper } from './BrandedPaper';
+import { TruckIcon } from './icons/TruckIcon';
+import { AlertTriangleIcon } from './icons/AlertTriangleIcon';
 import { GradingSystemManager } from './GradingSystemManager';
 import { SubscriptionManager } from './SubscriptionManager';
 import { supabase } from '../lib/supabase';
@@ -162,6 +165,8 @@ interface SettingsManagerProps {
     onRunAlumniMigration?: () => Promise<void>;
     activityLogLimit?: number;
     setActivityLogLimit?: (limit: number | ((prev: number) => number)) => void;
+    dsSettings?: DSSettings | null;
+    onUpdateDSSettings?: (data: any) => Promise<void>;
 }
 
 const CONSTRAINT_TYPE_LABELS: Record<TimetableConstraintType, string> = {
@@ -208,8 +213,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     }, [props.currentInstitution, props.currentUser.role, props.isCoop]);
 
     const isCampaign = useMemo(() => props.currentInstitution?.institutionType === 'Political Campaign', [props.currentInstitution]);
+    const isDS = useMemo(() => {
+        const type = props.currentInstitution?.institutionType?.toLowerCase() || '';
+        const category = props.currentInstitution?.category?.toLowerCase() || '';
+        return type.includes('driving school') || category.includes('driving school');
+    }, [props.currentInstitution]);
 
-    const [activeTab, setActiveTab] = useState<SettingsTab>((isSuperAdmin && !isCoop) ? 'global_config' : 'general');
+    const [activeTab, setActiveTab] = useState<SettingsTab | 'driving_school'>((isSuperAdmin && !isCoop) ? 'global_config' : isDS ? 'driving_school' : 'general');
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
     const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_settings' | 'security_policy' | 'location' | 'branding' | 'grading' | 'billing' | 'integrations' | 'sms' | 'email' | 'farmer_billing'>('profile');
     const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'integrations' | 'showcase' | 'storage' | 'googledrive'>('profile');
@@ -734,11 +744,18 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const mainTabs = useMemo(() => {
         const tabs = [];
 
+        if (isDS) {
+            tabs.push({ id: 'driving_school', label: 'Driving School', icon: <TruckIcon className="w-5 h-5 mr-2" /> });
+            tabs.push({ id: 'general', label: 'Institutional', icon: <InformationCircleIcon className="w-5 h-5 mr-2" /> });
+            tabs.push({ id: 'staff', label: 'Staff & Roles', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> });
+            return tabs;
+        }
+
         if (isSuperAdmin && !isCoop && !props.isAcademicsOfficer) {
             tabs.push({ id: 'global_config', label: 'Global Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> });
         } else {
             tabs.push({ id: 'general', label: 'General', icon: <InformationCircleIcon className="w-5 h-5 mr-2" /> });
-            if (!isRetailAgency && isEdu && !isCoop) {
+            if (!isRetailAgency && isEdu && !isCoop && !isDS) {
                 tabs.push({ id: 'timetable', label: 'Timetable Rules', icon: <ClockIcon className="w-5 h-5 mr-2" /> });
                 tabs.push({ id: 'calendar', label: 'Calendar', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> });
                 tabs.push({ id: 'subjects', label: isChurch ? 'Ministries' : 'Subjects', icon: <BookOpenIcon className="w-5 h-5 mr-2" /> });
@@ -1755,6 +1772,149 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 )}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'driving_school' && (
+                <div className="max-w-4xl bg-white dark:bg-slate-900 p-12 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm animate-fade-in">
+                    <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Driving School <span className="text-indigo-600">Business Rules</span></h2>
+                    <p className="text-slate-500 font-medium uppercase text-[10px] tracking-widest mb-12">Configure pricing, policies and course fees</p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                        <div className="space-y-8">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase mb-6 flex items-center gap-3">
+                                    <CurrencyIcon className="w-5 h-5 text-indigo-600" />
+                                    Lesson Pricing (KSH)
+                                </h3>
+                                <div className="space-y-4">
+                                    <div className="flex flex-col gap-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Practical Session (per hour)</label>
+                                        <input 
+                                            type="number" 
+                                            value={props.dsSettings?.lessonPricePractical || 0}
+                                            onChange={(e) => props.onUpdateDSSettings?.({ ...props.dsSettings, lessonPricePractical: Number(e.target.value) })}
+                                            className="p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-black text-lg" 
+                                        />
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Theory Session (per session)</label>
+                                        <input 
+                                            type="number" 
+                                            value={props.dsSettings?.lessonPriceTheory || 0}
+                                            onChange={(e) => props.onUpdateDSSettings?.({ ...props.dsSettings, lessonPriceTheory: Number(e.target.value) })}
+                                            className="p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-black text-lg" 
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-8">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase mb-6 flex items-center gap-3">
+                                    <AlertTriangleIcon className="w-5 h-5 text-amber-500" />
+                                    Operating Policies
+                                </h3>
+                                <div className="space-y-4">
+                                    <div className="flex flex-col gap-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cancellation Policy</label>
+                                        <textarea 
+                                            value={props.dsSettings?.cancellationPolicy || ''}
+                                            onChange={(e) => props.onUpdateDSSettings?.({ ...props.dsSettings, cancellationPolicy: e.target.value })}
+                                            rows={4}
+                                            placeholder="Specify your rules for lesson cancellation..."
+                                            className="p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-medium text-sm" 
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-2 pt-12 mt-12 border-t border-slate-100 dark:border-slate-800">
+                            <div className="flex items-center justify-between mb-8">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Fee Structures</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Define costs for different driving classes</p>
+                                </div>
+                                <button 
+                                    onClick={() => {
+                                        const className = prompt("Enter Class Name (e.g. CLASS C1):", "CLASS C1");
+                                        if (!className) return;
+                                        const tuition = Number(prompt("Tuition Fee Amount:", "15000"));
+                                        const pdl = Number(prompt("PDL Fee Amount:", "1500"));
+                                        const assessment = Number(prompt("Assessment Fee Amount:", "2000"));
+                                        
+                                        const newFee: DSFeeStructure = {
+                                            id: Math.random().toString(36).substr(2, 9),
+                                            institutionId: props.currentInstitution?.id || '',
+                                            className: className,
+                                            items: [
+                                                { name: 'Tuition Fee', amount: tuition },
+                                                { name: 'PDL', amount: pdl },
+                                                { name: 'Assessment', amount: assessment }
+                                            ],
+                                            totalAmount: tuition + pdl + assessment,
+                                            createdAt: new Date().toISOString(),
+                                            updatedAt: new Date().toISOString()
+                                        };
+                                        props.onUpdateDSSettings?.({ 
+                                            ...props.dsSettings, 
+                                            feeStructures: [...(props.dsSettings?.feeStructures || []), newFee] 
+                                        });
+                                    }}
+                                    className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all"
+                                >
+                                    <PlusIcon className="w-4 h-4" />
+                                    <span>Add Class Fee</span>
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {(props.dsSettings?.feeStructures || []).map((fee) => (
+                                    <div key={fee.id} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <span className="text-sm font-black text-indigo-600 uppercase tracking-widest">{fee.className}</span>
+                                            <span className="text-lg font-black text-slate-900 dark:text-white">KSH {fee.totalAmount.toLocaleString()}</span>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {fee.items.map((item, i) => (
+                                                <div key={i} className="flex items-center justify-between text-xs">
+                                                    <span className="text-slate-500 font-medium">{item.name}</span>
+                                                    <span className="text-slate-700 dark:text-slate-300 font-bold">KSH {item.amount.toLocaleString()}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <button 
+                                            onClick={() => {
+                                                props.onUpdateDSSettings?.({
+                                                    ...props.dsSettings,
+                                                    feeStructures: props.dsSettings?.feeStructures?.filter(f => f.id !== fee.id)
+                                                });
+                                            }}
+                                            className="mt-4 text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"
+                                        >
+                                            Remove Structure
+                                        </button>
+                                    </div>
+                                ))}
+                                {(props.dsSettings?.feeStructures || []).length === 0 && (
+                                    <div className="md:col-span-2 py-12 text-center bg-slate-50/50 dark:bg-slate-800/50 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No fee structures defined yet</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-2 pt-8 border-t border-slate-50 dark:border-slate-800">
+                            <button 
+                                onClick={() => { props.onRefreshData?.(); alert("Settings saved successfully."); }}
+                                className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-3xl font-black text-sm uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/30 transition-all hover:scale-[1.01] active:scale-[0.98]"
+                            >
+                                Save Configuration
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

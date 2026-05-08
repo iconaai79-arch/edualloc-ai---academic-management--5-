@@ -1628,6 +1628,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onAddExtensionRequest={props.onAddExtensionRequest}
                         activityLogLimit={props.activityLogLimit}
                         setActivityLogLimit={props.setActivityLogLimit}
+                        dsSettings={props.dsSettings}
+                        onUpdateDSSettings={props.onUpdateDSSettings}
                     />
                 )}
 
@@ -1725,7 +1727,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onApproveAgreement={props.onApproveLawAgreement}
                     />
                 )}
-                {['dashboard', 'ds_students', 'ds_lessons', 'ds_fleet', 'ds_instructors', 'ds_finance', 'settings'].includes(activeTab) && isDS && (
+                {['dashboard', 'ds_students', 'ds_lessons', 'ds_fleet', 'ds_instructors', 'ds_finance'].includes(activeTab) && isDS && (
                     <DrivingSchoolManager
                         currentUser={props.currentUser!}
                         currentInstitution={props.currentInstitution}
@@ -1751,8 +1753,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                      activeTab === 'ds_lessons' ? 'lessons' : 
                                      activeTab === 'ds_fleet' ? 'fleet' : 
                                      activeTab === 'ds_instructors' ? 'instructors' : 
-                                     activeTab === 'ds_finance' ? 'finance' : 
-                                     activeTab === 'settings' ? 'settings' : 'dashboard'}
+                                     activeTab === 'ds_finance' ? 'finance' : 'dashboard'}
                     />
                 )}
 
