@@ -867,6 +867,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     )}
                                 </div>
                             </div>
+                            </div>
 
                             <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
                                 <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between">
@@ -899,9 +900,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     )}
                                 </div>
                             </div>
-                        )}
-                    </div>
-                )}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {activeTab === 'settings' && (
                 <div className="max-w-4xl bg-white dark:bg-slate-900 p-12 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm animate-fade-in">
@@ -1013,6 +1015,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             >
                                 Save Configuration
                             </button>
+                        </div>
                     </div>
                 </div>
             )}
