@@ -730,13 +730,15 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             const roleToUse = props.activeRole || props.currentUser?.role;
 
             // Educational tabs
-            if (['timetable', 'courses', 'leaveout', 'boarding', 'users'].includes(tab.id)) {
-                if (tab.id === 'users') {
-                    if (props.currentUser?.role === 'super_admin') return true;
-                    if (isAutoMarket) return ['director', 'finance', 'admin'].includes(roleToUse || '');
-                    if (isCoop || isCommunity || institutionType === 'SACCO' || institutionType === 'Agrovet') return true;
-                }
-                return isEdu;
+            if (['timetable', 'courses', 'leaveout', 'boarding'].includes(tab.id)) {
+                return isEdu && !isDS;
+            }
+
+            if (tab.id === 'users') {
+                if (props.currentUser?.role === 'super_admin') return true;
+                if (isAutoMarket) return ['director', 'finance', 'admin'].includes(roleToUse || '');
+                if (isCoop || isCommunity || institutionType === 'SACCO' || institutionType === 'Agrovet' || isDS) return true;
+                return isEdu && !isDS;
             }
 
             // Transport/Logistics
@@ -782,7 +784,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             if (tab.id === 'law') return roleToUse === 'legal_admin' || institutionType === 'Law Firm';
             if (tab.id === 'driving_school') return roleToUse === 'driving_instructor' || isDS || institutionType?.toLowerCase().includes('driving school');
             if (tab.id === 'community') return isCommunity || roleToUse === 'community_admin';
-            if (tab.id === 'alumni') return isAlumni || roleToUse === 'alumni_admin';
+            if (tab.id === 'alumni') return (isAlumni || roleToUse === 'alumni_admin') && !isDS;
             if (tab.id === 'hospitality') return isHospitality || roleToUse === 'hospitality_admin';
             if (tab.id === 'auto_marketplace') return isAutoMarket;
             if (tab.id === 'fuel_station') return isFuelStation;
@@ -794,7 +796,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             }
 
             if (tab.id === 'showcase') {
-                return (isSchool || isEdu) && ['admin', 'head_teacher', 'dos', 'super_admin'].includes(roleToUse || '');
+                return (isSchool || isEdu) && !isDS && ['admin', 'head_teacher', 'dos', 'super_admin'].includes(roleToUse || '');
             }
 
             return true;
@@ -936,7 +938,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             </div>
                         ) : (
                             <>
-                                {isEdu && stats.totalActionable > 0 && (
+                                {isEdu && stats.totalActionable > 0 && !isDS && (
                             <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 p-6 rounded-[2rem] flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in-up">
                                 <div className="flex items-center gap-4 text-center sm:text-left">
                                     <div className="p-3 bg-amber-100 dark:bg-amber-900 rounded-2xl">
@@ -958,12 +960,12 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">{isEdu ? 'Active Faculty' : isChurch ? 'Active Workers' : 'Active Staff'}</h3>
+                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">{isDS ? 'Active Instructors' : (isEdu ? 'Active Faculty' : isChurch ? 'Active Workers' : 'Active Staff')}</h3>
                                 <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
                                     {(props.users || []).filter(u => u && u.role !== 'student' && u.role !== 'super_admin' && u.role !== 'member' && u.role !== 'church_member').length}
                                 </p>
                             </div>
-                            {(isEdu || isChurch) && (
+                            {(isEdu || isChurch) && !isDS && (
                                 <>
                                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
                                         <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">{isEdu ? 'Registry Load' : 'Ministerial Registry'}</h3>
@@ -1012,7 +1014,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     Operational Hub
                                 </h3>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                                    {isEdu && (
+                                    {isEdu && !isDS && (
                                         <button
                                             onClick={() => handleQuickAction('timetable', 'wizard')}
                                             className="flex flex-col items-start p-6 bg-indigo-600 text-white rounded-3xl shadow-xl shadow-indigo-200 hover:shadow-indigo-300 transition-all group text-left hover:-translate-y-1"
@@ -1069,7 +1071,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                             <p className="text-[10px] opacity-80 uppercase mt-1">Command Hub</p>
                                         </button>
                                     )}
-                                    {isEdu && (
+                                    {isEdu && !isDS && (
                                         <>
                                             <button
                                                 onClick={() => handleQuickAction('timetable', undefined, 'calendar')}
