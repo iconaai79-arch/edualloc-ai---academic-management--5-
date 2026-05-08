@@ -44,6 +44,7 @@ interface DrivingSchoolManagerProps {
     onAddPayment: (data: any) => Promise<void>;
     users: User[]; // All users to link students
     onLogAction: (msg: string) => void;
+    externalTab?: 'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings';
 }
 
 export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
@@ -64,9 +65,13 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     onAddInvoice,
     onAddPayment,
     users,
-    onLogAction
+    onLogAction,
+    externalTab
 }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings'>('dashboard');
+    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings'>('dashboard');
+    const activeTab = externalTab || internalTab;
+    const setActiveTab = (tab: any) => setInternalTab(tab);
+
     const [searchTerm, setSearchTerm] = useState('');
 
     // Stats
@@ -107,31 +112,33 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                 </div>
             </div>
 
-            {/* Navigation Tabs */}
-            <div className="flex items-center gap-2 bg-slate-100/50 dark:bg-slate-800/50 p-2 rounded-3xl w-fit border border-slate-200/50 dark:border-slate-700/50 backdrop-blur-md">
-                {[
-                    { id: 'dashboard', label: 'Overview', icon: <TrendingUpIcon className="w-4 h-4" /> },
-                    { id: 'students', label: 'Students', icon: <UsersIcon className="w-4 h-4" /> },
-                    { id: 'lessons', label: 'Schedule', icon: <CalendarIcon className="w-4 h-4" /> },
-                    { id: 'fleet', label: 'Fleet', icon: <TruckIcon className="w-4 h-4" /> },
-                    { id: 'instructors', label: 'Instructors', icon: <BriefcaseIcon className="w-4 h-4" /> },
-                    { id: 'finance', label: 'Finance', icon: <CurrencyIcon className="w-4 h-4" /> },
-                    { id: 'settings', label: 'Settings', icon: <GearIcon className="w-4 h-4" /> },
-                ].map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
-                        className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all ${
-                            activeTab === tab.id 
-                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' 
-                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                        }`}
-                    >
-                        {tab.icon}
-                        {tab.label}
-                    </button>
-                ))}
-            </div>
+            {/* Navigation Tabs - Hidden if controlled externally */}
+            {!externalTab && (
+                <div className="flex items-center gap-2 bg-slate-100/50 dark:bg-slate-800/50 p-2 rounded-3xl w-fit border border-slate-200/50 dark:border-slate-700/50 backdrop-blur-md">
+                    {[
+                        { id: 'dashboard', label: 'Overview', icon: <TrendingUpIcon className="w-4 h-4" /> },
+                        { id: 'students', label: 'Students', icon: <UsersIcon className="w-4 h-4" /> },
+                        { id: 'lessons', label: 'Schedule', icon: <CalendarIcon className="w-4 h-4" /> },
+                        { id: 'fleet', label: 'Fleet', icon: <TruckIcon className="w-4 h-4" /> },
+                        { id: 'instructors', label: 'Instructors', icon: <BriefcaseIcon className="w-4 h-4" /> },
+                        { id: 'finance', label: 'Finance', icon: <CurrencyIcon className="w-4 h-4" /> },
+                        { id: 'settings', label: 'Settings', icon: <GearIcon className="w-4 h-4" /> },
+                    ].map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all ${
+                                activeTab === tab.id 
+                                ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' 
+                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            }`}
+                        >
+                            {tab.icon}
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {activeTab === 'dashboard' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
