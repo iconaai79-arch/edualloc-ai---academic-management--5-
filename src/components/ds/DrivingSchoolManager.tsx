@@ -237,11 +237,11 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     {[
                         { id: 'dashboard', label: 'Overview', icon: <TrendingUpIcon className="w-4 h-4" /> },
                         { id: 'students', label: 'Students', icon: <UsersIcon className="w-4 h-4" /> },
-                        { id: 'lessons', label: 'Schedule', icon: <CalendarIcon className="w-4 h-4" /> },
+                        { id: 'lessons', label: 'Schedule', icon: <CalendarDaysIcon className="w-4 h-4" /> },
                         { id: 'fleet', label: 'Fleet', icon: <TruckIcon className="w-4 h-4" /> },
                         { id: 'instructors', label: 'Instructors', icon: <BriefcaseIcon className="w-4 h-4" /> },
                         { id: 'finance', label: 'Finance', icon: <CurrencyIcon className="w-4 h-4" /> },
-                        { id: 'settings', label: 'Settings', icon: <GearIcon className="w-4 h-4" /> },
+                        { id: 'settings', label: 'Settings', icon: <SettingsIcon className="w-4 h-4" /> },
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -274,7 +274,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                     <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm transition-transform hover:scale-[1.02]">
                         <div className="p-3 bg-emerald-50 dark:bg-emerald-900/30 rounded-2xl w-fit mb-6">
-                            <CalendarIcon className="w-6 h-6 text-emerald-600" />
+                            <CalendarDaysIcon className="w-6 h-6 text-emerald-600" />
                         </div>
                         <h3 className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mb-1">Pending Lessons</h3>
                         <div className="flex items-baseline gap-2">
@@ -295,7 +295,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                     <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm transition-transform hover:scale-[1.02]">
                         <div className="p-3 bg-fuchsia-50 dark:bg-fuchsia-900/30 rounded-2xl w-fit mb-6">
-                            <GraduationCapIcon className="w-6 h-6 text-fuchsia-600" />
+                            <AcademicCapIcon className="w-6 h-6 text-fuchsia-600" />
                         </div>
                         <h3 className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mb-1">Graduation Rate</h3>
                         <div className="flex items-baseline gap-2">
@@ -315,7 +315,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110 ${
                                         lesson.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-500'
                                     }`}>
-                                        <ClipboardIcon className="w-6 h-6" />
+                                        <ClipboardListIcon className="w-6 h-6" />
                                     </div>
                                     <div className="flex-1">
                                         <div className="flex items-center justify-between">
@@ -334,7 +334,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             {lessons.length === 0 && (
                                 <div className="text-center py-12">
                                     <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <CalendarIcon className="w-10 h-10 text-slate-300" />
+                                        <CalendarDaysIcon className="w-10 h-10 text-slate-300" />
                                     </div>
                                     <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">No recent lesson activity</p>
                                 </div>
@@ -494,7 +494,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         <div className="flex items-center justify-between mb-8">
                             <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Weekly Schedule</h2>
                             <div className="flex gap-2">
-                                <button className="p-3 bg-slate-50 rounded-2xl text-slate-400"><CalendarIcon className="w-5 h-5" /></button>
+                                <button className="p-3 bg-slate-50 rounded-2xl text-slate-400"><CalendarDaysIcon className="w-5 h-5" /></button>
                                 <button className="bg-indigo-600 text-white px-6 py-2 rounded-2xl font-bold text-xs">New Lesson</button>
                             </div>
                         </div>
@@ -579,7 +579,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between py-3 border-b border-slate-50 dark:border-slate-800">
                                         <div className="flex items-center gap-3">
-                                            <CalendarIcon className="w-4 h-4 text-slate-400" />
+                                            <CalendarDaysIcon className="w-4 h-4 text-slate-400" />
                                             <span className="text-[10px] font-black text-slate-500 uppercase">Next Service</span>
                                         </div>
                                         <span className="text-xs font-bold text-slate-900 dark:text-white italic">{vehicle.nextServiceDate || 'TBD'}</span>
@@ -912,7 +912,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         <div className="space-y-8">
                             <div>
                                 <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase mb-6 flex items-center gap-3">
-                                    <AlertTriangleIcon className="w-5 h-5 text-amber-500" />
+                                    <ExclamationTriangleIcon className="w-5 h-5 text-amber-500" />
                                     Operating Policies
                                 </h3>
                                 <div className="space-y-4">
@@ -1013,7 +1013,6 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             >
                                 Save Configuration
                             </button>
-                        </div>
                     </div>
                 </div>
             )}
@@ -1026,113 +1025,6 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     }}
                 />
             )}
-        </div>
-    );
-};
-
-const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data: any[]) => Promise<void> }> = ({ onClose, onImport }) => {
-    const [file, setFile] = useState<File | null>(null);
-    const [isProcessing, setIsProcessing] = useState(false);
-
-    const handleImport = async () => {
-        if (!file) return;
-        setIsProcessing(true);
-        // Simulate parsing excel and mapping fields
-        setTimeout(async () => {
-            const mockData = [
-                { fullName: "John Doe", email: "john@example.com", phone: "0711223344", licenseTypeInterested: "Class C1" },
-                { fullName: "Jane Smith", email: "jane@example.com", phone: "0722334455", licenseTypeInterested: "Class B" }
-            ];
-            await onImport; // just to satisfy lint if needed
-            await onImport(mockData);
-            setIsProcessing(false);
-            onClose();
-        }, 1500);
-    };
-
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-scale-in border border-white/20">
-                <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                    <div>
-                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Smart Student Importer</h3>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Bulk onboard students from Excel/CSV</p>
-                    </div>
-                    <button onClick={onClose} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl hover:bg-slate-200 transition-colors">
-                        <XIcon className="w-5 h-5 text-slate-500" />
-                    </button>
-                </div>
-                
-                <div className="p-12 text-center">
-                    {!file ? (
-                        <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2.5rem] p-12 hover:border-indigo-500 transition-colors group cursor-pointer">
-                            <input 
-                                type="file" 
-                                accept=".xlsx,.xls,.csv" 
-                                className="hidden" 
-                                id="excel-upload"
-                                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                            />
-                            <label htmlFor="excel-upload" className="cursor-pointer">
-                                <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/30 rounded-3xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
-                                    <ArrowUpTrayIcon className="w-10 h-10 text-indigo-600" />
-                                </div>
-                                <h4 className="text-lg font-black text-slate-900 dark:text-white mb-2">Drop your Excel file here</h4>
-                                <p className="text-xs text-slate-500 font-medium uppercase tracking-widest">or click to browse from computer</p>
-                            </label>
-                        </div>
-                    ) : (
-                        <div className="bg-slate-50 dark:bg-slate-800/50 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800">
-                            <div className="flex items-center gap-4 text-left">
-                                <div className="p-4 bg-green-50 dark:bg-green-900/30 rounded-2xl">
-                                    <SparklesIcon className="w-6 h-6 text-green-600" />
-                                </div>
-                                <div className="flex-1">
-                                    <h4 className="font-black text-slate-900 dark:text-white uppercase text-sm tracking-tight">{file.name}</h4>
-                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">{(file.size / 1024).toFixed(1)} KB • Ready to map fields</p>
-                                </div>
-                                <button onClick={() => setFile(null)} className="text-xs font-black text-red-500 uppercase tracking-widest">Change</button>
-                            </div>
-
-                            <div className="mt-8 space-y-4">
-                                <div className="grid grid-cols-2 gap-4 text-left">
-                                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                        <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">Detected Fields</span>
-                                        <span className="text-xs font-bold text-indigo-600">4 Columns Found</span>
-                                    </div>
-                                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                        <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">Target Module</span>
-                                        <span className="text-xs font-bold text-indigo-600">DS Students</span>
-                                    </div>
-                                </div>
-                                
-                                <button 
-                                    onClick={handleImport}
-                                    disabled={isProcessing}
-                                    className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[2rem] font-black text-sm uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-3"
-                                >
-                                    {isProcessing ? (
-                                        <>
-                                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                            <span>Processing...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <SparklesIcon className="w-5 h-5" />
-                                            <span>Run Smart Importer</span>
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-                
-                <div className="p-8 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Supported: .xlsx, .csv, .xls</p>
-                    <button onClick={onClose} className="text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-900 transition-colors">Cancel</button>
-                </div>
-            </div>
         </div>
     );
 };
