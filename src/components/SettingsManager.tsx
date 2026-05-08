@@ -1926,7 +1926,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                         <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto no-scrollbar">
                             {(() => {
                                 if (isRetailAgency) return ['profile', 'location', 'branding'];
-                                if (isCoop || !isEdu) {
+                                if (isCoop || !isEdu || isDS) {
                                     const filtered = ['profile', 'location', 'branding'];
                                     if (props.currentUser.role === 'admin' || isCoop) {
                                         filtered.push('billing');
