@@ -1785,35 +1785,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                         <div className="space-y-8">
                             <div>
                                 <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase mb-6 flex items-center gap-3">
-                                    <CurrencyIcon className="w-5 h-5 text-indigo-600" />
-                                    Lesson Pricing (KSH)
-                                </h3>
-                                <div className="space-y-4">
-                                    <div className="flex flex-col gap-2">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Practical Session (per hour)</label>
-                                        <input 
-                                            type="number" 
-                                            value={props.dsSettings?.lessonPricePractical || 0}
-                                            onChange={(e) => props.onUpdateDSSettings?.({ ...props.dsSettings, lessonPricePractical: Number(e.target.value) })}
-                                            className="p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-black text-lg" 
-                                        />
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Theory Session (per session)</label>
-                                        <input 
-                                            type="number" 
-                                            value={props.dsSettings?.lessonPriceTheory || 0}
-                                            onChange={(e) => props.onUpdateDSSettings?.({ ...props.dsSettings, lessonPriceTheory: Number(e.target.value) })}
-                                            className="p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-black text-lg" 
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="space-y-8">
-                            <div>
-                                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase mb-6 flex items-center gap-3">
                                     <AlertTriangleIcon className="w-5 h-5 text-amber-500" />
                                     Operating Policies
                                 </h3>
