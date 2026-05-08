@@ -343,6 +343,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         });
         setLocalInstGoogleDriveConfig(props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false });
     }, [props.currentInstitution]);
+
+    const [localDsSettings, setLocalDsSettings] = useState<DSSettings | null>(props.dsSettings || null);
+    useEffect(() => {
+        setLocalDsSettings(props.dsSettings || null);
+    }, [props.dsSettings]);
     // Update local state when profile changes
     useEffect(() => {
         if (selectedProfileId === 'default') {
@@ -1792,8 +1797,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     <div className="flex flex-col gap-2">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cancellation Policy</label>
                                         <textarea 
-                                            value={props.dsSettings?.cancellationPolicy || ''}
-                                            onChange={(e) => props.onUpdateDSSettings?.({ ...props.dsSettings, cancellationPolicy: e.target.value })}
+                                            value={localDsSettings?.cancellationPolicy || ''}
+                                            onChange={(e) => {
+                                                const next = { ...localDsSettings, cancellationPolicy: e.target.value } as DSSettings;
+                                                setLocalDsSettings(next);
+                                                props.onUpdateDSSettings?.(next);
+                                            }}
                                             rows={4}
                                             placeholder="Specify your rules for lesson cancellation..."
                                             className="p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-medium text-sm" 
@@ -1830,10 +1839,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             createdAt: new Date().toISOString(),
                                             updatedAt: new Date().toISOString()
                                         };
-                                        props.onUpdateDSSettings?.({ 
-                                            ...props.dsSettings, 
-                                            feeStructures: [...(props.dsSettings?.feeStructures || []), newFee] 
-                                        });
+                                        const next = { 
+                                            ...(localDsSettings || {}), 
+                                            feeStructures: [...(localDsSettings?.feeStructures || []), newFee] 
+                                        } as DSSettings;
+                                        setLocalDsSettings(next);
+                                        props.onUpdateDSSettings?.(next);
                                     }}
                                     className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all"
                                 >
@@ -1843,7 +1854,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {(props.dsSettings?.feeStructures || []).map((fee) => (
+                                {(localDsSettings?.feeStructures || []).map((fee) => (
                                     <div key={fee.id} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800">
                                         <div className="flex items-center justify-between mb-4">
                                             <span className="text-sm font-black text-indigo-600 uppercase tracking-widest">{fee.className}</span>
@@ -1859,10 +1870,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         </div>
                                         <button 
                                             onClick={() => {
-                                                props.onUpdateDSSettings?.({
-                                                    ...props.dsSettings,
-                                                    feeStructures: props.dsSettings?.feeStructures?.filter(f => f.id !== fee.id)
-                                                });
+                                                const next = {
+                                                    ...localDsSettings,
+                                                    feeStructures: localDsSettings?.feeStructures?.filter(f => f.id !== fee.id)
+                                                } as DSSettings;
+                                                setLocalDsSettings(next);
+                                                props.onUpdateDSSettings?.(next);
                                             }}
                                             className="mt-4 text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"
                                         >
@@ -1870,7 +1883,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         </button>
                                     </div>
                                 ))}
-                                {(props.dsSettings?.feeStructures || []).length === 0 && (
+                                {(localDsSettings?.feeStructures || []).length === 0 && (
                                     <div className="md:col-span-2 py-12 text-center bg-slate-50/50 dark:bg-slate-800/50 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700">
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No fee structures defined yet</p>
                                     </div>
