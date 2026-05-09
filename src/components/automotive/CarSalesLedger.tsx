@@ -8,7 +8,7 @@ import {
     CheckCircle, 
     XCircle,
     Search,
-    ArrowDownTray,
+    Download,
     Printer,
     Coins,
     Plus,
@@ -163,7 +163,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                     </div>
                                                     <div>
                                                         <p className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase">{listing ? `${listing.year} ${listing.make} ${listing.model}` : 'Special Order'}</p>
-                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1 italic">{new Date(inv.invoiceDate).toLocaleDateString()}</p>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1 italic">{new Date(inv.createdAt || Date.now()).toLocaleDateString()}</p>
                                                     </div>
                                                 </div>
                                             </td>
@@ -206,7 +206,7 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                     <tr key={pay.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors">
                                         <td className="px-8 py-6">
                                             <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{pay.paymentMethod}</p>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Reference: {pay.transactionId || 'CASH'}</p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Reference: {pay.transactionReference || 'CASH'}</p>
                                         </td>
                                         <td className="px-8 py-6">
                                             <div className="flex items-center gap-3">

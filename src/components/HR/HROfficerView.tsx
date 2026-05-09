@@ -12,6 +12,12 @@ interface HROfficerViewProps {
     leaveRequests?: LeaveRequest[];
     onProcessPayroll?: (records: PayrollRecord[]) => Promise<void>;
     onUpdateLeaveStatus?: (id: string, status: 'approved' | 'rejected') => Promise<void>;
+    onAddUser?: (data: any) => Promise<void>;
+    onEditUser?: (id: string, data: any) => Promise<void>;
+    onDeleteUser?: (id: string) => Promise<void>;
+    onAddDepartment?: (name: string) => Promise<void>;
+    onUpdateDepartment?: (id: string, name: string) => void;
+    onDeleteDepartment?: (id: string) => void;
 }
 
 export const HROfficerView: React.FC<HROfficerViewProps> = (props) => {

@@ -157,6 +157,9 @@ export const App: React.FC = () => {
 
 
     const [impersonatedRole, setImpersonatedRole] = useState<Role | null>(null);
+    const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
+    const [selectedRegistrySchool, setSelectedRegistrySchool] = useState<SchoolRegistry | null>(null);
+    const [selectedRole, setSelectedRole] = useState<Role | null>(null);
     const [originalSuperAdminSession, setOriginalSuperAdminSession] = useState<User | null>(() => {
         try {
             const stored = localStorage.getItem('eduai_super_admin_session');
@@ -450,6 +453,158 @@ export const App: React.FC = () => {
     }, []);
 
     const [showAlumnaeActivation, setShowAlumnaeActivation] = useState(false);
+
+    // Getters and Derived State moved higher to avoid TDZ
+    const getLecturerById = useCallback((id: string) => (Array.isArray(users) ? users : []).find(u => u && u.id === id), [users]);
+    const getSubjectById = useCallback((id: string) => (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === id), [subjects]);
+    const getRoomById = useCallback((id: string) => (Array.isArray(rooms) ? rooms : []).find(r => r && r.id === id), [rooms]);
+    const getCountyById = useCallback((id: string) => (Array.isArray(counties) ? counties : []).find(c => c && c.id === id), [counties]);
+    const getInstitutionById = useCallback((id: string) => (Array.isArray(institutions) ? institutions : []).find(i => i && i.id === id), [institutions]);
+
+    const activeInstitution = useMemo(() => {
+        if (!currentUser || !Array.isArray(institutions)) return null;
+
+        // Support showroom context for SuperAdmins via URL param
+        if (currentUser.role === 'super_admin' && activeStoreTenantId) {
+            const found = institutions.find(i => i && (i.id === activeStoreTenantId || i.slug === activeStoreTenantId));
+            if (found) return found;
+        }
+
+        const found = institutions.find(i => i && i.id === currentUser.institutionId);
+        if (found) return found;
+
+        // Support impersonation of non-onboarded schools from the registry
+        if (currentUser.isImpersonated) {
+            const registryEntry = schoolRegistry.find(s => s.id === currentUser.institutionId || s.institutionId === currentUser.institutionId);
+            if (registryEntry) {
+                return {
+                    id: currentUser.institutionId,
+                    name: registryEntry.name,
+                    email: '',
+                    phoneNumber: '',
+                    institutionType: (registryEntry.institutionType || 'Education') as any,
+                    status: 'active',
+                } as any;
+            }
+        }
+        return null;
+    }, [currentUser, institutions, schoolRegistry, activeStoreTenantId]);
+
+    const activeRole = useMemo<Role | null>(() => {
+        if (impersonatedRole) return impersonatedRole;
+        if (!currentUser) return null;
+
+        const roleToUse = selectedRole || currentUser.role;
+
+        // Redirect school administrators to the County Portal if their school is registered to a county
+        const inst = institutions.find(i => (i as any).id === currentUser.institutionId);
+        if (inst?.countyId && (roleToUse === 'admin' || roleToUse === 'head_teacher')) {
+            return 'county_admin';
+        }
+
+        // Force Reseller role for admins of Reseller institutions
+        if (inst?.institutionType === 'Reseller' && roleToUse === 'admin') {
+            return 'reseller';
+        }
+
+        return roleToUse;
+    }, [impersonatedRole, currentUser, institutions, selectedRole]);
+
+    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin', 'driving_instructor'].includes(activeRole || '');
+
+    const isFullWidthLayout = useMemo(() => {
+        return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
+    }, [activeRole, isAdminCatchAll]);
+
+    const activeCounty = useMemo(() => {
+        if (!currentUser || !Array.isArray(counties)) return null;
+
+        // Match by current user's institutionId (if it's a county ID)
+        const directMatch = getCountyById(currentUser.institutionId);
+        if (directMatch) return directMatch;
+
+        // Alternative check: find user's institution and check its countyId
+        const myInst = getInstitutionById(currentUser.institutionId);
+        if (myInst?.countyId) {
+            return getCountyById(myInst.countyId) || null;
+        }
+
+        return null;
+    }, [counties, currentUser, getCountyById, getInstitutionById]);
+
+    const activeBranding = useMemo(() => {
+        if (isAlumnaeMode) {
+            return {
+                primaryColor: '#6366f1', // Indigo
+                secondaryColor: '#0f172a',
+                logoUrl: '/alumnae_logo_3d.png',
+                motto: 'Connecting Excellence Across Generations',
+                website: 'https://network.eduai.co.ke',
+                displayName: 'EduAI Network'
+            };
+        }
+
+        if (showDrivingSchoolPortal) {
+            return {
+                primaryColor: '#0ea5e9', // Sky blue
+                secondaryColor: '#0f172a',
+                logoUrl: '/driving_school_logo_3d.png',
+                motto: 'Safety First, Success Always',
+                website: 'https://drivingschool.eduai.co.ke',
+                displayName: 'Driving School Portal'
+            };
+        }
+
+        const isCountyContext = activeRole === 'county_admin' || activeRole?.startsWith('county_');
+
+        if (isCountyContext && activeCounty) {
+            return {
+                primaryColor: activeCounty.primaryColor || '#4f46e5',
+                secondaryColor: activeCounty.secondaryColor || '#0f172a',
+                logoUrl: activeCounty.logoUrl || companyDetails.logoUrl,
+                motto: activeCounty.motto,
+                website: activeCounty.website,
+                displayName: activeCounty.name
+            };
+        }
+
+        return {
+            primaryColor: activeInstitution?.themeColor || companyDetails.themeColor || '#4f46e5',
+            secondaryColor: '#0f172a',
+            logoUrl: activeInstitution?.logoUrl || companyDetails.logoUrl,
+            motto: null,
+            website: null,
+            displayName: activeInstitution?.name
+        };
+    }, [activeRole, activeCounty, activeInstitution, companyDetails, isAlumnaeMode, showDrivingSchoolPortal]);
+
+    const activeAcademicYear = useMemo(() =>
+        (Array.isArray(academicYears) ? academicYears : []).find(y => y && y.status === 'active') || null
+        , [academicYears]);
+
+    const activeSemester = useMemo(() =>
+        (Array.isArray(semesters) ? semesters : []).find(s => s && s.status === 'active') || null
+        , [semesters]);
+
+    const timetableSettings = useMemo(() => activeInstitution?.timetableSettings || INITIAL_TIMETABLE_SETTINGS, [activeInstitution]);
+
+    const allocations = useMemo(() => (Array.isArray(requests) ? requests : []).filter(r => r && (r.status === 'approved' || r.status === 'hod_approved' || r.status === 'change_request_pending' || r.status === 'deallocation_pending')), [requests]);
+
+    const timetableConflicts = useMemo(() => detectTimetableConflicts(generatedTimetable, rooms, courses, subjects, timetableSettings), [generatedTimetable, rooms, courses, subjects, timetableSettings]);
+
+    const courseSizes = useMemo(() => {
+        const sizes = new Map<string, number>();
+        (courses || []).forEach(course => {
+            (course.levels || []).forEach(level => {
+                const count = (users || []).filter(u => u && u.role === 'student' && u.courseId === course.id && u.courseLevelId === level.id).length;
+                sizes.set(level.id, count);
+            });
+        });
+        return sizes;
+    }, [courses, users]);
+
+    const activeLetterheadConfig = useMemo(() => activeInstitution?.letterheadConfig || companyDetails.letterheadConfig, [activeInstitution, companyDetails]);
+    const activeFooterImageUrl = useMemo(() => activeInstitution?.footerImageUrl || companyDetails.footerImageUrl || null, [activeInstitution, companyDetails]);
 
     const loadData = useCallback(async (isFirstLoad = false, force = false) => {
         // Prevent concurrent refreshes
@@ -936,8 +1091,6 @@ export const App: React.FC = () => {
         } catch (e) { return false; }
     });
 
-    const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
-    const [selectedRegistrySchool, setSelectedRegistrySchool] = useState<SchoolRegistry | null>(null);
 
     // SEO and Deeplinking for Alumnae
     useEffect(() => {
@@ -1060,40 +1213,6 @@ export const App: React.FC = () => {
         }
     }, [currentUser]);
 
-    const getLecturerById = useCallback((id: string) => (Array.isArray(users) ? users : []).find(u => u && u.id === id), [users]);
-    const getSubjectById = useCallback((id: string) => (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === id), [subjects]);
-    const getRoomById = useCallback((id: string) => (Array.isArray(rooms) ? rooms : []).find(r => r && r.id === id), [rooms]);
-    const getCountyById = useCallback((id: string) => (Array.isArray(counties) ? counties : []).find(c => c && c.id === id), [counties]);
-    const getInstitutionById = useCallback((id: string) => (Array.isArray(institutions) ? institutions : []).find(i => i && i.id === id), [institutions]);
-
-    const activeInstitution = useMemo(() => {
-        if (!currentUser || !Array.isArray(institutions)) return null;
-
-        // Support showroom context for SuperAdmins via URL param
-        if (currentUser.role === 'super_admin' && activeStoreTenantId) {
-            const found = institutions.find(i => i && (i.id === activeStoreTenantId || i.slug === activeStoreTenantId));
-            if (found) return found;
-        }
-
-        const found = institutions.find(i => i && i.id === currentUser.institutionId);
-        if (found) return found;
-
-        // Support impersonation of non-onboarded schools from the registry
-        if (currentUser.isImpersonated) {
-            const registryEntry = schoolRegistry.find(s => s.id === currentUser.institutionId || s.institutionId === currentUser.institutionId);
-            if (registryEntry) {
-                return {
-                    id: currentUser.institutionId,
-                    name: registryEntry.name,
-                    email: '',
-                    phoneNumber: '',
-                    institutionType: (registryEntry.institutionType || 'Education') as any,
-                    status: 'active',
-                } as any;
-            }
-        }
-        return null;
-    }, [currentUser, institutions, schoolRegistry, activeStoreTenantId]);
 
 
 
@@ -1120,7 +1239,6 @@ export const App: React.FC = () => {
         return type === 'Car Showroom' || cat === 'Automotive Marketplace' || cat === 'Car Showroom' || subType.includes('vehicle sales') || subType.includes('car sales') || subType.includes('motors') || name.includes('motors') || name.includes('car sales') || subType.includes('showroom');
     }, [activeInstitution]);
 
-    const [selectedRole, setSelectedRole] = useState<Role | null>(null);
 
     const onDeleteUser = useCallback(async (id: string) => {
         await apiService.deleteModuleRecord('users', id);
@@ -1484,6 +1602,33 @@ export const App: React.FC = () => {
         loadData();
     }, [currentUser, loadData]);
 
+    const handleLecturerSubmitRequest = useCallback(async (subjectIds: string[], justification: string, signatureUrl: string | null, priority: string, academicYearId: string, semesterId: string, preferences: any, courseLevelSelections: Record<string, string[]>) => {
+        try {
+            for (const subjectId of subjectIds) {
+                await apiService.saveModuleRecord('allocation_requests', {
+                    id: `req_${Date.now()}_${subjectId}`,
+                    institutionId: currentUser?.institutionId,
+                    lecturerId: currentUser?.id,
+                    subjectId,
+                    justification,
+                    signatureUrl,
+                    priority,
+                    academicYearId,
+                    semesterId,
+                    preferences,
+                    courseLevelSelections,
+                    status: 'pending',
+                    createdAt: new Date().toISOString()
+                });
+            }
+            loadData();
+            return true;
+        } catch (error) {
+            console.error("Failed to submit requests:", error);
+            return false;
+        }
+    }, [currentUser, loadData]);
+
     const handleUpdateRequest = useCallback(async (id: string, data: any) => {
         const existing = (requests || []).find(r => r.id === id);
         if (existing) {
@@ -1711,122 +1856,8 @@ export const App: React.FC = () => {
         }
     }, [transportOnboarding, handleLogAction, loadData]);
 
-    const activeRole = useMemo<Role | null>(() => {
-        if (impersonatedRole) return impersonatedRole;
-        if (!currentUser) return null;
 
-        const roleToUse = selectedRole || currentUser.role;
 
-        // Redirect school administrators to the County Portal if their school is registered to a county
-        const inst = institutions.find(i => (i as any).id === currentUser.institutionId);
-        if (inst?.countyId && (roleToUse === 'admin' || roleToUse === 'head_teacher')) {
-            return 'county_admin';
-        }
-
-        // Force Reseller role for admins of Reseller institutions
-        if (inst?.institutionType === 'Reseller' && roleToUse === 'admin') {
-            return 'reseller';
-        }
-
-        return roleToUse;
-    }, [impersonatedRole, currentUser, institutions, selectedRole]);
-
-    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin', 'driving_instructor'].includes(activeRole || '');
-
-    const isFullWidthLayout = useMemo(() => {
-        return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
-    }, [activeRole, isAdminCatchAll]);
-
-    const activeCounty = useMemo(() => {
-        if (!currentUser || !Array.isArray(counties)) return null;
-
-        // Match by current user's institutionId (if it's a county ID)
-        const directMatch = getCountyById(currentUser.institutionId);
-        if (directMatch) return directMatch;
-
-        // Alternative check: find user's institution and check its countyId
-        const myInst = getInstitutionById(currentUser.institutionId);
-        if (myInst?.countyId) {
-            return getCountyById(myInst.countyId) || null;
-        }
-
-        return null;
-    }, [counties, currentUser, getCountyById, getInstitutionById]);
-
-    const activeBranding = useMemo(() => {
-        if (isAlumnaeMode) {
-            return {
-                primaryColor: '#6366f1', // Indigo
-                secondaryColor: '#0f172a',
-                logoUrl: '/alumnae_logo_3d.png',
-                motto: 'Connecting Excellence Across Generations',
-                website: 'https://network.eduai.co.ke',
-                displayName: 'EduAI Network'
-            };
-        }
-
-        if (showDrivingSchoolPortal) {
-            return {
-                primaryColor: '#0ea5e9', // Sky blue
-                secondaryColor: '#0f172a',
-                logoUrl: '/driving_school_logo_3d.png',
-                motto: 'Safety First, Success Always',
-                website: 'https://drivingschool.eduai.co.ke',
-                displayName: 'Driving School Portal'
-            };
-        }
-
-        const isCountyContext = activeRole === 'county_admin' || activeRole?.startsWith('county_');
-
-        if (isCountyContext && activeCounty) {
-            return {
-                primaryColor: activeCounty.primaryColor || '#4f46e5',
-                secondaryColor: activeCounty.secondaryColor || '#0f172a',
-                logoUrl: activeCounty.logoUrl || companyDetails.logoUrl,
-                motto: activeCounty.motto,
-                website: activeCounty.website,
-                displayName: activeCounty.name
-            };
-        }
-
-        return {
-            primaryColor: activeInstitution?.themeColor || companyDetails.themeColor || '#4f46e5',
-            secondaryColor: '#0f172a',
-            logoUrl: activeInstitution?.logoUrl || companyDetails.logoUrl,
-            motto: null,
-            website: null,
-            displayName: activeInstitution?.name
-        };
-    }, [activeRole, activeCounty, activeInstitution, companyDetails, isAlumnaeMode, showDrivingSchoolPortal]);
-
-    const activeAcademicYear = useMemo(() =>
-        (Array.isArray(academicYears) ? academicYears : []).find(y => y && y.status === 'active') || null
-        , [academicYears]);
-
-    const activeSemester = useMemo(() =>
-        (Array.isArray(semesters) ? semesters : []).find(s => s && s.status === 'active') || null
-        , [semesters]);
-
-    const timetableSettings = useMemo(() => activeInstitution?.timetableSettings || INITIAL_TIMETABLE_SETTINGS, [activeInstitution]);
-
-    const allocations = useMemo(() => (Array.isArray(requests) ? requests : []).filter(r => r && (r.status === 'approved' || r.status === 'hod_approved' || r.status === 'change_request_pending' || r.status === 'deallocation_pending')), [requests]);
-
-    const timetableConflicts = useMemo(() => detectTimetableConflicts(generatedTimetable, rooms, courses, subjects, timetableSettings), [generatedTimetable, rooms, courses, subjects, timetableSettings]);
-
-    const courseSizes = useMemo(() => {
-        const sizes = new Map<string, number>();
-        (courses || []).forEach(course => {
-            (course.levels || []).forEach(level => {
-                const count = (users || []).filter(u => u && u.role === 'student' && u.courseId === course.id && u.courseLevelId === level.id).length;
-                sizes.set(level.id, count);
-            });
-        });
-        return sizes;
-    }, [courses, users]);
-
-    const activeLetterheadConfig = useMemo(() => activeInstitution?.letterheadConfig || companyDetails.letterheadConfig, [activeInstitution, companyDetails]);
-    const activeFooterImageUrl = useMemo(() => activeInstitution?.footerImageUrl || companyDetails.footerImageUrl || null, [activeInstitution, companyDetails]);
-    
     const academicsOfficerProps = useMemo<Partial<AcademicsOfficerProps>>(() => ({
         currentUser: currentUser || undefined,
         currentInstitution: activeInstitution!,
@@ -1899,8 +1930,8 @@ export const App: React.FC = () => {
         assessments,
         assessmentMarks,
         studentAttendances,
-        onAddRequest: handleAddRequest,
-        onUpdateRequest: handleUpdateRequest,
+        onSubmitRequest: handleLecturerSubmitRequest,
+        onAllocationChangeRequest: handleUpdateRequest,
         onWithdrawRequest: handleWithdrawRequest,
         onAddAssignment: handleAddAssignment,
         onDeleteAssignment: handleDeleteAssignment,
@@ -2012,7 +2043,7 @@ export const App: React.FC = () => {
         securityAlerts,
         onAddAlert: handleAddAlert,
         onResolveAlert: handleResolveAlert,
-        onAddIncident: async (d) => { await apiService.saveModuleRecord('discipline_incidents', { ...d, id: `disc_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); },
+        onAddIncident: async (d: any) => { await apiService.saveModuleRecord('discipline_incidents', { ...d, id: `disc_${Date.now()}`, institutionId: currentUser?.institutionId }); loadData(); },
         appointments,
         onUpdateAppointmentStatus: handleUpdateAppointmentStatus,
         inventory: retailInventory,
@@ -2056,8 +2087,8 @@ export const App: React.FC = () => {
         studentAttendances,
         onOnboardStudent: handleOnboardStudent,
         onOffboardStudent: handleOffboardStudent,
-        onSwitchPerspective: (role) => setImpersonatedRole(role),
-        onAddUser: async (d) => { if (!currentUser) return; await apiService.registerUser({ ...d, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); loadData(); },
+        onSwitchPerspective: (role: Role | null) => setImpersonatedRole(role),
+        onAddUser: async (d: any) => { if (!currentUser) return; await apiService.registerUser({ ...d, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); loadData(); },
         onEditUser,
         onDeleteUser,
         onAddDepartment: handleAddDepartment,
@@ -2068,12 +2099,79 @@ export const App: React.FC = () => {
         letterheadConfig: activeLetterheadConfig,
         logoUrl: activeBranding.logoUrl,
         footerImageUrl: activeFooterImageUrl,
-        onSendSms: async (r, m, c, u, i) => apiService.sendSms(r, m, c, u, i),
+        onSendSms: async (r: string, m: string, c?: any, u?: number, i?: string) => apiService.sendSms(r, m, c, u, i),
         onAddTransaction: apiService.onAddTransaction.bind(apiService),
         onRefreshData: async () => await loadData(false, true),
         onAccessAlumnaPortal: handleAccessAlumnaPortal,
         schoolRegistry
     }), [currentUser, activeInstitution, users, visitors, handleAddVisitor, handleCheckoutVisitor, handleAddAppointment, handleUpdateVisitor, generatedTimetable, timetableSettings, rooms, subjects, getSubjectById, getRoomById, getLecturerById, securityAlerts, handleAddAlert, handleResolveAlert, appointments, handleUpdateAppointmentStatus, retailInventory, stockTransactions, suppliers, handleAddStoreItem, handleAddSupplier, handleImportStoreItems, handleAddStoreTransaction, transactions, invoices, handleAddInvoice, receipts, handleAddReceipt, requisitions, handleVerifyRequisition, handleMarkInventoryReceived, handleLogAction, vehicles, vehicleLogs, transportOnboarding, handleLogGateAction, companyDetails, courses, onUpdateInstitution, voteHeads, feeStructures, financialPeriods, countyInventory, academicYears, semesters, departments, teacherCheckIns, timeOffRequests, studentAbsenceRequests, leaveOutRequests, bulletinItems, documentCollections, watchlist, maintenanceRequests, studentAttendances, handleOnboardStudent, handleOffboardStudent, onEditUser, onDeleteUser, activeLetterheadConfig, activeBranding, activeFooterImageUrl, schoolRegistry, onImportStudents]);
+
+    const boardingMasterProps = useMemo(() => ({
+        currentUser: currentUser || undefined,
+        currentInstitution: activeInstitution!,
+        users,
+        rooms,
+        buildings,
+        leaveOutRequests,
+        incidents,
+        onUpdateLeaveOutStatus: async (id: string, status: string) => { const existing = leaveOutRequests.find(r => r.id === id); if (existing) { await apiService.saveModuleRecord('leave_out_requests', { ...existing, status, approvedBy: currentUser?.id, updatedAt: new Date().toISOString() }); loadData(); } },
+        onAddIncident: async (data: any) => {
+            await apiService.saveModuleRecord('discipline_incidents', {
+                ...data,
+                id: `disc_${Date.now()}`,
+                institutionId: currentUser?.institutionId,
+                timestamp: new Date().toISOString(),
+                recordedBy: currentUser?.name
+            });
+            loadData();
+        },
+        onLogAction: handleLogAction,
+    }), [currentUser, activeInstitution, users, rooms, buildings, leaveOutRequests, incidents, handleLogAction]);
+
+    const carWashProps = useMemo(() => ({
+        currentUser: currentUser || undefined,
+        currentInstitution: activeInstitution!,
+        jobs,
+        onLogAction: handleLogAction,
+    }), [currentUser, activeInstitution, jobs, handleLogAction]);
+
+    const farmerPortalProps = useMemo(() => ({
+        currentUser: currentUser || undefined,
+        currentInstitution: activeInstitution!,
+        farmers: coopFarmers,
+        collections: coopCollections,
+        agrovetInventory: coopAgrovetInventory,
+        agrovetSales: coopAgrovetSales,
+        saccoAccounts,
+        saccoTransactions,
+        onLogAction: handleLogAction,
+    }), [currentUser, activeInstitution, coopFarmers, coopCollections, coopAgrovetInventory, coopAgrovetSales, saccoAccounts, saccoTransactions, handleLogAction]);
+
+    const riderPortalProps = useMemo(() => ({
+        currentUser: currentUser || undefined,
+        currentInstitution: activeInstitution!,
+        riders: coopRiders,
+        collections: coopCollections,
+        onLogAction: handleLogAction,
+    }), [currentUser, activeInstitution, coopRiders, coopCollections, handleLogAction]);
+
+    const tenantPortalProps = useMemo(() => ({
+        currentUser: currentUser || undefined,
+        currentInstitution: activeInstitution!,
+        onLogAction: handleLogAction,
+    }), [currentUser, activeInstitution, handleLogAction]);
+
+    const landlordPortalProps = useMemo(() => ({
+        currentUser: currentUser || undefined,
+        currentInstitution: activeInstitution!,
+        onLogAction: handleLogAction,
+    }), [currentUser, activeInstitution, handleLogAction]);
+
+    const propertyManagementProps = useMemo(() => ({
+        currentUser: currentUser || undefined,
+        currentInstitution: activeInstitution!,
+        onLogAction: handleLogAction,
+    }), [currentUser, activeInstitution, handleLogAction]);
 
 
     useEffect(() => {
@@ -4160,11 +4258,11 @@ export const App: React.FC = () => {
                                         visitors={visitors}
                                         requisitions={requisitions}
                                         studentAttendances={studentAttendances}
+                                        payrollRecords={payrollRecords as any}
                                         studentCheckIns={studentCheckIns}
                                         lessonRatings={lessonRatings}
                                         feedbackSubmissions={feedbackSubmissions}
                                         courseSizes={courseSizes}
-                                        contracts={contracts}
                                         isGeneratingDemoData={isGeneratingDemoData}
                                         demoDataGenerationProgress={demoDataGenerationProgress}
                                         demoDataGenerationMessage={demoDataGenerationMessage}
@@ -4299,7 +4397,8 @@ export const App: React.FC = () => {
                                         onAddStore={async (data: any) => { const id = data.id || `store_${Date.now()}`; await apiService.saveModuleRecord('county_stores', { ...data, id }); loadData(); }}
                                         onUpdateStore={async (id: string, data: any) => { await apiService.saveModuleRecord('county_stores', { ...data, id }); loadData(); }}
                                         onDeleteStore={async (id: string) => { await apiService.deleteModuleRecord('county_stores', id); loadData(); }}
-                                        onAddTransaction={apiService.onAddTransaction.bind(apiService)}
+                                                                                onAddStockTransaction={async (data: any) => { await apiService.saveModuleRecord('county_stock_transactions', { ...data, id: `ctx_${Date.now()}` }); loadData(); }}
+
                                         bursaryApplications={bursaryApplications}
                                         bursaryFunds={bursaryFunds}
                                         onAddBursaryFund={async (data: any) => { await apiService.saveModuleRecord('county_bursary_funds', { ...data, id: `fund_${Date.now()}`, createdAt: new Date().toISOString() }); loadData(); }}
@@ -4329,7 +4428,7 @@ export const App: React.FC = () => {
                                         onAddRoom={handleAddRoom}
                                         onUpdateRoom={handleUpdateRoom}
                                         onDeleteRoom={handleDeleteRoom}
-                                        onImportRooms={handleImportRooms}
+                                        onImportRooms={onImportRooms}
                                         onAddDepartment={handleAddDepartment}
                                         onUpdateDepartment={handleUpdateDepartment}
                                         onDeleteDepartment={handleDeleteDepartment}
@@ -4392,7 +4491,7 @@ export const App: React.FC = () => {
                                         examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
                                         onSaveExamTimetableSettings={(config: any) => onUpdateInstitution(activeInstitution!.id, { examTimetableSettings: config })}
                                         lessonRatings={lessonRatings}
-                                        onTimetableGenerated={async (entries: any, ay: string, sem: string) => { await apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[]); loadData(); }}
+                                        onTimetableGenerated={async (entries: any, ay: string, sem: string) => { await apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as any); loadData(); }}
                                         onLogAction={handleLogAction}
                                         schoolRegistry={schoolRegistry}
                                         companyDetails={companyDetails}
@@ -4538,41 +4637,46 @@ export const App: React.FC = () => {
                                     />
                                 ) : activeRole === 'security' ? (
                                     <SecurityView
-                                        currentUser={currentUser}
-                                        currentInstitution={activeInstitution!}
-                                        securityAlerts={securityAlerts}
-                                        visitors={visitors}
-                                        vehicles={vehicles}
-                                        vehicleLogs={vehicleLogs}
-                                        onAddVisitor={async (v) => { await apiService.saveModuleRecord('visitors', { ...v, id: `vis_${Date.now()}`, status: 'pending', entryTime: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); }}
-                                        onUpdateVisitor={async (id, data) => { const existing = visitors.find(v => v.id === id); if (existing) { await apiService.saveModuleRecord('visitors', { ...existing, ...data }); loadData(); } }}
-                                        onLogGateAction={handleLogGateAction}
-                                        onAddAlert={async (a) => { await apiService.saveModuleRecord('security_alerts', { ...a, id: `alt_${Date.now()}`, status: 'active', timestamp: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); }}
-                                        onUpdateAlert={async (id, status) => { const existing = securityAlerts.find(a => a.id === id); if (existing) { await apiService.saveModuleRecord('security_alerts', { ...existing, status }); loadData(); } }}
-                                        onLogAction={handleLogAction}
+                                        {...{
+                                            currentUser,
+                                            currentInstitution: activeInstitution!,
+                                            securityAlerts,
+                                            visitors,
+                                            vehicles,
+                                            vehicleLogs,
+                                            onAddVisitor: async (v: any) => { await apiService.saveModuleRecord('visitors', { ...v, id: `vis_${Date.now()}`, status: 'pending', entryTime: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
+                                            onUpdateVisitor: async (id: string, data: any) => { const existing = visitors.find(v => v.id === id); if (existing) { await apiService.saveModuleRecord('visitors', { ...existing, ...data }); loadData(); } },
+                                            onLogGateAction: handleLogGateAction,
+                                            onAddAlert: async (a: any) => { await apiService.saveModuleRecord('security_alerts', { ...a, id: `alt_${Date.now()}`, status: 'active', timestamp: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
+                                            onResolveAlert: async (id: string) => { const existing = securityAlerts.find(a => a.id === id); if (existing) { await apiService.saveModuleRecord('security_alerts', { ...existing, status: 'resolved' }); loadData(); } },
+                                            onLogAction: handleLogAction
+                                        } as any}
                                     />
                                 ) : activeRole === 'info_desk' ? (
-                                    <InfoDeskView {...supportStaffProps as SupportStaffProps}
-                                        currentUser={currentUser}
-                                        currentInstitution={activeInstitution!}
-                                        visitors={visitors}
-                                        appointments={appointments}
-                                        onAddVisitor={async (v) => { await apiService.saveModuleRecord('visitors', { ...v, id: `vis_${Date.now()}`, status: 'pending', entryTime: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); }}
-                                        onAddAppointment={async (a) => { await apiService.saveModuleRecord('appointments', { ...a, id: `apt_${Date.now()}`, status: 'scheduled', createdAt: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); }}
-                                        onUpdateAppointment={async (id, status) => { const existing = appointments.find(a => a.id === id); if (existing) { await apiService.saveModuleRecord('appointments', { ...existing, status }); loadData(); } }}
-                                        onLogAction={handleLogAction}
+                                    <InfoDeskView
+                                        {...{
+                                            currentUser,
+                                            currentInstitution: activeInstitution!,
+                                            visitors,
+                                            appointments,
+                                            onAddVisitor: async (v: any) => { await apiService.saveModuleRecord('visitors', { ...v, id: `vis_${Date.now()}`, status: 'pending', entryTime: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
+                                            onAddAppointment: async (a: any) => { await apiService.saveModuleRecord('appointments', { ...a, id: `apt_${Date.now()}`, status: 'scheduled', createdAt: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
+                                            onUpdateAppointment: async (id: string, status: any) => { const existing = appointments.find(a => a.id === id); if (existing) { await apiService.saveModuleRecord('appointments', { ...existing, status }); loadData(); } },
+                                            onLogAction: handleLogAction
+                                        } as any}
                                     />
                                 ) : activeRole === 'store' ? (
                                     <StoreView
-                                        currentUser={currentUser}
-                                        currentInstitution={activeInstitution!}
-                                        inventoryItems={retailInventory}
-                                        requisitions={requisitions}
-                                        onAddInventoryItem={async (i) => { await apiService.saveModuleRecord('inventory', { ...i, id: `inv_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); }}
-                                        onUpdateInventoryItem={async (id, data) => { const existing = retailInventory.find(i => i.id === id); if (existing) { await apiService.saveModuleRecord('inventory', { ...existing, ...data }); loadData(); } }}
-                                        onAddRequisition={handleAddRequisition}
-                                        onUpdateRequisition={handleUpdateRequisition}
-                                        onLogAction={handleLogAction}
+                                        {...{
+                                            currentUser,
+                                            currentInstitution: activeInstitution!,
+                                            inventory: retailInventory,
+                                            requisitions,
+                                            onAddItem: async (i: any) => { await apiService.saveModuleRecord('inventory', { ...i, id: `inv_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); },
+                                            onUpdateRequisition: async (id: string, data: any) => { const existing = retailInventory.find(i => i.id === id); if (existing) { await apiService.saveModuleRecord('inventory', { ...existing, ...data }); loadData(); } },
+                                            onAddRequisition: handleAddRequisition,
+                                            onLogAction: handleLogAction
+                                        } as any}
                                     />
                                 ) : activeRole === 'finance_officer' ? (
                                     <FinanceOfficerView
@@ -4590,16 +4694,17 @@ export const App: React.FC = () => {
                                         setTransactionLimit={setTransactionLimit}
                                     />
                                 ) : activeRole === 'hr_officer' ? (
-                                    <HROfficerView {...hrOfficerProps as HROfficerProps}
-                                        currentUser={currentUser}
-                                        currentInstitution={activeInstitution!}
-                                        users={users}
-                                        contracts={contracts}
-                                        payrollRecords={payrollRecords}
-                                        onAddUser={async (u) => { await apiService.registerUser({ ...u, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); loadData(); }}
-                                        onUpdateUser={onEditUser}
-                                        onDeleteUser={onDeleteUser}
-                                        onLogAction={handleLogAction}
+                                    <HROfficerView 
+                                        {...{
+                                            currentUser,
+                                            currentInstitution: activeInstitution!,
+                                            users,
+                                            payrollRecords: payrollRecords as any,
+                                            onAddUser: async (u: any) => { await apiService.registerUser({ ...u, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); loadData(); },
+                                            onUpdateUser: onEditUser,
+                                            onDeleteUser: onDeleteUser,
+                                            onLogAction: handleLogAction
+                                        } as any}
                                     />
                                 ) : activeRole === 'boarding_master' ? (
                                     <BoardingMasterView {...boardingMasterProps as any}
@@ -4625,15 +4730,17 @@ export const App: React.FC = () => {
                                     />
                                 ) : activeRole === 'transport_assistant' ? (
                                     <TransportAssistantView
-                                        currentUser={currentUser}
-                                        currentInstitution={activeInstitution!}
-                                        vehicles={vehicles}
-                                        transportOnboarding={transportOnboarding}
-                                        vehicleLogs={vehicleLogs}
-                                        onLogGateAction={handleLogGateAction}
-                                        onOnboardStudent={handleOnboardStudent}
-                                        onOffboardStudent={handleOffboardStudent}
-                                        onLogAction={handleLogAction}
+                                        {...{
+                                            currentUser,
+                                            currentInstitution: activeInstitution!,
+                                            vehicles,
+                                            transportOnboarding,
+                                            vehicleLogs,
+                                            onLogGateAction: handleLogGateAction,
+                                            onOnboardStudent: handleOnboardStudent,
+                                            onOffboardStudent: handleOffboardStudent,
+                                            onLogAction: handleLogAction
+                                        } as any}
                                     />
                                 ) : (activeRole === 'carwash_admin' || activeRole === 'carwash_cashier') ? (
                                     <CarWashView {...carWashProps as any}
@@ -4645,7 +4752,7 @@ export const App: React.FC = () => {
                                         onAddTransaction={apiService.onAddTransaction.bind(apiService)}
                                         onLogAction={handleLogAction}
                                     />
-                                ) : (activeRole === 'landlord' || activeRole === 'tenant' || activeRole === 'property_admin') ? (
+                                ) : (activeRole === 'landlord' || activeRole === 'tenant' || activeRole === 'property_admin' || (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('property management'))) ? (
                                     activeRole === 'tenant' ? (
                                         <TenantPortalView {...({} as any)} {...tenantPortalProps as any} 
                                             currentUser={currentUser}
@@ -4711,1468 +4818,57 @@ export const App: React.FC = () => {
                                         transactions={transactions}
                                         invoices={invoices}
                                     />
-                                ) : activeRole === 'county_admin' ? (
-                                    <CountyAdminView {...countyAdminProps as CountyAdminProps}
-                                        onUpdateBursaryApplication={async (id, data) => { await apiService.saveModuleRecord('bursary_applications', { ...data, id }); await loadData(); }}
-                                    onAddBursaryFund={async (data) => { await apiService.saveModuleRecord('county_bursary_funds', data); await loadData(); }}
-                                    onUpdateBursaryFund={async (id, data) => { await apiService.saveModuleRecord('county_bursary_funds', { ...data, id }); await loadData(); }}
-                                    onDeleteBursaryFund={async (id) => { await apiService.deleteModuleRecord('county_bursary_funds', id); await loadData(); }}
-                                    activityLog={activityLog}
-                                    onLogAction={handleLogAction}
-                                    activityLogLimit={activityLogLimit}
-                                    setActivityLogLimit={setActivityLogLimit}
-                                    receiptLimit={receiptLimit}
-                                    setReceiptLimit={setReceiptLimit}
-                                    transactionLimit={transactionLimit}
-                                    setTransactionLimit={setTransactionLimit}
-                                    countyAgrovetInventory={coopAgrovetInventory}
-                                    countyAgrovetSales={coopAgrovetSales}
-                                    saccoAccounts={saccoAccounts}
-                                    saccoTransactions={saccoTransactions}
-                                    coopPayouts={coopPayouts}
-                                    coopExpenses={coopExpenses}
-                                    coopIncome={coopIncome}
-                                    lawClients={lawClients}
-                                    lawMatters={lawMatters}
-                                    lawDocuments={lawDocuments}
-                                    lawTimeEntries={lawTimeEntries}
-                                    lawInvoices={lawInvoices}
-                                    lawTrustTransactions={lawTrustTransactions}
-                                    onAddLawClient={handleAddLawClient}
-                                    onAddLawMatter={handleAddLawMatter}
-                                    onAddLawTimeEntry={handleAddLawTimeEntry}
-                                    onAddLawTrustTransaction={handleAddLawTrustTransaction}
-                                    onAddLawInvoice={handleAddLawInvoice}
-                                    onUpdateLawMatter={handleUpdateLawMatter}
-                                    lawAgreementTemplates={lawAgreementTemplates}
-                                    lawAgreements={lawAgreements}
-                                    onAddLawAgreementTemplate={handleAddLawAgreementTemplate}
-                                    onGenerateLawAgreement={handleGenerateLawAgreement}
-                                    onApproveLawAgreement={handleApproveLawAgreement}
-                                    dsInstructors={dsInstructors}
-                                    dsVehicles={dsVehicles}
-                                    dsStudents={dsStudents}
-                                    dsLessons={dsLessons}
-                                    dsMastery={dsMastery}
-                                    dsSettings={dsSettings}
-                                    onAddDSInstructor={handleAddDSInstructor}
-                                    onAddDSVehicle={handleAddDSVehicle}
-                                    onAddDSStudent={handleAddDSStudent}
-                                    onAddDSLesson={handleAddDSLesson}
-                                    onAddDSMastery={handleAddDSMastery}
-                                    onUpdateDSSettings={handleUpdateDSSettings}
-                                    onAddFarmer={handleAddFarmer}
-                                    onUpdateFarmer={handleUpdateFarmer}
-                                    onImportFarmers={handleImportFarmers}
-                                    onLogCollection={handleLogCollection}
-                                    onImportCollections={handleImportCollections}
-                                    onBulkConfirmCollections={handleBulkConfirmCollections}
-                                    onAddRider={handleAddRider}
-                                    onConfirmCollection={handleConfirmCollection}
-                                    onApproveCollection={handleApproveCollection}
-                                    onAddCoopExpense={handleAddCoopExpense}
-                                    onAddCoopIncome={handleAddCoopIncome}
-                                    onInitiatePayouts={handleInitiatePayouts}
-                                    onApprovePayouts={handleApprovePayouts}
-                                    onDisbursePayouts={handleDisbursePayouts}
-                                    incidents={incidents}
-                                    onAddIncident={async (data) => {
-                                        await apiService.saveModuleRecord('discipline_incidents', {
-                                            ...data,
-                                            id: `disc_${Date.now()}`,
-                                            institutionId: data.institutionId || 'GLOBAL',
-                                            timestamp: new Date().toISOString(),
-                                            recordedBy: currentUser!.name
-                                        });
-                                        await handleLogAction(`Recorded disciplinary incident for ${data.studentName}`);
-                                        loadData();
-                                    }}
-                                    onAddPayouts={handleAddPayouts}
-                                />
-                            ) : activeRole === 'academics_officer' ? (
-                                <AcademicsOfficerView {...academicsOfficerProps as any}
-                                    currentUser={currentUser}
-                                    currentInstitution={activeInstitution!}
-                                    subjects={subjects}
-                                    onUpdateSubject={handleUpdateSubject}
-                                    courses={courses}
-                                    onUpdateCourse={handleUpdateCourse}
-                                    users={users}
-                                    rooms={rooms}
-                                    onAddRoom={handleAddRoom}
-                                    onUpdateRoom={handleUpdateRoom}
-                                    onDeleteRoom={handleDeleteRoom}
-                                    onImportRooms={handleImportRooms}
-                                    departments={departments}
-                                    onAddDepartment={handleAddDepartment}
-                                    onUpdateDepartment={handleUpdateDepartment}
-                                    onDeleteDepartment={handleDeleteDepartment}
-                                    onImportDepartments={handleImportDepartments}
-                                    activeAcademicYear={activeAcademicYear}
-                                    activeSemester={activeSemester}
-                                    onExamTimetableGenerated={async (entries: any, ay: string, sem: string) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)}
-                                    examTimetable={examTimetable}
-                                    getSubjectById={getSubjectById}
-                                    getLecturerById={getLecturerById}
-                                    getRoomById={getRoomById}
-                                    courseSizes={courseSizes}
-                                    academicYears={academicYears}
-                                    onAddAcademicYear={async (data: any) => { await apiService.saveModuleRecord('academic_years', { ...data, id: `ay_${Date.now()}`, institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); }}
-                                    onUpdateAcademicYear={async (id: string, data: any) => { const existing = academicYears.find(y => y.id === id); await apiService.saveModuleRecord('academic_years', { ...existing, ...data, id }); loadData(); }}
-                                    onDeleteAcademicYear={async (id: string) => { await apiService.deleteModuleRecord('academic_years', id); loadData(); }}
-                                    semesters={semesters}
-                                    onAddSemester={async (data: any) => { await apiService.saveModuleRecord('semesters', { ...data, id: `sem_${Date.now()}`, institutionId: currentUser!.institutionId }); loadData(); }}
-                                    onUpdateSemester={async (id: string, data: any) => { const existing = semesters.find(s => s.id === id); await apiService.saveModuleRecord('semesters', { ...existing, ...data, id }); loadData(); }}
-                                    onDeleteSemester={async (id: string) => { await apiService.deleteModuleRecord('semesters', id); loadData(); }}
-                                    timetableSettings={timetableSettings!}
-                                    onSaveTimetableSettings={(config: any) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: config })}
-                                    lessonRatings={lessonRatings}
-                                    buildings={buildings}
-                                    onAddBuilding={handleAddBuilding}
-                                    onAddBuildings={async (b: any) => { }}
-                                    onUpdateBuilding={handleUpdateBuilding}
-                                    onDeleteBuilding={handleDeleteBuilding}
-                                    academicLevels={academicLevels}
-                                    letterheadConfig={activeLetterheadConfig}
-                                    logoUrl={activeBranding.logoUrl}
-                                    footerImageUrl={activeFooterImageUrl}
-                                    emailConfig={companyDetails.emailConfig}
-                                    onSaveEmailConfig={(config: any) => { }}
-                                    onSendTestEmail={async (r: string) => ({ success: true, message: 'Test email sent.' })}
-                                    onUpdateInstitution={onUpdateInstitution}
-                                    smsConfig={companyDetails.smsConfig}
-                                    themeColor={activeBranding.primaryColor}
-                                    examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
-                                    assessments={assessments}
-                                    marks={assessmentMarks}
-                                    incidents={incidents}
-                                    onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
-                                    onDeleteAssessment={async (id: string) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
-                                    onSaveAssessmentMarks={async (id: string, marks: any[]) => {
-                                        const promises = marks.map(m => {
-                                            const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
-                                            const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()}`;
-                                            return apiService.saveModuleRecord('assessment_marks', {
-                                                id: recordId,
-                                                assessmentId: id,
-                                                studentId: m.studentId,
-                                                marks: m.marks,
-                                                comments: m.comments,
-                                                gradedBy: currentUser.id,
-                                                timestamp: new Date().toISOString(),
-                                                institutionId: currentUser.institutionId
-                                            });
-                                        });
-                                        await Promise.all(promises);
-                                        loadData();
-                                    }}
-                                    onAddIncident={async (data: any) => {
-                                        await apiService.saveModuleRecord('discipline_incidents', {
-                                            ...data,
-                                             id: `disc_${Date.now()}`,
-                                             institutionId: currentUser!.institutionId,
-                                             timestamp: new Date().toISOString(),
-                                             recordedBy: currentUser!.name
-                                         });
-                                         loadData();
-                                     }}
-                                    onSaveExamTimetableSettings={(config: any) => onUpdateInstitution(activeInstitution!.id, { examTimetableSettings: config })}
-                                    onTimetableGenerated={async (entries: any, ay: string, sem: string) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[])}
-                                    allocations={allocations}
-                                    timeOffRequests={timeOffRequests}
-                                    onAssociateSubjectToCourseLevel={handleAssociateSubjectToCourseLevel}
-                                    onDisassociateSubjectFromCourseLevel={handleDisassociateSubjectFromCourseLevel}
-                                    onImportStudents={onImportStudents}
-                                    onWithdrawRequest={async (id: string) => { await apiService.deleteModuleRecord('allocation_requests', id); await handleLogAction("Withdrew allocation request"); loadData(); }}
-                                    onAddExtensionRequest={handleAddExtensionRequest}
-                                    onLogAction={handleLogAction}
-                                    companyDetails={companyDetails}
-                                    onAccessAlumnaPortal={handleAccessAlumnaPortal}
-                                />
-                            ) : activeRole === 'security' ? (
-                                <SecurityView
-                                    user={currentUser}
-                                    users={users}
-                                    visitors={visitors}
-                                    securityAlerts={securityAlerts}
-                                    appointments={appointments}
-                                    onAddVisitor={async (v: any) => {
-                                        await apiService.saveModuleRecord('visitors', { ...v, id: `vis_${Date.now()}` });
-                                        await handleLogAction(`Registered visitor: ${v.name}`);
-                                        loadData();
-                                    }}
-                                    onCheckoutVisitor={async (id: string) => {
-                                        const v = visitors.find(x => x.id === id);
-                                        if (v) {
-                                            await apiService.saveModuleRecord('visitors', { ...v, timeOut: new Date().toLocaleTimeString() });
-                                            await handleLogAction(`Checked out visitor: ${v.name}`);
-                                        }
-                                        loadData();
-                                    }}
-                                    onAddAlert={async (a: any) => {
-                                        await apiService.saveModuleRecord('security_alerts', { ...a, id: `alert_${Date.now()}`, institutionId: currentUser.institutionId, createdBy: currentUser.id, createdAt: new Date().toISOString(), status: 'active' });
-                                        await handleLogAction(`Logged security alert: ${a.type} - ${a.severity}`);
-                                        loadData();
-                                    }}
-                                    onResolveAlert={async (id: string) => {
-                                        const a = securityAlerts.find(x => x.id === id);
-                                        if (a) {
-                                            await apiService.saveModuleRecord('security_alerts', { ...a, status: 'resolved' });
-                                            await handleLogAction(`Resolved security alert: ${a.type}`);
-                                        }
-                                        loadData();
-                                    }}
-                                    onUpdateAppointmentStatus={async (id: string, status: string) => {
-                                        const apt = appointments.find(a => a.id === id);
-                                        if (apt) {
-                                            await apiService.saveModuleRecord('appointments', { ...apt, status });
-                                            await handleLogAction(`Updated appointment status for ${apt.guestName} to ${status}`);
-                                        }
-                                        loadData();
-                                    }}
-                                    currentInstitution={activeInstitution}
-                                    courses={courses}
-                                    academicYears={academicYears}
-                                    semesters={semesters}
-                                    departments={departments}
-                                    companyDetails={companyDetails}
-                                    onLogAction={handleLogAction}
-                                    vehicles={vehicles}
-                                    vehicleLogs={vehicleLogs}
-                                    onLogGateAction={handleLogGateAction}
-                                    onSwitchPerspective={(role: string) => setImpersonatedRole(role)}
-                                />
-                            ) : activeRole === 'finance_officer' ? (
-                                <FinanceOfficerView
-                                    currentUser={currentUser}
-                                    currentInstitution={activeInstitution!}
-                                    invoices={invoices}
-                                    receipts={receipts}
-                                    expenses={expenses}
-                                    goals={[]}
-                                    feeStructures={feeStructures}
-                                    students={users.filter(u => u.role === 'student')}
-                                    academicYears={academicYears}
-                                    semesters={semesters}
-                                    onGenerateInvoices={async (invs: any[]) => {
-                                        await apiService.saveModuleRecords('invoices', invs);
-                                        loadData();
-                                    }}
-                                    onAddExpense={async (exp: any) => {
-                                         await apiService.saveModuleRecord('expenses', { ...exp, id: `exp_${Date.now()}`, institutionId: currentUser.institutionId });
-                                         loadData();
-                                     }}
-                                    receiptLimit={receiptLimit}
-                                    setReceiptLimit={setReceiptLimit}
-                                    transactionLimit={transactionLimit}
-                                    setTransactionLimit={setTransactionLimit}
-                                    transactions={transactions}
-                                    onAddTransaction={apiService.onAddTransaction.bind(apiService)}
-                                    onGenerateReceipt={handleGenerateReceipt}
-                                    onLogAction={handleLogAction}
-                                 />
-                            ) : activeRole === 'hr_officer' ? (
-                                <HROfficerView {...hrOfficerProps as HROfficerProps}
-                                    currentUser={currentUser}
-                                    currentInstitution={activeInstitution!}
-                                    staff={users.filter(u => u.role !== 'student' && u.role !== 'parent')}
-                                    payrollRecords={payrollRecords}
-                                    leaveRequests={timeOffRequests.map(t => ({ ...t, staffId: t.lecturerId, type: t.category as any, status: t.status as any, appliedAt: t.timestamp || new Date().toISOString() }))}
-                                    onProcessPayroll={async (recs: any[]) => {
-                                        await apiService.saveModuleRecords('payroll_records', recs);
-                                        loadData();
-                                    }}
-                                    onUpdateLeaveStatus={async (id: string, status: string) => {
-                                        const req = timeOffRequests.find(r => r.id === id);
-                                        if (req) {
-                                            await apiService.saveModuleRecord('time_off_requests', { ...req, status });
-                                            loadData();
-                                        }
-                                    }}
-                                />
-                            ) : activeRole === 'librarian' ? (
-                                <LibraryWarRoom
-                                    currentUser={currentUser}
-                                    currentInstitution={activeInstitution!}
-                                    companyDetails={companyDetails}
-                                    users={users}
-                                    academicYears={academicYears}
-                                    semesters={semesters}
-                                    courses={courses}
-                                    departments={departments}
-                                    onLogAction={handleLogAction}
-                                />
-                            ) : activeRole === 'info_desk' ? (
-                                <InfoDeskView {...supportStaffProps as SupportStaffProps}
-                                    user={currentUser}
-                                    users={users}
-                                    visitors={visitors}
-                                    generatedTimetable={generatedTimetable}
-                                    timetableSettings={timetableSettings!}
-                                    getSubjectById={getSubjectById}
-                                    getRoomById={getRoomById}
-                                    getLecturerById={getLecturerById}
-                                    teacherCheckIns={teacherCheckIns}
-                                    timeOffRequests={timeOffRequests}
-                                    studentAbsenceRequests={studentAbsenceRequests}
-                                    leaveOutRequests={leaveOutRequests}
-                                    bulletinItems={bulletinItems}
-                                    documentCollections={documentCollections}
-                                    watchlist={watchlist}
-                                    maintenanceRequests={maintenanceRequests}
-                                    studentAttendances={studentAttendances}
-                                    invoices={invoices}
-                                    rooms={rooms}
-                                    onAddBulletinItem={async (item: any) => {
-                                        await apiService.saveModuleRecord('bulletin_items', { ...item, id: `bulletin_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() });
-                                        loadData();
-                                    }}
-                                    onUpdateDocumentStatus={async (id: string, status: string) => {
-                                        const doc = documentCollections.find(d => d.id === id);
-                                        if (doc) {
-                                            await apiService.saveModuleRecord('document_collections', { ...doc, status, collectedDate: status === 'Collected' ? new Date().toISOString() : doc.collectedDate });
-                                            loadData();
-                                        }
-                                    }}
-                                    onAddMaintenanceRequest={async (req: any) => {
-                                        await apiService.saveModuleRecord('maintenance_requests', { ...req, id: `maint_${Date.now()}`, institutionId: currentUser.institutionId, reportedAt: new Date().toISOString(), status: 'Pending' });
-                                        loadData();
-                                    }}
-                                    onSwitchPerspective={(role: string) => setImpersonatedRole(role)}
-                                />
-                            ) : (activeRole === 'driver' || activeRole === 'transport_assistant') ? (
-                                <TransportAssistantView
-                                    user={currentUser}
-                                    users={users}
-                                    vehicles={vehicles}
-                                    transportOnboarding={transportOnboarding}
-                                    vehicleLogs={vehicleLogs}
-                                    onLogGateAction={handleLogGateAction}
-                                    onOnboardStudent={handleOnboardStudent}
-                                    onOffboardStudent={handleOffboardStudent}
-                                    currentInstitution={activeInstitution}
-                                />
-                            ) : activeRole === 'store' ? (
-                                <ModuleAccessGuard
-                                    moduleId="inventory"
-                                    moduleName="Institutional Store"
-                                    description="Manage inventory, suppliers, and stock issuance with digital signature verification."
-                                    institution={activeInstitution}
-                                    onActivateTrial={handleActivateModuleTrial}
-                                    isActivating={isSavingModule}
-                                >
-                                    <StoreView
-                                        user={currentUser}
-                                        inventory={retailInventory}
-                                        suppliers={suppliers}
-                                        stockTransactions={stockTransactions}
-                                        onAddItem={async (item: any) => { 
-                                            await apiService.saveModuleRecord('inventory', { 
-                                                ...item, 
-                                                id: `inv_${Date.now()}`, 
-                                                institutionId: currentUser.institutionId, 
-                                                lastUpdated: new Date().toISOString() 
-                                            }); 
-                                            loadData(); 
-                                        }}
-                                        onAddSupplier={async (supplier: any) => {
-                                            await apiService.saveModuleRecord('suppliers', {
-                                                ...supplier,
-                                                id: `sup_${Date.now()}`,
-                                                institutionId: currentUser.institutionId
-                                            });
-                                            loadData();
-                                        }}
-                                        onAddStoreTransaction={async (transaction: any) => {
-                                            const item = retailInventory.find(i => i.id === transaction.itemId);
-                                            if (item) {
-                                                const newQty = transaction.type === 'Restock' ? item.quantity + transaction.quantity : item.quantity - transaction.quantity;
-                                                await apiService.saveModuleRecord('inventory', { ...item, quantity: newQty, lastUpdated: new Date().toISOString() });
-                                            }
-                                            await apiService.saveModuleRecord('stock_transactions', { 
-                                                ...transaction, 
-                                                id: `stx_${Date.now()}`, 
-                                                date: new Date().toISOString(), 
-                                                institutionId: currentUser.institutionId, 
-                                                recordedBy: currentUser.id 
-                                            });
-                                            loadData();
-                                        }}
-                                        countyInventory={countyInventory.filter(i => i.targetInstitutionId === currentUser.institutionId)}
-                                        onMarkInventoryReceived={onMarkInventoryReceived}
-                                        onSwitchPerspective={(role: string) => setImpersonatedRole(role)}
-                                        users={users}
-                                        departments={departments}
-                                        onAddUser={async (data: any) => { await apiService.registerUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }, activeInstitution?.name); loadData(); }}
-                                        onEditUser={onEditUser}
-                                        onDeleteUser={onDeleteUser}
-                                        onAddDepartment={handleAddDepartment}
-                                        onUpdateDepartment={handleUpdateDepartment}
-                                        onDeleteDepartment={handleDeleteDepartment}
-                                        onImportStudents={onImportStudents}
-                                        smsConfig={(activeInstitution?.smsConfig || companyDetails.smsConfig) as any}
-                                        subjects={subjects}
-                                        courses={courses}
-                                        letterheadConfig={activeLetterheadConfig}
-                                        logoUrl={activeBranding.logoUrl}
-                                        footerImageUrl={activeFooterImageUrl}
-                                        onSendSms={async (r: any, m: string, config: any, units: number, instId?: string) => { const res = await apiService.sendSms(r, m, config, units, instId || activeInstitution?.id); await handleLogAction(`Sent SMS to ${Array.isArray(r) ? r.length + ' recipients' : r}`); return res; }}
-                                        companyDetails={companyDetails}
-                                        onAddTransaction={apiService.onAddTransaction.bind(apiService)}
-                                        onLogAction={handleLogAction}
-                                        onRefreshData={async () => await loadData(false, true)}
-                                    />
-                                </ModuleAccessGuard>
-                            ) : activeRole === 'librarian' ? (
-                                <LibraryMasterView
-                                    currentUser={currentUser}
-                                    currentInstitution={activeInstitution!}
-                                    companyDetails={companyDetails}
-                                    users={users}
-                                    academicYears={academicYears}
-                                    semesters={semesters}
-                                    courses={courses}
-                                    departments={departments}
-                                    onLogAction={handleLogAction}
-                                />
-                            ) : activeRole === 'parent' ? (
-                                <ParentView {...({} as any)} {...parentProps as any}
-                                    user={currentUser}
-                                    users={users}
-                                    courses={courses}
-                                    studentAttendances={studentAttendances}
-                                    generatedTimetable={generatedTimetable}
-                                    subjects={subjects}
-                                    getSubjectById={getSubjectById}
-                                    getLecturerById={getLecturerById}
-                                    getRoomById={getRoomById}
-                                    timetableSettings={timetableSettings!}
-                                    buildings={buildings}
-                                    studentCheckIns={studentCheckIns}
-                                    leaveOutRequests={leaveOutRequests}
-                                    onUpdateLeaveOut={async (id: string, data: any) => {
-                                        const req = leaveOutRequests.find(r => r.id === id);
-                                        if (req) {
-                                            await apiService.saveModuleRecord('leave_out_requests', { ...req, ...data, updatedAt: new Date().toISOString() });
-                                            loadData();
-                                        }
-                                    }}
-                                />
-                            ) : activeRole === 'boarding_master' ? (
-                                <BoardingMasterView {...boardingMasterProps as any}
-                                    currentUser={currentUser}
-                                    currentInstitution={activeInstitution!}
-                                    companyDetails={companyDetails}
-                                    users={users}
-                                    academicYears={academicYears}
-                                    semesters={semesters}
-                                    courses={courses}
-                                    departments={departments}
-                                    onLogAction={handleLogAction}
-                                    onAddUser={async (data: any) => { await apiService.registerUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }, activeInstitution?.name); loadData(); }}
-                                    onEditUser={onEditUser}
-                                    onDeleteUser={onDeleteUser}
-                                    onImportStudents={onImportStudents}
-                                    smsConfig={companyDetails.smsConfig}
-                                    subjects={subjects}
-                                    letterheadConfig={activeLetterheadConfig}
-                                    logoUrl={activeBranding.logoUrl}
-                                    footerImageUrl={activeFooterImageUrl}
-                                    onSendSms={async (r: any, m: string, config: any, units: number, instId?: string) => { const res = await apiService.sendSms(r, m, config, units, instId); await handleLogAction(`Sent SMS to ${Array.isArray(r) ? r.length + ' recipients' : r}`); return res; }}
-                                    onAddParent={async (sid: string, p: any) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => { handleLogAction(`Added parent for student ${sid}`); return { success: true, message: 'Parent added.' }; })}
-                                    onDeleteParent={() => { }}
-                                />
-                            ) : (activeRole === 'carwash_admin' || (isAdminCatchAll && (activeInstitution?.businessSubType?.toLowerCase().includes('car wash') || activeInstitution?.businessSubType?.toLowerCase().includes('carwash')))) ? (
-                                <CarWashView {...carWashProps as any}
-                                    currentUser={currentUser}
-                                    currentInstitution={activeInstitution!}
-                                    companyDetails={companyDetails}
-                                    users={users.filter(u => u.institutionId === currentUser.institutionId)}
-                                    onDataChange={loadData}
-                                    onSendSms={async (r: any, m: string, config: any, units: number, instId?: string) => {
-                                        const res = await apiService.sendSms(r, m, config || activeInstitution?.smsConfig || companyDetails.smsConfig, units, instId || activeInstitution?.id);
-                                        await handleLogAction(`Sent SMS to ${Array.isArray(r) ? r.length + ' recipients' : r}`);
-                                        return res;
-                                    }}
-                                    onAddTransaction={apiService.onAddTransaction.bind(apiService)}
-                                    smsConfig={activeInstitution?.smsConfig || companyDetails.smsConfig}
-                                    smsBalance={activeInstitution?.smsBalance || 0}
-                                    mpesaConfig={activeInstitution?.mpesaConfig || companyDetails.mpesaConfig}
-                                    departments={departments}
-                                    courses={courses}
-                                    onRegisterUser={async (userData: any) => {
-                                        await apiService.registerUser(userData, activeInstitution?.name);
-                                        loadData();
-                                    }}
-                                    cafeOrders={cafeOrders}
-                                />
-                            ) : (activeRole === 'mechanic_admin' || (isAdminCatchAll && (activeInstitution?.businessSubType?.toLowerCase().includes('car service') || activeInstitution?.businessSubType?.toLowerCase().includes('mechanic') || activeInstitution?.businessSubType?.toLowerCase().includes('auto repair')))) ? (
-                                <CarServiceView
-                                    currentUser={currentUser}
-                                    currentInstitution={activeInstitution!}
-                                    users={users.filter(u => u.institutionId === currentUser.institutionId)}
-                                    onLogAction={handleLogAction}
-                                />
-                            ) : activeRole === 'farmer' ? (
-                                <FarmerPortal {...({} as any)} {...farmerPortalProps as any}
-                                    currentUser={currentUser}
-                                    farmer={coopFarmers.find(f => f.id === currentUser.farmerId || f.phone === currentUser.phoneNumber)}
-                                    collections={coopCollections.filter(c => c.farmerId === currentUser.id || c.farmerId === (users.find(u => u.id === currentUser.id) as any)?.farmerId)}
-                                    saccoAccounts={saccoAccounts.filter(a => a.farmerId === currentUser.id || a.farmerId === (users.find(u => u.id === currentUser.id) as any)?.farmerId)}
-                                    saccoTransactions={saccoTransactions.filter(t => t.accountId && saccoAccounts.filter(a => a.farmerId === currentUser.id || a.farmerId === (users.find(u => u.id === currentUser.id) as any)?.farmerId).map(a => a.id).includes(t.accountId))}
-                                    payouts={coopPayouts.filter(p => p.farmerId === currentUser.id || p.farmerId === (users.find(u => u.id === currentUser.id) as any)?.farmerId)}
-                                    agrovetSales={coopAgrovetSales.filter(s => s.farmerId === currentUser.id || s.farmerId === (users.find(u => u.id === currentUser.id) as any)?.farmerId)}
-                                    agrovetInventory={coopAgrovetInventory}
-                                    notifications={notifications.filter(n => n.userId === currentUser.id || n.institutionId === currentUser.institutionId)}
-                                    onUpdateFarmer={handleUpdateFarmer}
-                                    onAddSaccoAccount={handleAddSaccoAccount}
-                                    onLogout={handleLogout}
-                                />
-                            ) : activeRole === 'rider' ? (
-                                <RiderPortal {...({} as any)} {...riderPortalProps as any}
-                                    currentUser={currentUser}
-                                    rider={coopRiders.find(r => r.id === currentUser.riderId || r.phone === currentUser.phoneNumber)}
-                                    collections={coopCollections.filter(c => c.riderId === currentUser.riderId || c.riderId === coopRiders.find(r => r.id === currentUser.riderId || r.phone === currentUser.phoneNumber)?.id)}
-                                    saccoAccounts={saccoAccounts.filter(a => a.farmerId === currentUser.riderId || a.farmerId === coopRiders.find(r => r.id === currentUser.riderId || r.phone === currentUser.phoneNumber)?.id)}
-                                    saccoTransactions={saccoTransactions.filter(t => t.accountId && saccoAccounts.filter(a => a.farmerId === currentUser.riderId || a.farmerId === coopRiders.find(r => r.id === currentUser.riderId || r.phone === currentUser.phoneNumber)?.id).map(a => a.id).includes(t.accountId))}
-                                    payouts={coopPayouts}
-                                    onLogout={handleLogout}
-                                />
-                            ) : (activeRole === 'customer' || activeRole === 'carwash_customer') ? (
-                                (activeRole === 'carwash_customer' || (activeInstitution?.businessSubType?.toLowerCase().includes('car wash') || activeInstitution?.businessSubType?.toLowerCase().includes('carwash'))) ? (
-                                    <CarWashCustomerPortal
+                                ) : (activeRole === 'agrovet_admin' || (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('agrovet'))) ? (
+                                    <AgrovetView
                                         currentUser={currentUser}
-                                        onAddTransaction={async (data: any, items: any[]) => { await apiService.onAddTransaction(data, items as any); }}
-                                        cafeOrders={cafeOrders}
-                                        retailSales={retailSales}
+                                        currentInstitution={activeInstitution!}
+                                        users={users.filter(u => u.institutionId === currentUser.institutionId)}
+                                        onDataChange={loadData}
                                     />
-                                ) : (
-                                    <RetailCustomerPortal currentUser={currentUser} currentInstitution={activeInstitution!} />
-                                )
-                            ) : (activeRole === 'agrovet_admin' || (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('agrovet'))) ? (
-                                <AgrovetView
-                                    currentUser={currentUser}
-                                    currentInstitution={activeInstitution!}
-                                    users={users.filter(u => u.institutionId === currentUser.institutionId)}
-                                    onDataChange={loadData}
-                                />
-                            ) : activeRole === 'tenant' ? (
-                                <TenantPortalView {...({} as any)} {...tenantPortalProps as any}
-                                    currentUser={currentUser}
-                                    currentInstitution={activeInstitution!}
-                                    onLogout={handleLogout}
-                                />
-                            ) : activeRole === 'landlord' ? (
-                                <LandlordPortalView {...({} as any)} {...landlordPortalProps as any}
-                                    currentUser={currentUser}
-                                    currentInstitution={activeInstitution!}
-                                    onLogout={handleLogout}
-                                />
-                            ) : (activeRole === 'property_admin' || activeInstitution?.institutionType === 'Property Management' || (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('property management'))) ? (
-                                <PropertyManagementView {...({} as any)} {...propertyManagementProps as any}
-                                    currentUser={currentUser}
-                                    currentInstitution={activeInstitution!}
-                                    companyDetails={companyDetails}
-                                    users={users.filter(u => u.institutionId === currentUser.institutionId)}
-                                    onDataChange={loadData}
-                                    onAddUser={async (userData: any) => {
-                                        try {
-                                            const targetInstitutionId = currentUser?.institutionId;
-                                            if (!targetInstitutionId) throw new Error("Institution context missing.");
-                                            await apiService.registerUser({
-                                                ...userData,
-                                                id: generateUserId(),
-                                                institutionId: targetInstitutionId
-                                            }, activeInstitution?.name);
-                                            loadData();
-                                        } catch (err: any) {
-                                            console.error("User registration failed:", err);
-                                            throw err;
-                                        }
-                                    }}
-                                    onEditUser={onEditUser}
-                                    onDeleteUser={onDeleteUser}
-                                    onImportUsers={onImportUsers}
-                                    onLogAction={handleLogAction}
-                                    smsConfig={activeInstitution?.smsConfig || companyDetails.smsConfig}
-                                    departments={departments}
-                                    subjects={subjects}
-                                    courses={courses}
-                                    letterheadConfig={activeLetterheadConfig}
-                                    logoUrl={activeBranding.logoUrl}
-                                    footerImageUrl={activeFooterImageUrl}
-                                    transactions={transactions}
-                                    onSendBulkCredentials={async (users: any[], method: string) => {
-                                        const res = await apiService.sendBulkCredentials(users, method);
-                                        await handleLogAction(`Sent bulk credentials to ${res.success_count} users via ${method}`);
-                                        return res;
-                                    }}
-                                />
-                            ) : (activeRole === 'construction_admin' || (isAdminCatchAll && (activeInstitution?.institutionType === 'Construction' || activeInstitution?.category?.includes('Construction')))) ? (
-                                <ConstructionManager 
-                                    currentInstitution={activeInstitution!}
-                                    users={users.filter(u => u.institutionId === currentUser.institutionId)}
-                                />
-                            ) : (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('fuel station')) ? (
-                                <FuelStationDashboard 
-                                    institution={activeInstitution!}
-                                />
-                            ) : (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('civil manufacturing')) ? (
-                                <CivilWorksDashboard />
-                            ) : (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('industrial logistics')) ? (
-                                <LogisticsDashboard />
-                            ) : (isAdminCatchAll || (activeRole === 'admin' && activeInstitution?.institutionType === 'Driving School')) ? (
-                                <AdminView
-                                    currentUser={currentUser}
-                                    users={users}
-                                    requests={requests}
-                                    allocations={allocations}
-                                    departments={departments}
-                                    subjects={subjects}
-                                    courses={courses}
-                                    rooms={rooms}
-                                    buildings={buildings}
-                                    academicLevels={academicLevels}
-                                    academicYears={academicYears}
-                                    semesters={semesters}
-                                    activeAcademicYear={activeAcademicYear}
-                                    activeSemester={activeSemester}
-                                    timetableSettings={activeInstitution?.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
-                                    examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
-                                    logoUrl={activeBranding.logoUrl}
-                                    footerImageUrl={activeFooterImageUrl}
-                                    themeColor={activeBranding.primaryColor}
-                                    companyDetails={companyDetails}
-                                    activityLog={activityLog}
-                                    transactions={transactions}
-                                    receipts={receipts}
-                                    invoices={invoices}
-                                    extensionRequests={extensionRequests}
-                                    voteHeads={voteHeads}
-                                    feeStructures={feeStructures}
-                                    financialPeriods={financialPeriods}
-                                    userTasks={userTasks}
-                                    generatedTimetable={generatedTimetable}
-                                    allTimetableEntries={generatedTimetable}
-                                    timetableConflicts={timetableConflicts}
-                                    retailExpenses={retailExpenses}
-                                    onAddRetailExpense={handleAddRetailExpense}
-                                    onAddRequisition={handleAddRequisition}
-                                    onUpdateRequisition={handleUpdateRequisition}
-                                    retailStores={retailStores}
-                                    inventory={retailInventory}
-                                    suppliers={suppliers}
-                                    currentInstitution={activeInstitution}
-                                    counties={counties}
-                                    onImportStudents={onImportStudents}
-                                    onAddDepartment={handleAddDepartment}
-                                    onUpdateDepartment={handleUpdateDepartment}
-                                    onDeleteDepartment={handleDeleteDepartment}
-                                    onImportDepartments={handleImportDepartments}
-                                    onAddSubject={handleAddSubject}
-                                    onUpdateSubject={handleUpdateSubject}
-                                    onDeleteSubject={handleDeleteSubject}
-                                    onAddBuilding={handleAddBuilding}
-                                    onUpdateBuilding={handleUpdateBuilding}
-                                    onDeleteBuilding={handleDeleteBuilding}
-                                    onAddRoom={handleAddRoom}
-                                    onUpdateRoom={handleUpdateRoom}
-                                    onDeleteRoom={handleDeleteRoom}
-                                    onImportRooms={handleImportRooms}
-                                    onAddCourse={handleAddCourse}
-                                    onImportCourses={handleImportCourses}
-                                    onUpdateCourse={handleUpdateCourse}
-                                    onDeleteCourse={handleDeleteCourse}
-                                    onAddAcademicLevel={handleAddAcademicLevel}
-                                    onUpdateAcademicLevel={handleUpdateAcademicLevel}
-                                    onDeleteAcademicLevel={handleDeleteAcademicLevel}
-                                    onAddAcademicYear={async (data) => { await apiService.saveModuleRecord('academic_years', { ...data, id: `ay_${Date.now()}`, institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); }}
-                                    onUpdateAcademicYear={async (id, data) => { const existing = academicYears.find(y => y.id === id); await apiService.saveModuleRecord('academic_years', { ...existing, ...data, id }); loadData(); }}
-                                    onDeleteAcademicYear={async (id) => { await apiService.deleteModuleRecord('academic_years', id); loadData(); }}
-                                    onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: `sem_${Date.now()}`, institutionId: currentUser!.institutionId }); loadData(); }}
-                                    onUpdateSemester={async (id, data) => { const existing = semesters.find(s => s.id === id); await apiService.saveModuleRecord('semesters', { ...existing, ...data, id }); loadData(); }}
-                                    onDeleteSemester={async (id) => { await apiService.deleteModuleRecord('semesters', id); loadData(); }}
-                                    onDirectAssign={handleDirectAssign}
-                                    onTimetableGenerated={async (entries, ay, sem) => { await apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[]); await handleLogAction(`Generated timetable for ${ay} / ${sem}`); await loadData(false, true); }}
-                                    onExamTimetableGenerated={async (entries, ay, sem) => { await apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries); await handleLogAction(`Generated exam timetable for ${ay} / ${sem}`); await loadData(false, true); }}
-                                    onSaveTimetableSettings={(config) => { onUpdateInstitution(activeInstitution!.id, { timetableSettings: config }); handleLogAction(`Saved timetable settings`); }}
-                                    onSaveExamTimetableSettings={(config) => { onUpdateInstitution(activeInstitution!.id, { examTimetableSettings: config }); handleLogAction(`Saved exam timetable settings`); }}
-                                    onUpdateLogo={(logo) => { onUpdateInstitution(activeInstitution!.id, { logoUrl: logo }); handleLogAction(`Updated institution logo`); }}
-                                    onUpdateFooterImage={(footer) => { onUpdateInstitution(activeInstitution!.id, { footerImageUrl: footer }); handleLogAction(`Updated institution footer image`); }}
-                                    onUpdateThemeColor={(color) => { onUpdateInstitution(activeInstitution!.id, { themeColor: color }); handleLogAction(`Updated institution theme color`); }}
-                                    onUpdateInstitution={onUpdateInstitution}
-                                    onAddTask={async (t) => { await apiService.saveModuleRecord('tasks', { ...t, userId: currentUser.id, id: `t_${Date.now()}`, createdAt: new Date().toISOString() }); await handleLogAction(`Added task: ${t.title}`); loadData(); }}
-                                    onUpdateTask={async (id, c) => { const task = userTasks.find(x => x.id === id); if (task) { await apiService.saveModuleRecord('tasks', { ...task, isComplete: c }); await handleLogAction(`${c ? 'Completed' : 'Reopened'} task: ${task.title}`); loadData(); } }}
-                                    onDeleteTask={async (id) => { const task = userTasks.find(x => x.id === id); if (task) { await apiService.deleteModuleRecord('tasks', id); await handleLogAction(`Deleted task: ${task.title}`); loadData(); } }}
-                                    onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId || activeInstitution?.id); await handleLogAction(`Sent SMS to ${Array.isArray(r) ? r.length + ' recipients' : r}`); return res; }}
-                                    onSaveSmsConfig={async (config) => { await onUpdateInstitution(activeInstitution!.id, { smsConfig: config }); await handleLogAction(`Updated SMS configuration`); }}
-                                    onUpdateRequest={async (id, data) => { await apiService.saveModuleRecord('allocation_requests', { id, ...data }); await handleLogAction(`Updated allocation request`); loadData(); }}
-                                    onWithdrawRequest={async (id) => { await apiService.deleteModuleRecord('allocation_requests', id); await handleLogAction(`Withdrew allocation request`); loadData(); }}
-                                    onAddUnavailability={async (u) => { /* Placeholder */ await handleLogAction(`Added unavailability`); }}
-                                    onUpdateUnavailability={async (id, u) => { /* Placeholder */ await handleLogAction(`Updated unavailability`); }}
-                                    onDeleteUnavailability={() => { }}
-                                    onManageUnavailability={() => { }}
-                                    onPublishTimetable={() => { }}
-                                    onRemovePublishedTimetable={() => { }}
-                                    onSendTestEmail={async (r) => ({ success: true, message: 'Test email sent.' })}
-                                    onSaveEmailConfig={() => { }}
-                                    onSaveLetterheadConfig={(config) => onUpdateInstitution(activeInstitution!.id, { letterheadConfig: config })}
-                                    onImportSubjectsAndAssociate={handleImportSubjectsAndAssociate}
-                                    onAssociateSubjectToCourseLevel={handleAssociateSubjectToCourseLevel}
-                                    onDisassociateSubjectFromCourseLevel={handleDisassociateSubjectFromCourseLevel}
-                                    onAddExtensionRequest={handleAddExtensionRequest}
-                                    onUpdateExtensionRequestStatus={handleUpdateExtensionRequestStatus}
-                                    onSaveBiometricConfig={() => { }}
-                                    onUpdateVoteHeads={() => { }}
-                                    onUpdateFeeStructures={() => { }}
-                                    onUpdateFinancialPeriods={() => { }}
-                                    onAddBuildings={async (b) => { }}
-                                    timeOffRequests={timeOffRequests}
-                                    onAddTimeOffRequest={handleAddTimeOffRequest}
-                                    onUpdateTimeOffRequestStatus={async () => { }}
-                                    enrollmentRequests={enrollmentRequests}
-                                    absenceRequests={absenceRequests}
-                                    studentAbsenceRequests={studentAbsenceRequests}
-
-
-
-
-
-                                    securityAlerts={securityAlerts}
-                                    visitors={visitors}
-                                    requisitions={requisitions}
-                                    studentAttendances={studentAttendances}
-                                    studentCheckIns={studentCheckIns}
-                                    lessonRatings={lessonRatings}
-                                    feedbackSubmissions={feedbackSubmissions}
-                                    onUpdateFeedbackStatus={() => { }}
-                                    courseSizes={courseSizes}
-
-
-
-
-                                    onUpdateAssessmentStatus={() => { }}
-
-                                    contracts={contracts}
-                                    onGenerateDemoData={handleGenerateDemoData}
-                                    onClearDemoData={handleClearDemoData}
-                                    isGeneratingDemoData={isGeneratingDemoData}
-                                    demoDataGenerationProgress={demoDataGenerationProgress}
-                                    demoDataGenerationMessage={demoDataGenerationMessage}
-                                    examTimetable={examTimetable}
-                                    onManualInvoice={(instId: string, items: InvoiceItem[], total: number, due: string) => { }}
-                                    onUpdateRequestStatus={async (id: string, status: RequestStatus) => { await apiService.updateAllocationStatus(id, status); await loadData(); }}
-                                    onBulkUpdateRequestStatus={async (status: RequestStatus, deptId?: string) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
-                                    onGenerateReceipt={onGenerateReceipt}
-                                    onAccessAlumnaPortal={handleAccessAlumnaPortal}
-                                    schoolRegistry={schoolRegistry}
-                                    getLecturerById={getLecturerById}
-                                    getSubjectById={getSubjectById}
-                                    getRoomById={getRoomById}
-                                    onLogAction={handleLogAction}
-                                    onSendBulkCredentials={async (users, method) => {
-                                        const res = await apiService.sendBulkCredentials(users, method);
-                                        await handleLogAction(`Sent bulk credentials to ${res.success_count} users via ${method}`);
-                                        return res;
-                                    }}
-                                    onSwitchPerspective={(role) => setImpersonatedRole(role)}
-                                    onAddParent={async (sid: string, p: any) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => ({ success: true, message: 'Parent added.' }))}
-                                    onDeleteParent={() => { }}
-                                    assignments={assignments}
-                                    submissions={submissions}
-                                    onAddAssignment={async (d) => { await apiService.saveModuleRecord('assignments', { ...d, id: `asg_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
-                                    onDeleteAssignment={async (id) => { await apiService.deleteModuleRecord('assignments', id); loadData(); }}
-                                    onUpdateSubmission={async (id, data) => {
-                                        const sub = submissions.find(s => s.id === id);
-                                        if (sub) {
-                                            await apiService.saveModuleRecord('submissions', { ...sub, ...data, status: 'graded' });
-                                            loadData();
-                                        }
-                                    }}
-
-                                    isImpersonating={!!impersonatedRole}
-                                    coopFarmers={coopFarmers}
-                                    coopCollections={coopCollections}
-                                    coopRiders={coopRiders}
-                                    coopAgrovetInventory={coopAgrovetInventory}
-                                    coopAgrovetSales={coopAgrovetSales}
-                                    saccoAccounts={saccoAccounts}
-                                    saccoTransactions={saccoTransactions}
-                                    coopPayouts={coopPayouts}
-                                    coopExpenses={coopExpenses}
-                                    coopIncome={coopIncome}
-                                    lawClients={lawClients}
-                                    lawMatters={lawMatters}
-                                    lawDocuments={lawDocuments}
-                                    lawTimeEntries={lawTimeEntries}
-                                    lawInvoices={lawInvoices}
-                                    lawTrustTransactions={lawTrustTransactions}
-                                    onAddLawClient={handleAddLawClient}
-                                    onAddLawMatter={handleAddLawMatter}
-                                    onAddLawTimeEntry={handleAddLawTimeEntry}
-                                    onAddLawTrustTransaction={handleAddLawTrustTransaction}
-                                    onAddLawInvoice={handleAddLawInvoice}
-                                    onUpdateLawMatter={handleUpdateLawMatter}
-                                    lawAgreementTemplates={lawAgreementTemplates}
-                                    lawAgreements={lawAgreements}
-                                    onAddLawAgreementTemplate={handleAddLawAgreementTemplate}
-                                    onGenerateLawAgreement={handleGenerateLawAgreement}
-                                    onApproveLawAgreement={handleApproveLawAgreement}
-                                    dsInstructors={dsInstructors}
-                                    dsVehicles={dsVehicles}
-                                    dsStudents={dsStudents}
-                                    dsLessons={dsLessons}
-                                    dsMastery={dsMastery}
-                                    dsSettings={dsSettings}
-                                    onAddDSInstructor={handleAddDSInstructor}
-                                    onAddDSVehicle={handleAddDSVehicle}
-                                    onAddDSStudent={handleAddDSStudent}
-                                    onAddDSLesson={handleAddDSLesson}
-                                    onAddDSMastery={handleAddDSMastery}
-                                    onUpdateDSSettings={handleUpdateDSSettings}
-                                    onAddFarmer={handleAddFarmer}
-                                    onUpdateFarmer={handleUpdateFarmer}
-                                    onImportFarmers={handleImportFarmers}
-                                    onLogCollection={handleLogCollection}
-                                    onImportCollections={handleImportCollections}
-                                    onBulkConfirmCollections={handleBulkConfirmCollections}
-                                    onAddRider={handleAddRider}
-                                    onConfirmCollection={handleConfirmCollection}
-                                    onApproveCollection={handleApproveCollection}
-                                    onAddCoopExpense={handleAddCoopExpense}
-                                    onAddCoopIncome={handleAddCoopIncome}
-                                    onInitiatePayouts={handleInitiatePayouts}
-                                    onApprovePayouts={handleApprovePayouts}
-                                    onDisbursePayouts={handleDisbursePayouts}
-                                    onAddPayouts={handleAddPayouts}
-                                    vehicles={vehicles}
-                                    transportOnboarding={transportOnboarding}
-                                    vehicleLogs={vehicleLogs}
-                                    onAddVehicle={handleAddVehicle}
-                                    onUpdateVehicle={handleUpdateVehicle}
-                                    onDeleteVehicle={handleDeleteVehicle}
-                                    onLogGateAction={handleLogGateAction}
-                                    onOnboardStudent={handleOnboardStudent}
-                                    onOffboardStudent={handleOffboardStudent}
-                                    onConfirmReceipt={handleConfirmReceipt}
-                                    carListings={carListings}
-                                    carTestDrives={carTestDrives}
-                                    carAppraisals={carAppraisals}
-                                    carInvoices={carInvoices}
-                                    carPayments={carPayments}
-                                    onAddCarInvoice={async (data: Partial<CarInvoice>) => {
-                                        const instId = activeInstitution?.id || currentUser.institutionId;
-                                        await apiService.saveCarInvoice({ 
-                                            ...data, 
-                                            id: `cinv_${Date.now()}`, 
-                                            institutionId: instId || '',
-                                            invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
-                                            paidAmount: 0,
-                                            balanceAmount: data.totalAmount || 0,
-                                            status: 'pending'
-                                        });
-                                        await loadData();
-                                    }}
-                                    onAddCarPayment={async (data: Partial<CarPayment>) => {
-                                        const instId = activeInstitution?.id || currentUser.institutionId;
-                                        await apiService.saveCarPayment({ 
-                                            ...data, 
-                                            id: `cpay_${Date.now()}`, 
-                                            institutionId: instId || '',
-                                            receiptNumber: `RCPT-${Date.now().toString().slice(-6)}`,
-                                            paymentDate: new Date().toISOString()
-                                        });
-                                        await loadData();
-                                    }}
-                                    onAddCarListing={async (data: Partial<CarListing>) => {
-                                        const instId = activeInstitution?.id || currentUser.institutionId;
-                                        await apiService.saveCarListing({ ...data, id: `v_${Date.now()}`, institutionId: instId || '' });
-                                        await loadData();
-                                    }}
-                                    onUpdateCarTestDriveStatus={async (id: string, status: any) => {
-                                        const existing = carTestDrives.find(t => t.id === id);
-                                        if (existing) {
-                                            await apiService.saveCarTestDrive({ ...existing, status });
-                                            await loadData();
-                                        }
-                                    }}
-                                    onAddCarAppraisal={async (data: Partial<CarAppraisal>) => {
-                                        const instId = activeInstitution?.id || currentUser.institutionId;
-                                        await apiService.saveCarAppraisal({ ...data, id: `appr_${Date.now()}`, institutionId: instId || '' });
-                                        await loadData();
-                                    }}
-                                    carBankTransactions={carBankTransactions}
-                                    onReconcileBankTransaction={async (tid, invId) => {
-                                        const transaction = carBankTransactions.find(t => t.id === tid);
-                                        const invoice = carInvoices.find(i => i.id === invId);
-                                        if (transaction && invoice) {
-                                            // 1. Mark transaction as reconciled
-                                            const updatedTransaction: BankTransaction = {
-                                                ...transaction,
-                                                status: 'reconciled',
-                                                linkedInvoiceId: invId,
-                                                reconciledAt: new Date().toISOString(),
-                                                reconciledBy: currentUser.name
-                                            };
-                                            await apiService.saveModuleRecord('car_bank_transactions', updatedTransaction);
-
-                                            // 2. Add payment to history
-                                            await apiService.saveCarPayment({
-                                                id: `cpay_${Date.now()}`,
-                                                invoiceId: invId,
-                                                institutionId: currentUser.institutionId,
-                                                amount: transaction.amount,
-                                                paymentMethod: 'Bank Transfer',
-                                                transactionReference: transaction.reference,
-                                                paymentDate: transaction.transactionDate,
-                                                receiptNumber: `RCPT-AUTO-${Date.now().toString().slice(-4)}`,
-                                                notes: `Auto-reconciled from bank feed (${transaction.reference})`
-                                            });
-                                            
-                                            await loadData();
-                                        }
-                                    }}
-                                    onFetchBankFeeds={async () => {
-                                        // Mock fetching new feeds
-                                        const newFeeds: BankTransaction[] = [
-                                            {
-                                                id: `bt_${Date.now()}_1`,
-                                                institutionId: currentUser.institutionId,
-                                                amount: 1500000,
-                                                transactionDate: new Date().toISOString(),
-                                                reference: "INV-123456 Payment",
-                                                senderName: "John Doe",
-                                                bankName: "Equity Bank",
-                                                status: 'unreconciled',
-                                                createdAt: new Date().toISOString()
-                                            }
-                                        ];
-                                        for (const f of newFeeds) {
-                                            await apiService.saveModuleRecord('car_bank_transactions', f);
-                                        }
-                                        await loadData();
-                                    }}
-                                />
-                            ) : activeRole === 'student' ? (
-                                <StudentView
-                                    user={currentUser}
-                                    users={users}
-                                    courses={courses}
-                                    subjects={subjects}
-                                    rooms={rooms}
-                                    enrollmentRequests={enrollmentRequests}
-                                    generatedTimetable={generatedTimetable}
-                                    examTimetable={examTimetable}
-                                    getSubjectById={getSubjectById}
-                                    getRoomById={getRoomById}
-                                    getLecturerById={getLecturerById}
-                                    timetableSettings={timetableSettings!}
-                                    studentCheckIns={studentCheckIns}
-                                    onStudentLessonCheckIn={onStudentLessonCheckIn}
-                                    letterheadConfig={activeLetterheadConfig}
-                                    footerImageUrl={activeFooterImageUrl}
-                                    logoUrl={activeBranding.logoUrl}
-                                    buildings={buildings}
-                                    onAddParent={async (sid: string, p: any) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => ({ success: true, message: 'Parent added.' }))}
-                                    onDeleteParent={() => { }}
-                                    departments={departments}
-                                    onSubmitEnrollmentRequest={async (sids, sig) => { }}
-                                    assignments={assignments}
-                                    submissions={submissions}
-                                    onAddSubmission={async (d) => { await apiService.saveModuleRecord('submissions', { ...d, id: `subm_${Date.now()}`, institutionId: currentUser.institutionId }); }}
-                                    lessonRatings={lessonRatings}
-                                    onAddLessonRating={() => { }}
-                                    onRateLesson={() => { }}
-                                    onAddFeedback={() => { }}
-                                    feedbackSubmissions={feedbackSubmissions}
-                                    studentAbsenceRequests={studentAbsenceRequests}
-                                    onSubmitStudentAbsenceRequest={() => { }}
-                                    finalTimetableUrl={null}
-                                    taAssignments={[]} // Placeholder
-                                    userTasks={userTasks}
-                                    onAddTask={() => { }}
-                                    onUpdateTask={() => { }}
-                                    onDeleteTask={() => { }}
-                                    currentInstitution={activeInstitution}
-                                    assessments={assessments}
-                                    assessmentMarks={assessmentMarks}
-                                    studentAttendances={studentAttendances}
-                                    books={books}
-                                />
-                            ) : activeRole === 'reseller' ? (
-                                <ResellerDashboard
-                                    currentUser={currentUser}
-                                    currentInstitution={activeInstitution!}
-                                    onImpersonate={onLoginAsAdmin}
-                                    companyDetails={companyDetails}
-                                    transactions={transactions}
-                                    invoices={invoices}
-                                />
-                            ) : (activeRole === 'church_admin' || activeRole === 'church_member') ? (
-                                <ChurchDenominationProvider church={activeInstitution!}>
-                                    <ChurchDashboard />
-                                </ChurchDenominationProvider>
-                            ) : (activeRole === 'county_admin' || activeRole?.startsWith('county_')) ? (
-                                <CountyAdminView {...countyAdminProps as any}
-                                    currentUser={currentUser}
-                                    counties={counties}
-                                    institutions={institutions}
-                                    users={users}
-                                    onLogout={handleLogout}
-                                    onUpdateInstitution={onUpdateInstitution}
-                                    onAccessAlumnaPortal={handleAccessAlumnaPortal}
-                                    schoolRegistry={schoolRegistry}
-                                    onGenerateReceipt={handleGenerateReceipt}
-                                    onUpdateCounty={handleUpdateCounty}
-                                    onAddInstitution={handleAddCountyInstitution}
-                                    onLoginAsAdmin={onLoginAsAdmin}
-                                    onImportInstitutions={handleImportCountyInstitutions}
-                                    onAddUser={async (data) => { await apiService.registerUser({ ...data, id: `u_county_${Date.now()}` }, 'County Portal'); loadData(); }}
-                                    onUpdateUser={onEditUser}
-                                    onDeleteUser={onDeleteUser}
-                                    inventoryItems={countyInventory}
-                                    inventoryCategories={countyInventoryCategories}
-                                    onAddInventoryItem={async (data) => {
-                                        const id = data.id || `cinv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                                        await apiService.saveModuleRecord('county_inventory', { ...data, id });
-                                        loadData();
-                                    }}
-                                    onUpdateInventoryItem={async (id, data) => {
-                                        await apiService.saveModuleRecord('county_inventory', { ...data, id });
-                                        loadData();
-                                    }}
-                                    onDeleteInventoryItem={async (id) => {
-                                        await apiService.deleteModuleRecord('county_inventory', id);
-                                        loadData();
-                                    }}
-                                    onAddInventoryCategory={async (data) => {
-                                        const id = data.id || `cat_${Date.now()}`;
-                                        await apiService.saveModuleRecord('county_inventory_categories', { ...data, id });
-                                        loadData();
-                                    }}
-                                    onUpdateInventoryCategory={async (id, data) => {
-                                        await apiService.saveModuleRecord('county_inventory_categories', { ...data, id });
-                                        loadData();
-                                    }}
-                                    onDeleteInventoryCategory={async (id) => {
-                                        await apiService.deleteModuleRecord('county_inventory_categories', id);
-                                        loadData();
-                                    }}
-                                    stores={countyStores}
-                                    onAddStore={async (data) => {
-                                        const id = data.id || `store_${Date.now()}`;
-                                        await apiService.saveModuleRecord('county_stores', { ...data, id });
-                                        loadData();
-                                    }}
-                                    onUpdateStore={async (id, data) => {
-                                        await apiService.saveModuleRecord('county_stores', { ...data, id });
-                                        loadData();
-                                    }}
-                                    onDeleteStore={async (id) => {
-                                        await apiService.deleteModuleRecord('county_stores', id);
-                                        loadData();
-                                    }}
-                                    onAddStockTransaction={async (data) => {
-                                        const countyId = currentUser?.role?.startsWith('county_') ? currentUser?.countyId : undefined;
-                                        await apiService.saveModuleRecord('stock_transactions', { ...data, id: `stxn_${Date.now()}`, countyId, recordedBy: currentUser?.id });
-                                        loadData();
-                                    }}
-                                    stockTransactions={stockTransactions}
-                                    bursaryApplications={bursaryApplications}
-                                    bursaryFunds={bursaryFunds}
-                                    onUpdateBursaryApplication={async (id, data) => { await apiService.saveModuleRecord('bursary_applications', { ...data, id }); await loadData(); }}
-                                    onAddBursaryFund={async (data) => { await apiService.saveModuleRecord('county_bursary_funds', data); await loadData(); }}
-                                    onUpdateBursaryFund={async (id, data) => { await apiService.saveModuleRecord('county_bursary_funds', { ...data, id }); await loadData(); }}
-                                    onDeleteBursaryFund={async (id) => { await apiService.deleteModuleRecord('county_bursary_funds', id); await loadData(); }}
-                                    activityLog={activityLog}
-                                    onLogAction={handleLogAction}
-                                    countyAgrovetInventory={coopAgrovetInventory}
-                                    countyAgrovetSales={coopAgrovetSales}
-                                    saccoAccounts={saccoAccounts}
-                                    saccoTransactions={saccoTransactions}
-                                    coopPayouts={coopPayouts}
-                                    coopExpenses={coopExpenses}
-                                    coopIncome={coopIncome}
-                                    lawClients={lawClients}
-                                    lawMatters={lawMatters}
-                                    lawDocuments={lawDocuments}
-                                    lawTimeEntries={lawTimeEntries}
-                                    lawInvoices={lawInvoices}
-                                    lawTrustTransactions={lawTrustTransactions}
-                                    onAddLawClient={handleAddLawClient}
-                                    onAddLawMatter={handleAddLawMatter}
-                                    onAddLawTimeEntry={handleAddLawTimeEntry}
-                                    onAddLawTrustTransaction={handleAddLawTrustTransaction}
-                                    onAddLawInvoice={handleAddLawInvoice}
-                                    onUpdateLawMatter={handleUpdateLawMatter}
-                                    lawAgreementTemplates={lawAgreementTemplates}
-                                    lawAgreements={lawAgreements}
-                                    onAddLawAgreementTemplate={handleAddLawAgreementTemplate}
-                                    onGenerateLawAgreement={handleGenerateLawAgreement}
-                                    onApproveLawAgreement={handleApproveLawAgreement}
-                                    dsInstructors={dsInstructors}
-                                    dsVehicles={dsVehicles}
-                                    dsStudents={dsStudents}
-                                    dsLessons={dsLessons}
-                                    dsMastery={dsMastery}
-                                    dsSettings={dsSettings}
-                                    onAddDSInstructor={handleAddDSInstructor}
-                                    onAddDSVehicle={handleAddDSVehicle}
-                                    onAddDSStudent={handleAddDSStudent}
-                                    onAddDSLesson={handleAddDSLesson}
-                                    onAddDSMastery={handleAddDSMastery}
-                                    onUpdateDSSettings={handleUpdateDSSettings}
-                                    onAddFarmer={handleAddFarmer}
-                                    onUpdateFarmer={handleUpdateFarmer}
-                                    onImportFarmers={handleImportFarmers}
-                                    onLogCollection={handleLogCollection}
-                                    onImportCollections={handleImportCollections}
-                                    onBulkConfirmCollections={handleBulkConfirmCollections}
-                                    onAddRider={handleAddRider}
-                                    onConfirmCollection={handleConfirmCollection}
-                                    onApproveCollection={handleApproveCollection}
-                                    onAddCoopExpense={handleAddCoopExpense}
-                                    onAddCoopIncome={handleAddCoopIncome}
-                                    onInitiatePayouts={handleInitiatePayouts}
-                                    onApprovePayouts={handleApprovePayouts}
-                                    onDisbursePayouts={handleDisbursePayouts}
-                                    incidents={incidents}
-                                    onAddIncident={async (data) => {
-                                        await apiService.saveModuleRecord('discipline_incidents', {
-                                            ...data,
-                                            id: `disc_${Date.now()}`,
-                                            institutionId: data.institutionId || 'GLOBAL',
-                                            timestamp: new Date().toISOString(),
-                                            recordedBy: currentUser!.name
-                                        });
-                                        await handleLogAction(`Recorded disciplinary incident for ${data.studentName}`);
-                                        loadData();
-                                    }}
-                                    onAddPayouts={handleAddPayouts}
-                                    activityLogLimit={activityLogLimit}
-                                    setActivityLogLimit={setActivityLogLimit}
-                                    receiptLimit={receiptLimit}
-                                    setReceiptLimit={setReceiptLimit}
-                                    transactionLimit={transactionLimit}
-                                    setTransactionLimit={setTransactionLimit}
-                                />
-                            ) : activeRole === 'academics_officer' ? (
-                                <AcademicsOfficerView {...academicsOfficerProps as any}
-                                    currentUser={currentUser}
-                                    currentInstitution={activeInstitution!}
-                                    academicYears={academicYears}
-                                    semesters={semesters}
-                                    academicLevels={academicLevels}
-                                    departments={departments}
-                                    subjects={subjects}
-                                    onUpdateSubject={handleUpdateSubject}
-                                    courses={courses}
-                                    onUpdateCourse={handleUpdateCourse}
-                                    users={users}
-                                    rooms={rooms}
-                                    onAddRoom={handleAddRoom}
-                                    onUpdateRoom={handleUpdateRoom}
-                                    onDeleteRoom={handleDeleteRoom}
-                                    onImportRooms={handleImportRooms}
-                                    onAddDepartment={handleAddDepartment}
-                                    onUpdateDepartment={handleUpdateDepartment}
-                                    onDeleteDepartment={handleDeleteDepartment}
-                                    onImportDepartments={handleImportDepartments}
-                                    assessments={assessments}
-                                    marks={assessmentMarks}
-                                    incidents={incidents}
-                                    onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
-                                    onDeleteAssessment={async (id: string) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
-                                    onSaveAssessmentMarks={async (id: string, marks: any[]) => {
-                                        for (const m of marks) {
-                                            const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
-                                            await apiService.saveModuleRecord('assessment_marks', {
-                                                id: existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()}`,
-                                                assessmentId: id,
-                                                studentId: m.studentId,
-                                                marks: m.marks,
-                                                comments: m.comments,
-                                                gradedBy: currentUser.id,
-                                                timestamp: new Date().toISOString(),
-                                                institutionId: currentUser.institutionId
-                                            });
-                                        }
-                                        loadData();
-                                    }}
-                                    onAddIncident={async (data: any) => {
-                                        await apiService.saveModuleRecord('discipline_incidents', {
-                                            ...data,
-                                            id: `disc_${Date.now()}`,
-                                            institutionId: currentUser!.institutionId,
-                                            timestamp: new Date().toISOString(),
-                                            recordedBy: currentUser!.name
-                                        });
-                                        loadData();
-                                    }}
-                                    activeAcademicYear={activeAcademicYear}
-                                    activeSemester={activeSemester}
-                                    onExamTimetableGenerated={async (entries: any, ay: string, sem: string) => { await apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries); loadData(); }}
-                                    examTimetable={examTimetable}
-                                    getSubjectById={getSubjectById}
-                                    getLecturerById={getLecturerById}
-                                    getRoomById={getRoomById}
-                                    courseSizes={courseSizes}
-                                    timetableSettings={timetableSettings!}
-                                    onSaveTimetableSettings={(config: any) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: config })}
-                                    buildings={buildings}
-                                    onAddBuilding={handleAddBuilding}
-                                    onUpdateBuilding={handleUpdateBuilding}
-                                    onDeleteBuilding={handleDeleteBuilding}
-                                    letterheadConfig={activeLetterheadConfig}
-                                    logoUrl={activeBranding.logoUrl}
-                                    footerImageUrl={activeFooterImageUrl}
-                                    emailConfig={companyDetails.emailConfig}
-                                    onSaveEmailConfig={(config: any) => onUpdateInstitution(activeInstitution!.id, { emailConfig: config })}
-                                    onSendTestEmail={async (r: string) => ({ success: true, message: 'Test email bypassed.' })}
-                                    smsConfig={companyDetails.smsConfig}
-                                    themeColor={activeBranding.primaryColor}
-                                    examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
-                                    onSaveExamTimetableSettings={(config: any) => onUpdateInstitution(activeInstitution!.id, { examTimetableSettings: config })}
-                                    lessonRatings={lessonRatings}
-                                    onTimetableGenerated={async (entries: any, ay: string, sem: string) => { await apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[]); loadData(); }}
-                                    onLogAction={handleLogAction}
-                                    schoolRegistry={schoolRegistry}
-                                    companyDetails={companyDetails}
-                                    onAccessAlumnaPortal={handleAccessAlumnaPortal}
-                                />
-                            ) : activeRole === 'security' ? (
-                                <SecurityView
-                                    user={currentUser}
-                                    users={users}
-                                    visitors={visitors}
-                                    securityAlerts={securityAlerts}
-                                    appointments={appointments}
-                                    // Actually appointments are used. Adding fetching for them.
-                                    onAddVisitor={async (v) => {
-                                        await apiService.saveModuleRecord('visitors', { ...v, id: `vis_${Date.now()}` });
-                                        await handleLogAction(`Registered visitor: ${v.name}`);
-                                        loadData();
-                                    }}
-                                    onCheckoutVisitor={async (id) => {
-                                        const v = visitors.find(x => x.id === id);
-                                        if (v) {
-                                            await apiService.saveModuleRecord('visitors', { ...v, timeOut: new Date().toLocaleTimeString() });
-                                            await handleLogAction(`Checked out visitor: ${v.name}`);
-                                        }
-                                        loadData();
-                                    }}
-                                    onAddAlert={async (a) => {
-                                        await apiService.saveModuleRecord('security_alerts', { ...a, id: `alert_${Date.now()}`, institutionId: currentUser.institutionId, createdBy: currentUser.id, createdAt: new Date().toISOString(), status: 'active' });
-                                        await handleLogAction(`Logged security alert: ${a.type} - ${a.severity}`);
-                                        loadData();
-                                    }}
-                                    onResolveAlert={async (id) => {
-                                        const a = securityAlerts.find(x => x.id === id);
-                                        if (a) {
-                                            await apiService.saveModuleRecord('security_alerts', { ...a, status: 'resolved' });
-                                            await handleLogAction(`Resolved security alert: ${a.type}`);
-                                        }
-                                        loadData();
-                                    }}
-                                    onUpdateAppointmentStatus={async (id, status) => {
-                                        const apt = appointments.find(a => a.id === id);
-                                        if (apt) {
-                                            await apiService.saveModuleRecord('appointments', { ...apt, status });
-                                            await handleLogAction(`Updated appointment status for ${apt.guestName} to ${status}`);
-                                        }
-                                        loadData();
-                                    }}
-                                    currentInstitution={activeInstitution}
-                                    courses={courses}
-                                    academicYears={academicYears}
-                                    semesters={semesters}
-                                    departments={departments}
-                                    companyDetails={companyDetails}
-                                    onLogAction={handleLogAction}
-                                    vehicles={vehicles}
-                                    vehicleLogs={vehicleLogs}
-                                    onLogGateAction={handleLogGateAction}
-                                    onSwitchPerspective={setImpersonatedRole}
-                                />
-
-                            ) : activeRole === 'finance_officer' ? (
-                                <FinanceOfficerView
-                                    currentUser={currentUser}
-                                    currentInstitution={activeInstitution!}
-                                    invoices={invoices}
-                                    receipts={receipts}
-                                    expenses={expenses}
-                                    goals={[]} // Placeholder for goals
-                                    feeStructures={feeStructures}
-                                    students={users.filter(u => u.role === 'student')}
-                                    academicYears={academicYears}
-                                    semesters={semesters}
-                                    onGenerateInvoices={async (invs) => {
-                                        await apiService.saveModuleRecords('invoices', invs);
-                                        loadData();
-                                    }}
-                                    onAddExpense={async (exp) => {
-                                         await apiService.saveModuleRecord('expenses', { ...exp, id: `exp_${Date.now()}`, institutionId: currentUser.institutionId });
-                                         loadData();
-                                     }}
-                                    receiptLimit={receiptLimit}
-                                    setReceiptLimit={setReceiptLimit}
-                                    transactionLimit={transactionLimit}
-                                    setTransactionLimit={setTransactionLimit}
-                                 />
-                            ) : activeRole === 'hr_officer' ? (
-                                <HROfficerView {...hrOfficerProps as HROfficerProps}
-                                    currentUser={currentUser}
-                                    currentInstitution={activeInstitution!}
-                                    staff={users.filter(u => u.role !== 'student' && u.role !== 'parent')}
-                                    payrollRecords={payrollRecords}
-                                    leaveRequests={timeOffRequests.map(t => ({ ...t, staffId: t.lecturerId, type: t.category as any, status: t.status as any, appliedAt: t.timestamp || new Date().toISOString() }))}
-                                    onProcessPayroll={async (recs) => {
-                                        await apiService.saveModuleRecords('payroll_records', recs);
-                                        loadData();
-                                    }}
-                                    onUpdateLeaveStatus={async (id, status) => {
-                                        const req = timeOffRequests.find(r => r.id === id);
-                                        if (req) {
-                                            await apiService.saveModuleRecord('time_off_requests', { ...req, status });
-                                            loadData();
-                                        }
-                                    }}
-                                />
-                            ) : activeRole === 'librarian' ? (
-                                <LibraryWarRoom
-                                    currentUser={currentUser}
-                                    currentInstitution={activeInstitution!}
-                                    companyDetails={companyDetails}
-                                    users={users}
-                                    academicYears={academicYears}
-                                    semesters={semesters}
-                                    courses={courses}
-                                    departments={departments}
-                                    onLogAction={handleLogAction}
-                                />
-                            ) : activeRole === 'info_desk' ? (
-                                <InfoDeskView {...supportStaffProps as SupportStaffProps}
-                                    user={currentUser}
-                                    users={users}
-                                    visitors={visitors}
-                                    generatedTimetable={generatedTimetable}
-                                    timetableSettings={timetableSettings}
-                                    getSubjectById={getSubjectById}
-                                    getRoomById={getRoomById}
-                                    getLecturerById={getLecturerById}
-                                    teacherCheckIns={teacherCheckIns}
-                                    timeOffRequests={timeOffRequests}
-                                    studentAbsenceRequests={studentAbsenceRequests}
-                                    leaveOutRequests={leaveOutRequests}
-                                    bulletinItems={bulletinItems}
-                                    documentCollections={documentCollections}
-                                    watchlist={watchlist}
-                                    maintenanceRequests={maintenanceRequests}
-                                    studentAttendances={studentAttendances}
-                                    invoices={invoices}
-                                    rooms={rooms}
-                                    onAddBulletinItem={async (item) => {
-                                        await apiService.saveModuleRecord('bulletin_items', { ...item, id: `bulletin_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() });
-                                        loadData();
-                                    }}
-                                    onUpdateDocumentStatus={async (id, status) => {
-                                        const doc = documentCollections.find(d => d.id === id);
-                                        if (doc) {
-                                            await apiService.saveModuleRecord('document_collections', { ...doc, status, collectedDate: status === 'Collected' ? new Date().toISOString() : doc.collectedDate });
-                                            loadData();
-                                        }
-                                    }}
-                                    onAddMaintenanceRequest={async (req) => {
-                                        await apiService.saveModuleRecord('maintenance_requests', { ...req, id: `maint_${Date.now()}`, institutionId: currentUser.institutionId, reportedAt: new Date().toISOString(), status: 'Pending' });
-                                        loadData();
-                                    }}
-                                    onSwitchPerspective={setImpersonatedRole}
-                                />
-                            ) : (activeRole === 'driver' || activeRole === 'transport_assistant') ? (
-                                <TransportAssistantView
-                                    user={currentUser}
-                                    users={users}
-                                    vehicles={vehicles}
-                                    transportOnboarding={transportOnboarding}
-                                    vehicleLogs={vehicleLogs}
-                                    onLogGateAction={handleLogGateAction}
-                                    onOnboardStudent={handleOnboardStudent}
-                                    onOffboardStudent={handleOffboardStudent}
-                                    currentInstitution={activeInstitution}
-                                />
-                            ) : activeRole === 'store' ? (
-                                <ModuleAccessGuard
-                                    moduleId="inventory"
-                                    moduleName="Institutional Store"
-                                    description="Manage inventory, suppliers, and stock issuance with digital signature verification."
-                                    institution={activeInstitution}
-                                    onActivateTrial={handleActivateModuleTrial}
-                                    isActivating={isSavingModule}
-                                >
-                                    <StoreView
-                                        user={currentUser}
-                                        inventory={inventory}
-                                        suppliers={suppliers}
-                                        stockTransactions={stockTransactions}
-                                        onAddItem={async (item) => { 
-                                            await apiService.saveModuleRecord('inventory', { 
-                                                ...item, 
-                                                id: `inv_${Date.now()}`, 
-                                                institutionId: currentUser.institutionId, 
-                                                lastUpdated: new Date().toISOString() 
-                                            }); 
-                                            loadData(); 
-                                        }}
-                                        onAddSupplier={async (supplier) => {
-                                            await apiService.saveModuleRecord('suppliers', {
-                                                ...supplier,
-                                                id: `sup_${Date.now()}`,
-                                                institutionId: currentUser.institutionId
-                                            });
-                                            loadData();
-                                        }}
-                                        onAddStoreTransaction={async (transaction) => {
-                                            const item = inventory.find(i => i.id === transaction.itemId);
-                                            if (item) {
-                                                const newQty = transaction.type === 'Restock' ? item.quantity + transaction.quantity : item.quantity - transaction.quantity;
-                                                await apiService.saveModuleRecord('inventory', { ...item, quantity: newQty, lastUpdated: new Date().toISOString() });
-                                            }
-                                            await apiService.saveModuleRecord('stock_transactions', { 
-                                                ...transaction, 
-                                                id: `stx_${Date.now()}`, 
-                                                date: new Date().toISOString(), 
-                                                institutionId: currentUser.institutionId, 
-                                                recordedBy: currentUser.id 
-                                            });
-                                            loadData();
-                                        }}
-                                        countyInventory={countyInventory.filter(i => i.targetInstitutionId === currentUser.institutionId)}
-                                        onMarkInventoryReceived={onMarkInventoryReceived}
-                                        onSwitchPerspective={setImpersonatedRole}
+                                ) : (activeRole === 'construction_admin' || (isAdminCatchAll && (activeInstitution?.institutionType === 'Construction' || activeInstitution?.category?.includes('Construction')))) ? (
+                                    <ConstructionManager 
+                                        currentInstitution={activeInstitution!}
+                                        users={users.filter(u => u.institutionId === currentUser.institutionId)}
+                                    />
+                                ) : (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('fuel station')) ? (
+                                    <FuelStationDashboard 
+                                        institution={activeInstitution!}
+                                    />
+                                ) : (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('civil manufacturing')) ? (
+                                    <CivilWorksDashboard />
+                                ) : (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('industrial logistics')) ? (
+                                    <LogisticsDashboard />
+                                ) : (isAdminCatchAll || (activeRole === 'admin' && activeInstitution?.institutionType === 'Driving School')) ? (
+                                    <AdminView
+                                        currentUser={currentUser}
                                         users={users}
+                                        requests={requests}
+                                        allocations={allocations}
                                         departments={departments}
-                                        onAddUser={async (data) => { await apiService.registerUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }, activeInstitution?.name); loadData(); }}
-                                        onEditUser={onEditUser}
-                                        onDeleteUser={onDeleteUser}
-                                        onAddDepartment={handleAddDepartment}
-                                        onUpdateDepartment={handleUpdateDepartment}
-                                        onDeleteDepartment={handleDeleteDepartment}
-                                        onImportStudents={onImportStudents}
-                                        smsConfig={(activeInstitution?.smsConfig || companyDetails.smsConfig) as any}
                                         subjects={subjects}
-                                        courses={courses}
-                                        letterheadConfig={activeLetterheadConfig}
-                                        logoUrl={activeBranding.logoUrl}
-                                        footerImageUrl={activeFooterImageUrl}
-                                        onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId || activeInstitution?.id); await handleLogAction(`Sent SMS to ${Array.isArray(r) ? r.length + ' recipients' : r}`); return res; }}
-                                        companyDetails={companyDetails}
-                                        onAddTransaction={apiService.onAddTransaction.bind(apiService)}
+                                        academicYears={academicYears}
+                                        semesters={semesters}
+                                        rooms={rooms}
+                                        timetableSettings={timetableSettings!}
+                                        onSaveTimetableSettings={(c) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: c })}
+                                        lessonRatings={lessonRatings}
+                                        activeRole={(activeRole as any) || undefined}
                                         onLogAction={handleLogAction}
-                                        onRefreshData={async () => await loadData(false, true)}
+                                        activityLogLimit={activityLogLimit}
+                                        setActivityLogLimit={setActivityLogLimit}
+                                        transactionLimit={transactionLimit}
+                                        setTransactionLimit={setTransactionLimit}
+                                        receiptLimit={receiptLimit}
+                                        setReceiptLimit={setReceiptLimit}
+                                        notificationLimit={notificationLimit}
+                                        setNotificationLimit={setNotificationLimit}
+                                        getLecturerById={getLecturerById}
+                                        getSubjectById={getSubjectById}
+                                        getRoomById={getRoomById}
+                                        getCountyById={getCountyById}
+                                        getInstitutionById={getInstitutionById}
                                     />
-                                </ModuleAccessGuard>
-                            ) : null}
+                                ) : null}
                         </Suspense>
                     </main>
                     </>
@@ -6316,7 +5012,7 @@ export const App: React.FC = () => {
                                                 institutionId: school?.institutionId,
                                                 useGlobalConfig: !school?.institutionId
                                             });
-                                            if (uploadRes.success) profilePhotoUrl = uploadRes.url;
+                                            if (uploadRes.success) profilePhotoUrl = (uploadRes.url as string) || '';
                                         }
 
                                         const registrationPayload: any = {

@@ -111,7 +111,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                     {leaveRequests.filter(r => r.status === 'pending').length === 0 ? (
                                         <div className="py-12 text-center space-y-2">
                                             <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto text-slate-300">
-                                                <CalendarIcon className="w-8 h-8" />
+                                                <CalendarDaysIcon className="w-8 h-8" />
                                             </div>
                                             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No pending requests</p>
                                         </div>

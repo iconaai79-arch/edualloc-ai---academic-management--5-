@@ -495,7 +495,7 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = (props) => {
                     <StudentLeaveOutManager
                         currentUser={currentUser}
                         currentInstitution={currentInstitution}
-                        companyDetails={companyDetails}
+                        companyDetails={companyDetails!}
                         users={users}
                         academicYears={academicYears}
                         semesters={semesters}

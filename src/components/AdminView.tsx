@@ -201,8 +201,8 @@ export interface AdminViewProps {
     onAddSemester?: (data: any) => void;
     onUpdateSemester?: (id: string, data: any) => Promise<void>;
     onDeleteSemester?: (id: string) => void;
-    onUpdateRequeststatus?: (id: string, status: RequestStatus) => Promise<void>;
-    onBulkUpdateRequeststatus?: (status: RequestStatus, deptid: string) => Promise<void>;
+    onUpdateRequestStatus?: (id: string, status: RequestStatus) => Promise<void>;
+    onBulkUpdateRequestStatus?: (status: RequestStatus, deptid: string) => Promise<void>;
     onDirectAssign?: (lecturerId: string, subjectIds: string[], priority: Priority, justification: string, courseLevelSelections: Record<string, string[]>) => void;
     onTimetableGenerated?: (timetable: any[], academicYearId: string, semesterId: string) => Promise<void> | void;
     onExamTimetableGenerated?: (entries: ExamTimetableEntry[], ay: string, sem: string) => Promise<void>;
@@ -245,7 +245,7 @@ export interface AdminViewProps {
     onAddUnavailability?: (userId: string, u: Omit<Unavailability, 'id' | 'status'>) => void;
     onUpdateUnavailability?: (userId: string, id: string, data: any) => void;
     onDeleteUnavailability?: (userId: string, id: string) => void;
-    onUpdateTimeOffRequeststatus?: (id: string, status: TimeOffRequestStatus) => Promise<void>;
+    onUpdateTimeOffRequestStatus?: (id: string, status: TimeOffRequestStatus) => Promise<void>;
     onMoveTimetableEntry?: (entryId: string, newDay: string, newStartTime: string) => void;
     onActivateModuleTrial?: (moduleId: string) => Promise<void>;
     onAddFarmer?: (data: any) => Promise<void>;
@@ -317,7 +317,7 @@ export interface AdminViewProps {
     onImportRooms?: (rooms: Omit<Room, 'id' | 'institutionId'>[]) => void;
     onAssociateSubjectToCourseLevel?: (subjectId: string, courseLevelId: string) => void;
     onDisassociateSubjectFromCourseLevel?: (subjectId: string, courseLevelId: string) => void;
-    onUpdateExtensionRequeststatus?: (requestId: string, status: 'approved' | 'rejected', extensionDays?: number) => void;
+    onUpdateExtensionRequestStatus?: (requestId: string, status: 'approved' | 'rejected', extensionDays?: number) => void;
     
     // Bank Reconciliation
     onReconcileBankTransaction?: (transactionId: string, invoiceId: string) => Promise<void>;
@@ -333,7 +333,7 @@ export interface AdminViewProps {
     onDeleteBuilding?: (id: string) => void;
     onAddInstitution?: (data: Omit<Institution, 'id'>) => void;
     onDeleteInstitution?: (institutionId: string) => void;
-    onToggleInstitutionstatus?: (institutionId: string) => void;
+    onToggleInstitutionStatus?: (institutionId: string) => void;
     onLoginAsAdmin?: (institutionId: string) => void;
     onGenerateReceipt?: (transaction: MpesaTransaction) => void;
     assignments?: Assignment[];
@@ -366,10 +366,10 @@ export interface AdminViewProps {
     visitors?: Visitor[];
     studentAttendances?: StudentAttendance[];
     studentCheckIns?: Record<string, string>;
-    onUpdateFeedbackstatus?: (id: string, status: string) => Promise<void> | void;
+    onUpdateFeedbackStatus?: (id: string, status: string) => Promise<void> | void;
     onAddAssessment?: (data: any) => Promise<void> | void;
     onDeleteAssessment?: (id: string) => Promise<void> | void;
-    onUpdateAssessmentstatus?: (id: string, status: string) => Promise<void> | void;
+    onUpdateAssessmentStatus?: (id: string, status: string) => Promise<void> | void;
     onSaveAssessmentMarks?: (id: string, marks: any[]) => Promise<void> | void;
 
     // Driving School Props
@@ -399,7 +399,7 @@ export interface AdminViewProps {
     onAddCarListing?: (data: Partial<CarListing>) => Promise<void>;
     onAddCarInvoice?: (data: Partial<CarInvoice>) => Promise<void>;
     onAddCarPayment?: (data: Partial<CarPayment>) => Promise<void>;
-    onUpdateCarTestDrivestatus?: (id: string, status: any) => Promise<void>;
+    onUpdateCarTestDriveStatus?: (id: string, status: any) => Promise<void>;
     onAddCarAppraisal?: (data: Partial<CarAppraisal>) => Promise<void>;
     onManualInvoice?: (institutionId: string, items: InvoiceItem[], totalAmount: number, dueDate: string) => void;
     onAccessAlumnaPortal?: (school: SchoolRegistry) => void;
