@@ -649,7 +649,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             } else if (isRetailAgency) {
                 setActiveTab('retail');
             } else if (isDS || role === 'driving_instructor' || (institutionType?.toLowerCase().includes('driving school'))) {
-                setActiveTab('driving_school');
+                setActiveTab('dashboard'); // DS uses specialized dashboard tab
             } else if (isLaw || role === 'legal_admin') {
                 setActiveTab('law');
             } else if (isLogistics || role === 'transport_admin') {
@@ -728,6 +728,16 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 { id: 'ds_finance', label: 'Finance Hub', icon: <CurrencyIcon className="w-5 h-5 mr-2" /> },
                 { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
                 { id: 'settings', label: 'Settings Hub', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
+            ];
+        }
+
+        if (isAutoMarket) {
+            return [
+                { id: 'auto_marketplace', label: 'Car Sales Hub', icon: <CarIcon className="w-5 h-5 mr-2" /> },
+                { id: 'users', label: 'Staff Registry', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
+                { id: 'comms', label: 'Marketing', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
+                { id: 'reports', label: 'Analytics', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
+                { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
             ];
         }
 
@@ -925,35 +935,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">{isRetailAgency ? 'Initializing Communications Hub...' : 'Synchronizing Perspective Hub...'}</p>
                     </div>
                 }>
-                {activeTab === 'dashboard' && !isCoop && (
+                {activeTab === 'dashboard' && !isCoop && !isDS && !isAutoMarket && !isCampaign && (
                     <div className="space-y-6">
                         {isCampaign ? (
                             <div className="animate-fade-in">
                                 <CampaignCommandView user={props.currentUser} />
-                            </div>
-                        ) : isAutoMarket ? (
-                            <div className="animate-fade-in">
-                                <CarShowroomDashboard 
-                                    listings={props.carListings || []}
-                                    invoices={props.carInvoices || []}
-                                    payments={props.carPayments || []}
-                                    testDrives={props.carTestDrives || []}
-                                    users={props.users || []}
-                                    institution={props.currentInstitution!}
-                                    onAction={(tab, sub) => {
-                                        if (tab === 'inventory') setAutoSubTab('inventory');
-                                        else if (tab === 'financials') setAutoSubTab('financials');
-                                        else setActiveTab(tab as any);
-                                    }}
-                                    onAddListing={() => {
-                                        setSelectedListingForEdit(null);
-                                        setIsAddListingModalOpen(true);
-                                    }}
-                                    onAddInvoice={() => setIsAddCarInvoiceModalOpen(true)}
-                                    onAddPayment={() => setIsAddCarPaymentModalOpen(true)}
-                                    onAddLead={() => setIsAddCarLeadModalOpen(true)}
-                                    onSwitchPerspective={() => setIsPerspectiveModalOpen(true)}
-                                />
                             </div>
                         ) : (
                             <>
@@ -1562,15 +1548,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     return null;
                 })()}
 
-                {activeTab === 'church' && (
-                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[60vh] flex flex-col items-center justify-center text-center animate-fade-in-up">
-                        <SparklesIcon className="w-16 h-16 text-indigo-600 mb-4 animate-pulse" />
-                        <h2 className="text-2xl font-black uppercase tracking-tighter mb-2">Church Excellence Hub</h2>
-                        <p className="text-slate-500 max-w-md">The unified system for spiritual leadership. Manage tithes/offerings, Small Christian Communities (SCC), liturgical calendars, and member welfare in one secure platform.</p>
-                        <div className="mt-8 flex gap-3">
-                            <div className="px-6 py-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl border border-indigo-100 dark:border-indigo-800 text-[10px] font-black uppercase tracking-widest text-indigo-600">Alms & Payouts</div>
-                            <div className="px-6 py-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl border border-indigo-100 dark:border-indigo-800 text-[10px] font-black uppercase tracking-widest text-indigo-600">Member Registry</div>
-                        </div>
+                {activeTab === 'church' && isChurch && (
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[60vh] animate-fade-in-up">
+                        <ChurchDenominationProvider church={props.currentInstitution!}>
+                            <ChurchDashboard />
+                        </ChurchDenominationProvider>
                     </div>
                 )}
                 {activeTab === 'car_service' && (
@@ -1699,10 +1681,10 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     />
                 )}
 
-                {activeTab === 'church' && isChurch && props.currentInstitution && (
-                    <ChurchDenominationProvider church={props.currentInstitution}>
-                        <ChurchDashboard />
-                    </ChurchDenominationProvider>
+                {activeTab === 'campaign' && isCampaign && (
+                    <div className="animate-fade-in">
+                        <CampaignCommandView user={props.currentUser} />
+                    </div>
                 )}
 
                 {activeTab === 'law' && (

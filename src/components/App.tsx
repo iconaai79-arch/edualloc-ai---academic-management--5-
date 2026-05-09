@@ -367,8 +367,8 @@ export const App: React.FC = () => {
             // Check for valid tenant subdomain (e.g. tenant.domain.com or tenant.eduai.co.ke)
             if (parts.length >= 2) {
                 const sub = parts[0];
-                const reserved = ['www', 'app', 'marketplace', 'showcase', 'marketing', 'api', 'localhost', '127', 'alumni', 'alumnae', 'almamater', 'portal'];
-                const isReserved = reserved.includes(sub) || sub.includes('portal') || sub.includes('admin') || sub.includes('alma');
+                const reserved = ['www', 'app', 'marketplace', 'showcase', 'marketing', 'api', 'localhost', '127', 'alumni', 'alumnae', 'almamater', 'portal', 'drivingschool', 'driving', 'transport', 'shuttle', 'community', 'social', 'showroom', 'carshowroom'];
+                const isReserved = reserved.includes(sub) || sub.includes('portal') || sub.includes('admin') || sub.includes('alma') || sub.includes('driving') || sub.includes('shuttle') || sub.includes('showroom');
                 
                 if (!isReserved) {
                     return sub; // Return as slug
@@ -384,6 +384,11 @@ export const App: React.FC = () => {
         try {
             const params = new URLSearchParams(window.location.search);
             if (params.get('resetToken')) return 'reset_password';
+            
+            const hostname = window.location.hostname;
+            const isSpecializedSubdomain = hostname.includes('drivingschool') || hostname.includes('transport') || hostname.includes('shuttle') || hostname.includes('community') || hostname.includes('showroom');
+            if (isSpecializedSubdomain && !currentUser) return 'register';
+            
             return 'login';
         } catch (e) {
             return 'login';
@@ -396,6 +401,9 @@ export const App: React.FC = () => {
             if (mod) return mod;
             const hostname = window.location.hostname;
             if (hostname === 'drivingschool.eduai.co.ke' || hostname.includes('drivingschool')) return 'ds';
+            if (hostname === 'transport.eduai.co.ke' || hostname.includes('shuttle')) return 'logistics';
+            if (hostname.includes('community')) return 'community';
+            if (hostname.includes('showroom')) return 'showroom';
             return null;
         } catch (e) { return null; }
     });
@@ -615,8 +623,9 @@ export const App: React.FC = () => {
         if (showMarketing) suffix = "Intelligent ERP";
         if (showMarketplace) suffix = "Solution Marketplace";
         if (showCommunityHub) suffix = "Community Hub";
-        if (showTransportHub) suffix = "Transport Hub";
-        if (showDrivingSchoolPortal) suffix = "Driving School";
+        if (showTransportHub || window.location.hostname.includes('transport') || window.location.hostname.includes('shuttle')) suffix = "Logistics Hub";
+        if (showDrivingSchoolPortal || window.location.hostname.includes('driving')) suffix = "Driving School";
+        if (window.location.hostname.includes('showroom')) suffix = "Car Showroom";
 
         document.title = suffix ? `${suffix} | ${baseTitle}` : baseTitle;
     }, [activeRole, activeBranding.displayName, companyDetails.applicationTitle, isHealthSystemOpen, isPharmacySystemOpen, isAlumnaeMode, showMarketing, showMarketplace, showCommunityHub, showTransportHub, showDrivingSchoolPortal]);
