@@ -2800,7 +2800,31 @@ export const App: React.FC = () => {
     const handleAddDSStudent = useCallback(async (data: any) => {
         const instId = activeInstitution?.id || currentUser?.institutionId;
         if (!instId) return;
-        await apiService.saveModuleRecord('ds_students', { ...data, id: `dss_${Date.now()}`, institutionId: instId, createdAt: new Date().toISOString() });
+
+        const userId = `u_${Date.now()}`;
+        
+        try {
+            // Create a platform user account for the DS student so they appear in the main Students list
+            await apiService.registerUser({
+                id: userId,
+                name: data.fullName,
+                email: data.email || `${userId}@ds.local`,
+                phoneNumber: data.phone,
+                role: 'student',
+                institutionId: instId,
+                status: 'active'
+            }, activeInstitution?.name);
+        } catch (e) {
+            console.warn("Could not create platform user for DS student:", e);
+        }
+
+        await apiService.saveModuleRecord('ds_students', { 
+            ...data, 
+            id: `dss_${Date.now()}`, 
+            user_id: userId,
+            institutionId: instId, 
+            createdAt: new Date().toISOString() 
+        });
         await handleLogAction(`Enrolled driving student: ${data.fullName}`);
         await loadData(false, true);
     }, [activeInstitution, currentUser, loadData, handleLogAction]);
