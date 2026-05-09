@@ -1357,6 +1357,60 @@ export const App: React.FC = () => {
         }
     }, [courses, loadData]);
 
+    const handleAddSubject = useCallback(async (data: any, levelIds?: string[]) => {
+        const id = `sub_${Date.now()}`;
+        const subject = { ...data, id, institutionId: currentUser?.institutionId };
+        await apiService.saveSubject(subject);
+        if (levelIds && levelIds.length > 0) {
+            for (const lid of levelIds) { await apiService.onAssociateSubjectToCourseLevel(id, lid); }
+        }
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleDeleteSubject = useCallback(async (id: string) => {
+        await apiService.deleteModuleRecord('subjects', id);
+        loadData();
+    }, [loadData]);
+
+    const handleImportSubjectsAndAssociate = useCallback(async (subjects: any[]) => {
+        await apiService.onImportSubjectsAndAssociate(subjects, currentUser?.institutionId);
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleAssociateSubjectToCourseLevel = useCallback(async (subjectId: string, levelId: string) => {
+        let subjectIdsToAdd = [subjectId];
+        const pathwayConstraints = (timetableSettings?.constraints || []).filter((c: any) => c.type === 'same_time_subjects');
+        const group = pathwayConstraints.find((c: any) => c.subjectIds.includes(subjectId));
+        if (group) {
+            subjectIdsToAdd = group.subjectIds;
+        }
+        await apiService.onAssociateSubjectToCourseLevel(subjectIdsToAdd, levelId);
+        loadData();
+    }, [timetableSettings, loadData]);
+
+    const handleDisassociateSubjectFromCourseLevel = useCallback(async (subjectId: string, levelId: string) => {
+        await apiService.onDisassociateSubjectFromCourseLevel(subjectId, levelId);
+        loadData();
+    }, [loadData]);
+
+    const handleAddCourse = useCallback(async (data: any) => {
+        const id = `course_${Date.now()}`;
+        const courseData = { ...data, id, institutionId: currentUser?.institutionId, levels: data.levels || [] };
+        await apiService.saveModuleRecord('courses', courseData);
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleDeleteCourse = useCallback(async (id: string) => {
+        await apiService.deleteModuleRecord('courses', id);
+        loadData();
+    }, [loadData]);
+
+    const handleImportCourses = useCallback(async (data: any[]) => {
+        const enriched = data.map(c => ({ ...c, institutionId: currentUser?.institutionId }));
+        await apiService.onImportCourses(enriched);
+        loadData();
+    }, [currentUser, loadData]);
+
     const handleAddRoom = useCallback(async (data: any) => {
         await apiService.saveModuleRecord('rooms', { ...data, id: `room_${Date.now()}`, institutionId: currentUser?.institutionId });
         loadData();
@@ -2224,82 +2278,15 @@ export const App: React.FC = () => {
 
     // --- Academic Handlers ---
 
-    const handleUpdateSubject = async (id: string, data: any) => {
-        const existing = subjects.find(s => s.id === id);
-        if (existing) {
-            await apiService.saveSubject({ ...existing, ...data, id });
-            loadData();
-        }
-    };
 
-    const handleDeleteSubject = async (id: string) => {
-        await apiService.deleteModuleRecord('subjects', id);
-        loadData();
-    };
 
-    const handleImportSubjectsAndAssociate = async (subjects: any[]) => {
-        await apiService.onImportSubjectsAndAssociate(subjects, currentUser?.institutionId);
-        loadData();
-    };
 
-    const handleAssociateSubjectToCourseLevel = async (subjectId: string, levelId: string) => {
-        let subjectIdsToAdd = [subjectId];
 
-        // Check for Option Blocks (Pathways)
-        const pathwayConstraints = (timetableSettings?.constraints || []).filter((c: any) => c.type === 'same_time_subjects');
-        const group = pathwayConstraints.find((c: any) => c.subjectIds.includes(subjectId));
-        if (group) {
-            subjectIdsToAdd = group.subjectIds;
-            const subjectName = subjects.find(s => s.id === subjectId)?.name || subjectId;
-            // Optional: You could notify the user here, but since this is a global handler,
-            // maybe it's better to keep it silent or handle UI feedback in the components.
-            console.log(`Auto-associating whole option block for ${subjectName}`);
-        }
 
-        await apiService.onAssociateSubjectToCourseLevel(subjectIdsToAdd, levelId);
-        loadData();
-    };
 
-    const handleDisassociateSubjectFromCourseLevel = async (subjectId: string, levelId: string) => {
-        await apiService.onDisassociateSubjectFromCourseLevel(subjectId, levelId);
-        loadData();
-    };
 
-    const handleAddSubject = async (data: any, levelIds?: string[]) => {
-        const id = `sub_${Date.now()}`;
-        const subject = { ...data, id, institutionId: currentUser?.institutionId };
-        await apiService.saveSubject(subject);
-        if (levelIds && levelIds.length > 0) {
-            for (const lid of levelIds) { await apiService.onAssociateSubjectToCourseLevel(id, lid); }
-        }
-        loadData();
-    };
 
-    const handleAddCourse = async (data: any) => {
-        const id = `course_${Date.now()}`;
-        const courseData = { ...data, id, institutionId: currentUser?.institutionId, levels: data.levels || [] };
-        await apiService.saveModuleRecord('courses', courseData);
-        loadData();
-    };
 
-    const handleUpdateCourse = async (id: string, data: any) => {
-        const existing = courses.find(c => c.id === id);
-        if (existing) {
-            await apiService.saveModuleRecord('courses', { ...existing, ...data, id });
-            loadData();
-        }
-    };
-
-    const handleDeleteCourse = async (id: string) => {
-        await apiService.deleteModuleRecord('courses', id);
-        loadData();
-    };
-
-    const handleImportCourses = async (data: any[]) => {
-        const enriched = data.map(c => ({ ...c, institutionId: currentUser?.institutionId }));
-        await apiService.onImportCourses(enriched);
-        loadData();
-    };
 
     // --- User Handlers ---
 
