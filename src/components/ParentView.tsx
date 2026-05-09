@@ -1,7 +1,8 @@
 import React from 'react';
 import type {
     User, Course, StudentAttendance, TimetableEntry,
-    Subject, Room, Building, TimetableSettings, LeaveOutRequest, TransportOnboarding, TransportVehicle
+    Subject, Room, Building, TimetableSettings, LeaveOutRequest, TransportOnboarding, TransportVehicle,
+    Assessment
 } from '../types';
 import { UserIcon } from './icons/UserIcon';
 
@@ -204,10 +205,10 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                                         <AttendanceAnalytics
                                             timetable={generatedTimetable}
                                             studentAttendances={studentAttendances}
-                                            studentCheckIns={props.studentCheckIns}
+                                            studentCheckIns={props.studentCheckIns ?? {}}
                                             users={users}
                                             subjects={subjects}
-                                            institutionId={user.institutionId}
+                                            institutionId={user?.institutionId ?? ''}
                                             studentId={child.id}
                                         />
                                     </div>

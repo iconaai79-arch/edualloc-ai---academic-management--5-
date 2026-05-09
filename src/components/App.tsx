@@ -1965,6 +1965,256 @@ export const App: React.FC = () => {
         assessmentMarks
     }), [currentUser, users, subjects, getSubjectById, generatedTimetable, examTimetable, activeLetterheadConfig, activeBranding, activeFooterImageUrl, transportOnboarding, vehicles, invoices, receipts, studentAbsenceRequests, assessments, assessmentMarks]);
 
+    const superAdminProps = useMemo(() => ({
+        currentInstitution: activeInstitution,
+        isTimetableGenerating: false,
+        timetableGenerationProgress: 0,
+        timetableGenerationMessage: "",
+        timetableGenerationEta: null,
+        currentUser: currentUser!,
+        notifications,
+        institutions,
+        counties,
+        users,
+        subjects,
+        departments,
+        courses,
+        companyDetails,
+        onAccessAlumnaPortal: handleAccessAlumnaPortal,
+        onUpdateCompanyDetails: async (d: any) => { await apiService.saveCompanySettings(d as any); loadData(); },
+        transactions,
+        demoRequests,
+        onUpdateDemoStatus,
+        receipts,
+        activityLogLimit,
+        setActivityLogLimit,
+        transactionLimit,
+        setTransactionLimit,
+        receiptLimit,
+        setReceiptLimit,
+        notificationLimit,
+        setNotificationLimit,
+        activityLog,
+        onImportUsers,
+        onImportStudents,
+        onDeleteUser,
+        onEditUser,
+        onRunAlumniMigration: async () => { /* Migration Logic */ },
+        onAddInstitution: async (d: any) => { 
+             const newId = (d as any).id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`; 
+             const now = new Date().toISOString();
+             await apiService.saveInstitution({ ...d, id: newId, createdAt: now, updatedAt: now } as any); 
+             const role = d.institutionType === 'Reseller' ? 'reseller' : 'admin'; 
+             await apiService.registerUser({ id: `u_${Date.now()}`, name: `${d.name} Admin`, email: d.email, phoneNumber: d.phoneNumber, role: role as any, institutionId: newId, status: 'active', createdAt: now, updatedAt: now } as any, d.name); 
+             loadData(); 
+        },
+        onUpdateInstitution,
+        onDeleteInstitution: (id: string) => { if (id) onDeleteInstitution(id); },
+        onToggleInstitutionStatus,
+        onLoginAsAdmin,
+        allocations,
+        requests,
+        semesters,
+        letterheadConfig: activeLetterheadConfig,
+        footerImageUrl: activeFooterImageUrl,
+        onSendSms: async (r: string, m: string, config?: any, units?: number, instId?: string) => { 
+            const res = await apiService.sendSms(r, m, config, units, instId); 
+            await handleLogAction(`Sent SMS to ${r}`); 
+            return res; 
+        },
+        onRefreshData: async () => await loadData(false, true),
+        onAddCounty: handleAddCounty,
+        onUpdateCounty: handleUpdateCounty,
+        onDeleteCounty: handleDeleteCounty,
+        rooms,
+        buildings,
+        academicLevels,
+        academicYears,
+        activeAcademicYear,
+        activeSemester,
+        timetableSettings,
+        examTimetableSettings: activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS,
+        assessments,
+        assessmentMarks,
+        incidents,
+        schoolRegistry,
+        onAddAssessment,
+        onDeleteAssessment,
+        onSaveAssessmentMarks,
+        onTimetableGenerated: async (entries: any, ay: string, sem: string) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries),
+        onExamTimetableGenerated: async (entries: any, ay: string, sem: string) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries),
+        onAddSubject: handleAddSubject,
+        onUpdateSubject: handleUpdateSubject,
+        onDeleteSubject: handleDeleteSubject,
+        onAddCourse: handleAddCourse,
+        onUpdateCourse: handleUpdateCourse,
+        onDeleteCourse: handleDeleteCourse,
+        onImportCourses: handleImportCourses,
+        onAddUser: async (userData: any) => {
+            const targetInstitutionId = userData.institutionId || (currentUser?.role === 'super_admin' ? (activeInstitution?.id || 'SYSTEM') : currentUser?.institutionId);
+            await apiService.registerUser({ ...userData, id: generateUserId(), institutionId: targetInstitutionId }, activeInstitution?.name);
+            loadData();
+        },
+        onAddAcademicYear: async (data: any) => { await apiService.saveModuleRecord('academic_years', { ...data, id: generateId('ay'), institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); },
+        onAddSemester: async (data: any) => { await apiService.saveModuleRecord('semesters', { ...data, id: generateId('sem'), institutionId: currentUser!.institutionId }); loadData(); },
+        onAddDepartment: handleAddDepartment,
+        onUpdateDepartment: handleUpdateDepartment,
+        onDeleteDepartment: handleDeleteDepartment,
+        onImportDepartments: handleImportDepartments,
+        onAddBuilding: handleAddBuilding,
+        onUpdateBuilding: handleUpdateBuilding,
+        onDeleteBuilding: handleDeleteBuilding,
+        onAddRoom: handleAddRoom,
+        onUpdateRoom: handleUpdateRoom,
+        onDeleteRoom: handleDeleteRoom,
+        onImportRooms: handleImportRooms,
+        onAddAcademicLevel: handleAddAcademicLevel,
+        onUpdateAcademicLevel: handleUpdateAcademicLevel,
+        onDeleteAcademicLevel: handleDeleteAcademicLevel,
+        onUpdateRequest: handleUpdateRequest,
+        onWithdrawRequest: handleWithdrawRequest,
+        onAddIncident: async (data: any) => {
+            await apiService.saveModuleRecord('discipline_incidents', { ...data, id: `disc_${Date.now()}`, institutionId: currentUser!.institutionId, timestamp: new Date().toISOString(), recordedBy: currentUser!.name });
+            await handleLogAction(`[SA] Recorded incident for ${data.studentName}`);
+            loadData();
+        },
+        logoUrl: activeBranding.logoUrl,
+        leaveOutRequests,
+        finalTimetableUrl: null,
+        themeColor: activeBranding.primaryColor,
+        invoices,
+        extensionRequests,
+        voteHeads,
+        feeStructures,
+        financialPeriods,
+        userTasks,
+        generatedTimetable,
+        allTimetableEntries: generatedTimetable,
+        timetableConflicts,
+        onUpdateLogo: (logo: string) => onUpdateInstitution(activeInstitution!.id, { logoUrl: logo }),
+        onUpdateFooterImage: (footer: string) => onUpdateInstitution(activeInstitution!.id, { footerImageUrl: footer }),
+        onSaveLetterheadConfig: (config: any) => onUpdateInstitution(activeInstitution!.id, { letterheadConfig: config }),
+        onUpdateThemeColor: (color: string) => onUpdateInstitution(activeInstitution!.id, { themeColor: color }),
+        onUpdateExtensionRequestStatus: handleUpdateExtensionRequestStatus,
+        onAddTransaction: apiService.onAddTransaction.bind(apiService),
+        onAddExtensionRequest: handleAddExtensionRequest,
+        timeOffRequests,
+        onAddTimeOffRequest: handleAddTimeOffRequest,
+        onUpdateTimeOffRequestStatus: async () => { },
+        enrollmentRequests,
+        absenceRequests,
+        studentAbsenceRequests,
+        securityAlerts,
+        visitors,
+        requisitions,
+        studentAttendances,
+        studentCheckIns,
+        lessonRatings,
+        feedbackSubmissions,
+        courseSizes,
+        isGeneratingDemoData,
+        demoDataGenerationProgress,
+        demoDataGenerationMessage,
+        onGenerateDemoData: handleGenerateDemoData,
+        onClearDemoData: handleClearDemoData,
+        onSwitchPerspective: (role: Role | null) => setImpersonatedRole(role),
+        getRoomById,
+        onLogAction: handleLogAction,
+        vehicles,
+        transportOnboarding,
+        onAddVehicle: handleAddVehicle,
+        onUpdateVehicle: handleUpdateVehicle,
+        onDeleteVehicle: handleDeleteVehicle,
+        onLogGateAction: handleLogGateAction,
+        onOnboardStudent: handleOnboardStudent,
+        onOffboardStudent: handleOffboardStudent,
+        onConfirmReceipt: handleConfirmReceipt,
+        coopFarmers,
+        coopCollections,
+        coopRiders,
+        coopAgrovetSales,
+        saccoAccounts,
+        coopPayouts,
+        coopExpenses,
+        coopIncome,
+        onAddFarmer: handleAddFarmer,
+        onUpdateFarmer: handleUpdateFarmer,
+        onImportFarmers: handleImportFarmers,
+        onLogCollection: handleLogCollection,
+        onImportCollections: handleImportCollections,
+        onBulkConfirmCollections: handleBulkConfirmCollections,
+        onAddRider: handleAddRider,
+        onConfirmCollection: handleConfirmCollection,
+        onApproveCollection: handleApproveCollection,
+        onAddCoopExpense: handleAddCoopExpense,
+        onAddCoopIncome: handleAddCoopIncome,
+        onInitiatePayouts: handleInitiatePayouts,
+        onApprovePayouts: handleApprovePayouts,
+        onAddPayouts: handleAddPayouts,
+        lawClients,
+        lawMatters,
+        lawDocuments,
+        lawTimeEntries,
+        lawInvoices,
+        lawTrustTransactions,
+        onAddLawClient: handleAddLawClient,
+        onAddLawMatter: handleAddLawMatter,
+        onAddLawTimeEntry: handleAddLawTimeEntry,
+        onAddLawTrustTransaction: handleAddLawTrustTransaction,
+        onAddLawInvoice: handleAddLawInvoice,
+        onUpdateLawMatter: handleUpdateLawMatter,
+        lawAgreementTemplates,
+        lawAgreements,
+        onAddLawAgreementTemplate: handleAddLawAgreementTemplate,
+        onGenerateLawAgreement: handleGenerateLawAgreement,
+        onApproveLawAgreement: handleApproveLawAgreement,
+        dsInstructors,
+        dsVehicles,
+        dsStudents,
+        dsLessons,
+        dsMastery,
+        dsSettings,
+        onAddDSInstructor: handleAddDSInstructor,
+        onAddDSVehicle: handleAddDSVehicle,
+        onAddDSStudent: handleAddDSStudent,
+        onAddDSLesson: handleAddDSLesson,
+        onAddDSMastery: handleAddDSMastery,
+        onUpdateDSSettings: handleUpdateDSSettings,
+        carListings,
+        carTestDrives,
+        carAppraisals,
+        carInvoices,
+        carPayments,
+        onAddCarInvoice: async (data: Partial<CarInvoice>) => {
+            const instId = activeInstitution?.id || currentUser?.institutionId;
+            await apiService.saveCarInvoice({ ...data, id: `inv_${Date.now()}`, institutionId: instId || '' });
+            await loadData();
+        },
+        onAddCarPayment: async (data: Partial<CarPayment>) => {
+            const instId = activeInstitution?.id || currentUser?.institutionId;
+            await apiService.saveCarPayment({ ...data, id: `pay_${Date.now()}`, institutionId: instId || '' });
+            await loadData();
+        },
+        onAddCarListing: async (data: Partial<CarListing>) => {
+            const instId = activeInstitution?.id || currentUser?.institutionId;
+            await apiService.saveCarListing({ ...data, id: `v_${Date.now()}`, institutionId: instId || '' });
+            await loadData();
+        },
+        onUpdateCarTestDriveStatus: async (id: string, status: any) => {
+            const existing = carTestDrives.find(t => t.id === id);
+            if (existing) {
+                await apiService.saveCarTestDrive({ ...existing, status });
+                await loadData();
+            }
+        },
+        onAddCarAppraisal: async (data: Partial<CarAppraisal>) => {
+            const instId = activeInstitution?.id || currentUser?.institutionId;
+            await apiService.saveCarAppraisal({ ...data, id: `appr_${Date.now()}`, institutionId: instId || '' });
+            await loadData();
+        }
+    }), [currentUser, activeInstitution, notifications, institutions, counties, users, subjects, departments, courses, companyDetails, transactions, demoRequests, receipts, activityLog, allocations, requests, semesters, activeLetterheadConfig, activeBranding, activeFooterImageUrl, rooms, buildings, academicLevels, academicYears, activeAcademicYear, activeSemester, timetableSettings, assessments, assessmentMarks, incidents, schoolRegistry, leaveOutRequests, invoices, extensionRequests, voteHeads, feeStructures, financialPeriods, userTasks, generatedTimetable, timetableConflicts, timeOffRequests, enrollmentRequests, absenceRequests, studentAbsenceRequests, securityAlerts, visitors, requisitions, studentAttendances, studentCheckIns, lessonRatings, feedbackSubmissions, courseSizes, isGeneratingDemoData, demoDataGenerationProgress, demoDataGenerationMessage, vehicles, transportOnboarding, coopFarmers, coopCollections, coopRiders, coopAgrovetSales, saccoAccounts, coopPayouts, coopExpenses, coopIncome, lawClients, lawMatters, lawDocuments, lawTimeEntries, lawInvoices, lawTrustTransactions, lawAgreementTemplates, lawAgreements, dsInstructors, dsVehicles, dsStudents, dsLessons, dsMastery, dsSettings, carListings, carTestDrives, carAppraisals, carInvoices, carPayments, handleAccessAlumnaPortal, handleUpdateCompanyDetails, handleImportUsers, handleImportStudents, onEditUser, onDeleteUser, onUpdateInstitution, onToggleInstitutionStatus, onLoginAsAdmin, handleAddCounty, handleUpdateCounty, handleDeleteCounty, handleAddSubject, handleUpdateSubject, handleDeleteSubject, handleAddCourse, handleUpdateCourse, handleDeleteCourse, handleImportCourses, handleAddDepartment, handleUpdateDepartment, handleDeleteDepartment, handleImportDepartments, handleAddBuilding, handleUpdateBuilding, handleDeleteBuilding, handleAddRoom, handleUpdateRoom, handleDeleteRoom, handleImportRooms, handleAddAcademicLevel, handleUpdateAcademicLevel, handleDeleteAcademicLevel, handleUpdateRequest, handleWithdrawRequest, handleAddExtensionRequest, handleUpdateExtensionRequestStatus, handleAddTimeOffRequest, handleAddTask, handleUpdateTask, handleDeleteTask, handleSaveAttendance, handleProcessPayroll, handleUpdateLeaveStatus, handleLogGateAction, handleTeacherLessonCheckIn, handleOnboardStudent, handleOffboardStudent, handleAddFarmer, handleUpdateFarmer, handleImportFarmers, handleLogCollection, handleImportCollections, handleBulkConfirmCollections, handleAddRider, handleConfirmCollection, handleApproveCollection, handleAddCoopIncome, handleAddCoopExpense, handleInitiatePayouts, handleApprovePayouts, handleAddPayouts, handleAddLawClient, handleAddLawMatter, handleAddLawTimeEntry, handleAddLawTrustTransaction, handleAddLawInvoice, handleUpdateLawMatter, handleAddLawAgreementTemplate, handleGenerateLawAgreement, handleApproveLawAgreement, handleAddDSInstructor, handleAddDSVehicle, handleAddDSStudent, handleAddDSLesson, handleAddDSMastery, handleUpdateDSSettings, handleGenerateDemoData, handleClearDemoData, loadData]);
+
+
     const countyAdminProps = useMemo<Partial<CountyAdminProps>>(() => ({
         currentUser: currentUser || undefined,
         counties,
