@@ -1249,6 +1249,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 Save Configuration
                             </button>
                         </div>
+                    </div>
+                    </div>
                     )}
 
                     {settingsSubTab === 'curriculum' && (
