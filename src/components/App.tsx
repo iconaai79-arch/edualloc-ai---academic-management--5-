@@ -3871,545 +3871,58 @@ export const App: React.FC = () => {
                                         institutionId={activeInstitution?.id || currentUser?.institutionId}
                                     />
                                 ) : activeRole === 'super_admin' ? (
-                                    <SuperAdminView
-                                        currentInstitution={activeInstitution}
-                                        isTimetableGenerating={false}
-                                        timetableGenerationProgress={0}
-                                        timetableGenerationMessage=""
-                                        timetableGenerationEta={null}
-                                        currentUser={currentUser}
-                                        notifications={notifications}
-                                        institutions={institutions}
-                                        counties={counties}
-                                        users={users}
-                                        subjects={subjects}
-                                        departments={departments}
-                                        courses={courses}
-                                        companyDetails={companyDetails}
-                                     onAccessAlumnaPortal={handleAccessAlumnaPortal}
-                                        onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d as any); loadData(); }}
-                                        transactions={transactions}
-                                        demoRequests={demoRequests}
-                                        onUpdateDemoStatus={onUpdateDemoStatus}
-                                        receipts={receipts}
-                                         activityLogLimit={activityLogLimit}
-                                         setActivityLogLimit={setActivityLogLimit}
-                                         transactionLimit={transactionLimit}
-                                         setTransactionLimit={setTransactionLimit}
-                                         receiptLimit={receiptLimit}
-                                         setReceiptLimit={setReceiptLimit}
-                                         notificationLimit={notificationLimit}
-                                         setNotificationLimit={setNotificationLimit}
-                                        activityLog={activityLog}
-                                        onImportUsers={onImportUsers}
-                                        onImportStudents={onImportStudents}
-                                        onDeleteUser={onDeleteUser}
-                                        onEditUser={onEditUser}
-                                        onRunAlumniMigration={async () => {
-                                            const sql = `
-                                                -- Ensure Alumnae Social Infrastructure
-                                                CREATE TABLE IF NOT EXISTS alumni_posts (
-                                                    id TEXT PRIMARY KEY,
-                                                    author_id TEXT NOT NULL,
-                                                    author_name TEXT NOT NULL,
-                                                    author_photo TEXT,
-                                                    institution_id TEXT NOT NULL,
-                                                    school_id TEXT,
-                                                    content TEXT NOT NULL,
-                                                    photo_url TEXT,
-                                                    video_url TEXT,
-                                                    likes TEXT[] DEFAULT '{}',
-                                                    comments_count INTEGER DEFAULT 0,
-                                                    is_announcement BOOLEAN DEFAULT false,
-                                                    event_date TIMESTAMP WITH TIME ZONE,
-                                                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                                                );
-
-                                                -- Repair existing tables
-                                                DO $$ 
-                                                BEGIN 
-                                                    -- Posts Column Repairs
-                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'school_id') THEN
-                                                        ALTER TABLE alumni_posts ADD COLUMN school_id TEXT;
-                                                    END IF;
-                                                    
-                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'is_announcement') THEN
-                                                        ALTER TABLE alumni_posts ADD COLUMN is_announcement BOOLEAN DEFAULT false;
-                                                    END IF;
-
-                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'event_date') THEN
-                                                        ALTER TABLE alumni_posts ADD COLUMN event_date TIMESTAMP WITH TIME ZONE;
-                                                    END IF;
-
-                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'photo_url') THEN
-                                                        ALTER TABLE alumni_posts ADD COLUMN photo_url TEXT;
-                                                    END IF;
-
-                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'video_url') THEN
-                                                        ALTER TABLE alumni_posts ADD COLUMN video_url TEXT;
-                                                    END IF;
-
-                                                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_posts' AND column_name = 'author_photo') THEN
-                                                        ALTER TABLE alumni_posts ADD COLUMN author_photo TEXT;
-                                                    END IF;
-
-                                                    -- Members Column Repairs
-                                                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumnae_members') THEN
-                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'profile_photo_url') THEN
-                                                            ALTER TABLE alumnae_members ADD COLUMN profile_photo_url TEXT;
-                                                        END IF;
-
-                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumnae_members' AND column_name = 'cover_photo_url') THEN
-                                                            ALTER TABLE alumnae_members ADD COLUMN cover_photo_url TEXT;
-                                                        END IF;
-                                                    END IF;
-
-                                                    -- Comments Repairs
-                                                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumni_comments') THEN
-                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_comments' AND column_name = 'author_photo') THEN
-                                                            ALTER TABLE alumni_comments ADD COLUMN author_photo TEXT;
-                                                        END IF;
-                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_comments' AND column_name = 'institution_id') THEN
-                                                            ALTER TABLE alumni_comments ADD COLUMN institution_id TEXT;
-                                                        END IF;
-                                                    END IF;
-
-                                                    -- Messages Repairs
-                                                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alumni_messages') THEN
-                                                        -- Ensure both columns exist without strict NOT NULL to avoid crashes during transitions
-                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_messages' AND column_name = 'recipient_id') THEN
-                                                            ALTER TABLE alumni_messages ADD COLUMN recipient_id TEXT;
-                                                        END IF;
-                                                        
-                                                        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alumni_messages' AND column_name = 'receiver_id') THEN
-                                                            ALTER TABLE alumni_messages ADD COLUMN receiver_id TEXT;
-                                                        END IF;
-
-                                                        -- Sync data between the two identifiers
-                                                        UPDATE alumni_messages SET recipient_id = receiver_id WHERE recipient_id IS NULL AND receiver_id IS NOT NULL;
-                                                        UPDATE alumni_messages SET receiver_id = recipient_id WHERE receiver_id IS NULL AND recipient_id IS NOT NULL;
-                                                    END IF;
-                                                END $$;
-
-                                                CREATE TABLE IF NOT EXISTS alumni_comments (
-                                                    id TEXT PRIMARY KEY,
-                                                    post_id TEXT REFERENCES alumni_posts(id) ON DELETE CASCADE,
-                                                    author_id TEXT NOT NULL,
-                                                    author_name TEXT NOT NULL,
-                                                    institution_id TEXT,
-                                                    author_photo TEXT,
-                                                    content TEXT NOT NULL,
-                                                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                                                );
-
-                                                CREATE TABLE IF NOT EXISTS alumni_messages (
-                                                    id TEXT PRIMARY KEY,
-                                                    sender_id TEXT NOT NULL,
-                                                    receiver_id TEXT, -- Nullable for transition compatibility
-                                                    recipient_id TEXT,
-                                                    institution_id TEXT,
-                                                    content TEXT NOT NULL,
-                                                    is_read BOOLEAN DEFAULT false,
-                                                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                                                );
-
-                                                CREATE TABLE IF NOT EXISTS alumni_follows (
-                                                    id TEXT PRIMARY KEY,
-                                                    follower_id TEXT NOT NULL,
-                                                    following_id TEXT NOT NULL,
-                                                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                                                    UNIQUE(follower_id, following_id)
-                                                );
-
-                                                CREATE TABLE IF NOT EXISTS alumni_school_inbox (
-                                                    id TEXT PRIMARY KEY,
-                                                    alumna_id TEXT NOT NULL,
-                                                    institution_id TEXT NOT NULL,
-                                                    content TEXT NOT NULL,
-                                                    direction TEXT DEFAULT 'to_school',
-                                                    is_read BOOLEAN DEFAULT false,
-                                                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                                                );
-
-                                                CREATE TABLE IF NOT EXISTS school_projects (
-                                                    id TEXT PRIMARY KEY,
-                                                    institution_id TEXT NOT NULL,
-                                                    title TEXT NOT NULL,
-                                                    description TEXT NOT NULL,
-                                                    image_url TEXT,
-                                                    target_amount DECIMAL(15,2) DEFAULT 0,
-                                                    current_amount DECIMAL(15,2) DEFAULT 0,
-                                                    status TEXT DEFAULT 'active',
-                                                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                                                );
-
-                                                CREATE TABLE IF NOT EXISTS project_updates (
-                                                    id TEXT PRIMARY KEY,
-                                                    project_id TEXT NOT NULL REFERENCES school_projects(id) ON DELETE CASCADE,
-                                                    title TEXT NOT NULL,
-                                                    content TEXT NOT NULL,
-                                                    image_url TEXT,
-                                                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                                                );
-
-                                                CREATE TABLE IF NOT EXISTS alumni_notifications (
-                                                    id TEXT PRIMARY KEY,
-                                                    recipient_id TEXT NOT NULL,
-                                                    actor_id TEXT NOT NULL,
-                                                    actor_name TEXT NOT NULL,
-                                                    actor_photo TEXT,
-                                                    type TEXT NOT NULL,
-                                                    related_id TEXT,
-                                                    content TEXT NOT NULL,
-                                                    is_read BOOLEAN DEFAULT false,
-                                                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                                                );
-                                                
-                                                -- TRIGGERS FOR DATA INTEGRITY
-                                                CREATE OR REPLACE FUNCTION public.update_alumni_post_comment_count()
-                                                RETURNS TRIGGER AS $$
-                                                BEGIN
-                                                    IF (TG_OP = 'INSERT') THEN
-                                                        UPDATE public.alumni_posts
-                                                        SET comments_count = COALESCE(comments_count, 0) + 1
-                                                        WHERE id = NEW.post_id;
-                                                    ELSIF (TG_OP = 'DELETE') THEN
-                                                        UPDATE public.alumni_posts
-                                                        SET comments_count = GREATEST(0, COALESCE(comments_count, 0) - 1)
-                                                        WHERE id = OLD.post_id;
-                                                    END IF;
-                                                    RETURN NULL;
-                                                END;
-                                                $$ LANGUAGE plpgsql SECURITY DEFINER;
-
-                                                DROP TRIGGER IF EXISTS tr_update_alumni_post_comment_count ON public.alumni_comments;
-                                                CREATE TRIGGER tr_update_alumni_post_comment_count
-                                                AFTER INSERT OR DELETE ON public.alumni_comments
-                                                FOR EACH ROW EXECUTE FUNCTION public.update_alumni_post_comment_count();
-
-                                                -- SYNC EXISTING COUNTS
-                                                UPDATE public.alumni_posts p
-                                                SET comments_count = (
-                                                    SELECT count(*)
-                                                    FROM public.alumni_comments c
-                                                    WHERE c.post_id = p.id
-                                                );
-
-                                                -- FORCE SCHEMA CACHE RELOAD
-                                                NOTIFY pgrst, 'reload schema';`;
-                                            await apiService.runMigration(sql);
-
-                                            alert("Alumnae infrastructure verified and updated successfully.");
-                                        }}
-                                        onAddInstitution={async (d) => { 
-                                             const newId = (d as any).id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`; 
-                                             const now = new Date().toISOString();
-                                             await apiService.saveInstitution({ 
-                                                 ...d, 
-                                                 id: newId,
-                                                 createdAt: now,
-                                                 updatedAt: now
-                                             } as any); 
-                                             const role = d.institutionType === 'Reseller' ? 'reseller' : 'admin'; 
-                                             await apiService.registerUser({ 
-                                                 id: `u_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, 
-                                                 name: `${d.name} Admin`, 
-                                                 email: d.email, 
-                                                 phoneNumber: d.phoneNumber, 
-                                                 role: role, 
-                                                 institutionId: newId, 
-                                                 countyId: (d as any).countyId, 
-                                                 status: 'active',
-                                                 createdAt: now,
-                                                 updatedAt: now
-                                             } as any, d.name); 
-                                             loadData(); 
-                                         }}
-                                        onUpdateInstitution={onUpdateInstitution}
-                                        onDeleteInstitution={(id) => { if (id) onDeleteInstitution(id); }}
-                                        onToggleInstitutionStatus={onToggleInstitutionStatus}
-                                        onLoginAsAdmin={onLoginAsAdmin}
-                                        allocations={allocations}
-                                        requests={requests}
-                                        semesters={semesters}
-                                        letterheadConfig={activeLetterheadConfig}
-                                        footerImageUrl={activeFooterImageUrl}
-                                        onSendSms={async (r, m, config, units, instId) => { 
-                                            const res = await apiService.sendSms(r, m, config, units, instId); 
-                                            await handleLogAction(`Sent SMS to ${r}`); 
-                                            return res; 
-                                        }}
-                                        onRefreshData={async () => await loadData(false, true)}
-                                        onAddCounty={handleAddCounty}
-                                        onUpdateCounty={handleUpdateCounty}
-                                        onDeleteCounty={handleDeleteCounty}
-                                        rooms={rooms}
-                                        buildings={buildings}
-                                        academicLevels={academicLevels}
-                                        academicYears={academicYears}
-                                        activeAcademicYear={activeAcademicYear}
-                                        activeSemester={activeSemester}
-                                        timetableSettings={timetableSettings}
-                                        examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
-                                        assessments={assessments}
-                                        assessmentMarks={assessmentMarks}
-                                        incidents={incidents}
-                                        schoolRegistry={schoolRegistry}
-                                        onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
-                                        onDeleteAssessment={async (id: string) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
-                                        onSaveAssessmentMarks={async (id: string, marks: any[]) => {
-                                            const promises = marks.map(m => {
-                                                const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
-                                                const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()}`;
-                                                return apiService.saveModuleRecord('assessment_marks', {
-                                                    id: recordId,
-                                                    assessmentId: id,
-                                                    studentId: m.studentId,
-                                                    marks: m.marks,
-                                                    comments: m.comments,
-                                                    gradedBy: currentUser.id,
-                                                    timestamp: new Date().toISOString(),
-                                                    institutionId: currentUser.institutionId
-                                                });
-                                            });
-                                            await Promise.all(promises);
-                                            loadData();
-                                        }}
-                                        onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries)}
-                                        onExamTimetableGenerated={async (entries, ay, sem) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)}
-                                        onAddSubject={handleAddSubject}
-                                        onUpdateSubject={handleUpdateSubject}
-                                        onDeleteSubject={handleDeleteSubject}
-                                        onAddCourse={handleAddCourse}
-                                        onUpdateCourse={handleUpdateCourse}
-                                        onDeleteCourse={handleDeleteCourse}
-                                        onImportCourses={handleImportCourses}
-                                        onAddUser={async (userData) => {
-                                            try {
-                                                                                                 const targetInstitutionId = userData.institutionId || (currentUser?.role === 'super_admin' ? (activeInstitution?.id || 'SYSTEM') : currentUser?.institutionId);
-                                                if (!targetInstitutionId) throw new Error("Institution context missing.");
-                                                await apiService.registerUser({
-                                                    ...userData,
-                                                    id: generateUserId(),
-                                                    institutionId: targetInstitutionId
-                                                }, activeInstitution?.name);
-                                                loadData();
-                                            } catch (err: any) {
-                                                console.error("User registration failed:", err);
-                                                throw err;
-                                            }
-                                        }}
-                                        onAddAcademicYear={async (data) => { await apiService.saveModuleRecord('academic_years', { ...data, id: generateId('ay'), institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); }}
-                                        onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: generateId('sem'), institutionId: currentUser!.institutionId }); loadData(); }}
-                                        onAddDepartment={handleAddDepartment}
-                                        onUpdateDepartment={handleUpdateDepartment}
-                                        onDeleteDepartment={handleDeleteDepartment}
-                                        onImportDepartments={handleImportDepartments}
-                                        onAddBuilding={handleAddBuilding}
-                                        onUpdateBuilding={handleUpdateBuilding}
-                                        onDeleteBuilding={handleDeleteBuilding}
-                                        onAddRoom={handleAddRoom}
-                                        onUpdateRoom={handleUpdateRoom}
-                                        onDeleteRoom={handleDeleteRoom}
-                                        onImportRooms={handleImportRooms}
-                                        onAddAcademicLevel={handleAddAcademicLevel}
-                                        onUpdateAcademicLevel={handleUpdateAcademicLevel}
-                                        onDeleteAcademicLevel={handleDeleteAcademicLevel}
-                                        onUpdateRequest={(id: string, data: any) => apiService.saveModuleRecord('allocation_requests', { id, ...data })}
-                                        onWithdrawRequest={(id: string) => apiService.deleteModuleRecord('allocation_requests', id)}
-                                        onAddIncident={async (data) => {
-                                            await apiService.saveModuleRecord('discipline_incidents', {
-                                                ...data,
-                                                id: `disc_${Date.now()}`,
-                                                institutionId: currentUser!.institutionId,
-                                                timestamp: new Date().toISOString(),
-                                                recordedBy: currentUser!.name
-                                            });
-                                            await handleLogAction(`[SA] Recorded incident for ${data.studentName}`);
-                                            loadData();
-                                        }}
-                                        logoUrl={activeBranding.logoUrl}
-                                        leaveOutRequests={leaveOutRequests}
-                                        finalTimetableUrl={null}
-                                        themeColor={activeBranding.primaryColor}
-                                        invoices={invoices}
-                                        extensionRequests={extensionRequests}
-                                        voteHeads={voteHeads}
-                                        feeStructures={feeStructures}
-                                        financialPeriods={financialPeriods}
-                                        userTasks={userTasks}
-                                        generatedTimetable={generatedTimetable}
-                                        allTimetableEntries={generatedTimetable}
-                                        timetableConflicts={timetableConflicts}
-                                        onUpdateLogo={(logo) => onUpdateInstitution(activeInstitution!.id, { logoUrl: logo })}
-                                        onUpdateFooterImage={(footer) => onUpdateInstitution(activeInstitution!.id, { footerImageUrl: footer })}
-                                        onSaveLetterheadConfig={(config) => onUpdateInstitution(activeInstitution!.id, { letterheadConfig: config })}
-                                        onUpdateThemeColor={(color) => onUpdateInstitution(activeInstitution!.id, { themeColor: color })}
-                                        onUpdateExtensionRequestStatus={handleUpdateExtensionRequestStatus}
-                                        onAddTransaction={apiService.onAddTransaction.bind(apiService)}
-                                        onAddExtensionRequest={handleAddExtensionRequest}
-                                        timeOffRequests={timeOffRequests}
-                                        onAddTimeOffRequest={handleAddTimeOffRequest}
-                                        onUpdateTimeOffRequestStatus={async () => { }}
-                                        enrollmentRequests={enrollmentRequests}
-                                        absenceRequests={absenceRequests}
-                                        studentAbsenceRequests={studentAbsenceRequests}
-                                        securityAlerts={securityAlerts}
-                                        visitors={visitors}
-                                        requisitions={requisitions}
-                                        studentAttendances={studentAttendances}
-                                        payrollRecords={payrollRecords as any}
-                                        studentCheckIns={studentCheckIns}
-                                        lessonRatings={lessonRatings}
-                                        feedbackSubmissions={feedbackSubmissions}
-                                        courseSizes={courseSizes}
-                                        isGeneratingDemoData={isGeneratingDemoData}
-                                        demoDataGenerationProgress={demoDataGenerationProgress}
-                                        demoDataGenerationMessage={demoDataGenerationMessage}
-                                        onGenerateDemoData={handleGenerateDemoData}
-                                        onClearDemoData={handleClearDemoData}
-                                        onSwitchPerspective={(role) => setImpersonatedRole(role)}
-                                        getRoomById={getRoomById}
-                                        onLogAction={handleLogAction}
-                                        vehicles={vehicles}
-                                        transportOnboarding={transportOnboarding}
-                                        onAddVehicle={handleAddVehicle}
-                                        onUpdateVehicle={handleUpdateVehicle}
-                                        onDeleteVehicle={handleDeleteVehicle}
-                                        onLogGateAction={handleLogGateAction}
-                                        onOnboardStudent={handleOnboardStudent}
-                                        onOffboardStudent={handleOffboardStudent}
-                                        onConfirmReceipt={handleConfirmReceipt}
-                                        coopFarmers={coopFarmers}
-                                        coopCollections={coopCollections}
-                                        coopRiders={coopRiders}
-                                        coopAgrovetSales={coopAgrovetSales}
-                                        saccoAccounts={saccoAccounts}
-                                        coopPayouts={coopPayouts}
-                                        coopExpenses={coopExpenses}
-                                        coopIncome={coopIncome}
-                                        onAddFarmer={handleAddFarmer}
-                                        onUpdateFarmer={handleUpdateFarmer}
-                                        onImportFarmers={handleImportFarmers}
-                                        onLogCollection={handleLogCollection}
-                                        onImportCollections={handleImportCollections}
-                                        onBulkConfirmCollections={handleBulkConfirmCollections}
-                                        onAddRider={handleAddRider}
-                                        onConfirmCollection={handleConfirmCollection}
-                                        onApproveCollection={handleApproveCollection}
-                                        onAddCoopExpense={handleAddCoopExpense}
-                                        onAddCoopIncome={handleAddCoopIncome}
-                                        onInitiatePayouts={handleInitiatePayouts}
-                                        onApprovePayouts={handleApprovePayouts}
-                                        onAddPayouts={handleAddPayouts}
-                                        lawClients={lawClients}
-                                        lawMatters={lawMatters}
-                                        lawDocuments={lawDocuments}
-                                        lawTimeEntries={lawTimeEntries}
-                                        lawInvoices={lawInvoices}
-                                        lawTrustTransactions={lawTrustTransactions}
-                                        onAddLawClient={handleAddLawClient}
-                                        onAddLawMatter={handleAddLawMatter}
-                                        onAddLawTimeEntry={handleAddLawTimeEntry}
-                                        onAddLawTrustTransaction={handleAddLawTrustTransaction}
-                                        onAddLawInvoice={handleAddLawInvoice}
-                                        onUpdateLawMatter={handleUpdateLawMatter}
-                                        lawAgreementTemplates={lawAgreementTemplates}
-                                        lawAgreements={lawAgreements}
-                                        onAddLawAgreementTemplate={handleAddLawAgreementTemplate}
-                                        onGenerateLawAgreement={handleGenerateLawAgreement}
-                                        onApproveLawAgreement={handleApproveLawAgreement}
-                                        dsInstructors={dsInstructors}
-                                        dsVehicles={dsVehicles}
-                                        dsStudents={dsStudents}
-                                        dsLessons={dsLessons}
-                                        dsMastery={dsMastery}
-                                        dsSettings={dsSettings}
-                                        onAddDSInstructor={handleAddDSInstructor}
-                                        onAddDSVehicle={handleAddDSVehicle}
-                                        onAddDSStudent={handleAddDSStudent}
-                                        onAddDSLesson={handleAddDSLesson}
-                                        onAddDSMastery={handleAddDSMastery}
-                                        onUpdateDSSettings={handleUpdateDSSettings}
-                                        carListings={carListings}
-                                        carTestDrives={carTestDrives}
-                                        carAppraisals={carAppraisals}
-                                        carInvoices={carInvoices}
-                                        carPayments={carPayments}
-                                        onAddCarInvoice={async (data: Partial<CarInvoice>) => {
-                                            const instId = activeInstitution?.id || currentUser.institutionId;
-                                            await apiService.saveCarInvoice({ ...data, id: `inv_${Date.now()}`, institutionId: instId || '' });
-                                            await loadData();
-                                        }}
-                                        onAddCarPayment={async (data: Partial<CarPayment>) => {
-                                            const instId = activeInstitution?.id || currentUser.institutionId;
-                                            await apiService.saveCarPayment({ ...data, id: `pay_${Date.now()}`, institutionId: instId || '' });
-                                            await loadData();
-                                        }}
-                                        onAddCarListing={async (data: Partial<CarListing>) => {
-                                            const instId = activeInstitution?.id || currentUser.institutionId;
-                                            await apiService.saveCarListing({ ...data, id: `v_${Date.now()}`, institutionId: instId || '' });
-                                            await loadData();
-                                        }}
-                                        onUpdateCarTestDriveStatus={async (id: string, status: any) => {
-                                            const existing = carTestDrives.find(t => t.id === id);
-                                            if (existing) {
-                                                await apiService.saveCarTestDrive({ ...existing, status });
-                                                await loadData();
-                                            }
-                                        }}
-                                        onAddCarAppraisal={async (data: Partial<CarAppraisal>) => {
-                                            const instId = activeInstitution?.id || currentUser.institutionId;
-                                            await apiService.saveCarAppraisal({ ...data, id: `appr_${Date.now()}`, institutionId: instId || '' });
-                                            await loadData();
-                                        }}
+                                    <SuperAdminView {...{
+                                        ...superAdminProps,
+                                        payrollRecords: payrollRecords as any
+                                    } as any}
                                     />
                                 ) : (activeRole === 'county_admin' || activeRole?.startsWith('county_')) ? (
-                                    <CountyAdminView {...countyAdminProps as CountyAdminProps}
-                                        currentUser={currentUser}
-                                        counties={counties}
-                                        institutions={institutions}
-                                        users={users}
-                                        onLogout={handleLogout}
-                                        onUpdateInstitution={onUpdateInstitution}
-                                        onAccessAlumnaPortal={handleAccessAlumnaPortal}
-                                        onGenerateReceipt={handleGenerateReceipt}
-                                        onUpdateCounty={handleUpdateCounty}
-                                        onAddInstitution={handleAddCountyInstitution}
-                                        onLoginAsAdmin={onLoginAsAdmin}
-                                        onImportInstitutions={handleImportCountyInstitutions}
-                                        onAddUser={async (data: any) => { await apiService.registerUser({ ...data, id: `u_county_${Date.now()}` }, 'County Portal'); loadData(); }}
-                                        onUpdateUser={onEditUser}
-                                        onDeleteUser={onDeleteUser}
-                                        inventoryItems={countyInventory}
-                                        inventoryCategories={countyInventoryCategories}
-                                        onAddInventoryItem={async (data: any) => {
+                                    <CountyAdminView {...{
+                                        ...countyAdminProps,
+                                        currentUser,
+                                        counties,
+                                        institutions,
+                                        users,
+                                        onLogout: handleLogout,
+                                        onUpdateInstitution,
+                                        onAccessAlumnaPortal: handleAccessAlumnaPortal,
+                                        onGenerateReceipt: handleGenerateReceipt,
+                                        onUpdateCounty: handleUpdateCounty,
+                                        onAddInstitution: handleAddCountyInstitution,
+                                        onLoginAsAdmin,
+                                        onImportInstitutions: handleImportCountyInstitutions,
+                                        onAddUser: async (data: any) => { await apiService.registerUser({ ...data, id: `u_county_${Date.now()}` }, 'County Portal'); loadData(); },
+                                        onUpdateUser: onEditUser,
+                                        onDeleteUser: onDeleteUser,
+                                        inventoryItems: countyInventory,
+                                        inventoryCategories: countyInventoryCategories,
+                                        onAddInventoryItem: async (data: any) => {
                                             const id = data.id || `cinv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
                                             await apiService.saveModuleRecord('county_inventory', { ...data, id });
                                             loadData();
-                                        }}
-                                        onUpdateInventoryItem={async (id: string, data: any) => { await apiService.saveModuleRecord('county_inventory', { ...data, id }); loadData(); }}
-                                        onDeleteInventoryItem={async (id: string) => { await apiService.deleteModuleRecord('county_inventory', id); loadData(); }}
-                                        onAddInventoryCategory={async (data: any) => { const id = data.id || `cat_${Date.now()}`; await apiService.saveModuleRecord('county_inventory_categories', { ...data, id }); loadData(); }}
-                                        onUpdateInventoryCategory={async (id: string, data: any) => { await apiService.saveModuleRecord('county_inventory_categories', { ...data, id }); loadData(); }}
-                                        onDeleteInventoryCategory={async (id: string) => { await apiService.deleteModuleRecord('county_inventory_categories', id); loadData(); }}
-                                        stores={countyStores}
-                                        onAddStore={async (data: any) => { const id = data.id || `store_${Date.now()}`; await apiService.saveModuleRecord('county_stores', { ...data, id }); loadData(); }}
-                                        onUpdateStore={async (id: string, data: any) => { await apiService.saveModuleRecord('county_stores', { ...data, id }); loadData(); }}
-                                        onDeleteStore={async (id: string) => { await apiService.deleteModuleRecord('county_stores', id); loadData(); }}
-                                                                                onAddStockTransaction={async (data: any) => { await apiService.saveModuleRecord('county_stock_transactions', { ...data, id: `ctx_${Date.now()}` }); loadData(); }}
-
-                                        bursaryApplications={bursaryApplications}
-                                        bursaryFunds={bursaryFunds}
-                                        onAddBursaryFund={async (data: any) => { await apiService.saveModuleRecord('county_bursary_funds', { ...data, id: `fund_${Date.now()}`, createdAt: new Date().toISOString() }); loadData(); }}
-                                        onUpdateBursaryApplicationStatus={async (id: string, status: string, notes: string) => { const app = bursaryApplications.find(a => a.id === id); if (app) { await apiService.saveModuleRecord('bursary_applications', { ...app, status, internalNotes: notes, updatedAt: new Date().toISOString() }); loadData(); } }}
-                                        onLogAction={handleLogAction}
-                                        activityLogLimit={activityLogLimit}
-                                        setActivityLogLimit={setActivityLogLimit}
-                                        receiptLimit={receiptLimit}
-                                        setReceiptLimit={setReceiptLimit}
-                                        transactionLimit={transactionLimit}
-                                        setTransactionLimit={setTransactionLimit}
+                                        },
+                                        onUpdateInventoryItem: async (id: string, data: any) => { await apiService.saveModuleRecord('county_inventory', { ...data, id }); loadData(); },
+                                        onDeleteInventoryItem: async (id: string) => { await apiService.deleteModuleRecord('county_inventory', id); loadData(); },
+                                        onAddInventoryCategory: async (data: any) => { const id = data.id || `cat_${Date.now()}`; await apiService.saveModuleRecord('county_inventory_categories', { ...data, id }); loadData(); },
+                                        onUpdateInventoryCategory: async (id: string, data: any) => { await apiService.saveModuleRecord('county_inventory_categories', { ...data, id }); loadData(); },
+                                        onDeleteInventoryCategory: async (id: string) => { await apiService.deleteModuleRecord('county_inventory_categories', id); loadData(); },
+                                        stores: countyStores,
+                                        onAddStore: async (data: any) => { const id = data.id || `store_${Date.now()}`; await apiService.saveModuleRecord('county_stores', { ...data, id }); loadData(); },
+                                        onUpdateStore: async (id: string, data: any) => { await apiService.saveModuleRecord('county_stores', { ...data, id }); loadData(); },
+                                        onDeleteStore: async (id: string) => { await apiService.deleteModuleRecord('county_stores', id); loadData(); },
+                                        onAddStockTransaction: async (data: any) => { await apiService.saveModuleRecord('county_stock_transactions', { ...data, id: `ctx_${Date.now()}` }); loadData(); },
+                                        bursaryApplications,
+                                        bursaryFunds,
+                                        onAddBursaryFund: async (data: any) => { await apiService.saveModuleRecord('county_bursary_funds', { ...data, id: `fund_${Date.now()}`, createdAt: new Date().toISOString() }); loadData(); },
+                                        onUpdateBursaryApplication: async (id: string, data: any) => { const app = bursaryApplications.find(a => a.id === id); if (app) { await apiService.saveModuleRecord('bursary_applications', { ...app, ...data, updatedAt: new Date().toISOString() }); loadData(); } },
+                                        onLogAction: handleLogAction,
+                                        activityLogLimit,
+                                        setActivityLogLimit,
+                                        receiptLimit,
+                                        setReceiptLimit,
+                                        transactionLimit,
+                                        setTransactionLimit
+                                    } as any}
                                     />
                                 ) : activeRole === 'academics_officer' ? (
                                     <AcademicsOfficerView {...academicsOfficerProps as AcademicsOfficerProps}
@@ -4428,7 +3941,7 @@ export const App: React.FC = () => {
                                         onAddRoom={handleAddRoom}
                                         onUpdateRoom={handleUpdateRoom}
                                         onDeleteRoom={handleDeleteRoom}
-                                        onImportRooms={onImportRooms}
+                                        onImportRooms={handleImportRooms}
                                         onAddDepartment={handleAddDepartment}
                                         onUpdateDepartment={handleUpdateDepartment}
                                         onDeleteDepartment={handleDeleteDepartment}
@@ -4498,41 +4011,59 @@ export const App: React.FC = () => {
                                         onAccessAlumnaPortal={handleAccessAlumnaPortal}
                                     />
                                 ) : activeRole === 'lecturer' ? (
-                                    <LecturerView {...lecturerProps as LecturerProps}
-                                        user={currentUser}
-                                        users={users}
-                                        courses={courses}
-                                        subjects={subjects}
-                                        rooms={rooms}
-                                        academicYears={academicYears}
-                                        semesters={semesters}
-                                        requests={requests}
-                                        generatedTimetable={generatedTimetable}
-                                        onAddRequest={async (data: any) => { await apiService.saveModuleRecord('allocation_requests', { ...data, id: `req_${Date.now()}`, status: 'pending', createdAt: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); }}
-                                        onUpdateRequest={async (id: string, data: any) => { await apiService.saveModuleRecord('allocation_requests', { id, ...data }); loadData(); }}
-                                        onWithdrawRequest={async (id: string) => { await apiService.deleteModuleRecord('allocation_requests', id); loadData(); }}
-                                        getSubjectById={getSubjectById}
-                                        getRoomById={getRoomById}
-                                        timetableSettings={timetableSettings!}
-                                        assignments={assignments}
-                                        submissions={submissions}
-                                        onAddAssignment={async (d: any) => { await apiService.saveModuleRecord('assignments', { ...d, id: `asn_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); }}
-                                        onDeleteAssignment={async (id: string) => { await apiService.deleteModuleRecord('assignments', id); loadData(); }}
-                                        onAddFeedback={async (sid: string, f: string) => { const sub = submissions.find(x => x.id === sid); if (sub) { await apiService.saveModuleRecord('submissions', { ...sub, feedback: f, gradedAt: new Date().toISOString() }); loadData(); } }}
-                                        teacherCheckIns={teacherCheckIns}
-                                        onTeacherLessonCheckIn={handleTeacherLessonCheckIn}
-                                        observationNotes={observationNotes}
-                                        onAddObservationNote={async (n: any) => { await apiService.saveModuleRecord('observation_notes', { ...n, id: `obs_${Date.now()}`, lecturerId: currentUser.id, timestamp: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); }}
-                                        timeOffRequests={timeOffRequests}
-                                        onAddTimeOffRequest={handleAddTimeOffRequest}
-                                        userTasks={userTasks}
-                                        onAddTask={async (t: any) => { await apiService.saveModuleRecord('tasks', { ...t, userId: currentUser.id, id: `t_${Date.now()}`, createdAt: new Date().toISOString() }); loadData(); }}
-                                        onUpdateTask={async (id: string, c: boolean) => { const task = userTasks.find(x => x.id === id); if (task) { await apiService.saveModuleRecord('tasks', { ...task, isComplete: c }); loadData(); } }}
-                                        onDeleteTask={async (id: string) => { await apiService.deleteModuleRecord('tasks', id); loadData(); }}
-                                        assessments={assessments}
-                                        assessmentMarks={assessmentMarks}
-                                        onAddAssessment={async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); }}
-                                        onSaveAssessmentMarks={async (aid: string, marks: any[]) => { 
+                                    <LecturerView {...{
+                                        ...lecturerProps,
+                                        user: currentUser,
+                                        users,
+                                        courses,
+                                        subjects,
+                                        rooms,
+                                        academicYears,
+                                        semesters,
+                                        requests,
+                                        generatedTimetable,
+                                        onSubmitRequest: async (subjectIds: string[], justification: string, signatureUrl: string | null, priority: Priority, academicYearId: string, semesterId: string, preferences: any, levels: any) => {
+                                            await apiService.saveModuleRecord('allocation_requests', {
+                                                id: `req_${Date.now()}`,
+                                                lecturerId: currentUser.id,
+                                                subjectIds,
+                                                justification,
+                                                signatureUrl,
+                                                priority,
+                                                academicYearId,
+                                                semesterId,
+                                                status: 'pending',
+                                                createdAt: new Date().toISOString(),
+                                                institutionId: currentUser.institutionId,
+                                                preferences,
+                                                courseLevelSelections: levels
+                                            });
+                                            await loadData();
+                                            return true;
+                                        },
+                                        onWithdrawRequest: async (id: string) => { await apiService.deleteModuleRecord('allocation_requests', id); loadData(); },
+                                        getSubjectById,
+                                        getRoomById,
+                                        timetableSettings: timetableSettings!,
+                                        assignments,
+                                        submissions,
+                                        onAddAssignment: async (d: any) => { await apiService.saveModuleRecord('assignments', { ...d, id: `asn_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); },
+                                        onDeleteAssignment: async (id: string) => { await apiService.deleteModuleRecord('assignments', id); loadData(); },
+                                        onUpdateSubmission: async (sid: string, f: string) => { const sub = submissions.find(x => x.id === sid); if (sub) { await apiService.saveModuleRecord('submissions', { ...sub, feedback: f, gradedAt: new Date().toISOString() }); loadData(); } },
+                                        teacherCheckIns,
+                                        onTeacherLessonCheckIn: handleTeacherLessonCheckIn,
+                                        observationNotes,
+                                        onAddObservationNote: async (n: any) => { await apiService.saveModuleRecord('observation_notes', { ...n, id: `obs_${Date.now()}`, lecturerId: currentUser.id, timestamp: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
+                                        timeOffRequests,
+                                        onAddTimeOffRequest: handleAddTimeOffRequest,
+                                        userTasks,
+                                        onAddTask: async (t: any) => { await apiService.saveModuleRecord('tasks', { ...t, userId: currentUser.id, id: `t_${Date.now()}`, createdAt: new Date().toISOString() }); loadData(); },
+                                        onUpdateTask: async (id: string, c: boolean) => { const task = userTasks.find(x => x.id === id); if (task) { await apiService.saveModuleRecord('tasks', { ...task, isComplete: c }); loadData(); } },
+                                        onDeleteTask: async (id: string) => { await apiService.deleteModuleRecord('tasks', id); loadData(); },
+                                        assessments,
+                                        assessmentMarks,
+                                        onAddAssessment: async (d: any) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); },
+                                        onSaveAssessmentMarks: async (aid: string, marks: any[]) => {
                                             for (const m of marks) {
                                                 const existing = assessmentMarks.find(am => am.assessmentId === aid && am.studentId === m.studentId);
                                                 await apiService.saveModuleRecord('assessment_marks', {
@@ -4547,10 +4078,11 @@ export const App: React.FC = () => {
                                                 });
                                             }
                                             loadData();
-                                        }}
-                                        studentAttendances={studentAttendances}
-                                        onSaveAttendance={handleSaveAttendance}
-                                        onAccessAlumnaPortal={handleAccessAlumnaPortal}
+                                        },
+                                        studentAttendances,
+                                        onSaveAttendance: handleSaveAttendance,
+                                        onAccessAlumnaPortal: handleAccessAlumnaPortal
+                                    } as any}
                                     />
                                 ) : activeRole === 'student' ? (
                                     <StudentView
@@ -4600,28 +4132,30 @@ export const App: React.FC = () => {
                                         books={books}
                                     />
                                 ) : activeRole === 'parent' ? (
-                                    <ParentView {...parentProps as ParentProps}
-                                        user={currentUser}
-                                        users={users}
-                                        subjects={subjects}
-                                        getSubjectById={getSubjectById}
-                                        generatedTimetable={generatedTimetable}
-                                        examTimetable={examTimetable}
-                                        letterheadConfig={activeLetterheadConfig}
-                                        logoUrl={activeBranding.logoUrl}
-                                        footerImageUrl={activeFooterImageUrl}
-                                        transportOnboarding={transportOnboarding}
-                                        vehicles={vehicles}
-                                        onConfirmReceipt={handleConfirmReceipt}
-                                        invoices={invoices}
-                                        receipts={receipts}
-                                        onAddTransaction={apiService.onAddTransaction.bind(apiService)}
-                                        onGenerateReceipt={onGenerateReceipt}
-                                        studentAbsenceRequests={studentAbsenceRequests}
-                                        onSubmitStudentAbsenceRequest={async (req) => { await apiService.saveModuleRecord('student_absence_requests', { ...req, id: `sar_${Date.now()}`, status: 'pending', createdAt: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); }}
-                                        assessments={assessments}
-                                        assessmentMarks={assessmentMarks}
-                                        onAccessAlumnaPortal={handleAccessAlumnaPortal}
+                                    <ParentView {...{
+                                        ...parentProps,
+                                        user: currentUser,
+                                        users,
+                                        subjects,
+                                        getSubjectById,
+                                        generatedTimetable,
+                                        examTimetable,
+                                        letterheadConfig: activeLetterheadConfig,
+                                        logoUrl: activeBranding.logoUrl,
+                                        footerImageUrl: activeFooterImageUrl,
+                                        transportOnboarding,
+                                        vehicles,
+                                        onConfirmReceipt: handleConfirmReceipt,
+                                        invoices,
+                                        receipts,
+                                        onAddTransaction: apiService.onAddTransaction.bind(apiService),
+                                        onGenerateReceipt,
+                                        studentAbsenceRequests,
+                                        onSubmitStudentAbsenceRequest: async (req: any) => { await apiService.saveModuleRecord('student_absence_requests', { ...req, id: `sar_${Date.now()}`, status: 'pending', createdAt: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
+                                        assessments,
+                                        assessmentMarks,
+                                        onAccessAlumnaPortal: handleAccessAlumnaPortal
+                                    } as any}
                                     />
                                 ) : (activeRole === 'librarian' || (activeRole === 'staff' && activeInstitution?.institutionType === 'Library')) ? (
                                     <LibraryMasterView
