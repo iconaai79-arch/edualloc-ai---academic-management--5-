@@ -1797,7 +1797,7 @@ export const App: React.FC = () => {
             website: null,
             displayName: activeInstitution?.name
         };
-    }, [activeRole, activeCounty, activeInstitution, companyDetails]);
+    }, [activeRole, activeCounty, activeInstitution, companyDetails, isAlumnaeMode, showDrivingSchoolPortal]);
 
     const activeAcademicYear = useMemo(() =>
         (Array.isArray(academicYears) ? academicYears : []).find(y => y && y.status === 'active') || null
