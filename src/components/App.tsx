@@ -3399,117 +3399,6 @@ export const App: React.FC = () => {
         onResetPassword: async (token: string, pass: string) => apiService.resetPasswordWithToken(token, pass)
     };
 
-
-    // ── EARLY ESCAPE: Public join-campaign URL — skip auth & boot entirely ──
-    if (window.location.search.includes('view=join-campaign')) {
-        const joinCampaignId = new URLSearchParams(window.location.search).get('id') || '';
-        return (
-            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
-                <CampaignJoinPage campaignId={joinCampaignId} onBack={() => { window.location.href = '/'; }} />
-            </Suspense>
-        );
-    }
-
-    if (appInitializing || isTransitioning) return (
-        <SystemPulseLoader 
-            message={isTransitioning ? "Establishing secure perspective link..." : (loadError ? "System Handshake Compromised" : (isAlumnaeMode ? "Connecting to Alumnae Network..." : "Establishing secure cloud registry link..."))} 
-            status={isTransitioning ? "Synchronizing Session Buffers..." : (loadError || loadStatus || "Synchronizing Neural Buffers...")} 
-            onRetry={loadError ? () => loadData(true) : undefined} 
-        />
-    );
-    if (isSchemaInitializationRequired) return <SchemaInitializationView onComplete={() => loadData(true)} />;
-    
-    // Safety guard: ensure activeInstitution is loaded for institution-dependent roles
-    const isInstitutionRole = currentUser && !['super_admin', 'county_admin'].includes(activeRole || '') && !activeRole?.startsWith('county_');
-
-    if (isInstitutionRole && !activeInstitution && institutions.length > 0 && !currentUser?.isImpersonated) {
-        // We have data but didn't find the institution. This might be a tenancy sync issue or a deleted institution.
-        return (
-            <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center">
-                <ShieldExclamationIcon className="w-16 h-16 text-amber-500 mb-4 animate-pulse" />
-                <h2 className="text-white text-xl font-black uppercase tracking-widest mb-2">Workspace Conflict</h2>
-                <p className="text-slate-400 text-sm max-w-md mb-8">
-                    Your account is associated with a workspace that cannot be found or accessed. 
-                    Please verify your credentials or contact system support.
-                </p>
-                <button onClick={handleLogout} className="bg-white text-slate-900 px-8 py-3 rounded-2xl font-black uppercase transition-all hover:scale-105 active:scale-95">
-                    Terminal Shutdown (Logout)
-                </button>
-            </div>
-        );
-    }
-    
-    if (isInstitutionRole && !activeInstitution) {
-        return <SystemPulseLoader message="Workspace Synchronizing..." status="Fetching Registry Identity from Cloud Hub" />;
-    }
-
-
-    if (currentUser && activeRole !== 'super_admin' && !currentUser.isImpersonated) {
-        const inst = institutions.find(i => i.id === currentUser.institutionId);
-        if (inst && inst.status === 'suspended') {
-            return <SuspendedAccountView user={currentUser} institution={inst} companyDetails={companyDetails} onLogout={handleLogout} onAddTransaction={apiService.onAddTransaction.bind(apiService)} onAddExtensionRequest={async (reason) => {
-                await apiService.saveModuleRecord('institution_extension_requests', {
-                    id: `ext_${Date.now()}`,
-                    institutionId: inst.id,
-                    requesterId: currentUser.id,
-                    reason,
-                    status: 'pending',
-                    requestedAt: new Date().toISOString()
-                });
-                loadData();
-            }} />;
-        }
-
-        const trialEnded = inst && inst.status === 'trial' && inst.trialEndsAt && new Date(inst.trialEndsAt) < new Date();
-        if (trialEnded) {
-            return (
-                <TrialExpiredView
-                    user={currentUser}
-                    institution={inst}
-                    companyDetails={companyDetails}
-                    onLogout={handleLogout}
-                    onPay={async (paymentData, items) => {
-                        const status = await apiService.onAddTransaction({
-                            ...paymentData,
-                            institutionId: inst.id,
-                            provider: 'mpesa',
-                            paymentMethod: 'stk'
-                        } as any, items);
-                        if (status === 'completed') loadData();
-                        return status;
-                    }}
-                    onRequestExtension={async (reason) => {
-                        await apiService.saveModuleRecord('institution_extension_requests', {
-                            id: `ext_${Date.now()}`,
-                            institutionId: inst.id,
-                            requesterId: currentUser.id,
-                            reason,
-                            status: 'pending',
-                            requestedAt: new Date().toISOString()
-                        });
-                        loadData();
-                    }}
-                />
-            );
-        }
-        if (!currentUser.passwordLastUpdated && !currentUser.id.startsWith('demo_') && !currentUser.id.startsWith('temp_admin_') && currentUser.role !== 'super_admin' && !originalSuperAdminSession && !isSimulatorMode) {
-            return <MandatoryUpdateView user={currentUser} onUpdate={async (pData, passData) => {
-                try {
-                    const updated = { ...currentUser, ...pData, password: passData.newPassword, passwordLastUpdated: new Date().toISOString() };
-                    await apiService.saveUser(updated);
-                    setCurrentUser(updated);
-                    apiService.storeSession(updated);
-                    // Explicitly reload all data to ensure other components pick up the change
-                    await loadData();
-                } catch (err: any) {
-                    console.error("Account activation failed:", err);
-                    alert(`Failed to activate account: ${err.message || 'Unknown error'}`);
-                    throw err; // Re-throw to let MandatoryUpdateView handle local UI state if needed
-                }
-            }} onLogout={handleLogout} logoUrl={activeBranding.logoUrl} />;
-        }
-    }
-
     const academicsOfficerProps = useMemo<Partial<AcademicsOfficerProps>>(() => ({
         currentUser: currentUser || undefined,
         currentInstitution: activeInstitution!,
@@ -4074,6 +3963,119 @@ export const App: React.FC = () => {
         currentInstitution: activeInstitution!,
         onLogAction: handleLogAction,
     }), [currentUser, activeInstitution, handleLogAction]);
+
+    // ── EARLY ESCAPE: Public join-campaign URL — skip auth & boot entirely ──
+    if (window.location.search.includes('view=join-campaign')) {
+        const joinCampaignId = new URLSearchParams(window.location.search).get('id') || '';
+        return (
+            <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <CampaignJoinPage campaignId={joinCampaignId} onBack={() => { window.location.href = '/'; }} />
+            </Suspense>
+        );
+    }
+
+    if (appInitializing || isTransitioning) return (
+        <SystemPulseLoader 
+            message={isTransitioning ? "Establishing secure perspective link..." : (loadError ? "System Handshake Compromised" : (isAlumnaeMode ? "Connecting to Alumnae Network..." : "Establishing secure cloud registry link..."))} 
+            status={isTransitioning ? "Synchronizing Session Buffers..." : (loadError || loadStatus || "Synchronizing Neural Buffers...")} 
+            onRetry={loadError ? () => loadData(true) : undefined} 
+        />
+    );
+    if (isSchemaInitializationRequired) return <SchemaInitializationView onComplete={() => loadData(true)} />;
+    
+    // Safety guard: ensure activeInstitution is loaded for institution-dependent roles
+    const isInstitutionRole = currentUser && !['super_admin', 'county_admin'].includes(activeRole || '') && !activeRole?.startsWith('county_');
+
+    if (isInstitutionRole && !activeInstitution && institutions.length > 0 && !currentUser?.isImpersonated) {
+        // We have data but didn't find the institution. This might be a tenancy sync issue or a deleted institution.
+        return (
+            <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center">
+                <ShieldExclamationIcon className="w-16 h-16 text-amber-500 mb-4 animate-pulse" />
+                <h2 className="text-white text-xl font-black uppercase tracking-widest mb-2">Workspace Conflict</h2>
+                <p className="text-slate-400 text-sm max-w-md mb-8">
+                    Your account is associated with a workspace that cannot be found or accessed. 
+                    Please verify your credentials or contact system support.
+                </p>
+                <button onClick={handleLogout} className="bg-white text-slate-900 px-8 py-3 rounded-2xl font-black uppercase transition-all hover:scale-105 active:scale-95">
+                    Terminal Shutdown (Logout)
+                </button>
+            </div>
+        );
+    }
+    
+    if (isInstitutionRole && !activeInstitution) {
+        return <SystemPulseLoader message="Workspace Synchronizing..." status="Fetching Registry Identity from Cloud Hub" />;
+    }
+
+
+    if (currentUser && activeRole !== 'super_admin' && !currentUser.isImpersonated) {
+        const inst = institutions.find(i => i.id === currentUser.institutionId);
+        if (inst && inst.status === 'suspended') {
+            return <SuspendedAccountView user={currentUser} institution={inst} companyDetails={companyDetails} onLogout={handleLogout} onAddTransaction={apiService.onAddTransaction.bind(apiService)} onAddExtensionRequest={async (reason) => {
+                await apiService.saveModuleRecord('institution_extension_requests', {
+                    id: `ext_${Date.now()}`,
+                    institutionId: inst.id,
+                    requesterId: currentUser.id,
+                    reason,
+                    status: 'pending',
+                    requestedAt: new Date().toISOString()
+                });
+                loadData();
+            }} />;
+        }
+
+        const trialEnded = inst && inst.status === 'trial' && inst.trialEndsAt && new Date(inst.trialEndsAt) < new Date();
+        if (trialEnded) {
+            return (
+                <TrialExpiredView
+                    user={currentUser}
+                    institution={inst}
+                    companyDetails={companyDetails}
+                    onLogout={handleLogout}
+                    onPay={async (paymentData, items) => {
+                        const status = await apiService.onAddTransaction({
+                            ...paymentData,
+                            institutionId: inst.id,
+                            provider: 'mpesa',
+                            paymentMethod: 'stk'
+                        } as any, items);
+                        if (status === 'completed') loadData();
+                        return status;
+                    }}
+                    onRequestExtension={async (reason) => {
+                        await apiService.saveModuleRecord('institution_extension_requests', {
+                            id: `ext_${Date.now()}`,
+                            institutionId: inst.id,
+                            requesterId: currentUser.id,
+                            reason,
+                            status: 'pending',
+                            requestedAt: new Date().toISOString()
+                        });
+                        loadData();
+                    }}
+                />
+            );
+        }
+        if (!currentUser.passwordLastUpdated && !currentUser.id.startsWith('demo_') && !currentUser.id.startsWith('temp_admin_') && currentUser.role !== 'super_admin' && !originalSuperAdminSession && !isSimulatorMode) {
+            return <MandatoryUpdateView user={currentUser} onUpdate={async (pData, passData) => {
+                try {
+                    const updated = { ...currentUser, ...pData, password: passData.newPassword, passwordLastUpdated: new Date().toISOString() };
+                    await apiService.saveUser(updated);
+                    setCurrentUser(updated);
+                    apiService.storeSession(updated);
+                    // Explicitly reload all data to ensure other components pick up the change
+                    await loadData();
+                } catch (err: any) {
+                    console.error("Account activation failed:", err);
+                    alert(`Failed to activate account: ${err.message || 'Unknown error'}`);
+                    throw err; // Re-throw to let MandatoryUpdateView handle local UI state if needed
+                }
+            }} onLogout={handleLogout} logoUrl={activeBranding.logoUrl} />;
+        }
+    }
+
+
+
 
     return (
         <AppErrorBoundary>
