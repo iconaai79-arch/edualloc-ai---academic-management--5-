@@ -578,6 +578,50 @@ export const App: React.FC = () => {
         };
     }, [activeRole, activeCounty, activeInstitution, companyDetails, isAlumnaeMode, showDrivingSchoolPortal]);
 
+    // Dynamic Browser Title Management
+    useEffect(() => {
+        const baseTitle = activeBranding.displayName || companyDetails.applicationTitle || "EduAlloc AI";
+        let suffix = "";
+        
+        if (activeRole) {
+            const roleNames: Record<string, string> = {
+                'super_admin': 'Super Admin',
+                'county_admin': 'County Portal',
+                'admin': 'Admin Portal',
+                'head_teacher': 'Principal Portal',
+                'lecturer': 'Lecturer Portal',
+                'student': 'Student Portal',
+                'parent': 'Parent Portal',
+                'finance_officer': 'Finance Office',
+                'hr_officer': 'HR Office',
+                'academics_officer': 'Academic Office',
+                'reseller': 'Reseller Portal',
+                'agrovet_admin': 'Agrovet Manager',
+                'property_admin': 'Property Manager',
+                'his_admin': 'HIS Portal',
+                'carwash_admin': 'Car Wash Manager',
+                'fuel_admin': 'Fuel Station Manager',
+                'legal_admin': 'Legal Hub',
+                'cooperative_manager': 'Coop Manager',
+                'tenant': 'Tenant Portal',
+                'landlord': 'Landlord Portal'
+            };
+            suffix = roleNames[activeRole] || activeRole.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        if (isHealthSystemOpen) suffix = "HealthCore HIS";
+        if (isPharmacySystemOpen) suffix = "Pharmacy Hub";
+        if (isAlumnaeMode) suffix = "Alumnae Network";
+        if (showMarketing) suffix = "Intelligent ERP";
+        if (showMarketplace) suffix = "Solution Marketplace";
+        if (showCommunityHub) suffix = "Community Hub";
+        if (showTransportHub) suffix = "Transport Hub";
+        if (showDrivingSchoolPortal) suffix = "Driving School";
+
+        document.title = suffix ? `${suffix} | ${baseTitle}` : baseTitle;
+    }, [activeRole, activeBranding.displayName, companyDetails.applicationTitle, isHealthSystemOpen, isPharmacySystemOpen, isAlumnaeMode, showMarketing, showMarketplace, showCommunityHub, showTransportHub, showDrivingSchoolPortal]);
+
+
     const activeAcademicYear = useMemo(() =>
         (Array.isArray(academicYears) ? academicYears : []).find(y => y && y.status === 'active') || null
         , [academicYears]);
