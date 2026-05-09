@@ -161,7 +161,24 @@ const DrivingSchoolActionModal: React.FC<{
         e.preventDefault();
         setIsSaving(true);
         try {
-            await onSave(formData);
+            // Filter formData to only include fields relevant to the current type
+            const filteredData: any = { status: formData.status };
+            
+            if (type === 'student') {
+                const fields = ['fullName', 'email', 'phone', 'licenseTypeInterested', 'theoryProgressPercent', 'practicalProgressPercent', 'enrollmentDate'];
+                fields.forEach(f => { if (formData[f] !== undefined) filteredData[f] = formData[f]; });
+            } else if (type === 'instructor') {
+                const fields = ['name', 'phone', 'licenseNumber', 'rating'];
+                fields.forEach(f => { if (formData[f] !== undefined) filteredData[f] = formData[f]; });
+            } else if (type === 'vehicle') {
+                const fields = ['make', 'model', 'plateNumber', 'transmission'];
+                fields.forEach(f => { if (formData[f] !== undefined) filteredData[f] = formData[f]; });
+            } else if (type === 'lesson') {
+                const fields = ['studentId', 'instructorId', 'vehicleId', 'lessonDate', 'startTime', 'endTime', 'lessonType'];
+                fields.forEach(f => { if (formData[f] !== undefined) filteredData[f] = formData[f]; });
+            }
+
+            await onSave(filteredData);
             onClose();
         } catch (error) {
             console.error("Save failed:", error);
@@ -202,6 +219,10 @@ const DrivingSchoolActionModal: React.FC<{
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phone Number</label>
                                     <input type="tel" value={formData.phone || ''} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="07XX XXX XXX" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
+                                    <input type="email" value={formData.email || ''} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. student@example.com" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">License Category</label>

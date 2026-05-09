@@ -666,6 +666,36 @@ ALTER TABLE car_sales_listings ADD COLUMN IF NOT EXISTS inspection_score INTEGER
                         <SparklesIcon className="w-4 h-4" /> Repair Car Marketplace Schema
                     </button>
 
+                    <button
+                        onClick={async () => {
+                            if (window.confirm('Sync Full Platform Schema: This will execute the full platform SQL script to ensure all tables (Driving School, Car Showroom, etc.) and RLS policies are up to date. Continue?')) {
+                                setIsMigrating(true);
+                                setMigrationMsg('Generating full schema script...');
+                                try {
+                                    // Dynamically import to avoid any potential circular dependency if it exists,
+                                    // although it's already imported in SuperAdminView.
+                                    const { generateFullSqlScript } = await import('../utils/sqlGenerator');
+                                    const fullSql = generateFullSqlScript();
+                                    setMigrationMsg('Executing synchronization...');
+                                    const result = await apiService.runMigration(fullSql);
+                                    if (result.success) {
+                                        alert("Platform Schema Synchronized Successfully.");
+                                    } else {
+                                        alert("Synchronization Failed: " + result.message);
+                                    }
+                                } catch (err: any) {
+                                    alert(`Sync Error: ${err.message}`);
+                                } finally {
+                                    setIsMigrating(false);
+                                    setMigrationMsg('');
+                                }
+                            }
+                        }}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 dark:shadow-none"
+                    >
+                        <ArrowPathIcon className="w-4 h-4" /> Sync Full Platform Schema
+                    </button>
+
                     {onRunAlumniMigration && (
                         <button
                             onClick={async () => {

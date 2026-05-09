@@ -1505,6 +1505,269 @@ CREATE POLICY "HIS financial records viewable by institution" ON his_financial_r
 DROP POLICY IF EXISTS "HIS broadcasts viewable by institution" ON his_broadcasts;
 CREATE POLICY "HIS broadcasts viewable by institution" ON his_broadcasts FOR SELECT USING (institution_id = public.get_curr_user_inst_id());
 
+-- 14. DRIVING SCHOOL MODULE
+CREATE TABLE IF NOT EXISTS ds_instructors (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    phone TEXT,
+    email TEXT,
+    license_number TEXT,
+    specialization TEXT,
+    status TEXT DEFAULT 'Active',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ds_vehicles (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    plate_number TEXT NOT NULL,
+    make TEXT NOT NULL,
+    model TEXT NOT NULL,
+    transmission TEXT NOT NULL,
+    vehicle_type TEXT,
+    last_service_date DATE,
+    next_service_date DATE,
+    status TEXT DEFAULT 'Operational',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ds_students (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    full_name TEXT NOT NULL,
+    email TEXT,
+    passport_number TEXT,
+    phone TEXT,
+    license_type_interested TEXT,
+    theory_progress_percent INTEGER DEFAULT 0,
+    practical_progress_percent INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'Enrolled',
+    enrollment_date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ds_lessons (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL REFERENCES ds_students(id) ON DELETE CASCADE,
+    instructor_id TEXT REFERENCES ds_instructors(id) ON DELETE SET NULL,
+    vehicle_id TEXT REFERENCES ds_vehicles(id) ON DELETE SET NULL,
+    lesson_date DATE NOT NULL,
+    start_time TEXT NOT NULL,
+    end_time TEXT NOT NULL,
+    lesson_type TEXT NOT NULL,
+    topic TEXT,
+    status TEXT DEFAULT 'Scheduled',
+    instructor_notes TEXT,
+    route_tracked_data JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ds_skill_mastery (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL REFERENCES ds_students(id) ON DELETE CASCADE,
+    skill_name TEXT NOT NULL,
+    rating INTEGER NOT NULL,
+    comments TEXT,
+    recorded_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ds_settings (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    lesson_price_practical DECIMAL(12, 2),
+    lesson_price_theory DECIMAL(12, 2),
+    fee_structures JSONB DEFAULT '[]'::jsonb,
+    cancellation_policy TEXT,
+    working_hours JSONB,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ds_fee_structures (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    class_name TEXT NOT NULL,
+    items JSONB NOT NULL,
+    total_amount DECIMAL(12, 2) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ds_invoices (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL REFERENCES ds_students(id) ON DELETE CASCADE,
+    student_name TEXT NOT NULL,
+    fee_structure_id TEXT,
+    class_name TEXT,
+    items JSONB NOT NULL,
+    total_amount DECIMAL(12, 2) NOT NULL,
+    paid_amount DECIMAL(12, 2) DEFAULT 0,
+    balance DECIMAL(12, 2) NOT NULL,
+    status TEXT DEFAULT 'Pending',
+    invoice_number TEXT NOT NULL,
+    due_date DATE,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ds_payments (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    invoice_id TEXT NOT NULL REFERENCES ds_invoices(id) ON DELETE CASCADE,
+    student_name TEXT,
+    amount DECIMAL(12, 2) NOT NULL,
+    payment_method TEXT NOT NULL,
+    transaction_reference TEXT,
+    payment_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    receipt_number TEXT NOT NULL,
+    received_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 15. CAR SHOWROOM MODULE
+CREATE TABLE IF NOT EXISTS car_listings (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    seller_id TEXT,
+    make TEXT NOT NULL,
+    model TEXT NOT NULL,
+    year INTEGER NOT NULL,
+    trim TEXT,
+    price DECIMAL(15, 2) NOT NULL,
+    mileage INTEGER NOT NULL,
+    fuel_type TEXT NOT NULL,
+    transmission TEXT NOT NULL,
+    body_type TEXT,
+    engine_size TEXT,
+    color TEXT,
+    main_image_url TEXT,
+    gallery_urls TEXT[] DEFAULT '{}',
+    tour_360_url TEXT,
+    video_walkthrough_url TEXT,
+    inspection_report_url TEXT,
+    ai_valuation_status TEXT DEFAULT 'pending',
+    estimated_market_value DECIMAL(15, 2),
+    inspection_score DECIMAL(3, 2),
+    registration_number TEXT,
+    vin_number TEXT,
+    verified_history BOOLEAN DEFAULT FALSE,
+    status TEXT DEFAULT 'active',
+    view_count INTEGER DEFAULT 0,
+    inquiry_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS car_test_drive_bookings (
+    id TEXT PRIMARY KEY,
+    listing_id TEXT NOT NULL REFERENCES car_listings(id) ON DELETE CASCADE,
+    buyer_id TEXT,
+    buyer_name TEXT,
+    buyer_phone TEXT,
+    booking_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    delivery_address TEXT,
+    status TEXT DEFAULT 'pending',
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS car_appraisals (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
+    vehicle_details JSONB NOT NULL,
+    images TEXT[] DEFAULT '{}',
+    offered_amount DECIMAL(15, 2),
+    status TEXT DEFAULT 'pending',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS car_invoices (
+    id TEXT PRIMARY KEY,
+    listing_id TEXT NOT NULL REFERENCES car_listings(id) ON DELETE CASCADE,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    client_name TEXT NOT NULL,
+    client_email TEXT,
+    client_phone TEXT,
+    total_amount DECIMAL(15, 2) NOT NULL,
+    paid_amount DECIMAL(15, 2) DEFAULT 0,
+    balance_amount DECIMAL(15, 2) NOT NULL,
+    status TEXT DEFAULT 'pending',
+    due_date DATE,
+    invoice_number TEXT NOT NULL,
+    registration_number TEXT,
+    notes TEXT,
+    is_installment BOOLEAN DEFAULT FALSE,
+    installment_frequency TEXT,
+    total_installments INTEGER,
+    installment_amount DECIMAL(15, 2),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS car_payments (
+    id TEXT PRIMARY KEY,
+    invoice_id TEXT NOT NULL REFERENCES car_invoices(id) ON DELETE CASCADE,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    amount DECIMAL(15, 2) NOT NULL,
+    payment_method TEXT NOT NULL,
+    transaction_reference TEXT,
+    payment_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    receipt_number TEXT NOT NULL,
+    status TEXT DEFAULT 'completed',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 16. FAMILY HERITAGE MODULE
+CREATE TABLE IF NOT EXISTS heritage_members (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    branch TEXT NOT NULL,
+    relation TEXT NOT NULL,
+    birth_year TEXT,
+    death_year TEXT,
+    notes TEXT,
+    profile_photo_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS heritage_stories (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    story_date DATE,
+    story_text TEXT NOT NULL,
+    author_name TEXT,
+    image_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS heritage_galleries (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    image_url TEXT NOT NULL,
+    category TEXT,
+    captured_at DATE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS heritage_announcements (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    type TEXT NOT NULL,
+    announcement_date DATE,
+    detail TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Core Academic RLS (Standardized for initial setup)
 DROP POLICY IF EXISTS "Institutions are public" ON institutions;
 CREATE POLICY "Institutions are public" ON institutions FOR SELECT USING (true);
@@ -1589,7 +1852,10 @@ BEGIN
         'document_collections', 'watchlist_records', 'maintenance_requests',
         'teacher_check_ins', 'his_staff_attendance', 'his_dental_charts',
         'his_eye_prescriptions', 'his_medication_logs', 'his_financial_records',
-        'his_broadcasts', 'institution_module_states'
+        'his_broadcasts', 'institution_module_states',
+        'ds_instructors', 'ds_vehicles', 'ds_students', 'ds_lessons', 'ds_skill_mastery', 'ds_settings', 'ds_fee_structures', 'ds_invoices', 'ds_payments',
+        'car_listings', 'car_test_drive_bookings', 'car_appraisals', 'car_invoices', 'car_payments',
+        'heritage_members', 'heritage_stories', 'heritage_galleries', 'heritage_announcements'
     ]) LOOP
         IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = t) THEN
             EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %%I" ON %%I', t, t);
