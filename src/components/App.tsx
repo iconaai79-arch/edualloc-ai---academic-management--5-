@@ -2835,6 +2835,23 @@ export const App: React.FC = () => {
         }
     }, [activeInstitution, currentUser, dsSettings, loadData, handleLogAction]);
 
+    const handleAddDSInvoice = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId) return;
+        await apiService.saveModuleRecord('ds_invoices', { ...data, id: `dsi_${Date.now()}`, institutionId: instId, createdAt: new Date().toISOString() });
+        await handleLogAction(`Generated driving school invoice`);
+        await loadData(false, true);
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+    const handleAddDSPayment = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId) return;
+        await apiService.saveModuleRecord('ds_payments', { ...data, id: `dsp_${Date.now()}`, institutionId: instId, createdAt: new Date().toISOString() });
+        await handleLogAction(`Recorded driving school payment`);
+        await loadData(false, true);
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+
     const handleAddPayouts = useCallback(async (payouts: any[]) => {
         try {
             await apiService.saveModuleRecords('coop_monthly_payouts', payouts);
@@ -3765,6 +3782,9 @@ export const App: React.FC = () => {
         onAddDSLesson: handleAddDSLesson,
         onAddDSMastery: handleAddDSMastery,
         onUpdateDSSettings: handleUpdateDSSettings,
+        onAddDSInvoice: handleAddDSInvoice,
+        onAddDSPayment: handleAddDSPayment,
+
         carListings,
         carTestDrives,
         carAppraisals,
@@ -4622,23 +4642,12 @@ export const App: React.FC = () => {
                                             onLogAction={handleLogAction}
                                         />
                                     ) : (
-                                         <AdminView
+                                        <AdminView
+                                            {...superAdminProps as any}
                                             currentUser={currentUser}
-                                            activeRole={activeRole}
+                                            currentInstitution={activeInstitution}
+                                            activeRole={activeRole as any}
                                             onLogAction={handleLogAction}
-                                            activityLogLimit={activityLogLimit}
-                                            setActivityLogLimit={setActivityLogLimit}
-                                            transactionLimit={transactionLimit}
-                                            setTransactionLimit={setTransactionLimit}
-                                            receiptLimit={receiptLimit}
-                                            setReceiptLimit={setReceiptLimit}
-                                            notificationLimit={notificationLimit}
-                                            setNotificationLimit={setNotificationLimit}
-                                            getLecturerById={getLecturerById}
-                                            getSubjectById={getSubjectById}
-                                            getRoomById={getRoomById}
-                                            getCountyById={getCountyById}
-                                            getInstitutionById={getInstitutionById}
                                         />
                                     )
                                 ) : (activeRole === 'church_admin' || activeRole === 'church_member') ? (
@@ -4676,34 +4685,13 @@ export const App: React.FC = () => {
                                     <LogisticsDashboard />
                                 ) : (isAdminCatchAll || (activeRole === 'admin' && activeInstitution?.institutionType === 'Driving School')) ? (
                                     <AdminView
-                                        currentUser={currentUser}
-                                        users={users}
-                                        requests={requests}
-                                        allocations={allocations}
-                                        departments={departments}
-                                        subjects={subjects}
-                                        academicYears={academicYears}
-                                        semesters={semesters}
-                                        rooms={rooms}
-                                        timetableSettings={timetableSettings!}
-                                        onSaveTimetableSettings={(c) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: c })}
-                                        lessonRatings={lessonRatings}
-                                        activeRole={(activeRole as any) || undefined}
-                                        onLogAction={handleLogAction}
-                                        activityLogLimit={activityLogLimit}
-                                        setActivityLogLimit={setActivityLogLimit}
-                                        transactionLimit={transactionLimit}
-                                        setTransactionLimit={setTransactionLimit}
-                                        receiptLimit={receiptLimit}
-                                        setReceiptLimit={setReceiptLimit}
-                                        notificationLimit={notificationLimit}
-                                        setNotificationLimit={setNotificationLimit}
-                                        getLecturerById={getLecturerById}
-                                        getSubjectById={getSubjectById}
-                                        getRoomById={getRoomById}
-                                        getCountyById={getCountyById}
-                                        getInstitutionById={getInstitutionById}
-                                    />
+                                         {...superAdminProps as any}
+                                         currentUser={currentUser}
+                                         currentInstitution={activeInstitution}
+                                         activeRole={(activeRole as any) || undefined}
+                                         onLogAction={handleLogAction}
+                                         onSaveTimetableSettings={(c) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: c })}
+                                     />
                                 ) : null}
                         </Suspense>
                     </main>
