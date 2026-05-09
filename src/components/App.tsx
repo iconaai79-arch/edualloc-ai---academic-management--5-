@@ -341,6 +341,17 @@ export const App: React.FC = () => {
         }
     });
 
+    const [showDrivingSchoolPortal, setShowDrivingSchoolPortal] = useState(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const view = params.get('view');
+            const hostname = window.location.hostname;
+            return view === 'ds' || view === 'driving' || hostname === 'drivingschool.eduai.co.ke' || hostname.includes('drivingschool');
+        } catch (e) {
+            return false;
+        }
+    });
+
     const [activeStoreTenantId, setActiveStoreTenantId] = useState<string | null>(() => {
         try {
             const params = new URLSearchParams(window.location.search);
@@ -375,7 +386,16 @@ export const App: React.FC = () => {
             return 'login';
         }
     });
-    const [registrationModuleId, setRegistrationModuleId] = useState<string | null>(null);
+    const [registrationModuleId, setRegistrationModuleId] = useState<string | null>(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const mod = params.get('module');
+            if (mod) return mod;
+            const hostname = window.location.hostname;
+            if (hostname === 'drivingschool.eduai.co.ke' || hostname.includes('drivingschool')) return 'ds';
+            return null;
+        } catch (e) { return null; }
+    });
 
     const [showMarketing, setShowMarketing] = useState(() => {
         try {
@@ -393,7 +413,7 @@ export const App: React.FC = () => {
             const isAlumnaeDeepLink = params.get('school') || params.get('alumnae') || params.get('view') === 'alumnae_register' || params.get('view') === 'alumnae_social' || params.get('view') === 'alumnae_portal';
             const isPasswordReset = !!params.get('resetToken');
             
-            return !currentUser && !showMarketplace && !showCommunityHub && !showGuestPortal && !showGuestFeedback && !showTenantStore && !isAlumnaeDeepLink && !isPasswordReset;
+            return !currentUser && !showMarketplace && !showCommunityHub && !showGuestPortal && !showGuestFeedback && !showTenantStore && !showDrivingSchoolPortal && !isAlumnaeDeepLink && !isPasswordReset;
         } catch (e) {
             return !currentUser && !window.location.search.includes('resetToken');
         }
@@ -613,15 +633,8 @@ export const App: React.FC = () => {
             setReceipts(recs || []);
             setActivityLog(logs || []);
             setNotifications(notifs || []);
-            let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [], sar: any[] = [], enr: any[] = [], abs: any[] = [], con: any[] = [], att: any[] = [], item: any[] = [], tt: any[] = [], et: any[] = [], asg: any[] = [], subm: any[] = [], rat: any[] = [], ta: any[] = [], asmt: any[] = [], asmtMarks: any[] = [], bks: any[] = [], ltx: any[] = [], apts: any[] = [], sups: any[] = [], stx: any[] = [], cinv: any[] = [], ccats: any[] = [], cstores: any[] = [], bApps: any[] = [], bFunds: any[] = [], lo: any[] = [], obs: any[] = [], vis: any[] = [], sec: any[] = [], reqRecords: any[] = [], retExp: any[] = [], rStores: any[] = [], rInv: any[] = [], tor: any[] = [], fBulletin: any[] = [], fDocs: any[] = [], fWatch: any[] = [], fMaint: any[] = [], fCheckIn: any[] = [], vhcls: any[] = [], tonb: any[] = [], vlogs: any[] = [], cafe: any[] = [], cOrders: any[] = [], rSales: any[] = [], cwJobs: any[] = [], cFarmers: any[] = [], cColls: any[] = [], cRiders: any[] = [], cAgroInv: any[] = [], cAgroSales: any[] = [], cSaccoAcc: any[] = [], cSaccoTx: any[] = [], cPayouts: any[] = [], cExps: any[] = [], cInc: any[] = [], lClients: any[] = [], lMatters: any[] = [], lDocs: any[] = [], lTime: any[] = [], lInvs: any[] = [], lTrust: any[] = [], lTemplates: any[] = [], lAgreements: any[] = [], dsInst: any[] = [], dsVeh: any[] = [], dsStud: any[] = [], dsLess: any[] = [], dsMast: any[] = [], dsSet: any[] = [], cInvs: any[] = [], cPay: any[] = [];
-            let ims: any[] = [];
-            let demoLeads: any[] = [];
-            let csList: any[] = [], csTest: any[] = [], csAppr: any[] = [], csBank: any[] = [];
-            let disc: any[] = [];
-            let fExps: any[] = [], fGoals: any[] = [];
-            let fPayroll: any[] = [];
 
-            
+            // ── PHASE 3: Context-Specific Extended Data ──────────────────────
             if (currentUser) {
                 const activeInst = insts?.find(i => i.id === currentUser.institutionId);
                 let effectiveInstId: string | undefined = undefined;
@@ -637,105 +650,159 @@ export const App: React.FC = () => {
                     effectiveInstId = activeInst?.id || currentUser.institutionId || instId || '';
                 }
                 
-                console.log("[Data Refresh] [DEBUG-ID-99] Loading institutional data for:", effectiveInstId);
+                console.log("[Data Refresh] Loading institutional data for:", effectiveInstId);
             
-                const demoLeadsPromise = currentUser.role === 'super_admin' 
-                    ? apiService.fetchDemoRequests().catch(() => []) 
-                    : Promise.resolve([]);
+                // Initialize all extended variables to empty arrays
+                let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [];
+                let sar: any[] = [], enr: any[] = [], abs: any[] = [], con: any[] = [], att: any[] = [];
+                let item: any[] = [], timetableRecords: any[] = [], et: any[] = [], asg: any[] = [], subm: any[] = [];
+                let rat: any[] = [], ta: any[] = [], asmt: any[] = [], asmtMarks: any[] = [], bks: any[] = [], ltx: any[] = [];
+                let apts: any[] = [], sups: any[] = [], stx: any[] = [], cinv: any[] = [], ccats: any[] = [], cstores: any[] = [];
+                let bApps: any[] = [], bFunds: any[] = [], lo: any[] = [], obs: any[] = [], vis: any[] = [], sec: any[] = [];
+                let reqRecords: any[] = [], retExp: any[] = [], rStores: any[] = [], rInv: any[] = [], tor: any[] = [];
+                let fBulletin: any[] = [], fDocs: any[] = [], fWatch: any[] = [], fMaint: any[] = [], fCheckIn: any[] = [];
+                let vhcls: any[] = [], tonb: any[] = [], vlogs: any[] = [], cafe: any[] = [], cOrders: any[] = [];
+                let rSales: any[] = [], cwJobs: any[] = [], cFarmers: any[] = [], cColls: any[] = [], cRiders: any[] = [];
+                let cAgroInv: any[] = [], cAgroSales: any[] = [], cSaccoAcc: any[] = [], cSaccoTx: any[] = [];
+                let cPayouts: any[] = [], cExps: any[] = [], cInc: any[] = [];
+                let lClients: any[] = [], lMatters: any[] = [], lDocs: any[] = [], lTime: any[] = [], lInvs: any[] = [];
+                let lTrust: any[] = [], lTemplates: any[] = [], lAgreements: any[] = [];
+                let dsInst: any[] = [], dsVeh: any[] = [], dsStud: any[] = [], dsLess: any[] = [], dsMast: any[] = [], dsSet: any[] = [];
+                let cInvs: any[] = [], cPay: any[] = [];
+                let ims: any[] = [], disc: any[] = [], fExps: any[] = [], fGoals: any[] = [], fPayroll: any[] = [], demoLeads: any[] = [];
+                let csList: any[] = [], csTest: any[] = [], csAppr: any[] = [], csBank: any[] = [];
+                const cntId = currentUser && currentUser.role.startsWith('county_') ? currentUser.countyId : undefined;
 
-                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements, dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, csList, csTest, csAppr, cInvs, cPay, csBank, ims, disc, fExps, fGoals, fPayroll, demoLeads] = await Promise.all([
-
-                    apiService.fetchInvoices(effectiveInstId).catch(() => []),
-                    apiService.fetchExtensionRequests(isSuper ? 'ALL' : effectiveInstId).catch(() => []),
-                    apiService.fetchVoteHeads(effectiveInstId).catch(() => []),
-                    apiService.fetchFeeStructures(effectiveInstId).catch(() => []),
-                    apiService.fetchFinancialPeriods(effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<FeedbackSubmission>('feedback_submissions', effectiveInstId).catch(() => []),
-                    isAcademic ? apiService.fetchModuleRecords<StudentAbsenceRequest>('student_absence_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<EnrollmentRequest>('enrollment_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchAbsenceRequests(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<LecturerContract>('contracts', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<StudentAttendance>('student_attendances', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic || isBusiness ? apiService.fetchModuleRecords<InventoryItem>('inventory', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchTimetable(effectiveInstId || '').catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchExamTimetable(effectiveInstId || '').catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<Assignment>('assignments', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<Submission>('submissions', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<LessonRating>('lesson_ratings', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<TaAssignment>('ta_assignments', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<Assessment>('assessments', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchAssessmentMarks(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<Book>('books', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isHealth || isAcademic ? apiService.fetchModuleRecords<Appointment>('appointments', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    apiService.fetchModuleRecords<Supplier>('suppliers', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<StockTransaction>('stock_transactions', effectiveInstId).catch(() => []),
-                    isCounty ? apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory', effectiveInstId, cntId).catch(() => []) : Promise.resolve([]),
-                    isCounty ? apiService.fetchModuleRecords<CountyInventoryCategory>('county_inventory_categories', undefined, cntId).catch(() => []) : Promise.resolve([]),
-                    isCounty ? apiService.fetchModuleRecords<CountyStore>('county_stores', undefined, cntId).catch(() => []) : Promise.resolve([]),
-                    isCounty ? apiService.fetchModuleRecords<BursaryApplication>('bursary_applications', effectiveInstId, cntId).catch(() => []) : Promise.resolve([]),
-                    isCounty ? apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds', undefined, cntId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<ObservationNote>('observation_notes', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    apiService.fetchModuleRecords<Visitor>('visitors', effectiveInstId).catch(() => []),
-                    apiService.fetchSecurityAlerts(effectiveInstId || '').catch(() => []),
-                    apiService.fetchModuleRecords<Requisition>('requisitions', effectiveInstId).catch(() => []),
-                    isBusiness ? apiService.fetchModuleRecords<RetailExpense>('retail_expenses', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchModuleRecords<RetailStore>('retail_stores', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    apiService.fetchModuleRecords<TimeOffRequest>('time_off_requests', effectiveInstId).catch(() => []),
-                    isAcademic || isCommunity ? apiService.fetchModuleRecords<BulletinItem>('bulletin_items', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    apiService.fetchModuleRecords<DocumentCollection>('document_collections', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<WatchlistRecord>('watchlist_records', effectiveInstId).catch(() => []),
-                    isAcademic || isBusiness ? apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isAcademic ? apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLogistics ? apiService.fetchVehicles(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLogistics ? apiService.fetchTransportOnboarding(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLogistics ? apiService.fetchVehicleLogs(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchModuleRecords<CafeOrder>('cafe_orders', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchModuleRecords<RetailSale>('retail_sales', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchModuleRecords('carwash_jobs', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isCoop ? apiService.fetchModuleRecords<CoopFarmer>('coop_farmers', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isCoop ? apiService.fetchModuleRecords<CoopCollection>('coop_collections', effectiveInstId, undefined, { limit: 1000 }).catch(() => []) : Promise.resolve([]),
-                    isCoop ? apiService.fetchModuleRecords<CoopRider>('coop_riders', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isCoop || isBusiness ? apiService.fetchModuleRecords<CoopAgrovetInventory>('coop_agrovet_inventory', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isCoop || isBusiness ? apiService.fetchModuleRecords<CoopAgrovetSales>('coop_agrovet_sales', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isCoop ? apiService.fetchModuleRecords<SaccoAccount>('sacco_accounts', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isCoop ? apiService.fetchModuleRecords<SaccoTransaction>('sacco_transactions', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isCoop ? apiService.fetchModuleRecords<CoopMonthlyPayout>('coop_monthly_payouts', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isCoop ? apiService.fetchModuleRecords<CoopExpense>('coop_expenses', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isCoop ? apiService.fetchModuleRecords<CoopIncome>('coop_income', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLaw ? apiService.fetchModuleRecords<LawClient>('law_clients', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLaw ? apiService.fetchModuleRecords<LawMatter>('law_matters', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLaw ? apiService.fetchModuleRecords<LawDocument>('law_documents', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLaw ? apiService.fetchModuleRecords<LawTimeEntry>('law_time_entries', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLaw ? apiService.fetchModuleRecords<LawInvoice>('law_invoices', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLaw ? apiService.fetchModuleRecords<LawTrustTransaction>('law_trust_transactions', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLaw ? apiService.fetchModuleRecords<LawAgreementTemplate>('law_agreement_templates', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isLaw ? apiService.fetchModuleRecords<LawAgreement>('law_agreements', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isDrivingSchool ? apiService.fetchModuleRecords<DSInstructor>('ds_instructors', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isDrivingSchool ? apiService.fetchModuleRecords<DSVehicle>('ds_vehicles', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isDrivingSchool ? apiService.fetchModuleRecords<DSStudent>('ds_students', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isDrivingSchool ? apiService.fetchModuleRecords<DSLesson>('ds_lessons', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isDrivingSchool ? apiService.fetchModuleRecords<DSSkillMastery>('ds_skill_mastery', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isDrivingSchool ? apiService.fetchModuleRecords<DSSettings>('ds_settings', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchCarListings(effectiveInstId, 'all').catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchCarTestDrives(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchCarAppraisals(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchCarInvoices(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchCarPayments(undefined, effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    isBusiness ? apiService.fetchModuleRecords<BankTransaction>('car_bank_transactions', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', effectiveInstId).catch(() => []),
-                    isAcademic ? apiService.fetchModuleRecords<DisciplineIncident>('discipline_incidents', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                    apiService.fetchModuleRecords<Expense>('expenses', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<FinancialGoal>('financial_goals', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<PayrollRecord>('payroll_records', effectiveInstId).catch(() => []),
-                    demoLeadsPromise
+                // ── BATCH 1: Financial & Basic Modules ─────────────────────────
+                const [finResults, acadResults, countyResults, businessResults, coopResults, legalResults, drivingResults, carResults, systemResults] = await Promise.all([
+                    // Fin Batch
+                    Promise.all([
+                        apiService.fetchInvoices(effectiveInstId).catch(() => []),
+                        apiService.fetchExtensionRequests(isSuper ? 'ALL' : effectiveInstId).catch(() => []),
+                        apiService.fetchVoteHeads(effectiveInstId).catch(() => []),
+                        apiService.fetchFeeStructures(effectiveInstId).catch(() => []),
+                        apiService.fetchFinancialPeriods(effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<FeedbackSubmission>('feedback_submissions', effectiveInstId).catch(() => []),
+                    ]),
+                    // Acad Batch
+                    isAcademic ? Promise.all([
+                        apiService.fetchModuleRecords<StudentAbsenceRequest>('student_absence_requests', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<EnrollmentRequest>('enrollment_requests', effectiveInstId).catch(() => []),
+                        apiService.fetchAbsenceRequests(effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<LecturerContract>('contracts', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<StudentAttendance>('student_attendances', effectiveInstId).catch(() => []),
+                        apiService.fetchTimetable(effectiveInstId || '').catch(() => []),
+                        apiService.fetchExamTimetable(effectiveInstId || '').catch(() => []),
+                        apiService.fetchModuleRecords<Assignment>('assignments', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<Submission>('submissions', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<LessonRating>('lesson_ratings', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<TaAssignment>('ta_assignments', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<Assessment>('assessments', effectiveInstId).catch(() => []),
+                        apiService.fetchAssessmentMarks(effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<Book>('books', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<ObservationNote>('observation_notes', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<DisciplineIncident>('discipline_incidents', effectiveInstId).catch(() => []),
+                    ]) : Promise.resolve([]),
+                    // County Batch
+                    isCounty ? Promise.all([
+                        apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory', effectiveInstId, cntId).catch(() => []),
+                        apiService.fetchModuleRecords<CountyInventoryCategory>('county_inventory_categories', undefined, cntId).catch(() => []),
+                        apiService.fetchModuleRecords<CountyStore>('county_stores', undefined, cntId).catch(() => []),
+                        apiService.fetchModuleRecords<BursaryApplication>('bursary_applications', effectiveInstId, cntId).catch(() => []),
+                        apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds', undefined, cntId).catch(() => []),
+                    ]) : Promise.resolve([]),
+                    // Business Batch
+                    isBusiness || isAcademic ? Promise.all([
+                        apiService.fetchModuleRecords<InventoryItem>('inventory', effectiveInstId).catch(() => []),
+                        isBusiness ? apiService.fetchModuleRecords<RetailExpense>('retail_expenses', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                        isBusiness ? apiService.fetchModuleRecords<RetailStore>('retail_stores', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                        isBusiness ? apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                        isBusiness ? apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                        isBusiness ? apiService.fetchModuleRecords<CafeOrder>('cafe_orders', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                        isBusiness ? apiService.fetchModuleRecords<RetailSale>('retail_sales', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                        isBusiness ? apiService.fetchModuleRecords('carwash_jobs', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                        isBusiness ? apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                    ]) : Promise.resolve([]),
+                    // Coop Batch
+                    isCoop ? Promise.all([
+                        apiService.fetchModuleRecords<CoopFarmer>('coop_farmers', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<CoopCollection>('coop_collections', effectiveInstId, undefined, { limit: 1000 }).catch(() => []),
+                        apiService.fetchModuleRecords<CoopRider>('coop_riders', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<CoopAgrovetInventory>('coop_agrovet_inventory', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<CoopAgrovetSales>('coop_agrovet_sales', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<SaccoAccount>('sacco_accounts', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<SaccoTransaction>('sacco_transactions', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<CoopMonthlyPayout>('coop_monthly_payouts', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<CoopExpense>('coop_expenses', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<CoopIncome>('coop_income', effectiveInstId).catch(() => []),
+                    ]) : Promise.resolve([]),
+                    // Legal Batch
+                    isLaw ? Promise.all([
+                        apiService.fetchModuleRecords<LawClient>('law_clients', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<LawMatter>('law_matters', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<LawDocument>('law_documents', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<LawTimeEntry>('law_time_entries', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<LawInvoice>('law_invoices', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<LawTrustTransaction>('law_trust_transactions', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<LawAgreementTemplate>('law_agreement_templates', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<LawAgreement>('law_agreements', effectiveInstId).catch(() => []),
+                    ]) : Promise.resolve([]),
+                    // Driving Batch
+                    isDrivingSchool ? Promise.all([
+                        apiService.fetchModuleRecords<DSInstructor>('ds_instructors', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<DSVehicle>('ds_vehicles', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<DSStudent>('ds_students', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<DSLesson>('ds_lessons', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<DSSkillMastery>('ds_skill_mastery', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<DSSettings>('ds_settings', effectiveInstId).catch(() => []),
+                    ]) : Promise.resolve([]),
+                    // Car Batch
+                    isBusiness ? Promise.all([
+                        apiService.fetchCarListings(effectiveInstId, 'all').catch(() => []),
+                        apiService.fetchCarTestDrives(effectiveInstId).catch(() => []),
+                        apiService.fetchCarAppraisals(effectiveInstId).catch(() => []),
+                        apiService.fetchCarInvoices(effectiveInstId).catch(() => []),
+                        apiService.fetchCarPayments(undefined, effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<BankTransaction>('car_bank_transactions', effectiveInstId).catch(() => []),
+                    ]) : Promise.resolve([]),
+                    // System Batch
+                    Promise.all([
+                        apiService.fetchModuleRecords<Supplier>('suppliers', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<StockTransaction>('stock_transactions', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<Appointment>('appointments', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<Visitor>('visitors', effectiveInstId).catch(() => []),
+                        apiService.fetchSecurityAlerts(effectiveInstId || '').catch(() => []),
+                        apiService.fetchModuleRecords<Requisition>('requisitions', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<TimeOffRequest>('time_off_requests', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<BulletinItem>('bulletin_items', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<DocumentCollection>('document_collections', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<WatchlistRecord>('watchlist_records', effectiveInstId).catch(() => []),
+                        isLogistics ? apiService.fetchVehicles(effectiveInstId).catch(() => []) : Promise.resolve([]),
+                        isLogistics ? apiService.fetchTransportOnboarding(effectiveInstId).catch(() => []) : Promise.resolve([]),
+                        isLogistics ? apiService.fetchVehicleLogs(effectiveInstId).catch(() => []) : Promise.resolve([]),
+                        apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<Expense>('expenses', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<FinancialGoal>('financial_goals', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<PayrollRecord>('payroll_records', effectiveInstId).catch(() => []),
+                        currentUser.role === 'super_admin' ? apiService.fetchDemoRequests().catch(() => []) : Promise.resolve([]),
+                    ])
                 ]);
 
+                // Destructure Results
+                if (finResults) [inv, ext, vh, fs, fp, fb] = finResults;
+                if (isAcademic && acadResults) [sar, enr, abs, con, att, timetableRecords, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, lo, obs, fCheckIn, disc] = acadResults;
+                if (isCounty && countyResults) [cinv, ccats, cstores, bApps, bFunds] = countyResults;
+                if (businessResults) [item, retExp, rStores, rInv, cafe, cOrders, rSales, cwJobs, fMaint] = businessResults;
+                if (isCoop && coopResults) [cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc] = coopResults;
+                if (isLaw && legalResults) [lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements] = legalResults;
+                if (isDrivingSchool && drivingResults) [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet] = drivingResults;
+                if (isBusiness && carResults) [csList, csTest, csAppr, cInvs, cPay, csBank] = carResults;
+                if (systemResults) [sups, stx, apts, vis, sec, reqRecords, tor, fBulletin, fDocs, fWatch, vhcls, tonb, vlogs, ims, fExps, fGoals, fPayroll, demoLeads] = systemResults;
 
-                console.log("[Data Refresh] Hub Optimized");
+                console.log("[Data Refresh] Optimized Batches Resolved");
 
                 if (insts && insts.length > 0) {
                     const finalInsts = insts.map(i => ({
@@ -746,99 +813,98 @@ export const App: React.FC = () => {
                 }
 
                 if (demoLeads) setDemoRequests(demoLeads);
+
+                setInvoices(inv || []);
+                setExtensionRequests(ext || []);
+                setVoteHeads(vh || []);
+                setFeeStructures(fs || []);
+                setFinancialPeriods(fp || []);
+                setFeedbackSubmissions(fb || []);
+                setStudentAbsenceRequests(sar || []);
+                setEnrollmentRequests(enr || []);
+                setAbsenceRequests(abs || []);
+                setContracts(con || []);
+                setStudentAttendances(att || []);
+                setInventory(item || []);
+                setCountyInventory(cinv || []);
+                setCountyInventoryCategories(ccats || []);
+                setCountyStores(cstores || []);
+                setGeneratedTimetable(timetableRecords || []);
+                setExamTimetable(et || []);
+                setAssignments(asg || []);
+                setSubmissions(subm || []);
+                setLessonRatings(rat || []);
+                setTaAssignments(ta || []);
+                setAssessments(asmt || []);
+                setAssessmentMarks(asmtMarks || []);
+                setBooks(bks || []);
+                setLibraryTransactions(ltx || []);
+                setAppointments(apts || []);
+                setCafeMenuItems(cafe || []);
+                setSuppliers(sups || []);
+                setStockTransactions(stx || []);
+                setBursaryApplications(bApps || []);
+                setBursaryFunds(bFunds || []);
+                setLeaveOutRequests(lo || []);
+                setObservationNotes(obs || []);
+                setVisitors(vis || []);
+                setSecurityAlerts(sec || []);
+                setRequisitions(reqRecords || []);
+                
+                setIncidents(disc || []);
+                setExpenses(fExps || []);
+                setFinancialGoals(fGoals || []);
+                setPayrollRecords(fPayroll || []);
+                // Driving School State Setters
+                setDsInstructors(dsInst || []);
+                setDsVehicles(dsVeh || []);
+                setDsStudents(dsStud || []);
+                setDsLessons(dsLess || []);
+                setDsMastery(dsMast || []);
+                setDsSettings(dsSet && dsSet.length > 0 ? dsSet[0] : null);
+                setCarListings(csList || []);
+                setCarTestDrives(csTest || []);
+                setCarAppraisals(csAppr || []);
+                setCarInvoices(cInvs || []);
+                setCarPayments(cPay || []);
+                setCarBankTransactions(csBank || []);
+
+                setRetailExpenses(retExp || []);
+                setRetailStores(rStores || []);
+                setRetailInventory(rInv || []);
+                setTimeOffRequests(tor || []);
+                setBulletinItems(fBulletin || []);
+                setDocumentCollections(fDocs || []);
+                setMaintenanceRequests(fMaint || []);
+                setTeacherCheckIns(fCheckIn || []);
+                setVehicles(vhcls || []);
+                setTransportOnboarding(tonb || []);
+                setVehicleLogs(vlogs || []);
+                setCafeOrders(cOrders || []);
+                setRetailSales(rSales || []);
+                setJobs(cwJobs || []);
+                setNotifications(notifs || []);
+
+                setCoopFarmers(cFarmers || []);
+                setCoopCollections(cColls || []);
+                setCoopRiders(cRiders || []);
+                setCoopAgrovetInventory(cAgroInv || []);
+                setCoopAgrovetSales(cAgroSales || []);
+                setSaccoAccounts(cSaccoAcc || []);
+                setSaccoTransactions(cSaccoTx || []);
+                setCoopPayouts(cPayouts || []);
+                setCoopExpenses(cExps || []);
+                setCoopIncome(cInc || []);
+
+                setLawClients(lClients || []);
+                setLawMatters(lMatters || []);
+                setLawDocuments(lDocs || []);
+                setLawTimeEntries(lTime || []);
+                setLawInvoices(lInvs || []);
+                setLawTrustTransactions(lTrust || []);
+                setLawAgreementTemplates(lTemplates || []);
+                setLawAgreements(lAgreements || []);
             }
-
-
-            setInvoices(inv || []);
-            setExtensionRequests(ext || []);
-            setVoteHeads(vh || []);
-            setFeeStructures(fs || []);
-            setFinancialPeriods(fp || []);
-            setFeedbackSubmissions(fb || []);
-            setStudentAbsenceRequests(sar || []);
-            setEnrollmentRequests(enr || []);
-            setAbsenceRequests(abs || []);
-            setContracts(con || []);
-            setStudentAttendances(att || []);
-            setInventory(item || []);
-            setCountyInventory(cinv || []);
-            setCountyInventoryCategories(ccats || []);
-            setCountyStores(cstores || []);
-            setGeneratedTimetable(tt || []);
-            setExamTimetable(et || []);
-            setAssignments(asg || []);
-            setSubmissions(subm || []);
-            setLessonRatings(rat || []);
-            setTaAssignments(ta || []);
-            setAssessments(asmt || []);
-            setAssessmentMarks(asmtMarks || []);
-            setBooks(bks || []);
-            setLibraryTransactions(ltx || []);
-            setAppointments(apts || []);
-            setCafeMenuItems(cafe || []);
-            setSuppliers(sups || []);
-            setStockTransactions(stx || []);
-            setBursaryApplications(bApps || []);
-            setBursaryFunds(bFunds || []);
-            setLeaveOutRequests(lo || []);
-            setObservationNotes(obs || []);
-            setVisitors(vis || []);
-            setSecurityAlerts(sec || []);
-            setRequisitions(reqRecords || []);
-            
-            setIncidents(disc || []);
-            setExpenses(fExps || []);
-            setFinancialGoals(fGoals || []);
-            setPayrollRecords(fPayroll || []);
-            // Driving School State Setters
-            setDsInstructors(dsInst || []);
-            setDsVehicles(dsVeh || []);
-            setDsStudents(dsStud || []);
-            setDsLessons(dsLess || []);
-            setDsMastery(dsMast || []);
-            setDsSettings(dsSet && dsSet.length > 0 ? dsSet[0] : null);
-            setCarListings(csList || []);
-            setCarTestDrives(csTest || []);
-            setCarAppraisals(csAppr || []);
-            setCarInvoices(cInvs || []);
-            setCarPayments(cPay || []);
-            setCarBankTransactions(csBank || []);
-
-            setRetailExpenses(retExp || []);
-            setRetailStores(rStores || []);
-            setRetailInventory(rInv || []);
-            setTimeOffRequests(tor || []);
-            setBulletinItems(fBulletin || []);
-            setDocumentCollections(fDocs || []);
-            setMaintenanceRequests(fMaint || []);
-            setTeacherCheckIns(fCheckIn || []);
-            setVehicles(vhcls || []);
-            setTransportOnboarding(tonb || []);
-            setVehicleLogs(vlogs || []);
-            setCafeOrders(cOrders || []);
-            setRetailSales(rSales || []);
-            setJobs(cwJobs || []);
-            setNotifications(notifs || []);
-
-            setCoopFarmers(cFarmers || []);
-            setCoopCollections(cColls || []);
-            setCoopRiders(cRiders || []);
-            setCoopAgrovetInventory(cAgroInv || []);
-            setCoopAgrovetSales(cAgroSales || []);
-            setSaccoAccounts(cSaccoAcc || []);
-            setSaccoTransactions(cSaccoTx || []);
-            setCoopPayouts(cPayouts || []);
-            setCoopExpenses(cExps || []);
-            setCoopIncome(cInc || []);
-
-            setLawClients(lClients || []);
-            setLawMatters(lMatters || []);
-            setLawDocuments(lDocs || []);
-            setLawTimeEntries(lTime || []);
-            setLawInvoices(lInvs || []);
-            setLawTrustTransactions(lTrust || []);
-            setLawAgreementTemplates(lTemplates || []);
-            setLawAgreements(lAgreements || []);
 
             setIsGeneratingDemoData(false);
             setLoadStatus("");
@@ -1029,20 +1095,7 @@ export const App: React.FC = () => {
         return null;
     }, [currentUser, institutions, schoolRegistry, activeStoreTenantId]);
 
-    const handleTeacherLessonCheckIn = async (id: string, type: 'start' | 'end') => {
-        try {
-            await apiService.processTeacherCheckIn({
-                teacher_id: currentUser?.id,
-                institution_id: activeInstitution?.id,
-                timetable_entry_id: id,
-                checkin_type: type,
-                timestamp: new Date().toISOString()
-            });
-            loadData();
-        } catch (e) {
-            console.error('[App] Teacher check-in error:', e);
-        }
-    };
+
 
     const handleStudentLessonCheckIn = async (entryId: string) => {
         try {
@@ -1068,6 +1121,541 @@ export const App: React.FC = () => {
     }, [activeInstitution]);
 
     const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+
+    const onDeleteUser = useCallback(async (id: string) => {
+        await apiService.deleteModuleRecord('users', id);
+        loadData();
+    }, [loadData]);
+
+    const onEditUser = useCallback(async (id: string, data: any) => {
+        const existing = (users || []).find(u => u.id === id);
+        if (existing) {
+            const updatedUser = { ...existing, ...data, id };
+            await apiService.saveModuleRecord('users', updatedUser);
+
+            // Update local state immediately for better responsiveness
+            setUsers(prev => prev.map(u => u.id === id ? updatedUser : u));
+
+            if (currentUser?.id === id) {
+                const finalUser = { ...currentUser, ...updatedUser };
+                setCurrentUser(finalUser);
+                apiService.storeSession(finalUser);
+            }
+            loadData();
+        }
+    }, [users, currentUser, loadData]);
+
+    const handleAccessAlumnaPortal = useCallback((school: SchoolRegistry) => {
+        setIsTransitioning(true);
+        setTimeout(() => {
+            const mockAlumna = {
+                id: `sa_alumna_${Date.now()}`,
+                fullName: `Super Admin (${school.name})`,
+                email: currentUser?.email || 'admin@edualloc.com',
+                phone: currentUser?.phoneNumber || '',
+                institutionId: school.institutionId || 'GLOBAL',
+                registryId: school.id,
+                schoolId: school.id,
+                schoolName: school.name,
+                isSuperAdmin: true,
+                profilePhotoUrl: currentUser?.profilePhotoUrl
+            };
+            setActiveAlumna(mockAlumna);
+            localStorage.setItem('eduai_alumna_session', JSON.stringify(mockAlumna));
+            setShowAlumnaePortal(true);
+            setIsTransitioning(false);
+        }, 600);
+    }, [currentUser]);
+
+    const handleLogAction = useCallback(async (action: string) => {
+        if (!currentUser) return;
+        try {
+            await apiService.saveModuleRecord('activity_log', {
+                id: `log_${Date.now()}`,
+                institutionId: activeInstitution?.id || currentUser.institutionId,
+                userId: currentUser.id,
+                userName: currentUser.name,
+                action,
+                timestamp: new Date().toISOString()
+            });
+            loadData();
+        } catch (error) {
+            console.error('Error logging action:', error);
+        }
+    }, [currentUser, activeInstitution, loadData]);
+
+    const handleAddVisitor = useCallback(async (v: Omit<Visitor, 'id'>) => {
+        await apiService.saveModuleRecord('visitors', { 
+            ...v, 
+            id: `vis_${Date.now()}`, 
+            status: 'pending', 
+            entryTime: new Date().toISOString(), 
+            institutionId: currentUser?.institutionId 
+        });
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleCheckoutVisitor = useCallback(async (id: string) => {
+        const v = (visitors || []).find(x => x.id === id);
+        if (v) {
+            await apiService.saveModuleRecord('visitors', { ...v, status: 'checked_out', timeOut: new Date().toLocaleTimeString() });
+            await handleLogAction(`Checked out visitor: ${v.name}`);
+        }
+        loadData();
+    }, [visitors, loadData, handleLogAction]);
+
+    const handleAddAppointment = useCallback(async (a: Omit<Appointment, 'id' | 'status' | 'createdAt'>) => {
+        await apiService.saveModuleRecord('appointments', { 
+            ...a, 
+            id: `apt_${Date.now()}`, 
+            status: 'scheduled', 
+            createdAt: new Date().toISOString(), 
+            institutionId: currentUser?.institutionId 
+        });
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleUpdateVisitor = useCallback(async (id: string, data: Partial<Visitor>) => {
+        const existing = (visitors || []).find(v => v.id === id);
+        if (existing) {
+            await apiService.saveModuleRecord('visitors', { ...existing, ...data });
+            loadData();
+        }
+    }, [visitors, loadData]);
+
+    const handleAddAlert = useCallback(async (a: Omit<SecurityAlert, 'id' | 'status' | 'timestamp' | 'institutionId'>) => {
+        await apiService.saveModuleRecord('security_alerts', { 
+            ...a, 
+            id: `alt_${Date.now()}`, 
+            status: 'active', 
+            timestamp: new Date().toISOString(), 
+            institutionId: currentUser?.institutionId 
+        });
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleResolveAlert = useCallback(async (id: string) => {
+        const existing = (securityAlerts || []).find(a => a.id === id);
+        if (existing) {
+            await apiService.saveModuleRecord('security_alerts', { ...existing, status: 'resolved' });
+            loadData();
+        }
+    }, [securityAlerts, loadData]);
+
+    const handleUpdateAppointmentStatus = useCallback(async (id: string, status: string) => {
+        const apt = (appointments || []).find(a => a.id === id);
+        if (apt) {
+            await apiService.saveModuleRecord('appointments', { ...apt, status });
+            await handleLogAction(`Updated appointment status for ${apt.guestName} to ${status}`);
+        }
+        loadData();
+    }, [appointments, loadData, handleLogAction]);
+
+    const handleAddStoreItem = useCallback(async (item: any) => {
+        await apiService.saveModuleRecord('inventory', { 
+            ...item, 
+            id: `inv_${Date.now()}`, 
+            institutionId: currentUser?.institutionId, 
+            lastUpdated: new Date().toISOString() 
+        });
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleAddSupplier = useCallback(async (supplier: any) => {
+        await apiService.saveModuleRecord('suppliers', {
+            ...supplier,
+            id: `sup_${Date.now()}`,
+            institutionId: currentUser?.institutionId
+        });
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleImportStoreItems = useCallback(async (items: any[]) => {
+        const enriched = items.map(i => ({ ...i, institutionId: currentUser?.institutionId, id: i.id || `inv_${Date.now()}_${Math.random()}` }));
+        await apiService.saveModuleRecords('inventory', enriched);
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleAddStoreTransaction = useCallback(async (transaction: any) => {
+        const item = (retailInventory || []).find(i => i.id === transaction.itemId);
+        if (item) {
+            const newQty = transaction.type === 'Restock' ? item.quantity + transaction.quantity : item.quantity - transaction.quantity;
+            await apiService.saveModuleRecord('inventory', { ...item, quantity: newQty, lastUpdated: new Date().toISOString() });
+        }
+        await apiService.saveModuleRecord('stock_transactions', { 
+            ...transaction, 
+            id: `stx_${Date.now()}`, 
+            date: new Date().toISOString(), 
+            institutionId: currentUser?.institutionId, 
+            recordedBy: currentUser?.id 
+        });
+        loadData();
+    }, [retailInventory, currentUser, loadData]);
+
+    const handleAddInvoice = useCallback(async (invoice: any) => {
+        await apiService.saveModuleRecord('invoices', {
+            ...invoice,
+            id: `inv_${Date.now()}`,
+            institutionId: currentUser?.institutionId,
+            createdAt: new Date().toISOString()
+        });
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleAddReceipt = useCallback(async (receipt: any) => {
+        await apiService.saveModuleRecord('receipts', {
+            ...receipt,
+            id: `rcpt_${Date.now()}`,
+            institutionId: currentUser?.institutionId,
+            createdAt: new Date().toISOString()
+        });
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleVerifyRequisition = useCallback(async (id: string, status: string, reason?: string) => {
+        const req = (requisitions || []).find(r => r.id === id);
+        if (req) {
+            await apiService.saveModuleRecord('requisitions', { ...req, status, verifiedBy: currentUser?.id, verifiedAt: new Date().toISOString(), notes: reason });
+            loadData();
+        }
+    }, [requisitions, currentUser, loadData]);
+
+    const handleMarkInventoryReceived = useCallback(async (id: string) => {
+        const item = (countyInventory || []).find(i => i.id === id);
+        if (item) {
+            await apiService.saveModuleRecord('county_inventory', {
+                ...item,
+                status: 'received',
+                lastUpdated: new Date().toISOString()
+            });
+            loadData();
+            alert("Inventory received and acknowledged.");
+        }
+    }, [countyInventory, loadData]);
+
+    const onImportStudents = useCallback(async (data: any[]) => {
+        if (!currentUser) return;
+        await apiService.onImportStudents(data, currentUser.institutionId, activeInstitution?.name);
+        loadData();
+    }, [currentUser, activeInstitution, loadData]);
+
+    const handleImportStudents = onImportStudents;
+
+    const handleUpdateSubject = useCallback(async (id: string, data: any) => {
+        const existing = (subjects || []).find(s => s.id === id);
+        if (existing) {
+            await apiService.saveModuleRecord('subjects', { ...existing, ...data });
+            loadData();
+        }
+    }, [subjects, loadData]);
+
+    const handleUpdateCourse = useCallback(async (id: string, data: any) => {
+        const existing = (courses || []).find(c => c.id === id);
+        if (existing) {
+            await apiService.saveModuleRecord('courses', { ...existing, ...data });
+            loadData();
+        }
+    }, [courses, loadData]);
+
+    const handleAddRoom = useCallback(async (data: any) => {
+        await apiService.saveModuleRecord('rooms', { ...data, id: `room_${Date.now()}`, institutionId: currentUser?.institutionId });
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleUpdateRoom = useCallback(async (id: string, data: any) => {
+        const existing = (rooms || []).find(r => r.id === id);
+        if (existing) {
+            await apiService.saveModuleRecord('rooms', { ...existing, ...data });
+            loadData();
+        }
+    }, [rooms, loadData]);
+
+    const handleDeleteRoom = useCallback(async (id: string) => {
+        await apiService.deleteModuleRecord('rooms', id);
+        loadData();
+    }, [loadData]);
+
+    const handleImportRooms = useCallback(async (data: any[]) => {
+        const enriched = data.map(r => ({ ...r, id: r.id || `room_${Date.now()}_${Math.random()}`, institutionId: currentUser?.institutionId }));
+        await apiService.saveModuleRecords('rooms', enriched);
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleAddDepartment = useCallback(async (name: string) => {
+        await apiService.saveModuleRecord('departments', { name, id: `dept_${Date.now()}`, institutionId: currentUser?.institutionId });
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleUpdateDepartment = useCallback(async (id: string, data: any) => {
+        const existing = (departments || []).find(d => d.id === id);
+        if (existing) {
+            await apiService.saveModuleRecord('departments', { ...existing, ...data });
+            loadData();
+        }
+    }, [departments, loadData]);
+
+    const handleDeleteDepartment = useCallback(async (id: string) => {
+        await apiService.deleteModuleRecord('departments', id);
+        loadData();
+    }, [loadData]);
+
+    const handleImportDepartments = useCallback(async (data: any[]) => {
+        const enriched = data.map(d => ({ ...d, id: d.id || `dept_${Date.now()}_${Math.random()}`, institutionId: currentUser?.institutionId }));
+        await apiService.saveModuleRecords('departments', enriched);
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleAddAssessment = useCallback(async (data: any) => {
+        await apiService.saveModuleRecord('assessments', { ...data, id: `asm_${Date.now()}`, institutionId: currentUser?.institutionId });
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleDeleteAssessment = useCallback(async (id: string) => {
+        await apiService.deleteModuleRecord('assessments', id);
+        loadData();
+    }, [loadData]);
+
+    const handleSaveAssessmentMarks = useCallback(async (_id: string, marks: any[]) => {
+        await apiService.saveModuleRecords('assessment_marks', marks);
+        loadData();
+    }, [loadData]);
+
+    const handleExamTimetableGenerated = useCallback(async (entries: any[], ay: string, sem: string) => {
+        await apiService.saveExamTimetable(currentUser?.institutionId || '', ay, sem, entries);
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleAddRequest = useCallback(async (data: any) => {
+        await apiService.saveModuleRecord('allocation_requests', { ...data, id: `req_${Date.now()}`, institutionId: currentUser?.institutionId });
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleUpdateRequest = useCallback(async (id: string, data: any) => {
+        const existing = (requests || []).find(r => r.id === id);
+        if (existing) {
+            await apiService.saveModuleRecord('allocation_requests', { ...existing, ...data });
+            loadData();
+        }
+    }, [requests, loadData]);
+
+    const handleWithdrawRequest = useCallback(async (id: string) => {
+        await apiService.deleteModuleRecord('allocation_requests', id);
+        loadData();
+    }, [loadData]);
+
+    const handleAddAssignment = useCallback(async (data: any) => {
+        await apiService.saveModuleRecord('assignments', { ...data, id: `asg_${Date.now()}`, institutionId: currentUser?.institutionId });
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleDeleteAssignment = useCallback(async (id: string) => {
+        await apiService.deleteModuleRecord('assignments', id);
+        loadData();
+    }, [loadData]);
+
+    const handleAddFeedback = useCallback(async (studentId: string, feedback: string) => {
+        await apiService.saveModuleRecord('lesson_ratings', { studentId, feedback, id: `fb_${Date.now()}`, institutionId: currentUser?.institutionId });
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleAddObservationNote = useCallback(async (note: any) => {
+        await apiService.saveModuleRecord('observation_notes', { ...note, id: `obs_${Date.now()}`, institutionId: currentUser?.institutionId });
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleAddTimeOffRequest = useCallback(async (data: any) => {
+        await apiService.saveModuleRecord('time_off_requests', { ...data, id: `tor_${Date.now()}`, institutionId: currentUser?.institutionId });
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleAddTask = useCallback(async (task: any) => {
+        await apiService.saveModuleRecord('tasks', { ...task, id: `task_${Date.now()}`, institutionId: currentUser?.institutionId });
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleUpdateTask = useCallback(async (id: string, completed: boolean) => {
+        const existing = (userTasks || []).find(t => t.id === id);
+        if (existing) {
+            await apiService.saveModuleRecord('tasks', { ...existing, completed });
+            loadData();
+        }
+    }, [userTasks, loadData]);
+
+    const handleDeleteTask = useCallback(async (id: string) => {
+        await apiService.deleteModuleRecord('tasks', id);
+        loadData();
+    }, [loadData]);
+
+    const handleSaveAttendance = useCallback(async (timetableEntryId: string, attendanceData: { studentId: string, status: 'present' | 'absent' | 'late' }[]) => {
+        if (!currentUser || !activeInstitution) return;
+
+        try {
+            const now = new Date().toISOString();
+            const dateStr = now.split('T')[0];
+            const promises = attendanceData.map(record => {
+                const existing = (studentAttendances || []).find(a => a.timetableEntryId === timetableEntryId && a.studentId === record.studentId && a.date === dateStr);
+                const id = existing ? existing.id : `att_${timetableEntryId}_${record.studentId}_${Date.now()}`;
+
+                const attendanceRecord: StudentAttendance = {
+                    id,
+                    timetableEntryId,
+                    studentId: record.studentId,
+                    date: dateStr,
+                    status: record.status,
+                    markedBy: currentUser.id,
+                    timestamp: now,
+                    institutionId: activeInstitution.id
+                };
+
+                return apiService.saveModuleRecord('student_attendances', attendanceRecord);
+            });
+
+            await Promise.all(promises);
+            await loadData();
+
+            // Notify Parents if enabled
+            if (activeInstitution.parentAbsenceNotificationsEnabled) {
+                const absentStudents = attendanceData.filter(r => r.status === 'absent');
+                for (const studentRecord of absentStudents) {
+                    const student = (users || []).find(u => u.id === studentRecord.studentId);
+                    const parent = (users || []).find(u => u.role === 'parent' && (u.studentIds || []).includes(studentRecord.studentId));
+                    const lesson = (generatedTimetable || []).find(l => l.id === timetableEntryId);
+                    const subject = (subjects || []).find(s => s.id === lesson?.subjectId);
+
+                    if (parent && student && lesson && subject) {
+                        const message = `Parent / Guardian Alert: ${student.name} was marked ABSENT for ${subject.name} on ${lesson.day} at ${lesson.startTime}. Please confirm with the school.`;
+
+                        if (parent.phoneNumber) {
+                            await apiService.sendSms(parent.phoneNumber, message);
+                        }
+                        if (parent.email) {
+                            await sendEmailNotification(
+                                parent.email, 
+                                "Student Absence Notification", 
+                                message, 
+                                getInstitutionEmailConfig(activeInstitution, companyDetails.emailConfig)
+                            );
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('[App] Save attendance error:', e);
+        }
+    }, [currentUser, activeInstitution, studentAttendances, users, generatedTimetable, subjects, loadData, companyDetails]);
+
+    const handleProcessPayroll = useCallback(async (records: any[]) => {
+        await apiService.saveModuleRecord('payroll_runs', { id: `pr_${Date.now()}`, institutionId: currentUser?.institutionId, records, timestamp: new Date().toISOString() });
+        loadData();
+    }, [currentUser, loadData]);
+
+    const handleUpdateLeaveStatus = useCallback(async (id: string, status: 'approved' | 'rejected') => {
+        const req = (timeOffRequests || []).find(t => t.id === id);
+        if (req) {
+            await apiService.saveModuleRecord('time_off_requests', { ...req, status });
+            loadData();
+        }
+    }, [timeOffRequests, loadData]);
+
+    const onUpdateInstitution = useCallback(async (id: string, data: any) => {
+        const inst = institutions.find(i => i.id === id);
+        if (inst) {
+            await apiService.saveInstitution({ ...inst, ...data });
+            loadData();
+        }
+    }, [institutions, loadData]);
+
+    const handleLogGateAction = useCallback(async (vehicleId: string, eventType: 'entry' | 'exit', notes?: string) => {
+        if (!activeInstitution || !currentUser) return;
+        try {
+            const vehicle = (vehicles || []).find(v => v.id === vehicleId);
+            const payload: VehicleLog = {
+                id: `vlog_${Date.now()}`,
+                institutionId: activeInstitution.id,
+                vehicleId,
+                eventType,
+                securityId: currentUser.id,
+                timestamp: new Date().toISOString(),
+                notes
+            };
+            await apiService.saveModuleRecord('vehicle_logs', payload);
+            await handleLogAction(`Log: Vehicle ${vehicle?.plateNumber} ${eventType}`);
+            loadData();
+        } catch (error) {
+            console.error('Error logging gate action:', error);
+            throw error;
+        }
+    }, [activeInstitution, currentUser, vehicles, handleLogAction, loadData]);
+
+    const handleTeacherLessonCheckIn = useCallback(async (lessonId: string, status: string, notes?: string) => {
+        try {
+            await apiService.processTeacherCheckIn({
+                teacher_id: currentUser?.id,
+                institution_id: activeInstitution?.id,
+                timetable_entry_id: lessonId,
+                checkin_type: status as any,
+                timestamp: new Date().toISOString(),
+                notes
+            });
+            loadData();
+        } catch (e) {
+            console.error('[App] Teacher check-in error:', e);
+        }
+    }, [currentUser, activeInstitution, loadData]);
+
+    const handleOnboardStudent = useCallback(async (studentId: string, vehicleId: string, direction: 'to_school' | 'from_school', lat?: number, lng?: number) => {
+        if (!activeInstitution) return;
+        try {
+            const student = (users || []).find(u => u.id === studentId);
+            const vehicle = (vehicles || []).find(v => v.id === vehicleId);
+            const payload: TransportOnboarding = {
+                id: `tonb_${Date.now()}`,
+                institutionId: activeInstitution.id,
+                studentId,
+                vehicleId,
+                direction,
+                status: 'onboarded',
+                locationLat: lat,
+                locationLng: lng,
+                timestamp: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('transport_onboarding', payload);
+
+            // Send SMS to Parent
+            const parents = (users || []).filter(u => u.role === 'parent' && (u.studentIds || []).includes(studentId));
+            for (const parent of parents) {
+                if (parent.phoneNumber) {
+                    const msg = direction === 'from_school'
+                        ? `${student?.name} has onboarded vehicle ${vehicle?.plateNumber} and is heading home. Please be ready to pick.`
+                        : `${student?.name} has onboarded vehicle ${vehicle?.plateNumber} and is heading to school.`;
+                    await apiService.sendSms(parent.phoneNumber, msg, activeInstitution.smsConfig, 1, activeInstitution.id);
+                }
+            }
+
+            await handleLogAction(`Onboarded student ${student?.name} to ${vehicle?.plateNumber}`);
+            loadData();
+        } catch (error) {
+            console.error('Error onboarding student:', error);
+        }
+    }, [activeInstitution, users, vehicles, handleLogAction, loadData]);
+
+    const handleOffboardStudent = useCallback(async (recordId: string, lat?: number, lng?: number) => {
+        try {
+            const record = (transportOnboarding || []).find(r => r.id === recordId);
+            if (!record) return;
+            await apiService.saveModuleRecord('transport_onboarding', {
+                ...record,
+                status: 'offboarded',
+                locationLat: lat,
+                locationLng: lng,
+                timestamp: new Date().toISOString()
+            });
+            await handleLogAction(`Student ${record.studentId} offboarded`);
+            loadData();
+        } catch (error) {
+            console.error('Error offboarding student:', error);
+        }
+    }, [transportOnboarding, handleLogAction, loadData]);
 
     const activeRole = useMemo<Role | null>(() => {
         if (impersonatedRole) return impersonatedRole;
@@ -1112,6 +1700,17 @@ export const App: React.FC = () => {
     }, [counties, currentUser, getCountyById, getInstitutionById]);
 
     const activeBranding = useMemo(() => {
+        if (showDrivingSchoolPortal) {
+            return {
+                primaryColor: '#0ea5e9', // Sky blue
+                secondaryColor: '#0f172a',
+                logoUrl: '/driving_school_logo_3d.png',
+                motto: 'Safety First, Success Always',
+                website: 'https://drivingschool.eduai.co.ke',
+                displayName: 'Driving School Portal'
+            };
+        }
+
         const isCountyContext = activeRole === 'county_admin' || activeRole?.startsWith('county_');
 
         if (isCountyContext && activeCounty) {
@@ -1164,7 +1763,7 @@ export const App: React.FC = () => {
     const activeFooterImageUrl = useMemo(() => activeInstitution?.footerImageUrl || companyDetails.footerImageUrl || null, [activeInstitution, companyDetails]);
     
     const academicsOfficerProps = useMemo<Partial<AcademicsOfficerProps>>(() => ({
-        currentUser,
+        currentUser: currentUser || undefined,
         currentInstitution: activeInstitution!,
         academicYears,
         semesters,
@@ -1195,11 +1794,26 @@ export const App: React.FC = () => {
         examTimetableSettings: activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS,
         lessonRatings,
         schoolRegistry,
-        companyDetails
-    }), [currentUser, activeInstitution, academicYears, semesters, academicLevels, departments, subjects, courses, users, rooms, assessments, assessmentMarks, incidents, activeAcademicYear, activeSemester, examTimetable, getSubjectById, getLecturerById, getRoomById, courseSizes, timetableSettings, buildings, activeLetterheadConfig, activeBranding, activeFooterImageUrl, companyDetails, lessonRatings, schoolRegistry]);
+        companyDetails,
+        onUpdateSubject: handleUpdateSubject,
+        onUpdateCourse: handleUpdateCourse,
+        onAddRoom: handleAddRoom,
+        onUpdateRoom: handleUpdateRoom,
+        onDeleteRoom: handleDeleteRoom,
+        onImportRooms: handleImportRooms,
+        onAddDepartment: handleAddDepartment,
+        onUpdateDepartment: handleUpdateDepartment,
+        onDeleteDepartment: handleDeleteDepartment,
+        onImportDepartments: handleImportDepartments,
+        onAddAssessment: handleAddAssessment,
+        onDeleteAssessment: handleDeleteAssessment,
+        onSaveAssessmentMarks: handleSaveAssessmentMarks,
+        onAddIncident: async (d) => { await apiService.saveModuleRecord('discipline_incidents', { ...d, id: `disc_${Date.now()}`, institutionId: currentUser?.institutionId }); loadData(); },
+        onExamTimetableGenerated: handleExamTimetableGenerated
+    }), [currentUser, activeInstitution, academicYears, semesters, academicLevels, departments, subjects, courses, users, rooms, assessments, assessmentMarks, incidents, activeAcademicYear, activeSemester, examTimetable, getSubjectById, getLecturerById, getRoomById, courseSizes, timetableSettings, buildings, activeLetterheadConfig, activeBranding, activeFooterImageUrl, companyDetails, lessonRatings, schoolRegistry, handleUpdateSubject, handleUpdateCourse, handleAddRoom, handleUpdateRoom, handleDeleteRoom, handleImportRooms, handleAddDepartment, handleUpdateDepartment, handleDeleteDepartment, handleImportDepartments, handleAddAssessment, handleDeleteAssessment, handleSaveAssessmentMarks, handleExamTimetableGenerated]);
 
     const lecturerProps = useMemo<Partial<LecturerProps>>(() => ({
-        user: currentUser,
+        user: currentUser || undefined,
         users,
         courses,
         subjects,
@@ -1219,11 +1833,25 @@ export const App: React.FC = () => {
         userTasks,
         assessments,
         assessmentMarks,
-        studentAttendances
-    }), [currentUser, users, courses, subjects, rooms, academicYears, semesters, requests, generatedTimetable, getSubjectById, getRoomById, timetableSettings, assignments, submissions, teacherCheckIns, observationNotes, timeOffRequests, userTasks, assessments, assessmentMarks, studentAttendances]);
+        studentAttendances,
+        onAddRequest: handleAddRequest,
+        onUpdateRequest: handleUpdateRequest,
+        onWithdrawRequest: handleWithdrawRequest,
+        onAddAssignment: handleAddAssignment,
+        onDeleteAssignment: handleDeleteAssignment,
+        onAddFeedback: handleAddFeedback,
+        onTeacherLessonCheckIn: handleTeacherLessonCheckIn,
+        onAddObservationNote: handleAddObservationNote,
+        onAddTimeOffRequest: handleAddTimeOffRequest,
+        onAddTask: handleAddTask,
+        onUpdateTask: handleUpdateTask,
+        onDeleteTask: handleDeleteTask,
+        onSaveAttendance: handleSaveAttendance,
+        onAccessAlumnaPortal: handleAccessAlumnaPortal
+    }), [currentUser, users, courses, subjects, rooms, academicYears, semesters, requests, generatedTimetable, getSubjectById, getRoomById, timetableSettings, assignments, submissions, teacherCheckIns, observationNotes, timeOffRequests, userTasks, assessments, assessmentMarks, studentAttendances, handleAddRequest, handleUpdateRequest, handleWithdrawRequest, handleAddAssignment, handleDeleteAssignment, handleAddFeedback, handleTeacherLessonCheckIn, handleAddObservationNote, handleAddTimeOffRequest, handleAddTask, handleUpdateTask, handleDeleteTask, handleSaveAttendance, handleAccessAlumnaPortal]);
 
     const parentProps = useMemo<Partial<ParentProps>>(() => ({
-        user: currentUser,
+        user: currentUser || undefined,
         users,
         subjects,
         getSubjectById,
@@ -1242,7 +1870,7 @@ export const App: React.FC = () => {
     }), [currentUser, users, subjects, getSubjectById, generatedTimetable, examTimetable, activeLetterheadConfig, activeBranding, activeFooterImageUrl, transportOnboarding, vehicles, invoices, receipts, studentAbsenceRequests, assessments, assessmentMarks]);
 
     const countyAdminProps = useMemo<Partial<CountyAdminProps>>(() => ({
-        currentUser,
+        currentUser: currentUser || undefined,
         counties,
         institutions,
         users,
@@ -1271,18 +1899,18 @@ export const App: React.FC = () => {
     }), [currentUser, counties, institutions, users, onUpdateInstitution, activeLetterheadConfig, activeBranding, activeFooterImageUrl, countyInventory, countyInventoryCategories, countyStores, bursaryApplications, bursaryFunds, activityLogLimit, receiptLimit, transactionLimit]);
 
     const hrOfficerProps = useMemo<Partial<HROfficerProps>>(() => ({
-        currentUser,
-        currentInstitution: activeInstitution!,
+        currentUser: currentUser || undefined,
+        currentInstitution: activeInstitution || undefined,
         users,
         payrollRecords,
-        leaveRequests: timeOffRequests,
-        onProcessPayroll: async (records) => { await apiService.saveModuleRecord('payroll_runs', { id: `pr_${Date.now()}`, institutionId: currentUser.institutionId, records, timestamp: new Date().toISOString() }); loadData(); },
-        onUpdateLeaveStatus: async (id, status) => { const req = timeOffRequests.find(t => t.id === id); if (req) { await apiService.saveModuleRecord('time_off_requests', { ...req, status }); loadData(); } }
-    }), [currentUser, activeInstitution, users, payrollRecords, timeOffRequests]);
+        leaveRequests: timeOffRequests as any[],
+        onProcessPayroll: handleProcessPayroll,
+        onUpdateLeaveStatus: handleUpdateLeaveStatus
+    }), [currentUser, activeInstitution, users, payrollRecords, timeOffRequests, handleProcessPayroll, handleUpdateLeaveStatus]);
 
     const financeOfficerProps = useMemo<Partial<FinanceOfficerProps>>(() => ({
-        currentUser,
-        currentInstitution: activeInstitution!,
+        currentUser: currentUser || undefined,
+        currentInstitution: activeInstitution || undefined,
         invoices,
         receipts,
         expenses,
@@ -1300,9 +1928,9 @@ export const App: React.FC = () => {
     }), [currentUser, activeInstitution, invoices, receipts, expenses, financialGoals, feeStructures, users, academicYears, semesters, receiptLimit, transactionLimit, transactions]);
 
     const supportStaffProps = useMemo<Partial<SupportStaffProps>>(() => ({
-        user: currentUser,
-        currentUser,
-        currentInstitution: activeInstitution,
+        user: currentUser || undefined,
+        currentUser: currentUser || undefined,
+        currentInstitution: activeInstitution || undefined,
         users,
         visitors,
         onAddVisitor: handleAddVisitor,
@@ -1322,8 +1950,8 @@ export const App: React.FC = () => {
         onAddIncident: async (d) => { await apiService.saveModuleRecord('discipline_incidents', { ...d, id: `disc_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); },
         appointments,
         onUpdateAppointmentStatus: handleUpdateAppointmentStatus,
-        inventory: storeInventory,
-        stockTransactions: storeTransactions,
+        inventory: retailInventory,
+        stockTransactions: stockTransactions,
         suppliers,
         onAddItem: handleAddStoreItem,
         onAddSupplier: handleAddSupplier,
@@ -1364,7 +1992,7 @@ export const App: React.FC = () => {
         onOnboardStudent: handleOnboardStudent,
         onOffboardStudent: handleOffboardStudent,
         onSwitchPerspective: (role) => setImpersonatedRole(role),
-        onAddUser: async (d) => { await apiService.registerUser({ ...d, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); loadData(); },
+        onAddUser: async (d) => { if (!currentUser) return; await apiService.registerUser({ ...d, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); loadData(); },
         onEditUser,
         onDeleteUser,
         onAddDepartment: handleAddDepartment,
@@ -1380,7 +2008,7 @@ export const App: React.FC = () => {
         onRefreshData: async () => await loadData(false, true),
         onAccessAlumnaPortal: handleAccessAlumnaPortal,
         schoolRegistry
-    }), [currentUser, activeInstitution, users, visitors, generatedTimetable, timetableSettings, rooms, subjects, getSubjectById, getRoomById, getLecturerById, securityAlerts, appointments, storeInventory, storeTransactions, suppliers, transactions, invoices, receipts, requisitions, vehicles, vehicleLogs, transportOnboarding, companyDetails, courses, onUpdateInstitution, voteHeads, feeStructures, financialPeriods, countyInventory, academicYears, semesters, departments, teacherCheckIns, timeOffRequests, studentAbsenceRequests, leaveOutRequests, bulletinItems, documentCollections, watchlist, maintenanceRequests, studentAttendances, activeLetterheadConfig, activeBranding, activeFooterImageUrl, schoolRegistry]);
+    }), [currentUser, activeInstitution, users, visitors, handleAddVisitor, handleCheckoutVisitor, handleAddAppointment, handleUpdateVisitor, generatedTimetable, timetableSettings, rooms, subjects, getSubjectById, getRoomById, getLecturerById, securityAlerts, handleAddAlert, handleResolveAlert, appointments, handleUpdateAppointmentStatus, retailInventory, stockTransactions, suppliers, handleAddStoreItem, handleAddSupplier, handleImportStoreItems, handleAddStoreTransaction, transactions, invoices, handleAddInvoice, receipts, handleAddReceipt, requisitions, handleVerifyRequisition, handleMarkInventoryReceived, handleLogAction, vehicles, vehicleLogs, transportOnboarding, handleLogGateAction, companyDetails, courses, onUpdateInstitution, voteHeads, feeStructures, financialPeriods, countyInventory, academicYears, semesters, departments, teacherCheckIns, timeOffRequests, studentAbsenceRequests, leaveOutRequests, bulletinItems, documentCollections, watchlist, maintenanceRequests, studentAttendances, handleOnboardStudent, handleOffboardStudent, onEditUser, onDeleteUser, activeLetterheadConfig, activeBranding, activeFooterImageUrl, schoolRegistry, onImportStudents]);
 
 
     useEffect(() => {
@@ -1507,30 +2135,9 @@ export const App: React.FC = () => {
 
     // --- Infrastructure Handlers ---
 
-    const handleAddDepartment = async (name: string) => {
-        const id = `dept_${Date.now()}`;
-        await apiService.saveModuleRecord('departments', { id, name, institutionId: currentUser?.institutionId });
-        loadData();
-    };
 
-    const handleUpdateDepartment = async (id: string, name: string) => {
-        const existing = departments.find(d => d.id === id);
-        if (existing) {
-            await apiService.saveModuleRecord('departments', { ...existing, name, id });
-            loadData();
-        }
-    };
 
-    const handleDeleteDepartment = async (id: string) => {
-        await apiService.deleteModuleRecord('departments', id);
-        loadData();
-    };
 
-    const handleImportDepartments = async (data: any[]) => {
-        const enriched = data.map(d => ({ ...d, institutionId: currentUser?.institutionId }));
-        await apiService.onImportDepartments(enriched);
-        loadData();
-    };
 
     const handleAddBuilding = async (name: string) => {
         const id = `bldg_${Date.now()}`;
@@ -1552,30 +2159,7 @@ export const App: React.FC = () => {
         loadData();
     };
 
-    const handleAddRoom = async (data: any) => {
-        const id = `room_${Date.now()}`;
-        await apiService.saveModuleRecord('rooms', { id, ...data, institutionId: currentUser?.institutionId });
-        loadData();
-    };
 
-    const handleUpdateRoom = async (id: string, data: any) => {
-        const existing = rooms.find(r => r.id === id);
-        if (existing) {
-            await apiService.saveModuleRecord('rooms', { ...existing, ...data, id });
-            loadData();
-        }
-    };
-
-    const handleDeleteRoom = async (id: string) => {
-        await apiService.deleteModuleRecord('rooms', id);
-        loadData();
-    };
-
-    const handleImportRooms = async (data: any[]) => {
-        const enriched = data.map(r => ({ ...r, institutionId: currentUser?.institutionId }));
-        await apiService.onImportRooms(enriched);
-        loadData();
-    };
 
     const handleAddAcademicLevel = async (name: string) => {
         const id = `al_${Date.now()}`;
@@ -1713,35 +2297,9 @@ export const App: React.FC = () => {
         loadData();
     };
 
-    const onImportStudents = async (data: any[]) => {
-        await apiService.onImportStudents(data, currentUser?.institutionId, activeInstitution?.name);
-        loadData();
-    };
 
-    const onDeleteUser = async (id: string) => {
-        await apiService.deleteModuleRecord('users', id);
-        loadData();
-    };
 
-    const onEditUser = async (id: string, data: any) => {
-        const existing = users.find(u => u.id === id);
-        if (existing) {
-            const updatedUser = { ...existing, ...data, id };
-            await apiService.saveModuleRecord('users', updatedUser);
 
-            // Update local state immediately for better responsiveness
-            setUsers(prev => prev.map(u => u.id === id ? updatedUser : u));
-
-            // If the user edited their own profile, update the current user state and session
-            if (currentUser?.id === id) {
-                const finalUser = { ...currentUser, ...updatedUser };
-                setCurrentUser(finalUser);
-                apiService.storeSession(finalUser);
-            }
-
-            await loadData();
-        }
-    };
 
     const onDeleteInstitution = async (id: string) => {
         await apiService.deleteModuleRecord('institutions', id);
@@ -1773,28 +2331,9 @@ export const App: React.FC = () => {
         }
     };
 
-    const handleLogAction = async (action: string) => {
-        if (!currentUser) return;
-        const institution = institutions.find(i => i.id === currentUser.institutionId);
-        await apiService.saveModuleRecord('activity_log', {
-            id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-            userId: currentUser.id,
-            userName: currentUser.name,
-            institutionId: currentUser.institutionId,
-            institutionName: institution?.name || (currentUser.role === 'super_admin' ? 'SYSTEM' : 'Unknown'),
-            action,
-            timestamp: new Date().toISOString()
-        });
-        loadData();
-    };
 
-    const onUpdateInstitution = async (id: string, data: any) => {
-        const inst = institutions.find(i => i.id === id);
-        if (inst) {
-            await apiService.saveInstitution({ ...inst, ...data });
-            loadData();
-        }
-    };
+
+
 
     const onLoginAsAdmin = useCallback((institutionId: string, initialRole?: Role | null) => {
         setIsTransitioning(true);
@@ -1853,27 +2392,7 @@ export const App: React.FC = () => {
         }, 300);
     }, [users, institutions, currentUser, originalSuperAdminSession]);
     
-    const handleAccessAlumnaPortal = (school: SchoolRegistry) => {
-        setIsTransitioning(true);
-        setTimeout(() => {
-            const mockAlumna = {
-                id: `sa_alumna_${Date.now()}`,
-                fullName: `Super Admin (${school.name})`,
-                email: currentUser?.email || 'admin@edualloc.com',
-                phone: currentUser?.phoneNumber || '',
-                institutionId: school.institutionId || 'GLOBAL',
-                registryId: school.id,
-                schoolId: school.id,
-                schoolName: school.name,
-                isSuperAdmin: true,
-                profilePhotoUrl: currentUser?.profilePhotoUrl
-            };
-            setActiveAlumna(mockAlumna);
-            localStorage.setItem('eduai_alumna_session', JSON.stringify(mockAlumna));
-            setShowAlumnaePortal(true);
-            setIsTransitioning(false);
-        }, 600);
-    };
+
 
     // On-demand Registry Load for Alumnae Registration
     useEffect(() => {
@@ -2106,83 +2625,14 @@ export const App: React.FC = () => {
         }
     };
 
-    const handleLogGateAction = async (vehicleId: string, eventType: 'entry' | 'exit', notes?: string) => {
-        try {
-            const vehicle = vehicles.find(v => v.id === vehicleId);
-            const payload: VehicleLog = {
-                id: `vlog_${Date.now()}`,
-                institutionId: activeInstitution!.id,
-                vehicleId,
-                eventType,
-                securityId: currentUser!.id,
-                timestamp: new Date().toISOString(),
-                notes
-            };
-            await apiService.saveModuleRecord('vehicle_logs', payload);
-            await handleLogAction(`Log: Vehicle ${vehicle?.plateNumber} ${eventType}`);
-            loadData();
-        } catch (error) {
-            console.error('Error logging gate action:', error);
-            throw error;
-        }
-    };
 
 
 
-    const handleOnboardStudent = async (studentId: string, vehicleId: string, direction: 'to_school' | 'from_school', lat?: number, lng?: number) => {
-        try {
-            const student = users.find(u => u.id === studentId);
-            const vehicle = vehicles.find(v => v.id === vehicleId);
-            const payload: TransportOnboarding = {
-                id: `tonb_${Date.now()}`,
-                institutionId: activeInstitution!.id,
-                vehicleId,
-                studentId,
-                direction,
-                status: 'onboarded',
-                locationLat: lat,
-                locationLng: lng,
-                timestamp: new Date().toISOString()
-            };
-            await apiService.saveModuleRecord('transport_onboarding', payload);
 
-            // Send SMS to Parent
-            const parents = users.filter(u => u.role === 'parent' && u.studentIds?.includes(studentId));
-            for (const parent of parents) {
-                if (parent.phoneNumber) {
-                    const msg = direction === 'from_school'
-                        ? `${student?.name} has onboarded vehicle ${vehicle?.plateNumber} and is heading home.Please be ready to pick.`
-                        : `${student?.name} has onboarded vehicle ${vehicle?.plateNumber} and is heading to school.`;
-                    await apiService.sendSms(parent.phoneNumber, msg, activeInstitution?.smsConfig, 1, activeInstitution?.id);
-                }
-            }
 
-            await handleLogAction(`Onboarded student ${student?.name} to ${vehicle?.plateNumber}`);
-            loadData();
-        } catch (error) {
-            console.error('Error onboarding student:', error);
-            throw error;
-        }
-    };
 
-    const handleOffboardStudent = async (recordId: string, lat?: number, lng?: number) => {
-        try {
-            const record = transportOnboarding.find(r => r.id === recordId);
-            if (record) {
-                await apiService.saveModuleRecord('transport_onboarding', {
-                    ...record,
-                    status: 'offboarded',
-                    locationLat: lat,
-                    locationLng: lng
-                });
-                await handleLogAction(`Offboarded student from record ${recordId}`);
-                loadData();
-            }
-        } catch (error) {
-            console.error('Error offboarding student:', error);
-            throw error;
-        }
-    };
+
+
 
     const handleConfirmReceipt = async (recordId: string) => {
         try {
@@ -2688,66 +3138,7 @@ export const App: React.FC = () => {
         } catch (e) { return false; }
     };
 
-    const handleSaveAttendance = useCallback(async (timetableEntryId: string, attendanceData: { studentId: string, status: 'present' | 'absent' | 'late' }[]) => {
-        if (!currentUser || !activeInstitution) return;
 
-        try {
-            const now = new Date().toISOString();
-            const dateStr = now.split('T')[0];
-            const promises = attendanceData.map(record => {
-                const existing = studentAttendances.find(a => a.timetableEntryId === timetableEntryId && a.studentId === record.studentId && a.date === dateStr);
-                const id = existing ? existing.id : `att_${timetableEntryId}_${record.studentId}_${Date.now()}`;
-
-                const attendanceRecord: StudentAttendance = {
-                    id,
-                    timetableEntryId,
-                    studentId: record.studentId,
-                    date: dateStr,
-                    status: record.status,
-                    markedBy: currentUser.id,
-                    timestamp: now,
-                    institutionId: activeInstitution.id
-                };
-
-                return apiService.saveModuleRecord('student_attendances', attendanceRecord);
-            });
-
-            await Promise.all(promises);
-            await loadData();
-
-            // Notify Parents if enabled
-            if (activeInstitution.parentAbsenceNotificationsEnabled) {
-                const absentStudents = attendanceData.filter(r => r.status === 'absent');
-                for (const studentRecord of absentStudents) {
-                    const student = users.find(u => u.id === studentRecord.studentId);
-                    const parent = users.find(u => u.role === 'parent' && u.studentIds?.includes(studentRecord.studentId));
-                    const lesson = generatedTimetable.find(l => l.id === timetableEntryId);
-                    const subject = subjects.find(s => s.id === lesson?.subjectId);
-
-                    if (parent && student && lesson && subject) {
-                        const message = `Parent / Guardian Alert: ${student.name} was marked ABSENT for ${subject.name} on ${lesson.day} at ${lesson.startTime}. Please confirm with the school.`;
-
-                        if (parent.phoneNumber) {
-                            await apiService.sendSms(parent.phoneNumber, message);
-                        }
-                        if (parent.email) {
-                                await sendEmailNotification(
-                                    parent.email, 
-                                    "Student Absence Notification", 
-                                    message, 
-                                    getInstitutionEmailConfig(activeInstitution!, companyDetails.emailConfig)
-                                );
-                        }
-                    }
-                }
-            }
-
-            alert("Attendance records saved successfully.");
-        } catch (error: any) {
-            console.error("Failed to save attendance:", error);
-            alert(`Failed to save attendance: ${error.message || "Unknown error"}`);
-        }
-    }, [currentUser, activeInstitution, studentAttendances, loadData, users, generatedTimetable, subjects, companyDetails.emailConfig]);
 
     const handleGenerateDemoData = useCallback(async () => {
         if (!currentUser || !activeInstitution) return;
@@ -2859,26 +3250,7 @@ export const App: React.FC = () => {
         }
     }, [currentUser, activeInstitution, loadData]);
 
-    const handleAddTimeOffRequest = useCallback(async (data: Partial<TimeOffRequest>) => {
-        try {
-            const instId = activeInstitution?.id || currentUser?.institutionId;
-            if (!instId || !currentUser) return;
-            const req: TimeOffRequest = {
-                ...data,
-                id: `to_${Date.now()}`,
-                lecturerId: data.lecturerId || currentUser.id,
-                status: 'pending',
-                institutionId: instId,
-                timestamp: new Date().toISOString()
-            } as TimeOffRequest;
-            await apiService.saveModuleRecord('time_off_requests', req);
-            await loadData();
-            alert("Time off request submitted successfully.");
-        } catch (error) {
-            console.error("Failed to submit time off request:", error);
-            alert("Failed to submit time off request.");
-        }
-    }, [currentUser, activeInstitution, loadData]);
+
 
     const handleMarkNotificationAsRead = useCallback(async (id: string) => {
         try {
@@ -3096,7 +3468,7 @@ export const App: React.FC = () => {
 
 
     const commonLoginProps = {
-        users, institutions, courses, academicLevels, logoUrl: companyDetails.logoUrl, applicationTitle: companyDetails.applicationTitle, registrationProgress: null, registrationMessage: "",
+        users, institutions, courses, academicLevels, logoUrl: activeBranding.logoUrl || companyDetails.logoUrl, applicationTitle: activeBranding.displayName || companyDetails.applicationTitle, registrationProgress: null, registrationMessage: "",
         onOpenGuestPortal: () => setShowGuestPortal(true),
         onOpenGuestFeedback: () => setShowGuestFeedback(true),
         onOpenMarketplace: () => setShowMarketplace(true),

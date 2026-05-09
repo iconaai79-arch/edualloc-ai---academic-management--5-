@@ -3849,6 +3849,7 @@ export interface DSSkillMastery {
 }
 
 export interface DSSettings {
+    id: string;
     institutionId: string;
     lessonPricePractical?: number;
     lessonPriceTheory?: number;
@@ -4627,7 +4628,7 @@ export interface CountyAdminProps {
     onUpdateBursaryFund?: (id: string, data: any) => Promise<void>;
     onDeleteBursaryFund?: (id: string) => Promise<void>;
     activityLog?: ActivityLog[];
-    onLogAction?: (action: string) => void;
+    onLogAction?: (action: string) => Promise<void>;
     incidents?: DisciplineIncident[];
     onAddIncident?: (data: any) => void;
     books?: Book[];
@@ -4724,7 +4725,7 @@ export interface FinanceOfficerProps {
     transactions?: any[];
     onAddTransaction?: (data: any, items: any[]) => Promise<any>;
     onGenerateReceipt?: (transaction: any) => void;
-    onLogAction?: (action: string) => void;
+    onLogAction?: (action: string) => Promise<void>;
 }
 
 export interface SupportStaffProps {
@@ -4761,7 +4762,7 @@ export interface SupportStaffProps {
     invoices?: Invoice[];
     receipts?: Receipt[];
     requisitions?: Requisition[];
-    onLogAction?: (action: string) => void;
+    onLogAction?: (action: string) => Promise<void>;
     vehicles?: TransportVehicle[];
     vehicleLogs?: VehicleLog[];
     transportOnboarding?: TransportOnboarding[];
@@ -4788,7 +4789,7 @@ export interface SupportStaffProps {
     academicYears?: AcademicYear[];
     semesters?: Semester[];
     departments?: Department[];
-    onLogAction?: (action: string) => Promise<void>;
+
     teacherCheckIns?: TeacherCheckIn[];
     timeOffRequests?: TimeOffRequest[];
     studentAbsenceRequests?: StudentAbsenceRequest[];
