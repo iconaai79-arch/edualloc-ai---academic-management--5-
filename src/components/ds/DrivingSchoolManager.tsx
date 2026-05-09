@@ -385,6 +385,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [actionModal, setActionModal] = useState<{ type: 'student' | 'instructor' | 'vehicle' | 'lesson' | null; data?: any }>({ type: null });
     const [financeSubTab, setFinanceSubTab] = useState<'invoices' | 'payments' | 'bank_feed'>('invoices');
+    const [settingsSubTab, setSettingsSubTab] = useState<'policies' | 'curriculum'>('policies');
 
     // Stats
     const stats = useMemo(() => ({
@@ -1111,8 +1112,19 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
             {activeTab === 'settings' && (
                 <div className="max-w-4xl bg-white dark:bg-slate-900 p-12 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm animate-fade-in">
-                    <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Platform <span className="text-indigo-600">Settings</span></h2>
-                    <p className="text-slate-500 font-medium uppercase text-[10px] tracking-widest mb-12">Configure pricing, policies and working hours</p>
+                    <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6 border-b border-slate-100 dark:border-slate-800 pb-8">
+                        <div>
+                            <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Platform <span className="text-indigo-600">Settings</span></h2>
+                            <p className="text-slate-500 font-medium uppercase text-[10px] tracking-widest">Configure pricing, policies and curriculum</p>
+                        </div>
+                        <div className="flex bg-slate-100 dark:bg-slate-800 p-2 rounded-2xl">
+                            <button onClick={() => setSettingsSubTab('policies')} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${settingsSubTab === 'policies' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}>Policies & Finance</button>
+                            <button onClick={() => setSettingsSubTab('curriculum')} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${settingsSubTab === 'curriculum' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}>Curriculum & Automation</button>
+                        </div>
+                    </div>
+
+                    {settingsSubTab === 'policies' && (
+                        <div className="animate-fade-in">
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                         <div className="space-y-8">
@@ -1237,7 +1249,78 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 Save Configuration
                             </button>
                         </div>
-                    </div>
+                    )}
+
+                    {settingsSubTab === 'curriculum' && (
+                        <div className="animate-fade-in space-y-12">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">Curriculum Management</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800">
+                                        <h4 className="text-sm font-black text-indigo-600 uppercase mb-4">Theory Lessons</h4>
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Required Sessions</label>
+                                                <input type="number" defaultValue={15} className="w-full mt-2 p-4 bg-white dark:bg-slate-900 rounded-2xl font-bold border-none focus:ring-2 focus:ring-indigo-500" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Duration (Hours)</label>
+                                                <input type="number" defaultValue={1} className="w-full mt-2 p-4 bg-white dark:bg-slate-900 rounded-2xl font-bold border-none focus:ring-2 focus:ring-indigo-500" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800">
+                                        <h4 className="text-sm font-black text-indigo-600 uppercase mb-4">Practical Lessons</h4>
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Required Sessions</label>
+                                                <input type="number" defaultValue={20} className="w-full mt-2 p-4 bg-white dark:bg-slate-900 rounded-2xl font-bold border-none focus:ring-2 focus:ring-indigo-500" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Duration (Hours)</label>
+                                                <input type="number" step="0.5" defaultValue={1.5} className="w-full mt-2 p-4 bg-white dark:bg-slate-900 rounded-2xl font-bold border-none focus:ring-2 focus:ring-indigo-500" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="mt-6 flex justify-end">
+                                    <button className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 transition-all text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-200 dark:shadow-none">Save Curriculum</button>
+                                </div>
+                            </div>
+
+                            <div className="pt-12 border-t border-slate-100 dark:border-slate-800">
+                                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Automated Scheduling (Suggestion)</h3>
+                                <p className="text-xs text-slate-500 mb-6 leading-relaxed">Transition from manual booking to an intelligent auto-scheduling system to reduce administrative workload.</p>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-bl-3xl">
+                                            <CalendarDaysIcon className="w-6 h-6 text-indigo-600" />
+                                        </div>
+                                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase mb-2 mt-4">Template Batching</h4>
+                                        <p className="text-xs text-slate-500">Upon enrollment, generate a 4-week schedule automatically based on the student's preferred time slots (e.g., Daily 8AM-9AM).</p>
+                                    </div>
+                                    <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-4 bg-emerald-50 dark:bg-emerald-900/30 rounded-bl-3xl">
+                                            <SparklesIcon className="w-6 h-6 text-emerald-600" />
+                                        </div>
+                                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase mb-2 mt-4">Smart Match Engine</h4>
+                                        <p className="text-xs text-slate-500">A background worker algorithm that allocates unassigned students to available instructors and vehicles nightly, optimizing for location and transmission type.</p>
+                                    </div>
+                                    <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-4 bg-blue-50 dark:bg-blue-900/30 rounded-bl-3xl">
+                                            <UsersIcon className="w-6 h-6 text-blue-600" />
+                                        </div>
+                                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase mb-2 mt-4">Student Self-Service</h4>
+                                        <p className="text-xs text-slate-500">Provide students with a booking portal link where they can pick available slots directly, enforcing prerequisite rules (e.g., finish Theory before Practical).</p>
+                                    </div>
+                                </div>
+                                <div className="mt-8 flex gap-4">
+                                    <button className="px-6 py-3 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors">View Technical Implementation Plan</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
             {actionModal.type && (

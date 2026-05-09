@@ -49,6 +49,9 @@ CREATE TABLE IF NOT EXISTS ds_students (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Ensure email column exists for older schema versions
+ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS email TEXT;
+
 -- Lessons Table
 CREATE TABLE IF NOT EXISTS ds_lessons (
     id TEXT PRIMARY KEY,

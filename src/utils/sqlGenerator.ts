@@ -1549,6 +1549,9 @@ CREATE TABLE IF NOT EXISTS ds_students (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Ensure email column exists for older schema versions
+ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS email TEXT;
+
 CREATE TABLE IF NOT EXISTS ds_lessons (
     id TEXT PRIMARY KEY,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
