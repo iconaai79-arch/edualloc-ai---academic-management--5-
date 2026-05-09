@@ -405,7 +405,7 @@ export const App: React.FC = () => {
             const isMarketingSubdomain = hostname === 'showcase.eduai.co.ke' || hostname.includes('showcase') || hostname.includes('marketing');
             
             // Subdomain detection for Alumnae Portal
-            const isAlumnaeSubdomain = hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.includes('almamater') || hostname.includes('alma_mater');
+            const isAlumnaeSubdomain = hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.startsWith('network.') || hostname.startsWith('circle.') || hostname.includes('almamater') || hostname.includes('alma_mater');
             
             if (isMarketingSubdomain || params.get('view') === 'showcase') return true;
             if (isAlumnaeSubdomain) return false; // Don't show marketing if on alumnae subdomain
@@ -432,7 +432,7 @@ export const App: React.FC = () => {
             const params = new URLSearchParams(window.location.search);
             const view = params.get('view');
             const hostname = window.location.hostname;
-            const isAlumnaeSubdomain = hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.includes('almamater') || hostname.includes('alma_mater');
+            const isAlumnaeSubdomain = hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.startsWith('network.') || hostname.startsWith('circle.') || hostname.includes('almamater') || hostname.includes('alma_mater');
             const hasSession = !!localStorage.getItem('eduai_alumna_session');
             
             // If they have a session, this will be handled by showAlumnaePortal or useEffect
@@ -446,7 +446,7 @@ export const App: React.FC = () => {
         const hostname = window.location.hostname;
         const params = new URLSearchParams(window.location.search);
         const view = params.get('view');
-        return hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.includes('almamater') || hostname.includes('alma_mater') || view?.startsWith('alumnae_');
+        return hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.startsWith('network.') || hostname.startsWith('circle.') || hostname.includes('almamater') || hostname.includes('alma_mater') || view?.startsWith('alumnae_');
     }, []);
 
     const [showAlumnaeActivation, setShowAlumnaeActivation] = useState(false);
@@ -1700,6 +1700,17 @@ export const App: React.FC = () => {
     }, [counties, currentUser, getCountyById, getInstitutionById]);
 
     const activeBranding = useMemo(() => {
+        if (isAlumnaeMode) {
+            return {
+                primaryColor: '#6366f1', // Indigo
+                secondaryColor: '#0f172a',
+                logoUrl: '/alumnae_logo_3d.png',
+                motto: 'Connecting Excellence Across Generations',
+                website: 'https://network.eduai.co.ke',
+                displayName: 'EduAI Network'
+            };
+        }
+
         if (showDrivingSchoolPortal) {
             return {
                 primaryColor: '#0ea5e9', // Sky blue
@@ -6595,7 +6606,8 @@ export const App: React.FC = () => {
                                         setCurrentOtp(otp);
                                         setOtpPendingUser(u);
 
-                                        const otpMessage = `Your EduAi Verification Code is: ${otp}. Do not share this code with anyone.`;
+                                        const portalName = activeBranding.displayName || 'EduAI';
+                                        const otpMessage = `Your ${portalName} Verification Code is: ${otp}. Do not share this code with anyone.`;
                                         console.log(`[Login] OTP Triggered for ${u.email}(Role: ${u.role}, Inst: ${u.institutionId})`);
 
                                         // Dispatch to both channels with improved error reporting and explicit authToken (User ID)
@@ -6649,7 +6661,8 @@ export const App: React.FC = () => {
                                 if (!otpPendingUser) return;
                                 const otp = Math.floor(100000 + Math.random() * 900000).toString();
                                 setCurrentOtp(otp);
-                                const otpMessage = `Your New EduAi Verification Code is: ${otp}.`;
+                                const portalName = activeBranding.displayName || 'EduAI';
+                                const otpMessage = `Your New ${portalName} Verification Code is: ${otp}.`;
                                 console.log(`[Login] OTP Resend triggered for ${otpPendingUser.email}`);
 
                                 // Dispatch with reporting and explicit authToken (User ID)
