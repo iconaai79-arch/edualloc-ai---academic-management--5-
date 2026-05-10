@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, lazy, Suspense } from 'react';
 import type {
     Institution, User, Subject, Department, CompanyDetails, MpesaTransaction,
     Receipt, InvoiceItem, ActivityLog, Course, ExtensionRequest, Semester,

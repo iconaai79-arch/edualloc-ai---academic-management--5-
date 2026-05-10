@@ -485,7 +485,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 listing,
                 props.currentInstitution!,
                 companyDetails,
-                props.currentInstitution!.logoUrl
+                props.currentInstitution!.logoUrl ?? null
             );
             setPdfPreviewData({ uri, title: `Invoice ${invoice.invoiceNumber}` });
         } catch (error) {
@@ -501,7 +501,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 invoice,
                 props.currentInstitution!,
                 companyDetails,
-                props.currentInstitution!.logoUrl
+                props.currentInstitution!.logoUrl ?? null
             );
             setPdfPreviewData({ uri, title: `Receipt ${payment.receiptNumber}` });
         } catch (error) {
@@ -998,7 +998,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Fleet Operational</h3>
                                     <div className="flex flex-col">
                                         <p className="text-4xl font-black text-emerald-600 tracking-tighter">
-                                            {(props.vehicles || []).filter(v => v.status === 'Operational').length}
+                                            {(props.vehicles || []).filter(v => v.status === 'active').length}
                                         </p>
                                         <div className="flex justify-between items-center mt-2">
                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Fleet</span>
@@ -1199,14 +1199,14 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     getSubjectById={props.getSubjectById || ((id: string) => props.subjects?.find(s => s && s.id === id))}
                                     getLecturerById={props.getLecturerById || ((id: string) => props.users?.find(u => u && u.id === id))}
                                     getRoomById={props.getRoomById || ((id: string) => props.rooms?.find(r => r && r.id === id))}
-                                    letterheadConfig={props.letterheadConfig || { institutionName: '', institutionAddress: '', institutionPhone: '', institutionEmail: '', institutionWebsite: '', headerText: '', footerText: '' }}
+                                    letterheadConfig={props.letterheadConfig || { headerImageUrl: null, stampImageUrl: null, footerText: '', showStamp: false }}
                                     logoUrl={props.logoUrl || null}
                                     footerImageUrl={props.footerImageUrl || null}
-                                    currentUser={props.currentUser}
+                                    currentUser={props.currentUser!}
                                     timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                                     onSaveTimetableSettings={props.onSaveTimetableSettings || (() => { })}
                                     academicYears={props.academicYears || []}
-                                    activeSemester={activeSemester}
+                                    activeSemester={activeSemester || null}
                                     currentInstitution={props.currentInstitution}
                                     onMoveTimetableEntry={props.onMoveTimetableEntry}
                                     onLogAction={props.onLogAction}
@@ -1214,16 +1214,16 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             ) : timetableSubTab === 'insights' ? (
                                 <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
                                     <ExamInsights
-                                        assessments={props.assessments || []}
+                                        assessment={props.assessments?.[0] || { id: 'na', title: 'No Assessment', status: 'pending', type: 'Exam' } as any}
                                         marks={props.marks || []}
                                         subjects={props.subjects || []}
-                                        students={props.users.filter(u => u.role === 'student')}
+                                        students={(props.users || []).filter(u => u.role === 'student')}
                                     />
                                 </Suspense>
                             ) : timetableSubTab === 'intelligence' ? (
                                 <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
-                                    <AcademicInsights
-                                        students={props.users.filter(u => u.role === 'student')}
+                                    <AcademicReportsHub
+                                        students={(props.users || []).filter(u => u.role === 'student')}
                                         assessments={props.assessments || []}
                                         marks={props.marks || []}
                                         subjects={props.subjects || []}
@@ -1361,8 +1361,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     onEditSubject={props.onEditSubject}
                                     onSaveTimetableSettings={props.onSaveTimetableSettings!}
                                     onUpdateCourse={props.onUpdateCourse}
-                                    onImportSubjectsAndAssociate={props.onImportSubjectsAndAssociate}
-                                    currentUser={props.currentUser}
+                                    onImportSubjectsAndAssociate={props.onImportSubjectsAndAssociate as any}
+                                    currentUser={props.currentUser!}
                                 />
                             ) : (
                                 <AcademicConfigManager
@@ -1384,7 +1384,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         mpesaConfig={props.companyDetails?.mpesaConfig}
                         smsConfig={props.smsConfig}
                         onRefreshData={props.onRefreshData}
-                        moduleContext={isCoop ? 'cooperative' : (isAutoMarket ? 'auto_marketplace' : (isRetailAgency ? 'agrovet' : isChurch ? 'church' : 'school'))}
+                        moduleContext={(isCoop ? 'cooperative' : (isRetailAgency ? 'agrovet' : isChurch ? 'church' : 'school')) as any}
                     />
                 )}
 
@@ -1406,7 +1406,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         <RetailManager
                             institutionId={props.currentInstitution?.id || ''}
                             businessSubType={props.currentInstitution?.businessSubType}
-                            currentUser={props.currentUser}
+                            currentUser={props.currentUser!}
                             retailStores={retailStores}
                             inventory={inventory}
                             retailExpenses={retailExpenses}
@@ -1426,7 +1426,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             <RetailManager
                                 institutionId={props.currentInstitution?.id || ''}
                                 businessSubType={props.currentInstitution?.businessSubType}
-                                currentUser={props.currentUser}
+                                currentUser={props.currentUser!}
                                 retailStores={retailStores}
                                 inventory={inventory}
                                 retailExpenses={retailExpenses}
@@ -1463,7 +1463,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 farmers={coopFarmers}
                                 collections={coopCollections}
                                 riders={coopRiders}
-                                currentUser={props.currentUser}
+                                currentUser={props.currentUser!}
                                 currentInstitution={props.currentInstitution}
                                 inventory={coopAgrovetInventory}
                                 sales={coopAgrovetSales}
@@ -1489,7 +1489,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 onLogAction={props.onLogAction}
                                 onSendSms={props.onSendSms}
                                  onInitiatePayouts={props.onInitiatePayouts}
-                                onApprovePayouts={props.onApprovePayouts}
+                                onApprovePayouts={props.onApprovePayouts as any}
                                 onDisbursePayouts={props.onDisbursePayouts}
                                 onAddPayouts={props.onAddPayouts}
                                 onUpdateInstitution={props.onUpdateInstitution}
@@ -1545,7 +1545,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 )}
                 {activeTab === 'car_service' && (
                     <CarServiceView
-                        currentUser={props.currentUser}
+                        currentUser={props.currentUser!}
                         currentInstitution={props.currentInstitution!}
                         users={props.users || []}
                         onLogAction={props.onLogAction || (async () => { })}
@@ -1574,7 +1574,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         allocations={(props.requests || []).filter(r => r && r.status === 'approved')}
                         initialTab={requestedSettingsTab}
                         isInstitutionalView={true}
-                        currentUser={props.currentUser}
+                        currentUser={props.currentUser!}
                         onAddBuilding={props.onAddBuilding}
                         onUpdateBuilding={props.onUpdateBuilding}
                         onDeleteBuilding={props.onDeleteBuilding}
@@ -1586,8 +1586,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onUpdateDepartment={props.onUpdateDepartment}
                         onDeleteDepartment={props.onDeleteDepartment}
                         onImportDepartments={props.onImportDepartments}
-                        academicYears={props.academicYears}
-                        semesters={props.semesters}
+                        academicYears={props.academicYears || []}
+                        semesters={props.semesters || []}
                         onUpdateCompanyDetails={props.onUpdateCompanyDetails}
                         onRefreshData={props.onRefreshData}
                         timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
@@ -1630,14 +1630,14 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 {activeTab === 'leaveout' && (
                     <StudentLeaveOutManager
                         {...props}
-                        currentUser={props.currentUser}
+                        currentUser={props.currentUser!}
                         currentInstitution={props.currentInstitution!}
-                        companyDetails={props.companyDetails}
-                        users={props.users}
-                        academicYears={props.academicYears}
-                        semesters={props.semesters}
-                        courses={props.courses}
-                        departments={props.departments}
+                        companyDetails={props.companyDetails!}
+                        users={props.users || []}
+                        academicYears={props.academicYears || []}
+                        semesters={props.semesters || []}
+                        courses={props.courses || []}
+                        departments={props.departments || []}
                         onLogAction={props.onLogAction!}
                         onDataChange={() => props.onAddUser && props.onAddUser({})}
                     />
@@ -1676,32 +1676,32 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
                 {activeTab === 'law' && (
                     <LawManager 
-                        currentUser={props.currentUser}
+                        currentUser={props.currentUser!}
                         currentInstitution={props.currentInstitution ?? null}
-                        clients={props.lawClients}
-                        matters={props.lawMatters}
-                        documents={props.lawDocuments}
-                        timeEntries={props.lawTimeEntries}
-                        invoices={props.lawInvoices}
-                        trustTransactions={props.lawTrustTransactions}
-                        users={props.users}
-                        onAddClient={props.onAddLawClient}
-                        onAddMatter={props.onAddLawMatter}
-                        onAddTimeEntry={props.onAddLawTimeEntry}
-                        onAddTrustTransaction={props.onAddLawTrustTransaction}
-                        onAddInvoice={props.onAddLawInvoice}
-                        onUpdateMatter={props.onUpdateLawMatter}
-                        agreementTemplates={props.lawAgreementTemplates}
-                        agreements={props.lawAgreements}
-                        onAddAgreementTemplate={props.onAddLawAgreementTemplate}
-                        onGenerateAgreement={props.onGenerateLawAgreement}
-                        onApproveAgreement={props.onApproveLawAgreement}
+                        lawClients={props.lawClients || []}
+                        lawMatters={props.lawMatters || []}
+                        lawDocuments={props.lawDocuments || []}
+                        lawTimeEntries={props.lawTimeEntries || []}
+                        lawInvoices={props.lawInvoices || []}
+                        lawTrustTransactions={props.lawTrustTransactions || []}
+                        users={props.users || []}
+                        onAddClient={props.onAddLawClient as any}
+                        onAddMatter={props.onAddLawMatter as any}
+                        onAddTimeEntry={props.onAddLawTimeEntry as any}
+                        onAddTrustTransaction={props.onAddLawTrustTransaction as any}
+                        onAddInvoice={props.onAddLawInvoice as any}
+                        onUpdateMatter={props.onUpdateLawMatter as any}
+                        agreementTemplates={props.lawAgreementTemplates || []}
+                        agreements={props.lawAgreements || []}
+                        onAddAgreementTemplate={props.onAddLawAgreementTemplate as any}
+                        onGenerateAgreement={props.onGenerateLawAgreement as any}
+                        onApproveAgreement={props.onApproveLawAgreement as any}
                     />
                 )}
                 {activeTab === 'driving_school' && (
                     <DrivingSchoolManager
                         currentUser={props.currentUser!}
-                        currentInstitution={props.activeInstitution}
+                        currentInstitution={props.currentInstitution!}
                     />
                 )}
 
@@ -1777,7 +1777,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                         const slug = props.currentInstitution?.slug || props.currentInstitution?.id;
                                         window.open(`/?view=showroom&showroom=${slug}`, '_blank');
                                     }}
-                                    currentUser={props.currentUser}
+                                    currentUser={props.currentUser!}
                                 />
                             ) : autoSubTab === 'inventory' ? (
                                 <CarInventoryList 
@@ -1833,7 +1833,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                             await props.onFetchBankFeeds();
                                         }
                                     }}
-                                    currentUser={props.currentUser}
+                                    currentUser={props.currentUser!}
                                     institution={props.currentInstitution!}
                                 />
                             ) : null}
@@ -1881,7 +1881,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 onEditUser={props.onEditUser}
                                 onDeleteUser={props.onDeleteUser}
                                 onImportUsers={props.onImportUsers}
-                                onSendSms={props.onSendSms}
+                                onSendSms={props.onSendSms as any}
                                 companyDetails={props.companyDetails}
                                 onAddTransaction={props.onAddTransaction}
                                 onRefreshData={props.onRefreshData}
@@ -1954,8 +1954,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
             {editingInstitution && (
                 <EditInstitutionModal
-                    institution={editingInstitution}
-                    institutionType={institutionType as any}
+                    institution={editingInstitution as any}
                     onClose={() => setEditingInstitution(null)}
                     onSave={async (id, data) => {
                         if (props.onUpdateInstitution) {
@@ -1995,7 +1994,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onClose={() => setIsAddCarInvoiceModalOpen(false)}
                         onSave={props.onAddCarInvoice!}
                         listings={props.carListings || []}
-                        currentUser={props.currentUser}
+                        currentUser={props.currentUser!}
                     />
                 </React.Suspense>
             )}
@@ -2010,7 +2009,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         }}
                         onSave={props.onAddCarPayment!}
                         invoice={selectedInvoiceForPayment}
-                        currentUser={props.currentUser}
+                        currentUser={props.currentUser!}
                     />
                 </React.Suspense>
             )}
