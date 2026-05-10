@@ -348,7 +348,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
     const [localDsSettings, setLocalDsSettings] = useState<DSSettings | null>(props.dsSettings || null);
     const [isAddingFee, setIsAddingFee] = useState(false);
-    const [newFeeForm, setNewFeeForm] = useState({ className: 'CLASS C1', tuition: 15000, pdl: 1500, assessment: 2000 });
+    const [editingFeeId, setEditingFeeId] = useState<string | null>(null);
+    const [newFeeForm, setNewFeeForm] = useState({
+        className: '',
+        tuition: 0,
+        pdl: 0,
+        assessment: 0
+    });
     useEffect(() => {
         setLocalDsSettings(props.dsSettings || null);
     }, [props.dsSettings]);
@@ -1843,11 +1849,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             </div>
                                         </div>
                                         <div className="flex gap-3">
-                                            <button onClick={() => setIsAddingFee(false)} className="flex-1 py-4 bg-white dark:bg-slate-800 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button>
+                                            <button onClick={() => { setIsAddingFee(false); setEditingFeeId(null); setNewFeeForm({ className: '', tuition: 0, pdl: 0, assessment: 0 }); }} className="flex-1 py-4 bg-white dark:bg-slate-800 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button>
                                             <button 
                                                 onClick={() => {
-                                                    const newFee: DSFeeStructure = {
-                                                        id: Math.random().toString(36).substr(2, 9),
+                                                    const feeData = {
+                                                        id: editingFeeId || Math.random().toString(36).substr(2, 9),
                                                         institutionId: props.currentInstitution?.id || '',
                                                         className: newFeeForm.className,
                                                         items: [
@@ -1856,20 +1862,30 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                             { name: 'Assessment', amount: newFeeForm.assessment }
                                                         ],
                                                         totalAmount: newFeeForm.tuition + newFeeForm.pdl + newFeeForm.assessment,
-                                                        createdAt: new Date().toISOString(),
                                                         updatedAt: new Date().toISOString()
                                                     };
+
+                                                    let nextStructures = [...(localDsSettings?.feeStructures || [])];
+                                                    if (editingFeeId) {
+                                                        nextStructures = nextStructures.map(f => f.id === editingFeeId ? { ...f, ...feeData } : f);
+                                                    } else {
+                                                        nextStructures.push({ ...feeData, createdAt: new Date().toISOString() } as any);
+                                                    }
+
                                                     const next = { 
                                                         ...(localDsSettings || { institutionId: props.currentInstitution?.id || '', id: `set_${Date.now()}` }), 
-                                                        feeStructures: [...(localDsSettings?.feeStructures || []), newFee] 
+                                                        feeStructures: nextStructures
                                                     } as DSSettings;
+                                                    
                                                     setLocalDsSettings(next);
                                                     props.onUpdateDSSettings?.(next);
                                                     setIsAddingFee(false);
+                                                    setEditingFeeId(null);
+                                                    setNewFeeForm({ className: '', tuition: 0, pdl: 0, assessment: 0 });
                                                 }}
                                                 className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
                                             >
-                                                Save Class Fee
+                                                {editingFeeId ? 'Update Class Fee' : 'Save Class Fee'}
                                             </button>
                                         </div>
                                     </div>
@@ -1899,19 +1915,36 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 </div>
                                             ))}
                                         </div>
-                                        <button 
-                                            onClick={() => {
-                                                const next = {
-                                                    ...localDsSettings,
-                                                    feeStructures: localDsSettings?.feeStructures?.filter(f => f.id !== fee.id)
-                                                } as DSSettings;
-                                                setLocalDsSettings(next);
-                                                props.onUpdateDSSettings?.(next);
-                                            }}
-                                            className="mt-4 text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"
-                                        >
-                                            Remove Structure
-                                        </button>
+                                        <div className="mt-4 flex items-center gap-4">
+                                            <button 
+                                                onClick={() => {
+                                                    setEditingFeeId(fee.id);
+                                                    setNewFeeForm({
+                                                        className: fee.className,
+                                                        tuition: fee.items.find(i => i.name === 'Tuition Fee')?.amount || 0,
+                                                        pdl: fee.items.find(i => i.name === 'PDL')?.amount || 0,
+                                                        assessment: fee.items.find(i => i.name === 'Assessment')?.amount || 0
+                                                    });
+                                                    setIsAddingFee(true);
+                                                }}
+                                                className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
+                                            >
+                                                Edit Structure
+                                            </button>
+                                            <button 
+                                                onClick={() => {
+                                                    const next = {
+                                                        ...localDsSettings,
+                                                        feeStructures: localDsSettings?.feeStructures?.filter(f => f.id !== fee.id)
+                                                    } as DSSettings;
+                                                    setLocalDsSettings(next);
+                                                    props.onUpdateDSSettings?.(next);
+                                                }}
+                                                className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"
+                                            >
+                                                Remove Structure
+                                            </button>
+                                        </div>
                                     </div>
                                 ))}
                                 {(localDsSettings?.feeStructures || []).length === 0 && (

@@ -128,25 +128,20 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
     );
 };
 
-const DrivingSchoolActionModal: React.FC<{
-    type: 'student' | 'instructor' | 'vehicle' | 'lesson' | 'invoice' | 'payment' | 'fee_structure' | null;
-    onClose: () => void;
-    onSave: (data: any) => Promise<void>;
-    students?: any[];
-    instructors?: any[];
-    vehicles?: DSVehicle[];
-}> = ({ type, onClose, onSave, students = [], instructors = [], vehicles = [] }) => {
+const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => void, students: DSStudent[], instructors: DSInstructor[], vehicles: DSVehicle[], lessons: DSLesson[], onSave: (data: any) => Promise<void>, settings: DSSettings | null, initialData?: any }> = ({ type, onClose, students, instructors, vehicles, lessons, onSave, settings, initialData }) => {
     const [formData, setFormData] = useState<any>(() => {
-        const base = {
+        const base = initialData || {
             status: type === 'student' ? 'Enrolled' : type === 'instructor' ? 'Active' : type === 'vehicle' ? 'Operational' : 'Scheduled'
         };
-        if (type === 'student') return { ...base, enrollmentDate: new Date().toISOString().split('T')[0], theoryProgressPercent: 0, practicalProgressPercent: 0 };
-        if (type === 'lesson') return { ...base, lessonDate: new Date().toISOString().split('T')[0], startTime: '08:00', endTime: '09:00', lessonType: 'Practical' };
-        if (type === 'vehicle') return { ...base, transmission: 'Manual' };
-        if (type === 'instructor') return { ...base, rating: 5 };
-        if (type === 'invoice') return { ...base, items: [], totalAmount: 0, paidAmount: 0, balance: 0, status: 'Pending', createdAt: new Date().toISOString() };
-        if (type === 'payment') return { ...base, paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'M-Pesa' };
-        if (type === 'fee_structure') return { className: 'CLASS C1', tuition: 15000, pdl: 1500, assessment: 2000 };
+        if (!initialData) {
+            if (type === 'student') return { ...base, enrollmentDate: new Date().toISOString().split('T')[0], theoryProgressPercent: 0, practicalProgressPercent: 0 };
+            if (type === 'lesson') return { ...base, lessonDate: new Date().toISOString().split('T')[0], startTime: '08:00', endTime: '09:00', lessonType: 'Practical' };
+            if (type === 'vehicle') return { ...base, transmission: 'Manual' };
+            if (type === 'instructor') return { ...base, rating: 5 };
+            if (type === 'invoice') return { ...base, items: [], totalAmount: 0, paidAmount: 0, balance: 0, status: 'Pending', createdAt: new Date().toISOString() };
+            if (type === 'payment') return { ...base, paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'M-Pesa' };
+            if (type === 'fee_structure') return { className: 'CLASS C1', tuition: 15000, pdl: 1500, assessment: 2000 };
+        }
         return base;
     });
     const [isSaving, setIsSaving] = useState(false);
@@ -315,6 +310,25 @@ const DrivingSchoolActionModal: React.FC<{
                                         {students.map(s => <option key={s.id} value={s.id}>{s.fullName}</option>)}
                                     </select>
                                 </div>
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Fee Structure (Optional Autopopulate)</label>
+                                    <select value={formData.feeStructureId || ''} onChange={e => {
+                                        const fs = settings?.feeStructures?.find(x => x.id === e.target.value);
+                                        if (fs) {
+                                            setFormData({
+                                                ...formData, 
+                                                feeStructureId: fs.id,
+                                                totalAmount: fs.totalAmount,
+                                                balance: fs.totalAmount
+                                            });
+                                        } else {
+                                            setFormData({ ...formData, feeStructureId: '' });
+                                        }
+                                    }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="">Select Fee Structure</option>
+                                        {settings?.feeStructures?.map(fs => <option key={fs.id} value={fs.id}>{fs.className} (KES {fs.totalAmount.toLocaleString()})</option>)}
+                                    </select>
+                                </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Amount (KES)</label>
                                     <input required type="number" value={formData.totalAmount || ''} onChange={e => setFormData({...formData, totalAmount: Number(e.target.value), balance: Number(e.target.value)})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="0.00" />
@@ -408,7 +422,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
     const [searchTerm, setSearchTerm] = useState('');
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const [actionModal, setActionModal] = useState<{ type: 'student' | 'instructor' | 'vehicle' | 'lesson' | 'invoice' | 'payment' | 'fee_structure' | null; data?: any }>({ type: null });
+    const [actionModal, setActionModal] = useState<{ type: 'student' | 'instructor' | 'vehicle' | 'lesson' | 'invoice' | 'payment' | 'fee_structure' | null; data?: any; initialData?: any }>({ type: null });
 
     // Normalization
     const normalizedStudents = useMemo(() => students.map(s => ({
@@ -871,21 +885,35 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     </div>
                                                 ))}
                                             </div>
-                                            <button 
-                                                onClick={async (e) => {
-                                                    e.stopPropagation();
-                                                    if (confirm(`Are you sure you want to delete the fee structure for ${fee.className}?`)) {
+                                            <div className="mt-4 flex items-center gap-4">
+                                                <button 
+                                                    onClick={() => setActionModal({ 
+                                                        type: 'fee_structure',
+                                                        initialData: {
+                                                            id: fee.id,
+                                                            className: fee.className,
+                                                            tuition: fee.items.find(i => i.name === 'Tuition Fee')?.amount || 0,
+                                                            pdl: fee.items.find(i => i.name === 'PDL')?.amount || 0,
+                                                            assessment: fee.items.find(i => i.name === 'Assessment')?.amount || 0
+                                                        }
+                                                    })}
+                                                    className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
+                                                >
+                                                    Edit Structure
+                                                </button>
+                                                <button 
+                                                    onClick={() => {
                                                         const next = {
-                                                            ...(settings || {}),
-                                                            feeStructures: (settings?.feeStructures || []).filter(f => f.id !== fee.id)
-                                                        };
-                                                        await onUpdateSettings(next);
-                                                    }
-                                                }}
-                                                className="absolute top-6 right-6 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                                            >
-                                                <XIcon className="w-4 h-4" />
-                                            </button>
+                                                            ...settings,
+                                                            feeStructures: settings?.feeStructures?.filter(f => f.id !== fee.id)
+                                                        } as DSSettings;
+                                                        onUpdateSettings(next);
+                                                    }}
+                                                    className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"
+                                                >
+                                                    Remove Structure
+                                                </button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -913,29 +941,37 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         type={actionModal.type}
                         onClose={() => setActionModal({ type: null })}
                         onSave={async (data) => {
-                            if (actionModal.type === 'student') await onAddStudent(data);
-                            else if (actionModal.type === 'instructor') await onAddInstructor(data);
-                            else if (actionModal.type === 'vehicle') await onAddVehicle(data);
-                            else if (actionModal.type === 'lesson') await onAddLesson(data);
-                            else if (actionModal.type === 'invoice') await onAddInvoice(data);
-                            else if (actionModal.type === 'payment') await onAddPayment(data);
-                            else if (actionModal.type === 'fee_structure') {
-                                const newFee: DSFeeStructure = {
-                                    id: Math.random().toString(36).substr(2, 9),
+                            const { type } = actionModal;
+                            if (type === 'student') await onAddStudent(data);
+                            else if (type === 'instructor') await onAddInstructor(data);
+                            else if (type === 'vehicle') await onAddVehicle(data);
+                            else if (type === 'lesson') await onAddLesson(data);
+                            else if (type === 'invoice') await onAddInvoice(data);
+                            else if (type === 'payment') await onAddPayment(data);
+                            else if (type === 'fee_structure') {
+                                const feeData = {
+                                    id: data.id || `fee_${Date.now()}`,
                                     institutionId: currentInstitution?.id || '',
                                     className: data.className,
                                     items: [
-                                        { name: 'Tuition Fee', amount: data.tuition },
-                                        { name: 'PDL', amount: data.pdl },
-                                        { name: 'Assessment', amount: data.assessment }
+                                        { name: 'Tuition Fee', amount: data.tuition || 0 },
+                                        { name: 'PDL', amount: data.pdl || 0 },
+                                        { name: 'Assessment', amount: data.assessment || 0 }
                                     ],
-                                    totalAmount: data.tuition + data.pdl + data.assessment,
-                                    createdAt: new Date().toISOString(),
+                                    totalAmount: (data.tuition || 0) + (data.pdl || 0) + (data.assessment || 0),
                                     updatedAt: new Date().toISOString()
                                 };
+
+                                let nextStructures = [...(settings?.feeStructures || [])];
+                                if (data.id) {
+                                    nextStructures = nextStructures.map(f => f.id === data.id ? { ...f, ...feeData } : f);
+                                } else {
+                                    nextStructures.push({ ...feeData, createdAt: new Date().toISOString() } as any);
+                                }
+
                                 const next = {
                                     ...(settings || {}),
-                                    feeStructures: [...(settings?.feeStructures || []), newFee]
+                                    feeStructures: nextStructures
                                 };
                                 await onUpdateSettings(next);
                             }
@@ -943,6 +979,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         students={normalizedStudents}
                         instructors={normalizedInstructors}
                         vehicles={vehicles}
+                        lessons={lessons}
+                        settings={settings}
+                        initialData={actionModal.initialData}
                     />
                 )}
 
