@@ -136,17 +136,15 @@ const DrivingSchoolActionModal: React.FC<{
     instructors?: any[];
     vehicles?: DSVehicle[];
 }> = ({ type, onClose, onSave, students = [], instructors = [], vehicles = [] }) => {
-    const [formData, setFormData] = useState<any>({
-        status: type === 'student' ? 'Enrolled' : type === 'instructor' ? 'Active' : type === 'vehicle' ? 'Operational' : 'Scheduled',
-        enrollmentDate: new Date().toISOString().split('T')[0],
-        lessonDate: new Date().toISOString().split('T')[0],
-        startTime: '08:00',
-        endTime: '09:00',
-        lessonType: 'Practical',
-        theoryProgressPercent: 0,
-        practicalProgressPercent: 0,
-        rating: 5,
-        transmission: 'Manual'
+    const [formData, setFormData] = useState<any>(() => {
+        const base = {
+            status: type === 'student' ? 'Enrolled' : type === 'instructor' ? 'Active' : type === 'vehicle' ? 'Operational' : 'Scheduled'
+        };
+        if (type === 'student') return { ...base, enrollmentDate: new Date().toISOString().split('T')[0], theoryProgressPercent: 0, practicalProgressPercent: 0 };
+        if (type === 'lesson') return { ...base, lessonDate: new Date().toISOString().split('T')[0], startTime: '08:00', endTime: '09:00', lessonType: 'Practical' };
+        if (type === 'vehicle') return { ...base, transmission: 'Manual' };
+        if (type === 'instructor') return { ...base, rating: 5 };
+        return base;
     });
     const [isSaving, setIsSaving] = useState(false);
 
@@ -213,11 +211,19 @@ const DrivingSchoolActionModal: React.FC<{
                             <>
                                 <div className="md:col-span-2 space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Instructor Name</label>
-                                    <input required type="text" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                    <input required type="text" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. David Kimani" />
                                 </div>
                                 <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phone Number</label>
+                                    <input type="tel" value={formData.phone || ''} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="07XX XXX XXX" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Specialization</label>
+                                    <input type="text" value={formData.specialization || ''} onChange={e => setFormData({...formData, specialization: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. Heavy Commercial" />
+                                </div>
+                                <div className="md:col-span-2 space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">License Number</label>
-                                    <input type="text" value={formData.licenseNumber || ''} onChange={e => setFormData({...formData, licenseNumber: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                    <input type="text" value={formData.licenseNumber || ''} onChange={e => setFormData({...formData, licenseNumber: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="DL-XXXXXX" />
                                 </div>
                             </>
                         )}
@@ -225,8 +231,16 @@ const DrivingSchoolActionModal: React.FC<{
                         {type === 'vehicle' && (
                             <>
                                 <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Make</label>
+                                    <input required type="text" value={formData.make || ''} onChange={e => setFormData({...formData, make: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. Toyota" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Model</label>
+                                    <input required type="text" value={formData.model || ''} onChange={e => setFormData({...formData, model: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. Hilux" />
+                                </div>
+                                <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Plate Number</label>
-                                    <input required type="text" value={formData.plateNumber || ''} onChange={e => setFormData({...formData, plateNumber: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                    <input required type="text" value={formData.plateNumber || ''} onChange={e => setFormData({...formData, plateNumber: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="KXY 000X" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Transmission</label>
@@ -257,6 +271,28 @@ const DrivingSchoolActionModal: React.FC<{
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Date</label>
                                     <input required type="date" value={formData.lessonDate || ''} onChange={e => setFormData({...formData, lessonDate: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Vehicle</label>
+                                    <select value={formData.vehicleId || ''} onChange={e => setFormData({...formData, vehicleId: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="">Select Vehicle</option>
+                                        {vehicles.map(v => <option key={v.id} value={v.id}>{v.make} {v.model} ({v.plateNumber})</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Time</label>
+                                    <input required type="time" value={formData.startTime || '08:00'} onChange={e => setFormData({...formData, startTime: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">End Time</label>
+                                    <input required type="time" value={formData.endTime || '09:00'} onChange={e => setFormData({...formData, endTime: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                </div>
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Lesson Type</label>
+                                    <select value={formData.lessonType || 'Practical'} onChange={e => setFormData({...formData, lessonType: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="Practical">Practical (Driving)</option>
+                                        <option value="Theory">Theory (Classroom)</option>
+                                    </select>
                                 </div>
                             </>
                         )}
