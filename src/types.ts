@@ -3802,6 +3802,7 @@ export interface DSVehicle {
     plateNumber: string;
     transmission: 'Manual' | 'Automatic';
     vehicleType?: string;
+    capacity: number;
     lastServiceDate?: string;
     nextServiceDate?: string;
     status: 'Operational' | 'Maintenance' | 'Out of Service';
