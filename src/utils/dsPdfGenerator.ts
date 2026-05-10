@@ -1,5 +1,5 @@
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { DSInvoice, DSPayment, DSStudent, DSSettings } from '../types';
 
 export const generateDSPDF = (
@@ -79,7 +79,7 @@ export const generateDSPDF = (
         ];
     }
 
-    doc.autoTable({
+    autoTable(doc, {
         startY: 110,
         head: [tableHead],
         body: tableData,
