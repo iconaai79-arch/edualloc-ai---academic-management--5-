@@ -473,14 +473,36 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
-                        <button onClick={() => setActionModal({ type: 'student' })} className="px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-3">
-                            <PlusIcon className="w-4 h-4" />
-                            Enroll Student
-                        </button>
-                        <button onClick={() => setIsImportModalOpen(true)} className="px-6 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-100 dark:border-slate-700 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-3">
-                            <ArrowUpTrayIcon className="w-4 h-4" />
-                            Bulk Import
-                        </button>
+                        {activeTab !== 'dashboard' && (
+                            <button 
+                                onClick={() => {
+                                    const typeMap: Record<string, any> = {
+                                        students: 'student',
+                                        lessons: 'lesson',
+                                        fleet: 'vehicle',
+                                        instructors: 'instructor',
+                                        finance: 'invoice',
+                                        settings: 'fee_structure'
+                                    };
+                                    setActionModal({ type: typeMap[activeTab] || 'student' });
+                                }} 
+                                className="px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-3"
+                            >
+                                <PlusIcon className="w-4 h-4" />
+                                {activeTab === 'students' ? 'Enroll Student' :
+                                 activeTab === 'lessons' ? 'Schedule Lesson' :
+                                 activeTab === 'fleet' ? 'Register Vehicle' :
+                                 activeTab === 'instructors' ? 'Add Instructor' :
+                                 activeTab === 'finance' ? 'Generate Invoice' :
+                                 activeTab === 'settings' ? 'Add Class Fee' : 'New Action'}
+                            </button>
+                        )}
+                        {activeTab === 'students' && (
+                            <button onClick={() => setIsImportModalOpen(true)} className="px-6 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-100 dark:border-slate-700 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-3">
+                                <ArrowUpTrayIcon className="w-4 h-4" />
+                                Bulk Import
+                            </button>
+                        )}
                     </div>
                 </div>
 
