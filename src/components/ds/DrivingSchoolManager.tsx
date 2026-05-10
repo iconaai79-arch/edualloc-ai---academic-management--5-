@@ -23,6 +23,7 @@ import {
     XIcon,
     ArrowUpTrayIcon
 } from '../icons';
+import { generateDSPDF } from '../../utils/dsPdfGenerator';
 import { useToast } from '../../services/ToastContext';
 import { useDrivingSchool } from '../../services/DrivingSchoolContext';
 import { AppErrorBoundary } from '../common/AppErrorBoundary';
@@ -321,10 +322,11 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                 ...formData, 
                                                 feeStructureId: fs.id,
                                                 totalAmount: fs.totalAmount,
-                                                balance: fs.totalAmount
+                                                balance: fs.totalAmount,
+                                                items: fs.items
                                             });
                                         } else {
-                                            setFormData({ ...formData, feeStructureId: '' });
+                                            setFormData({ ...formData, feeStructureId: '', items: [] });
                                         }
                                     }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
                                         <option value="">Select Fee Structure</option>
@@ -830,6 +832,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                 <th className="px-10 py-6">Amount</th>
                                                 <th className="px-10 py-6">Balance</th>
                                                 <th className="px-10 py-6">Status</th>
+                                                <th className="px-10 py-6 text-right">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
@@ -845,6 +848,94 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                         }`}>
                                                             {invoice.status}
                                                         </span>
+                                                    </td>
+                                                    <td className="px-10 py-6 text-right space-x-2">
+                                                        <button 
+                                                            onClick={() => {
+                                                                const student = students.find(s => s.id === invoice.studentId);
+                                                                if (student) {
+                                                                    const doc = generateDSPDF('invoice', invoice, student as any, settings, currentInstitution);
+                                                                    doc.output('dataurlnewwindow');
+                                                                }
+                                                            }}
+                                                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                                            title="Preview & Print"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => {
+                                                                const student = students.find(s => s.id === invoice.studentId);
+                                                                if (student) {
+                                                                    const doc = generateDSPDF('invoice', invoice, student as any, settings, currentInstitution);
+                                                                    doc.save(`${invoice.invoiceNumber}.pdf`);
+                                                                }
+                                                            }}
+                                                            className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-all"
+                                                            title="Download PDF"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Recent Payments</h3>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Track collections and receipting</p>
+                                    </div>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 dark:border-slate-800">
+                                                <th className="px-10 py-6">Receipt #</th>
+                                                <th className="px-10 py-6">Student</th>
+                                                <th className="px-10 py-6">Amount</th>
+                                                <th className="px-10 py-6">Method</th>
+                                                <th className="px-10 py-6 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                            {payments.map(payment => (
+                                                <tr key={payment.id} className="hover:bg-slate-50/50">
+                                                    <td className="px-10 py-6 font-bold">{payment.receiptNumber}</td>
+                                                    <td className="px-10 py-6 text-sm">{payment.studentName}</td>
+                                                    <td className="px-10 py-6 font-bold text-sm">KES {payment.amount.toLocaleString()}</td>
+                                                    <td className="px-10 py-6 text-sm">{payment.paymentMethod}</td>
+                                                    <td className="px-10 py-6 text-right space-x-2">
+                                                        <button 
+                                                            onClick={() => {
+                                                                const student = students.find(s => s.id === payment.studentId);
+                                                                if (student) {
+                                                                    const doc = generateDSPDF('receipt', payment, student as any, settings, currentInstitution);
+                                                                    doc.output('dataurlnewwindow');
+                                                                }
+                                                            }}
+                                                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                                            title="Preview & Print"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => {
+                                                                const student = students.find(s => s.id === payment.studentId);
+                                                                if (student) {
+                                                                    const doc = generateDSPDF('receipt', payment, student as any, settings, currentInstitution);
+                                                                    doc.save(`${payment.receiptNumber}.pdf`);
+                                                                }
+                                                            }}
+                                                            className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-all"
+                                                            title="Download PDF"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                                        </button>
                                                     </td>
                                                 </tr>
                                             ))}

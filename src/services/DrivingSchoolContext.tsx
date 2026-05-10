@@ -210,13 +210,45 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         }
     }, [institutionId, settings, onRefresh, success, error]);
 
+    const sendDocumentNotification = async (type: 'invoice' | 'receipt', data: any, studentId: string) => {
+        const student = students.find(s => s.id === studentId);
+        if (!student) return;
+
+        try {
+            // Fetch institution details for PDF
+            const institutions = await apiService.fetchModuleRecords('institutions', institutionId);
+            const inst = institutions?.[0] || { name: 'Driving School' };
+
+            // Generate PDF
+            const doc = generateDSPDF(type, data, student as any, settings, inst);
+            const pdfBase64 = doc.output('datauristring').split(',')[1];
+            const fileName = `${type === 'invoice' ? data.invoiceNumber : data.receiptNumber}.pdf`;
+
+            // 1. Send Email
+            const subject = `${inst.name} - ${type === 'invoice' ? 'Invoice' : 'Receipt'} #${type === 'invoice' ? data.invoiceNumber : data.receiptNumber}`;
+            const body = `Dear ${student.fullName},\n\nPlease find attached your ${type}. \n\nAmount: KES ${data.totalAmount || data.amount}\n\nThank you for choosing us!`;
+            
+            await apiService.sendEmail(student.email, subject, body, undefined, undefined, [
+                { filename: fileName, content: pdfBase64, encoding: 'base64' }
+            ]);
+
+            // 2. Send SMS
+            const smsMessage = `Hello ${student.fullName}, your ${type} #${type === 'invoice' ? data.invoiceNumber : data.receiptNumber} of KES ${data.totalAmount || data.amount} has been generated. Download it here: [LINK]`;
+            await apiService.sendSms(student.phoneNumber, smsMessage, undefined, 1, institutionId);
+
+            console.log(`[DS Automation] Notifications sent for ${type}`);
+        } catch (err) {
+            console.error(`[DS Automation] Failed to send notifications:`, err);
+        }
+    };
+
     const addInvoice = useCallback(async (data: any) => {
         try {
             const inv = {
                 ...data,
                 id: `inv_${Date.now()}`,
                 institutionId,
-                invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
+                invoiceNumber: data.invoiceNumber || `${settings?.invoicePrefix || 'INV-'}${Date.now().toString().slice(-6)}`,
                 status: 'Pending',
                 paidAmount: 0,
                 balance: data.totalAmount || 0,
@@ -224,23 +256,38 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             };
             await apiService.saveModuleRecord('ds_invoices', inv);
             success("Invoice generated successfully");
+            
+            // Trigger Automation
+            sendDocumentNotification('invoice', inv, inv.studentId);
+            
             await onRefresh();
         } catch (err) {
             error("Failed to generate invoice");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error]);
+    }, [institutionId, onRefresh, success, error, students, settings, sendDocumentNotification]);
 
     const addPayment = useCallback(async (data: any) => {
         try {
-            await apiService.saveModuleRecord('ds_payments', { ...data, id: `pay_${Date.now()}`, institutionId });
+            const pay = { 
+                ...data, 
+                id: `pay_${Date.now()}`, 
+                institutionId,
+                receiptNumber: data.receiptNumber || `${settings?.receiptPrefix || 'REC-'}${Date.now().toString().slice(-6)}`,
+                paymentDate: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('ds_payments', pay);
             success("Payment recorded successfully");
+            
+            // Trigger Automation
+            sendDocumentNotification('receipt', pay, pay.studentId);
+            
             await onRefresh();
         } catch (err) {
             error("Failed to record payment");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error]);
+    }, [institutionId, onRefresh, success, error, students, settings, sendDocumentNotification]);
 
     const stats = useMemo(() => ({
         totalStudents: students.length,
