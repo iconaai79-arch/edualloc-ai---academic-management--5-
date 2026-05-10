@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
     UsersIcon, 
     TruckIcon, 
@@ -132,6 +132,17 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
 const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => void, students: DSStudent[], instructors: DSInstructor[], vehicles: DSVehicle[], lessons: DSLesson[], onSave: (data: any) => Promise<void>, settings: DSSettings | null, initialData?: any, currentInstitution?: any }> = ({ type, onClose, students, instructors, vehicles, lessons, onSave, settings, initialData, currentInstitution }) => {
     const { success: toastSuccess, error: toastError } = useToast();
     const [isActionLoading, setIsActionLoading] = useState(false);
+    useEffect(() => {
+        if (settings && !initialData) {
+            setFormData(prev => ({
+                ...prev,
+                studentId: type === 'student' && (!prev.studentId || prev.studentId.startsWith('ID-')) ? `${settings.studentIdPrefix || 'ID-'}${Date.now().toString().slice(-4)}` : prev.studentId,
+                invoiceNumber: type === 'invoice' && (!prev.invoiceNumber || prev.invoiceNumber.startsWith('INV-')) ? `${settings.invoicePrefix || 'INV-'}${Date.now().toString().slice(-4)}` : prev.invoiceNumber,
+                receiptNumber: type === 'payment' && (!prev.receiptNumber || prev.receiptNumber.startsWith('REC-')) ? `${settings.receiptPrefix || 'REC-'}${Date.now().toString().slice(-4)}` : prev.receiptNumber
+            }));
+        }
+    }, [settings, type, initialData]);
+
     const [formData, setFormData] = useState<any>(() => {
         const base = initialData || {
             status: type === 'student' ? 'Enrolled' : type === 'instructor' ? 'Active' : type === 'vehicle' ? 'Operational' : 'Scheduled',
