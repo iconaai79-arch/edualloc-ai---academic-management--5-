@@ -832,7 +832,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             )}
 
             {activeTab === 'instructors' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-fade-in">
+                <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-fade-in">
                     {instructors.map(instructor => (
                         <div key={instructor.id} className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm flex gap-8 group">
                             <div className="w-32 h-32 rounded-[2rem] bg-indigo-50/50 flex items-center justify-center relative shrink-0 overflow-hidden">
@@ -892,6 +893,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         <span>Add Instructor</span>
                     </button>
                 </div>
+                </>
             )}
 
             {activeTab === 'finance' && (
