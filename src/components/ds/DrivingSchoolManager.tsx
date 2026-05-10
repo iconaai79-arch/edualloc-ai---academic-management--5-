@@ -129,7 +129,7 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
 };
 
 const DrivingSchoolActionModal: React.FC<{
-    type: 'student' | 'instructor' | 'vehicle' | 'lesson' | null;
+    type: 'student' | 'instructor' | 'vehicle' | 'lesson' | 'invoice' | 'payment' | null;
     onClose: () => void;
     onSave: (data: any) => Promise<void>;
     students?: any[];
@@ -144,6 +144,8 @@ const DrivingSchoolActionModal: React.FC<{
         if (type === 'lesson') return { ...base, lessonDate: new Date().toISOString().split('T')[0], startTime: '08:00', endTime: '09:00', lessonType: 'Practical' };
         if (type === 'vehicle') return { ...base, transmission: 'Manual' };
         if (type === 'instructor') return { ...base, rating: 5 };
+        if (type === 'invoice') return { ...base, items: [], totalAmount: 0, paidAmount: 0, balance: 0, status: 'Pending', createdAt: new Date().toISOString() };
+        if (type === 'payment') return { ...base, paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'M-Pesa' };
         return base;
     });
     const [isSaving, setIsSaving] = useState(false);
@@ -163,11 +165,12 @@ const DrivingSchoolActionModal: React.FC<{
         }
     };
 
-    const title = {
         student: 'Enrol New Student',
         instructor: 'Add Instructor',
         vehicle: 'Register Vehicle',
-        lesson: 'Schedule Lesson'
+        lesson: 'Schedule Lesson',
+        invoice: 'Generate Invoice',
+        payment: 'Record Payment'
     }[type];
 
     return (
@@ -292,6 +295,53 @@ const DrivingSchoolActionModal: React.FC<{
                                     <select value={formData.lessonType || 'Practical'} onChange={e => setFormData({...formData, lessonType: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
                                         <option value="Practical">Practical (Driving)</option>
                                         <option value="Theory">Theory (Classroom)</option>
+                                    </select>
+                                </div>
+                            </>
+                        )}
+
+                        {type === 'invoice' && (
+                            <>
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Student</label>
+                                    <select required value={formData.studentId || ''} onChange={e => {
+                                        const s = students.find(x => x.id === e.target.value);
+                                        setFormData({...formData, studentId: e.target.value, studentName: s?.fullName || ''});
+                                    }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="">Select Student</option>
+                                        {students.map(s => <option key={s.id} value={s.id}>{s.fullName}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Amount (KES)</label>
+                                    <input required type="number" value={formData.totalAmount || ''} onChange={e => setFormData({...formData, totalAmount: Number(e.target.value), balance: Number(e.target.value)})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="0.00" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Invoice Number</label>
+                                    <input required type="text" value={formData.invoiceNumber || ''} onChange={e => setFormData({...formData, invoiceNumber: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="INV-DS-XXXX" />
+                                </div>
+                            </>
+                        )}
+
+                        {type === 'payment' && (
+                            <>
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Student</label>
+                                    <select required value={formData.studentId || ''} onChange={e => setFormData({...formData, studentId: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="">Select Student</option>
+                                        {students.map(s => <option key={s.id} value={s.id}>{s.fullName}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Amount Paid</label>
+                                    <input required type="number" value={formData.amount || ''} onChange={e => setFormData({...formData, amount: Number(e.target.value)})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Payment Method</label>
+                                    <select value={formData.paymentMethod || 'M-Pesa'} onChange={e => setFormData({...formData, paymentMethod: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="M-Pesa">M-Pesa</option>
+                                        <option value="Cash">Cash</option>
+                                        <option value="Bank">Bank Transfer</option>
                                     </select>
                                 </div>
                             </>
@@ -693,8 +743,21 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     {activeTab === 'finance' && (
                         <div className="space-y-8 animate-fade-in">
                             <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
-                                <div className="p-8 border-b border-slate-50 dark:border-slate-800">
-                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Recent Invoices</h3>
+                                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Recent Invoices</h3>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Manage billing and student receivables</p>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <button onClick={() => setActionModal({ type: 'payment' })} className="px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-2">
+                                            <CurrencyIcon className="w-4 h-4" />
+                                            Record Payment
+                                        </button>
+                                        <button onClick={() => setActionModal({ type: 'invoice' })} className="px-5 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-105 transition-all flex items-center gap-2">
+                                            <PlusIcon className="w-4 h-4" />
+                                            Generate Invoice
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left">
@@ -761,6 +824,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             else if (actionModal.type === 'instructor') await onAddInstructor(data);
                             else if (actionModal.type === 'vehicle') await onAddVehicle(data);
                             else if (actionModal.type === 'lesson') await onAddLesson(data);
+                            else if (actionModal.type === 'invoice') await onAddInvoice(data);
+                            else if (actionModal.type === 'payment') await onAddPayment(data);
                         }}
                         students={normalizedStudents}
                         instructors={normalizedInstructors}
