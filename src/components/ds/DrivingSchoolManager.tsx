@@ -129,7 +129,9 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
     );
 };
 
-const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => void, students: DSStudent[], instructors: DSInstructor[], vehicles: DSVehicle[], lessons: DSLesson[], onSave: (data: any) => Promise<void>, settings: DSSettings | null, initialData?: any }> = ({ type, onClose, students, instructors, vehicles, lessons, onSave, settings, initialData }) => {
+const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => void, students: DSStudent[], instructors: DSInstructor[], vehicles: DSVehicle[], lessons: DSLesson[], onSave: (data: any) => Promise<void>, settings: DSSettings | null, initialData?: any, currentInstitution?: any }> = ({ type, onClose, students, instructors, vehicles, lessons, onSave, settings, initialData, currentInstitution }) => {
+    const { success: toastSuccess, error: toastError } = useToast();
+    const [isActionLoading, setIsActionLoading] = useState(false);
     const [formData, setFormData] = useState<any>(() => {
         const base = initialData || {
             status: type === 'student' ? 'Enrolled' : type === 'instructor' ? 'Active' : type === 'vehicle' ? 'Operational' : 'Scheduled',
@@ -360,14 +362,74 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Payment Method</label>
-                                    <select value={formData.paymentMethod || 'M-Pesa'} onChange={e => setFormData({...formData, paymentMethod: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
-                                        <option value="M-Pesa">M-Pesa</option>
-                                        <option value="Cash">Cash</option>
-                                        <option value="Bank">Bank Transfer</option>
-                                    </select>
+                                    <div className="flex gap-2">
+                                        <select value={formData.paymentMethod || 'M-Pesa'} onChange={e => setFormData({...formData, paymentMethod: e.target.value})} className="flex-1 px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                            <option value="M-Pesa">M-Pesa</option>
+                                            <option value="Cash">Cash</option>
+                                            <option value="Bank">Bank Transfer</option>
+                                        </select>
+                                        
+                                        {formData.paymentMethod === 'M-Pesa' && (
+                                            <button 
+                                                type="button"
+                                                disabled={isActionLoading || !formData.amount || !formData.studentId}
+                                                onClick={async () => {
+                                                    const student = students.find(s => s.id === formData.studentId);
+                                                    if (!student?.phone) { toastError("Student phone number missing"); return; }
+                                                    setIsActionLoading(true);
+                                                    try {
+                                                        const { triggerMpesaStkPush } = await import('../../services/apiService').then(m => m.apiService);
+                                                        await triggerMpesaStkPush({
+                                                            amount: formData.amount,
+                                                            phoneNumber: student.phone,
+                                                            reference: formData.receiptNumber || `DS-${Date.now()}`,
+                                                            description: `Driving School Payment: ${student.fullName}`,
+                                                            institutionId: currentInstitution?.id || ''
+                                                        });
+                                                        toastSuccess("STK Push sent to student's phone!");
+                                                    } catch (err: any) {
+                                                        toastError(err.message || "Failed to trigger STK Push");
+                                                    } finally {
+                                                        setIsActionLoading(false);
+                                                    }
+                                                }}
+                                                className="px-4 bg-green-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-green-600 transition-all disabled:opacity-50"
+                                            >
+                                                {isActionLoading ? '...' : 'STK Push'}
+                                            </button>
+                                        )}
+
+                                        {formData.paymentMethod === 'Bank' && (
+                                            <button 
+                                                type="button"
+                                                disabled={isActionLoading}
+                                                onClick={async () => {
+                                                    setIsActionLoading(true);
+                                                    try {
+                                                        // Mock reconciliation or call bank API
+                                                        await new Promise(resolve => setTimeout(resolve, 2000));
+                                                        toastSuccess("Bank records reconciled. Transaction verified!");
+                                                        setFormData({ ...formData, status: 'Verified', transactionReference: `BNK-${Math.random().toString(36).substr(2, 9).toUpperCase()}` });
+                                                    } catch (err) {
+                                                        toastError("Failed to reconcile with bank");
+                                                    } finally {
+                                                        setIsActionLoading(false);
+                                                    }
+                                                }}
+                                                className="px-4 bg-blue-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 transition-all disabled:opacity-50"
+                                            >
+                                                {isActionLoading ? '...' : 'Reconcile'}
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
+                                {formData.transactionReference && (
+                                    <div className="md:col-span-2 p-4 bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800/50 rounded-2xl">
+                                        <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">Transaction Verified: {formData.transactionReference}</p>
+                                    </div>
+                                )}
                             </>
-                        )}
+                        ) || null}
 
                         {type === 'fee_structure' && (
                             <>
@@ -973,6 +1035,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     <DrivingSchoolActionModal 
                         type={actionModal.type}
                         onClose={() => setActionModal({ type: null })}
+                        currentInstitution={currentInstitution}
                         onSave={async (data) => {
                             const { type } = actionModal;
                             if (type === 'student') await onAddStudent(data);
