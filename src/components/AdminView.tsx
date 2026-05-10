@@ -650,7 +650,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             } else if (isRetailAgency) {
                 setActiveTab('retail');
             } else if (isDS || role === 'driving_instructor' || (institutionType?.toLowerCase().includes('driving school'))) {
-                setActiveTab('dashboard'); // DS uses specialized dashboard tab
+                setActiveTab('driving_school'); // DS uses specialized manager tab
             } else if (isLaw || role === 'legal_admin') {
                 setActiveTab('law');
             } else if (isLogistics || role === 'transport_admin') {
@@ -719,18 +719,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         ];
 
-        if (isDS) {
-            return [
-                { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
-                { id: 'ds_students', label: 'Students', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
-                { id: 'ds_lessons', label: 'Schedule', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
-                { id: 'ds_fleet', label: 'Fleet Hub', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
-                { id: 'ds_instructors', label: 'Instructors', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
-                { id: 'ds_finance', label: 'Finance Hub', icon: <CurrencyIcon className="w-5 h-5 mr-2" /> },
-                { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
-                { id: 'settings', label: 'Settings Hub', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
-            ];
-        }
+
 
         if (isAutoMarket) {
             return [
@@ -1709,17 +1698,10 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onApproveAgreement={props.onApproveLawAgreement}
                     />
                 )}
-                {['dashboard', 'ds_students', 'ds_lessons', 'ds_fleet', 'ds_instructors', 'ds_finance'].includes(activeTab) && isDS && (
+                {activeTab === 'driving_school' && (
                     <DrivingSchoolManager
                         currentUser={props.currentUser!}
                         currentInstitution={props.activeInstitution}
-                        externalTab={
-                            activeTab === 'ds_students' ? 'students' : 
-                            activeTab === 'ds_lessons' ? 'lessons' : 
-                            activeTab === 'ds_fleet' ? 'fleet' : 
-                            activeTab === 'ds_instructors' ? 'instructors' : 
-                            activeTab === 'ds_finance' ? 'finance' : 'dashboard'
-                        }
                     />
                 )}
 
