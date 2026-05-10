@@ -357,8 +357,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         assessment: 0
     });
     useEffect(() => {
-        setLocalDsSettings(props.dsSettings || null);
-    }, [props.dsSettings]);
+        if (activeTab !== 'driving_school') {
+            setLocalDsSettings(props.dsSettings || null);
+        } else if (!localDsSettings && props.dsSettings) {
+            // Initial sync when entering the tab if not already loaded
+            setLocalDsSettings(props.dsSettings);
+        }
+    }, [props.dsSettings, activeTab, localDsSettings]);
     // Update local state when profile changes
     useEffect(() => {
         if (selectedProfileId === 'default') {
@@ -1814,7 +1819,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             onChange={(e) => {
                                                 const next = { ...localDsSettings, cancellation_policy: e.target.value } as DSSettings;
                                                 setLocalDsSettings(next);
-                                                props.onUpdateDSSettings?.(next);
                                             }}
                                             rows={4}
                                             placeholder="Specify your rules for lesson cancellation..."
@@ -1836,7 +1840,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             onClick={() => {
                                                 const next = { ...localDsSettings, auto_scheduling_enabled: !localDsSettings?.auto_scheduling_enabled } as DSSettings;
                                                 setLocalDsSettings(next);
-                                                props.onUpdateDSSettings?.(next);
                                             }}
                                             className={`w-12 h-6 rounded-full relative transition-all ${localDsSettings?.auto_scheduling_enabled ? 'bg-indigo-600' : 'bg-slate-300'}`}
                                         >
@@ -1857,7 +1860,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     scheduling_rules: { ...(localDsSettings?.scheduling_rules || {}), maxLessonsPerDayPerStudent: Number(e.target.value) }
                                                 } as DSSettings;
                                                 setLocalDsSettings(next);
-                                                props.onUpdateDSSettings?.(next);
                                             }}
                                             className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
                                         />
@@ -1873,7 +1875,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     scheduling_rules: { ...(localDsSettings?.scheduling_rules || {}), minGapMinutesBetweenLessons: Number(e.target.value) }
                                                 } as DSSettings;
                                                 setLocalDsSettings(next);
-                                                props.onUpdateDSSettings?.(next);
                                             }}
                                             className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
                                         />
@@ -1888,7 +1889,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         scheduling_rules: { ...(localDsSettings?.scheduling_rules || {}), autoAssignInstructor: !localDsSettings?.scheduling_rules?.autoAssignInstructor }
                                                     } as DSSettings;
                                                     setLocalDsSettings(next);
-                                                    props.onUpdateDSSettings?.(next);
                                                 }}
                                                 className={`w-10 h-5 rounded-full relative transition-all ${localDsSettings?.scheduling_rules?.autoAssignInstructor ? 'bg-indigo-600' : 'bg-slate-300'}`}
                                             >
@@ -1904,7 +1904,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         scheduling_rules: { ...(localDsSettings?.scheduling_rules || {}), autoAssignVehicle: !localDsSettings?.scheduling_rules?.autoAssignVehicle }
                                                     } as DSSettings;
                                                     setLocalDsSettings(next);
-                                                    props.onUpdateDSSettings?.(next);
                                                 }}
                                                 className={`w-10 h-5 rounded-full relative transition-all ${localDsSettings?.scheduling_rules?.autoAssignVehicle ? 'bg-indigo-600' : 'bg-slate-300'}`}
                                             >
@@ -1930,7 +1929,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             onChange={e => {
                                                 const next = { ...localDsSettings, invoice_prefix: e.target.value } as DSSettings;
                                                 setLocalDsSettings(next);
-                                                props.onUpdateDSSettings?.(next);
                                             }}
                                             className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
                                         />
@@ -1944,7 +1942,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             onChange={e => {
                                                 const next = { ...localDsSettings, receipt_prefix: e.target.value } as DSSettings;
                                                 setLocalDsSettings(next);
-                                                props.onUpdateDSSettings?.(next);
                                             }}
                                             className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
                                         />
@@ -1958,7 +1955,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             onChange={e => {
                                                 const next = { ...localDsSettings, student_id_prefix: e.target.value } as DSSettings;
                                                 setLocalDsSettings(next);
-                                                props.onUpdateDSSettings?.(next);
                                             }}
                                             className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
                                         />
@@ -2013,9 +2009,16 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     let nextStructures = [...(localDsSettings?.fee_structures || [])];
                                                     if (editingFeeId) { nextStructures = nextStructures.map(f => f.id === editingFeeId ? { ...f, ...feeData } : f); } 
                                                     else { nextStructures.push({ ...feeData, createdAt: new Date().toISOString() } as any); }
-                                                    const next = { ...(localDsSettings || { institutionId: props.currentInstitution?.id || '', id: `set_${Date.now()}` }), fee_structures: nextStructures } as DSSettings;
+                                                    const existingSettings = localDsSettings || props.dsSettings || { 
+                                                        institutionId: props.currentInstitution?.id || '', 
+                                                        id: `ds_settings_${props.currentInstitution?.id || Date.now()}`,
+                                                        fee_structures: [] 
+                                                    };
+                                                    const next = { 
+                                                        ...existingSettings, 
+                                                        fee_structures: nextStructures 
+                                                    } as DSSettings;
                                                     setLocalDsSettings(next);
-                                                    props.onUpdateDSSettings?.(next);
                                                     setIsAddingFee(false);
                                                     setEditingFeeId(null);
                                                     setNewFeeForm({ className: '', tuition: 0, pdl: 0, assessment: 0 });
@@ -2072,7 +2075,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 onClick={() => {
                                                     const next = { ...localDsSettings, fee_structures: localDsSettings?.fee_structures?.filter(f => f.id !== fee.id) } as DSSettings;
                                                     setLocalDsSettings(next);
-                                                    props.onUpdateDSSettings?.(next);
                                                 }}
                                                 className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"
                                             >

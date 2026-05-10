@@ -421,7 +421,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         addPayment: onAddPayment
     } = useDrivingSchool();
     
-    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings'>('dashboard');
+    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance'>('dashboard');
     const activeTab = externalTab || internalTab;
     const setActiveTab = (tab: any) => setInternalTab(tab);
 
@@ -854,7 +854,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                 {invoice.items.map((item: any, idx: number) => (
                                                                     <div key={idx} className="flex items-center gap-2 text-[8px] font-bold uppercase tracking-widest text-slate-400">
                                                                         <div className={`w-1.5 h-1.5 rounded-full ${item.paidAmount >= item.amount ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                                                                        <span>{item.name}: {((item.paidAmount || 0) / item.amount * 100).toFixed(0)}%</span>
+                                                                        <span>{item.name}: {item.amount > 0 ? ((item.paidAmount || 0) / item.amount * 100).toFixed(0) : '0'}%</span>
                                                                     </div>
                                                                 ))}
                                                             </div>
@@ -957,87 +957,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         </div>
                     )}
 
-                    {activeTab === 'settings' && (
-                        <div className="max-w-4xl bg-white dark:bg-slate-900 p-12 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm animate-fade-in">
-                            <div className="flex items-center justify-between mb-8">
-                                <div>
-                                    <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Settings</h2>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Configuration & Fee Structures</p>
-                                </div>
-                                <button 
-                                    onClick={() => setActionModal({ type: 'fee_structure' })}
-                                    className="px-6 py-3 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-100 transition-all flex items-center gap-2"
-                                >
-                                    <PlusIcon className="w-4 h-4" />
-                                    Add Class Fee
-                                </button>
-                            </div>
-                            
-                            <div className="space-y-12">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {(settings?.fee_structures || []).map((fee: DSFeeStructure) => (
-                                        <div key={fee.id} className="bg-slate-50 dark:bg-slate-800/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 relative group">
-                                            <div className="flex items-center justify-between mb-6">
-                                                <span className="text-sm font-black text-indigo-600 uppercase tracking-widest">{fee.className}</span>
-                                                <span className="text-xl font-black text-slate-900 dark:text-white">KES {fee.totalAmount.toLocaleString()}</span>
-                                            </div>
-                                            <div className="space-y-3">
-                                                {fee.items.map((item: DSFeeItem, idx: number) => (
-                                                    <div key={idx} className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                                                        <span>{item.name}</span>
-                                                        <span>{item.amount.toLocaleString()}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            <div className="mt-4 flex items-center gap-4">
-                                                <button 
-                                                    onClick={() => setActionModal({ 
-                                                        type: 'fee_structure',
-                                                        initialData: {
-                                                            id: fee.id,
-                                                            className: fee.className,
-                                                            tuition: fee.items.find((i: DSFeeItem) => i.name === 'Tuition Fee')?.amount || 0,
-                                                            pdl: fee.items.find((i: DSFeeItem) => i.name === 'PDL')?.amount || 0,
-                                                            assessment: fee.items.find((i: DSFeeItem) => i.name === 'Assessment')?.amount || 0
-                                                        }
-                                                    })}
-                                                    className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
-                                                >
-                                                    Edit Structure
-                                                </button>
-                                                <button 
-                                                    onClick={() => {
-                                                        const next = {
-                                                            ...settings,
-                                                            fee_structures: settings?.fee_structures?.filter((f: DSFeeStructure) => f.id !== fee.id)
-                                                        } as DSSettings;
-                                                        onUpdateSettings(next);
-                                                    }}
-                                                    className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"
-                                                >
-                                                    Remove Structure
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
 
-                                <button 
-                                    onClick={async () => {
-                                        try {
-                                            await onUpdateSettings(settings);
-                                            success("Settings saved");
-                                        } catch (err) {
-                                            toastError("Failed to save settings");
-                                        }
-                                    }}
-                                    className="w-full py-5 bg-indigo-600 text-white rounded-3xl font-black uppercase tracking-widest shadow-xl shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                                >
-                                    Save Configuration
-                                </button>
-                            </div>
-                        </div>
-                    )}
                 </div>
 
                 {actionModal.type && (

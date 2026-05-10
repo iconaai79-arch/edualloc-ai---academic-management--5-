@@ -201,7 +201,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const result = await apiService.saveModuleRecord('ds_settings', payload);
             console.log("[DS Context] Save Success - Response:", result);
             
-            const count = data.feeStructures?.length || 0;
+            const count = data.fee_structures?.length || 0;
             success(`Settings saved: ${count} fee structures synchronized.`);
             await onRefresh();
         } catch (err) {
