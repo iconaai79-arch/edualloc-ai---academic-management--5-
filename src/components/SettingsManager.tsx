@@ -1909,10 +1909,45 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${localDsSettings?.schedulingRules?.autoAssignVehicle ? 'right-0.5' : 'left-0.5'}`} />
                                             </button>
                                         </div>
+                                </div>
+
+                                <div className="pt-12 border-t border-slate-50 dark:border-slate-800">
+                                    <div className="mb-8">
+                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Document Numbering</h3>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Define prefixes for financial documents</p>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Invoice Prefix</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="e.g. INV-"
+                                                value={localDsSettings?.invoicePrefix || ''} 
+                                                onChange={e => {
+                                                    const next = { ...localDsSettings, invoicePrefix: e.target.value } as DSSettings;
+                                                    setLocalDsSettings(next);
+                                                    props.onUpdateDSSettings?.(next);
+                                                }}
+                                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Receipt Prefix</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="e.g. REC-"
+                                                value={localDsSettings?.receiptPrefix || ''} 
+                                                onChange={e => {
+                                                    const next = { ...localDsSettings, receiptPrefix: e.target.value } as DSSettings;
+                                                    setLocalDsSettings(next);
+                                                    props.onUpdateDSSettings?.(next);
+                                                }}
+                                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
                         <div className="md:col-span-2 pt-12 mt-12 border-t border-slate-100 dark:border-slate-800">
                             <div className="flex items-center justify-between mb-8">

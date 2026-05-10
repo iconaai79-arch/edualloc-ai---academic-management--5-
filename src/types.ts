@@ -3868,6 +3868,8 @@ export interface DSSettings {
         autoAssignInstructor?: boolean;
         autoAssignVehicle?: boolean;
     };
+    invoicePrefix?: string;
+    receiptPrefix?: string;
     updatedAt: string;
 }
 

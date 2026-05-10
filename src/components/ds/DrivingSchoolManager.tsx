@@ -131,7 +131,9 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
 const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => void, students: DSStudent[], instructors: DSInstructor[], vehicles: DSVehicle[], lessons: DSLesson[], onSave: (data: any) => Promise<void>, settings: DSSettings | null, initialData?: any }> = ({ type, onClose, students, instructors, vehicles, lessons, onSave, settings, initialData }) => {
     const [formData, setFormData] = useState<any>(() => {
         const base = initialData || {
-            status: type === 'student' ? 'Enrolled' : type === 'instructor' ? 'Active' : type === 'vehicle' ? 'Operational' : 'Scheduled'
+            status: type === 'student' ? 'Enrolled' : type === 'instructor' ? 'Active' : type === 'vehicle' ? 'Operational' : 'Scheduled',
+            invoiceNumber: type === 'invoice' ? `${settings?.invoicePrefix || 'INV-'}${Date.now().toString().slice(-4)}` : undefined,
+            receiptNumber: type === 'payment' ? `${settings?.receiptPrefix || 'REC-'}${Date.now().toString().slice(-4)}` : undefined
         };
         if (!initialData) {
             if (type === 'student') return { ...base, enrollmentDate: new Date().toISOString().split('T')[0], theoryProgressPercent: 0, practicalProgressPercent: 0 };
