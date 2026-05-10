@@ -725,7 +725,7 @@ export const App: React.FC = () => {
             const isBusiness = isSuper || ['Business', 'Business Ecosystem', 'Retail', 'Agrovet', 'Car Wash', 'Automotive Marketplace', 'Hardware', 'Pharmacy'].includes(instType);
             const isLogistics = isSuper || ['Logistics', 'Transport'].includes(instType);
             const isHospitality = isSuper || instType === 'Hospitality';
-            const isDrivingSchool = isSuper || instType === 'Driving School';
+            const isDrivingSchool = isSuper || instType === 'Driving School' || activeInst?.moduleStates?.some(m => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'));
             const isPolitical = isSuper || instType === 'Political Campaign';
             const isCommunity = isSuper || instType === 'Community';
             const isCounty = isSuper || (currentUser?.role || '').startsWith('county_');
@@ -1010,7 +1010,11 @@ export const App: React.FC = () => {
                 if (businessResults) [item, retExp, rStores, rInv, cafe, cOrders, rSales, cwJobs, fMaint] = businessResults;
                 if (isCoop && coopResults) [cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc] = coopResults;
                 if (isLaw && legalResults) [lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements] = legalResults;
-                if (isDrivingSchool && drivingResults) [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay] = drivingResults;
+                if (isDrivingSchool && drivingResults) {
+                    [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay] = drivingResults;
+                    console.log("[DS Debug] Fetched Instructors:", dsInst?.length, dsInst);
+                    console.log("[DS Debug] Fetched Students:", dsStud?.length, dsStud);
+                }
                 if (isBusiness && carResults) [csList, csTest, csAppr, cInvs, cPay, csBank] = carResults;
                 if (systemResults) [sups, stx, apts, vis, sec, reqRecords, tor, fBulletin, fDocs, fWatch, vhcls, tonb, vlogs, ims, fExps, fGoals, fPayroll, demoLeads] = systemResults;
 
@@ -2789,7 +2793,11 @@ export const App: React.FC = () => {
 
     const handleAddDSInstructor = useCallback(async (data: any) => {
         const instId = activeInstitution?.id || currentUser?.institutionId;
-        if (!instId) return;
+        if (!instId) {
+            console.error("[DS Error] Cannot add instructor: No active institution selected.");
+            alert("Please select an institution first.");
+            return;
+        }
         await apiService.saveModuleRecord('ds_instructors', { ...data, id: `dsi_${Date.now()}`, institutionId: instId, createdAt: new Date().toISOString() });
         await handleLogAction(`Added driving instructor: ${data.name}`);
         await loadData(false, true);
@@ -2797,7 +2805,11 @@ export const App: React.FC = () => {
 
     const handleAddDSVehicle = useCallback(async (data: any) => {
         const instId = activeInstitution?.id || currentUser?.institutionId;
-        if (!instId) return;
+        if (!instId) {
+            console.error("[DS Error] Cannot add vehicle: No active institution selected.");
+            alert("Please select an institution first.");
+            return;
+        }
         await apiService.saveModuleRecord('ds_vehicles', { ...data, id: `dsv_${Date.now()}`, institutionId: instId, createdAt: new Date().toISOString() });
         await handleLogAction(`Added driving school vehicle: ${data.plateNumber}`);
         await loadData(false, true);
@@ -2805,7 +2817,11 @@ export const App: React.FC = () => {
 
     const handleAddDSStudent = useCallback(async (data: any) => {
         const instId = activeInstitution?.id || currentUser?.institutionId;
-        if (!instId) return;
+        if (!instId) {
+            console.error("[DS Error] Cannot add student: No active institution selected.");
+            alert("Please select an institution first.");
+            return;
+        }
 
         const userId = `u_${Date.now()}`;
         

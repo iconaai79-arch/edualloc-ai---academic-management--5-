@@ -7,6 +7,7 @@ import {
     SettingsIcon,
     PlusIcon,
     SearchIcon,
+    PhoneIcon,
     ChevronRightIcon,
     MapPinIcon,
     CheckCircleIcon,
@@ -354,6 +355,8 @@ interface DrivingSchoolManagerProps {
 }
 
 export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
+    currentUser,
+    currentInstitution,
     instructors,
     vehicles,
     students,
@@ -375,8 +378,12 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     onImportStudents,
     transactions,
     bankTransactions,
+    onReconcileTransaction,
     externalTab
 }) => {
+    console.log("[DSM Debug] Instructors Prop:", instructors?.length, instructors);
+    console.log("[DSM Debug] Students Prop:", students?.length, students);
+    
     const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings'>('dashboard');
     const activeTab = externalTab || internalTab;
     const setActiveTab = (tab: any) => setInternalTab(tab);
@@ -686,17 +693,18 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         </td>
                                     </tr>
                                 ))}
+                                {filteredStudents.length === 0 && (
+                                    <tr>
+                                        <td colSpan={6} className="px-8 py-20 text-center">
+                                            <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                <UsersIcon className="w-10 h-10 text-slate-300" />
+                                            </div>
+                                            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">No students found</p>
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
-                        {filteredStudents.length === 0 && (
-                            <div className="text-center py-20 bg-slate-50/50 dark:bg-slate-800/50">
-                                <div className="w-24 h-24 bg-white dark:bg-slate-700 rounded-3xl shadow-sm flex items-center justify-center mx-auto mb-6">
-                                    <UsersIcon className="w-10 h-10 text-slate-200" />
-                                </div>
-                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase mb-2">No Students Found</h3>
-                                <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Add your first student to begin training tracking</p>
-                            </div>
-                        )}
                     </div>
                 </div>
             )}
@@ -833,57 +841,72 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
             {activeTab === 'instructors' && (
                 <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-fade-in">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-fade-in">
                     {instructors.map(instructor => (
-                        <div key={instructor.id} className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm flex gap-8 group">
-                            <div className="w-32 h-32 rounded-[2rem] bg-indigo-50/50 flex items-center justify-center relative shrink-0 overflow-hidden">
-                                <UsersIcon className="w-16 h-16 text-indigo-200" />
-                                <div className="absolute inset-0 bg-gradient-to-t from-indigo-500/20 to-transparent"></div>
-                                <div className="absolute bottom-2 right-2 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white"></div>
-                            </div>
-                            <div className="flex-1 flex flex-col justify-between">
-                                <div>
-                                    <div className="flex items-start justify-between">
-                                        <div>
-                                            <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-none mb-1">{instructor.name}</h3>
-                                            <p className="text-xs font-black text-indigo-600 uppercase tracking-widest">{instructor.specialization || 'Manual Specialist'}</p>
-                                        </div>
-                                        <div className="flex items-center gap-1 bg-amber-50 px-3 py-1 rounded-lg">
-                                            <StarIcon className="w-3 h-3 text-amber-500 fill-amber-500" />
-                                            <span className="text-[10px] font-black text-amber-700">{instructor.rating || '5.0'}</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-6 mt-6">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Lessons</span>
-                                            <span className="text-xl font-black text-slate-900 dark:text-white">12</span>
-                                        </div>
-                                        <div className="h-10 w-px bg-slate-100 dark:bg-slate-800"></div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Experience</span>
-                                            <span className="text-xl font-black text-slate-900 dark:text-white">4y+</span>
-                                        </div>
+                        <div key={instructor.id} className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm transition-all hover:shadow-xl hover:scale-[1.02] group">
+                            <div className="flex items-start justify-between mb-8">
+                                <div className="w-16 h-16 rounded-3xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center font-black text-xl">
+                                    {(instructor.name || 'I').charAt(0)}
+                                </div>
+                                <div className="flex flex-col items-end">
+                                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                                        instructor.status === 'Active' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'
+                                    }`}>
+                                        {instructor.status || 'Active'}
+                                    </span>
+                                    <div className="flex items-center gap-1 mt-3">
+                                        <StarIcon className="w-3 h-3 text-amber-400 fill-amber-400" />
+                                        <span className="text-[10px] font-black text-slate-900 dark:text-white">{instructor.rating || '5.0'}</span>
                                     </div>
                                 </div>
-                                <div className="flex gap-2">
-                                    <button className="flex-1 py-3 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl font-bold text-[10px] uppercase hover:bg-indigo-50 hover:text-indigo-600 transition-all">Profile</button>
-                                    <button className="flex-1 py-3 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl font-bold text-[10px] uppercase hover:bg-indigo-50 hover:text-indigo-600 transition-all">Schedule</button>
+                            </div>
+                            
+                            <div className="mb-8">
+                                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1">{instructor.name}</h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">{instructor.specialization || 'General Instructor'}</p>
+                            </div>
+
+                            <div className="space-y-4 pt-8 border-t border-slate-50 dark:border-slate-800">
+                                <div className="flex items-center gap-3 text-slate-500">
+                                    <PhoneIcon className="w-4 h-4" />
+                                    <span className="text-xs font-bold">{instructor.phone || 'N/A'}</span>
+                                </div>
+                                <div className="flex items-center gap-3 text-slate-500">
+                                    <BriefcaseIcon className="w-4 h-4" />
+                                    <span className="text-xs font-bold">{instructor.licenseNumber || 'No License'}</span>
                                 </div>
                             </div>
                         </div>
                     ))}
-                    <button 
-                        onClick={() => setActionModal({ type: 'instructor' })}
-                        className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border-2 border-dashed border-slate-100 flex items-center justify-center gap-6 group hover:border-indigo-500 transition-all min-h-[160px]"
-                    >
-                        <PlusIcon className="w-8 h-8 text-slate-300 group-hover:text-indigo-600" />
-                        <div className="text-left">
-                            <h3 className="text-xl font-black text-slate-400 group-hover:text-indigo-600 uppercase tracking-tight leading-none mb-1">Onboard Instructor</h3>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Add a new professional driver</p>
+
+                    {instructors.length === 0 ? (
+                        <div className="col-span-full py-32 flex flex-col items-center justify-center bg-slate-50/50 dark:bg-slate-800/20 rounded-[3rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
+                            <div className="w-24 h-24 bg-white dark:bg-slate-900 rounded-full shadow-lg flex items-center justify-center mb-6">
+                                <AcademicCapIcon className="w-12 h-12 text-slate-300" />
+                            </div>
+                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">No Instructors Yet</h3>
+                            <p className="text-slate-400 font-medium text-xs uppercase tracking-widest max-w-xs text-center mb-8">Onboard your first instructor to start managing training sessions and schedules.</p>
+                            <button 
+                                onClick={() => setActionModal({ type: 'instructor' })}
+                                className="flex items-center gap-2 bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-600/20 hover:bg-indigo-700 transition-all"
+                            >
+                                <PlusIcon className="w-4 h-4" />
+                                <span>Add Your First Instructor</span>
+                            </button>
                         </div>
-                    </button>
+                    ) : (
+                        <button 
+                            onClick={() => setActionModal({ type: 'instructor' })}
+                            className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border-2 border-dashed border-slate-100 flex items-center justify-center gap-6 group hover:border-indigo-500 transition-all min-h-[160px]"
+                        >
+                            <PlusIcon className="w-8 h-8 text-slate-300 group-hover:text-indigo-600" />
+                            <div className="text-left">
+                                <h3 className="text-xl font-black text-slate-400 group-hover:text-indigo-600 uppercase tracking-tight leading-none mb-1">Onboard Instructor</h3>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Add a new professional driver</p>
+                            </div>
+                        </button>
+                    )}
                 </div>
-                {/* Sticky Add Button always visible at bottom */}
                 <div className="flex justify-end mt-4">
                     <button
                         onClick={() => setActionModal({ type: 'instructor' })}
