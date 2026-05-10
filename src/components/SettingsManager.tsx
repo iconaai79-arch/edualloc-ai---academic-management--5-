@@ -1792,12 +1792,14 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 </div>
             )}
 
+
             {activeTab === 'driving_school' && (
                 <div className="max-w-4xl bg-white dark:bg-slate-900 p-12 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm animate-fade-in">
                     <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Driving School <span className="text-indigo-600">Business Rules</span></h2>
                     <p className="text-slate-500 font-medium uppercase text-[10px] tracking-widest mb-12">Configure pricing, policies and course fees</p>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                        {/* Column 1: Policies & Rules */}
                         <div className="space-y-8">
                             <div>
                                 <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase mb-6 flex items-center gap-3">
@@ -1808,9 +1810,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     <div className="flex flex-col gap-2">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cancellation Policy</label>
                                         <textarea 
-                                            value={localDsSettings?.cancellationPolicy || ''}
+                                            value={localDsSettings?.cancellation_policy || ''}
                                             onChange={(e) => {
-                                                const next = { ...localDsSettings, cancellationPolicy: e.target.value } as DSSettings;
+                                                const next = { ...localDsSettings, cancellation_policy: e.target.value } as DSSettings;
                                                 setLocalDsSettings(next);
                                                 props.onUpdateDSSettings?.(next);
                                             }}
@@ -1832,27 +1834,27 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Auto-Schedule</span>
                                         <button 
                                             onClick={() => {
-                                                const next = { ...localDsSettings, autoSchedulingEnabled: !localDsSettings?.autoSchedulingEnabled } as DSSettings;
+                                                const next = { ...localDsSettings, auto_scheduling_enabled: !localDsSettings?.auto_scheduling_enabled } as DSSettings;
                                                 setLocalDsSettings(next);
                                                 props.onUpdateDSSettings?.(next);
                                             }}
-                                            className={`w-12 h-6 rounded-full relative transition-all ${localDsSettings?.autoSchedulingEnabled ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                            className={`w-12 h-6 rounded-full relative transition-all ${localDsSettings?.auto_scheduling_enabled ? 'bg-indigo-600' : 'bg-slate-300'}`}
                                         >
-                                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${localDsSettings?.autoSchedulingEnabled ? 'right-1' : 'left-1'}`} />
+                                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${localDsSettings?.auto_scheduling_enabled ? 'right-1' : 'left-1'}`} />
                                         </button>
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Max Lessons Per Student / Day</label>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Max Lessons / Student / Day</label>
                                         <input 
                                             type="number" 
-                                            value={localDsSettings?.schedulingRules?.maxLessonsPerDayPerStudent || 1} 
+                                            value={localDsSettings?.scheduling_rules?.maxLessonsPerDayPerStudent || 1} 
                                             onChange={e => {
                                                 const next = { 
                                                     ...localDsSettings, 
-                                                    schedulingRules: { ...(localDsSettings?.schedulingRules || {}), maxLessonsPerDayPerStudent: Number(e.target.value) }
+                                                    scheduling_rules: { ...(localDsSettings?.scheduling_rules || {}), maxLessonsPerDayPerStudent: Number(e.target.value) }
                                                 } as DSSettings;
                                                 setLocalDsSettings(next);
                                                 props.onUpdateDSSettings?.(next);
@@ -1861,14 +1863,14 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Min Gap Between Lessons (Mins)</label>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Min Gap (Mins)</label>
                                         <input 
                                             type="number" 
-                                            value={localDsSettings?.schedulingRules?.minGapMinutesBetweenLessons || 15} 
+                                            value={localDsSettings?.scheduling_rules?.minGapMinutesBetweenLessons || 15} 
                                             onChange={e => {
                                                 const next = { 
                                                     ...localDsSettings, 
-                                                    schedulingRules: { ...(localDsSettings?.schedulingRules || {}), minGapMinutesBetweenLessons: Number(e.target.value) }
+                                                    scheduling_rules: { ...(localDsSettings?.scheduling_rules || {}), minGapMinutesBetweenLessons: Number(e.target.value) }
                                                 } as DSSettings;
                                                 setLocalDsSettings(next);
                                                 props.onUpdateDSSettings?.(next);
@@ -1878,99 +1880,102 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     </div>
                                     <div className="flex flex-col justify-center space-y-4">
                                         <div className="flex items-center justify-between">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Auto-Assign Instructor</span>
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Auto-Instructor</span>
                                             <button 
                                                 onClick={() => {
                                                     const next = { 
                                                         ...localDsSettings, 
-                                                        schedulingRules: { ...(localDsSettings?.schedulingRules || {}), autoAssignInstructor: !localDsSettings?.schedulingRules?.autoAssignInstructor }
+                                                        scheduling_rules: { ...(localDsSettings?.scheduling_rules || {}), autoAssignInstructor: !localDsSettings?.scheduling_rules?.autoAssignInstructor }
                                                     } as DSSettings;
                                                     setLocalDsSettings(next);
                                                     props.onUpdateDSSettings?.(next);
                                                 }}
-                                                className={`w-10 h-5 rounded-full relative transition-all ${localDsSettings?.schedulingRules?.autoAssignInstructor ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                                className={`w-10 h-5 rounded-full relative transition-all ${localDsSettings?.scheduling_rules?.autoAssignInstructor ? 'bg-indigo-600' : 'bg-slate-300'}`}
                                             >
-                                                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${localDsSettings?.schedulingRules?.autoAssignInstructor ? 'right-0.5' : 'left-0.5'}`} />
+                                                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${localDsSettings?.scheduling_rules?.autoAssignInstructor ? 'right-0.5' : 'left-0.5'}`} />
                                             </button>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Auto-Assign Vehicle</span>
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Auto-Vehicle</span>
                                             <button 
                                                 onClick={() => {
                                                     const next = { 
                                                         ...localDsSettings, 
-                                                        schedulingRules: { ...(localDsSettings?.schedulingRules || {}), autoAssignVehicle: !localDsSettings?.schedulingRules?.autoAssignVehicle }
+                                                        scheduling_rules: { ...(localDsSettings?.scheduling_rules || {}), autoAssignVehicle: !localDsSettings?.scheduling_rules?.autoAssignVehicle }
                                                     } as DSSettings;
                                                     setLocalDsSettings(next);
                                                     props.onUpdateDSSettings?.(next);
                                                 }}
-                                                className={`w-10 h-5 rounded-full relative transition-all ${localDsSettings?.schedulingRules?.autoAssignVehicle ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                                className={`w-10 h-5 rounded-full relative transition-all ${localDsSettings?.scheduling_rules?.autoAssignVehicle ? 'bg-indigo-600' : 'bg-slate-300'}`}
                                             >
-                                                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${localDsSettings?.schedulingRules?.autoAssignVehicle ? 'right-0.5' : 'left-0.5'}`} />
+                                                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${localDsSettings?.scheduling_rules?.autoAssignVehicle ? 'right-0.5' : 'left-0.5'}`} />
                                             </button>
-                                        </div>
-                                </div>
-
-                                <div className="pt-12 border-t border-slate-50 dark:border-slate-800">
-                                    <div className="mb-8">
-                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Document Numbering</h3>
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Define prefixes for financial documents</p>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Invoice Prefix</label>
-                                            <input 
-                                                type="text" 
-                                                placeholder="e.g. INV-"
-                                                value={localDsSettings?.invoicePrefix || ''} 
-                                                onChange={e => {
-                                                    const next = { ...localDsSettings, invoicePrefix: e.target.value } as DSSettings;
-                                                    setLocalDsSettings(next);
-                                                    props.onUpdateDSSettings?.(next);
-                                                }}
-                                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Receipt Prefix</label>
-                                            <input 
-                                                type="text" 
-                                                placeholder="e.g. REC-"
-                                                value={localDsSettings?.receiptPrefix || ''} 
-                                                onChange={e => {
-                                                    const next = { ...localDsSettings, receiptPrefix: e.target.value } as DSSettings;
-                                                    setLocalDsSettings(next);
-                                                    props.onUpdateDSSettings?.(next);
-                                                }}
-                                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Student ID Prefix</label>
-                                            <input 
-                                                type="text" 
-                                                placeholder="e.g. ID-"
-                                                value={localDsSettings?.studentIdPrefix || ''} 
-                                                onChange={e => {
-                                                    const next = { ...localDsSettings, studentIdPrefix: e.target.value } as DSSettings;
-                                                    setLocalDsSettings(next);
-                                                    props.onUpdateDSSettings?.(next);
-                                                }}
-                                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
-                                            />
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                        <div className="md:col-span-2 pt-12 mt-12 border-t border-slate-100 dark:border-slate-800">
+                            <div className="pt-12 border-t border-slate-50 dark:border-slate-800">
+                                <div className="mb-8">
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Document Numbering</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Define prefixes for financial documents</p>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Invoice Prefix</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="e.g. INV-"
+                                            value={localDsSettings?.invoice_prefix || ''} 
+                                            onChange={e => {
+                                                const next = { ...localDsSettings, invoice_prefix: e.target.value } as DSSettings;
+                                                setLocalDsSettings(next);
+                                                props.onUpdateDSSettings?.(next);
+                                            }}
+                                            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Receipt Prefix</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="e.g. REC-"
+                                            value={localDsSettings?.receipt_prefix || ''} 
+                                            onChange={e => {
+                                                const next = { ...localDsSettings, receipt_prefix: e.target.value } as DSSettings;
+                                                setLocalDsSettings(next);
+                                                props.onUpdateDSSettings?.(next);
+                                            }}
+                                            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Student ID Prefix</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="e.g. ID-"
+                                            value={localDsSettings?.student_id_prefix || ''} 
+                                            onChange={e => {
+                                                const next = { ...localDsSettings, student_id_prefix: e.target.value } as DSSettings;
+                                                setLocalDsSettings(next);
+                                                props.onUpdateDSSettings?.(next);
+                                            }}
+                                            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Column 2: Fee Structures */}
+                        <div className="pt-12 mt-12 border-t border-slate-100 dark:border-slate-800">
                             <div className="flex items-center justify-between mb-8">
                                 <div>
                                     <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Fee Structures</h3>
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Define costs for different driving classes</p>
                                 </div>
                                 {isAddingFee ? (
-                                    <div className="md:col-span-2 bg-indigo-50/50 dark:bg-indigo-900/10 p-8 rounded-[2.5rem] border border-indigo-100 dark:border-indigo-900/30 animate-fade-in-up">
+                                    <div className="bg-indigo-50/50 dark:bg-indigo-900/10 p-8 rounded-[2.5rem] border border-indigo-100 dark:border-indigo-900/30 animate-fade-in-up">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                                             <div className="md:col-span-2 space-y-2">
                                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Class Name</label>
@@ -2005,19 +2010,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         totalAmount: newFeeForm.tuition + newFeeForm.pdl + newFeeForm.assessment,
                                                         updatedAt: new Date().toISOString()
                                                     };
-
-                                                    let nextStructures = [...(localDsSettings?.feeStructures || [])];
-                                                    if (editingFeeId) {
-                                                        nextStructures = nextStructures.map(f => f.id === editingFeeId ? { ...f, ...feeData } : f);
-                                                    } else {
-                                                        nextStructures.push({ ...feeData, createdAt: new Date().toISOString() } as any);
-                                                    }
-
-                                                    const next = { 
-                                                        ...(localDsSettings || { institutionId: props.currentInstitution?.id || '', id: `set_${Date.now()}` }), 
-                                                        feeStructures: nextStructures
-                                                    } as DSSettings;
-                                                    
+                                                    let nextStructures = [...(localDsSettings?.fee_structures || [])];
+                                                    if (editingFeeId) { nextStructures = nextStructures.map(f => f.id === editingFeeId ? { ...f, ...feeData } : f); } 
+                                                    else { nextStructures.push({ ...feeData, createdAt: new Date().toISOString() } as any); }
+                                                    const next = { ...(localDsSettings || { institutionId: props.currentInstitution?.id || '', id: `set_${Date.now()}` }), fee_structures: nextStructures } as DSSettings;
                                                     setLocalDsSettings(next);
                                                     props.onUpdateDSSettings?.(next);
                                                     setIsAddingFee(false);
@@ -2041,8 +2037,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 )}
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {(localDsSettings?.feeStructures || []).map((fee) => (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                                {(localDsSettings?.fee_structures || []).map((fee) => (
                                     <div key={fee.id} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800">
                                         <div className="flex items-center justify-between mb-4">
                                             <span className="text-sm font-black text-indigo-600 uppercase tracking-widest">{fee.className}</span>
@@ -2074,10 +2070,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             </button>
                                             <button 
                                                 onClick={() => {
-                                                    const next = {
-                                                        ...localDsSettings,
-                                                        feeStructures: localDsSettings?.feeStructures?.filter(f => f.id !== fee.id)
-                                                    } as DSSettings;
+                                                    const next = { ...localDsSettings, fee_structures: localDsSettings?.fee_structures?.filter(f => f.id !== fee.id) } as DSSettings;
                                                     setLocalDsSettings(next);
                                                     props.onUpdateDSSettings?.(next);
                                                 }}
@@ -2088,49 +2081,39 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         </div>
                                     </div>
                                 ))}
-                                {(localDsSettings?.feeStructures || []).length === 0 && (
+                                {(localDsSettings?.fee_structures || []).length === 0 && (
                                     <div className="md:col-span-2 py-12 text-center bg-slate-50/50 dark:bg-slate-800/50 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700">
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No fee structures defined yet</p>
                                     </div>
                                 )}
                             </div>
                         </div>
+                    </div>
 
-                        <div className="md:col-span-2 pt-8 border-t border-slate-50 dark:border-slate-800">
-                            <button 
-                                onClick={async () => { 
-                                    if (localDsSettings) {
-                                        setIsSaving(true);
-                                        try {
-                                            console.log("[SettingsManager] Triggering save...", localDsSettings);
-                                            if (!props.onUpdateDSSettings) {
-                                                console.error("[SettingsManager] onUpdateDSSettings is missing!");
-                                                alert("System error: Save function not found.");
-                                                return;
-                                            }
-                                            await props.onUpdateDSSettings(localDsSettings);
-                                            props.onRefreshData?.(); 
-                                            alert("Settings saved successfully.");
-                                        } catch (err) {
-                                            console.error("[SettingsManager] Save error:", err);
-                                            alert("Failed to save settings. Please try again.");
-                                        } finally {
-                                            setIsSaving(false);
-                                        }
-                                    } else {
-                                        alert("No changes to save.");
+                    <div className="pt-8 border-t border-slate-50 dark:border-slate-800 mt-12">
+                        <button 
+                            onClick={async () => { 
+                                if (localDsSettings) {
+                                    setIsSaving(true);
+                                    try {
+                                        await props.onUpdateDSSettings?.(localDsSettings);
+                                        props.onRefreshData?.(); 
+                                        alert("Settings saved successfully.");
+                                    } catch (err) {
+                                        alert("Failed to save settings.");
+                                    } finally {
+                                        setIsSaving(false);
                                     }
-                                }}
-                                disabled={isSaving}
-                                className={`w-full py-5 text-white rounded-3xl font-black text-sm uppercase tracking-[0.2em] shadow-xl transition-all ${isSaving ? 'bg-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:scale-[1.01] active:scale-[0.98] shadow-indigo-600/30'}`}
-                            >
-                                {isSaving ? 'Processing Persistence...' : 'Save Configuration'}
-                            </button>
-                        </div>
+                                }
+                            }}
+                            disabled={isSaving}
+                            className={`w-full py-5 text-white rounded-3xl font-black text-sm uppercase tracking-[0.2em] shadow-xl transition-all ${isSaving ? 'bg-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:scale-[1.01] active:scale-[0.98] shadow-indigo-600/30'}`}
+                        >
+                            {isSaving ? 'Processing Persistence...' : 'Save Configuration'}
+                        </button>
                     </div>
                 </div>
             )}
-
             {/* General Tab */}
             {
                 activeTab === 'general' && (

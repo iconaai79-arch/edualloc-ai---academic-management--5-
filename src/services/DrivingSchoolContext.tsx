@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, Rea
 import { DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment } from '../types';
 import { apiService } from './apiService';
 import { useToast } from './ToastContext';
+import { generateDSPDF } from '../utils/dsPdfGenerator';
 
 interface DrivingSchoolContextType {
     instructors: DSInstructor[];
@@ -228,13 +229,17 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const subject = `${inst.name} - ${type === 'invoice' ? 'Invoice' : 'Receipt'} #${type === 'invoice' ? data.invoiceNumber : data.receiptNumber}`;
             const body = `Dear ${student.fullName},\n\nPlease find attached your ${type}. \n\nAmount: KES ${data.totalAmount || data.amount}\n\nThank you for choosing us!`;
             
-            await apiService.sendEmail(student.email, subject, body, undefined, undefined, [
-                { filename: fileName, content: pdfBase64, encoding: 'base64' }
-            ]);
+            if (student.email) {
+                await apiService.sendEmail(student.email, subject, body, undefined, undefined, [
+                    { filename: fileName, content: pdfBase64, encoding: 'base64' }
+                ]);
+            }
 
             // 2. Send SMS
             const smsMessage = `Hello ${student.fullName}, your ${type} #${type === 'invoice' ? data.invoiceNumber : data.receiptNumber} of KES ${data.totalAmount || data.amount} has been generated. Download it here: [LINK]`;
-            await apiService.sendSms(student.phoneNumber, smsMessage, undefined, 1, institutionId);
+            if (student.phone) {
+                await apiService.sendSms(student.phone, smsMessage, undefined, 1, institutionId);
+            }
 
             console.log(`[DS Automation] Notifications sent for ${type}`);
         } catch (err) {
@@ -248,7 +253,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 ...data,
                 id: `inv_${Date.now()}`,
                 institutionId,
-                invoiceNumber: data.invoiceNumber || `${settings?.invoicePrefix || 'INV-'}${Date.now().toString().slice(-6)}`,
+                invoiceNumber: data.invoiceNumber || `${settings?.invoice_prefix || 'INV-'}${Date.now().toString().slice(-6)}`,
                 status: 'Pending',
                 paidAmount: 0,
                 balance: data.totalAmount || 0,
@@ -273,7 +278,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 ...data, 
                 id: `pay_${Date.now()}`, 
                 institutionId,
-                receiptNumber: data.receiptNumber || `${settings?.receiptPrefix || 'REC-'}${Date.now().toString().slice(-6)}`,
+                receiptNumber: data.receiptNumber || `${settings?.receipt_prefix || 'REC-'}${Date.now().toString().slice(-6)}`,
                 paymentDate: new Date().toISOString()
             };
             await apiService.saveModuleRecord('ds_payments', pay);

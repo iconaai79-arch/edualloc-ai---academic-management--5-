@@ -1588,8 +1588,20 @@ CREATE TABLE IF NOT EXISTS ds_settings (
     fee_structures JSONB DEFAULT '[]'::jsonb,
     cancellation_policy TEXT,
     working_hours JSONB,
+    auto_scheduling_enabled BOOLEAN DEFAULT FALSE,
+    scheduling_rules JSONB DEFAULT '{}'::jsonb,
+    invoice_prefix TEXT,
+    receipt_prefix TEXT,
+    student_id_prefix TEXT,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Ensure columns exist for older schema versions
+ALTER TABLE ds_settings ADD COLUMN IF NOT EXISTS auto_scheduling_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE ds_settings ADD COLUMN IF NOT EXISTS scheduling_rules JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE ds_settings ADD COLUMN IF NOT EXISTS invoice_prefix TEXT;
+ALTER TABLE ds_settings ADD COLUMN IF NOT EXISTS receipt_prefix TEXT;
+ALTER TABLE ds_settings ADD COLUMN IF NOT EXISTS student_id_prefix TEXT;
 
 CREATE TABLE IF NOT EXISTS ds_fee_structures (
     id TEXT PRIMARY KEY,
@@ -1624,6 +1636,7 @@ CREATE TABLE IF NOT EXISTS ds_payments (
     id TEXT PRIMARY KEY,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     invoice_id TEXT NOT NULL REFERENCES ds_invoices(id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL REFERENCES ds_students(id) ON DELETE CASCADE,
     student_name TEXT,
     amount DECIMAL(12, 2) NOT NULL,
     payment_method TEXT NOT NULL,
@@ -1633,6 +1646,8 @@ CREATE TABLE IF NOT EXISTS ds_payments (
     received_by TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE ds_payments ADD COLUMN IF NOT EXISTS student_id TEXT;
 
 -- 15. CAR SHOWROOM MODULE
 CREATE TABLE IF NOT EXISTS car_listings (

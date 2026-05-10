@@ -29,7 +29,7 @@ import { useDrivingSchool } from '../../services/DrivingSchoolContext';
 import { AppErrorBoundary } from '../common/AppErrorBoundary';
 
 import type { 
-    User, DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, DSFeeStructure 
+    User, DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, DSFeeStructure, DSFeeItem 
 } from '../../types';
 
 interface DrivingSchoolManagerProps {
@@ -133,9 +133,9 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
     const [formData, setFormData] = useState<any>(() => {
         const base = initialData || {
             status: type === 'student' ? 'Enrolled' : type === 'instructor' ? 'Active' : type === 'vehicle' ? 'Operational' : 'Scheduled',
-            studentId: type === 'student' ? `${settings?.studentIdPrefix || 'ID-'}${Date.now().toString().slice(-4)}` : undefined,
-            invoiceNumber: type === 'invoice' ? `${settings?.invoicePrefix || 'INV-'}${Date.now().toString().slice(-4)}` : undefined,
-            receiptNumber: type === 'payment' ? `${settings?.receiptPrefix || 'REC-'}${Date.now().toString().slice(-4)}` : undefined
+            studentId: type === 'student' ? `${settings?.student_id_prefix || 'ID-'}${Date.now().toString().slice(-4)}` : undefined,
+            invoiceNumber: type === 'invoice' ? `${settings?.invoice_prefix || 'INV-'}${Date.now().toString().slice(-4)}` : undefined,
+            receiptNumber: type === 'payment' ? `${settings?.receipt_prefix || 'REC-'}${Date.now().toString().slice(-4)}` : undefined
         };
         if (!initialData) {
             if (type === 'student') return { ...base, enrollmentDate: new Date().toISOString().split('T')[0], theoryProgressPercent: 0, practicalProgressPercent: 0 };
@@ -317,7 +317,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                 <div className="md:col-span-2 space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Fee Structure (Optional Autopopulate)</label>
                                     <select value={formData.feeStructureId || ''} onChange={e => {
-                                        const fs = settings?.feeStructures?.find(x => x.id === e.target.value);
+                                        const fs = settings?.fee_structures?.find((x: any) => x.id === e.target.value);
                                         if (fs) {
                                             setFormData({
                                                 ...formData, 
@@ -331,7 +331,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         }
                                     }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
                                         <option value="">Select Fee Structure</option>
-                                        {settings?.feeStructures?.map(fs => <option key={fs.id} value={fs.id}>{fs.className} (KES {fs.totalAmount.toLocaleString()})</option>)}
+                                        {settings?.fee_structures?.map((fs: DSFeeStructure) => <option key={fs.id} value={fs.id}>{fs.className} (KES {fs.totalAmount.toLocaleString()})</option>)}
                                     </select>
                                 </div>
                                 <div className="space-y-2">
@@ -913,7 +913,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     <td className="px-10 py-6 text-right space-x-2">
                                                         <button 
                                                             onClick={() => {
-                                                                const student = students.find(s => s.id === payment.studentId);
+                                                                const student = students.find((s: DSStudent) => s.id === payment.studentId);
                                                                 if (student) {
                                                                     const doc = generateDSPDF('receipt', payment, student as any, settings, currentInstitution);
                                                                     doc.output('dataurlnewwindow');
@@ -926,7 +926,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                         </button>
                                                         <button 
                                                             onClick={() => {
-                                                                const student = students.find(s => s.id === payment.studentId);
+                                                                const student = students.find((s: DSStudent) => s.id === payment.studentId);
                                                                 if (student) {
                                                                     const doc = generateDSPDF('receipt', payment, student as any, settings, currentInstitution);
                                                                     doc.save(`${payment.receiptNumber}.pdf`);
@@ -965,14 +965,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             
                             <div className="space-y-12">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {(settings?.feeStructures || []).map((fee) => (
+                                    {(settings?.fee_structures || []).map((fee: DSFeeStructure) => (
                                         <div key={fee.id} className="bg-slate-50 dark:bg-slate-800/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 relative group">
                                             <div className="flex items-center justify-between mb-6">
                                                 <span className="text-sm font-black text-indigo-600 uppercase tracking-widest">{fee.className}</span>
                                                 <span className="text-xl font-black text-slate-900 dark:text-white">KES {fee.totalAmount.toLocaleString()}</span>
                                             </div>
                                             <div className="space-y-3">
-                                                {fee.items.map((item, idx) => (
+                                                {fee.items.map((item: DSFeeItem, idx: number) => (
                                                     <div key={idx} className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-slate-500">
                                                         <span>{item.name}</span>
                                                         <span>{item.amount.toLocaleString()}</span>
@@ -986,9 +986,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                         initialData: {
                                                             id: fee.id,
                                                             className: fee.className,
-                                                            tuition: fee.items.find(i => i.name === 'Tuition Fee')?.amount || 0,
-                                                            pdl: fee.items.find(i => i.name === 'PDL')?.amount || 0,
-                                                            assessment: fee.items.find(i => i.name === 'Assessment')?.amount || 0
+                                                            tuition: fee.items.find((i: DSFeeItem) => i.name === 'Tuition Fee')?.amount || 0,
+                                                            pdl: fee.items.find((i: DSFeeItem) => i.name === 'PDL')?.amount || 0,
+                                                            assessment: fee.items.find((i: DSFeeItem) => i.name === 'Assessment')?.amount || 0
                                                         }
                                                     })}
                                                     className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
@@ -999,7 +999,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     onClick={() => {
                                                         const next = {
                                                             ...settings,
-                                                            feeStructures: settings?.feeStructures?.filter(f => f.id !== fee.id)
+                                                            fee_structures: settings?.fee_structures?.filter((f: DSFeeStructure) => f.id !== fee.id)
                                                         } as DSSettings;
                                                         onUpdateSettings(next);
                                                     }}
@@ -1056,7 +1056,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     updatedAt: new Date().toISOString()
                                 };
 
-                                let nextStructures = [...(settings?.feeStructures || [])];
+                                let nextStructures = [...(settings?.fee_structures || [])];
                                 if (data.id) {
                                     nextStructures = nextStructures.map(f => f.id === data.id ? { ...f, ...feeData } : f);
                                 } else {
@@ -1065,7 +1065,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                                 const next = {
                                     ...(settings || {}),
-                                    feeStructures: nextStructures
+                                    fee_structures: nextStructures
                                 };
                                 await onUpdateSettings(next);
                             }
