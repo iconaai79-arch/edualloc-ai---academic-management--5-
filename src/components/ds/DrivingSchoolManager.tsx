@@ -849,6 +849,16 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                         }`}>
                                                             {invoice.status}
                                                         </span>
+                                                        {invoice.items && (
+                                                            <div className="mt-2 space-y-1">
+                                                                {invoice.items.map((item: any, idx: number) => (
+                                                                    <div key={idx} className="flex items-center gap-2 text-[8px] font-bold uppercase tracking-widest text-slate-400">
+                                                                        <div className={`w-1.5 h-1.5 rounded-full ${item.paidAmount >= item.amount ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                                                                        <span>{item.name}: {((item.paidAmount || 0) / item.amount * 100).toFixed(0)}%</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </td>
                                                     <td className="px-10 py-6 text-right space-x-2">
                                                         <button 

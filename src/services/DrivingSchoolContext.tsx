@@ -254,6 +254,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 id: `inv_${Date.now()}`,
                 institutionId,
                 invoiceNumber: data.invoiceNumber || `${settings?.invoice_prefix || 'INV-'}${Date.now().toString().slice(-6)}`,
+                items: (data.items || []).map((it: any) => ({ ...it, paidAmount: 0 })),
                 status: 'Pending',
                 paidAmount: 0,
                 balance: data.totalAmount || 0,
@@ -282,17 +283,45 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 paymentDate: new Date().toISOString()
             };
             await apiService.saveModuleRecord('ds_payments', pay);
-            success("Payment recorded successfully");
-            
-            // Trigger Automation
+
+            // Automatic Payment Distribution Logic
+            const invoice = invoices.find(inv => inv.id === data.invoiceId);
+            if (invoice) {
+                const amountPaid = data.amount;
+                
+                // Distribution Strategy: Proportional (Percentage-based)
+                // This ensures every line item (Tuition, PDL, etc.) is paid off proportionally
+                const updatedItems = invoice.items.map(item => {
+                    const proportion = item.amount / invoice.totalAmount;
+                    const distribution = amountPaid * proportion;
+                    return {
+                        ...item,
+                        paidAmount: (item.paidAmount || 0) + distribution
+                    };
+                });
+
+                const newPaidAmount = (invoice.paidAmount || 0) + amountPaid;
+                const newBalance = Math.max(0, invoice.totalAmount - newPaidAmount);
+                const newStatus = newBalance <= 0 ? 'Fully Paid' : 'Partially Paid';
+
+                await apiService.saveModuleRecord('ds_invoices', {
+                    ...invoice,
+                    items: updatedItems,
+                    paidAmount: newPaidAmount,
+                    balance: newBalance,
+                    status: newStatus,
+                    updatedAt: new Date().toISOString()
+                });
+            }
+
+            success("Payment recorded and distributed successfully");
             sendDocumentNotification('receipt', pay, pay.studentId);
-            
             await onRefresh();
         } catch (err) {
             error("Failed to record payment");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error, students, settings, sendDocumentNotification]);
+    }, [institutionId, onRefresh, success, error, students, settings, invoices, sendDocumentNotification]);
 
     const stats = useMemo(() => ({
         totalStudents: students.length,

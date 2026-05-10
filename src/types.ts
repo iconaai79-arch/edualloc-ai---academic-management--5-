@@ -3877,6 +3877,11 @@ export interface DSSettings {
 export interface DSFeeItem {
     name: string;
     amount: number;
+    priority?: number; // Lower number = higher priority
+}
+
+export interface DSInvoiceItem extends DSFeeItem {
+    paidAmount: number;
 }
 
 export interface DSFeeStructure {
@@ -3896,7 +3901,7 @@ export interface DSInvoice {
     studentName: string;
     feeStructureId?: string;
     className: string;
-    items: DSFeeItem[];
+    items: DSInvoiceItem[];
     totalAmount: number;
     paidAmount: number;
     balance: number;

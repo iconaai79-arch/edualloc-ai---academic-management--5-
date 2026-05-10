@@ -43,8 +43,8 @@ export const generateDSPDF = (
     doc.text(student.fullName, margin, 78);
     doc.setFontSize(10);
     doc.setTextColor(100);
-    doc.text(student.phoneNumber, margin, 84);
-    doc.text(student.email, margin, 89);
+    doc.text(student.phone || 'N/A', margin, 84);
+    doc.text(student.email || 'N/A', margin, 89);
 
     // Date
     doc.text('DATE:', pageWidth - margin - 40, 70);
@@ -52,18 +52,36 @@ export const generateDSPDF = (
     doc.text(new Date().toLocaleDateString(), pageWidth - margin, 70, { align: 'right' });
 
     // Table
-    const tableData = type === 'invoice' ? [
-        ['Tuition Fee', `KES ${(data as DSInvoice).totalAmount.toLocaleString()}`],
-        ['Description', (data as DSInvoice).notes || 'Standard Driving Course Fee']
-    ] : [
-        ['Payment Method', (data as DSPayment).paymentMethod],
-        ['Reference', (data as DSPayment).transactionId || 'N/A'],
-        ['Amount Paid', `KES ${(data as DSPayment).amount.toLocaleString()}`]
-    ];
+    let tableHead: string[] = [];
+    let tableData: any[][] = [];
+
+    if (type === 'invoice') {
+        const inv = data as DSInvoice;
+        tableHead = ['Description', 'Amount (KES)', 'Paid (KES)', 'Balance (KES)'];
+        tableData = (inv.items || []).map(item => [
+            item.name,
+            item.amount.toLocaleString(),
+            (item.paidAmount || 0).toLocaleString(),
+            (item.amount - (item.paidAmount || 0)).toLocaleString()
+        ]);
+        // Add notes as a footer row if exists
+        if (inv.notes) {
+            tableData.push(['Notes', inv.notes, '', '']);
+        }
+    } else {
+        const pay = data as DSPayment;
+        tableHead = ['Payment Detail', 'Value'];
+        tableData = [
+            ['Payment Method', pay.paymentMethod],
+            ['Reference', pay.transactionReference || 'N/A'],
+            ['Date', new Date(pay.paymentDate).toLocaleString()],
+            ['Amount Paid', `KES ${pay.amount.toLocaleString()}`]
+        ];
+    }
 
     doc.autoTable({
         startY: 110,
-        head: [[type === 'invoice' ? 'Description' : 'Payment Detail', 'Amount']],
+        head: [tableHead],
         body: tableData,
         theme: 'striped',
         headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
@@ -76,9 +94,26 @@ export const generateDSPDF = (
     // Totals
     doc.setFontSize(14);
     doc.setTextColor(30, 41, 59);
-    doc.text('TOTAL:', pageWidth - margin - 40, finalY + 20);
+    const totalLabel = type === 'invoice' ? 'INVOICE TOTAL:' : 'PAYMENT TOTAL:';
+    const totalValue = type === 'invoice' ? (data as DSInvoice).totalAmount : (data as DSPayment).amount;
+    
+    doc.text(totalLabel, pageWidth - margin - 60, finalY + 20);
     doc.setFontSize(16);
-    doc.text(`KES ${(data as any).totalAmount || (data as any).amount}.00`, pageWidth - margin, finalY + 20, { align: 'right' });
+    doc.text(`KES ${totalValue.toLocaleString()}.00`, pageWidth - margin, finalY + 20, { align: 'right' });
+
+    if (type === 'invoice') {
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text('AMOUNT PAID:', pageWidth - margin - 60, finalY + 30);
+        doc.setTextColor(30, 41, 59);
+        doc.text(`KES ${(data as DSInvoice).paidAmount.toLocaleString()}.00`, pageWidth - margin, finalY + 30, { align: 'right' });
+        
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.text('BALANCE DUE:', pageWidth - margin - 60, finalY + 40);
+        doc.setTextColor(220, 38, 38); // Red-600
+        doc.text(`KES ${(data as DSInvoice).balance.toLocaleString()}.00`, pageWidth - margin, finalY + 40, { align: 'right' });
+    }
 
     // Footer
     doc.setFontSize(10);
