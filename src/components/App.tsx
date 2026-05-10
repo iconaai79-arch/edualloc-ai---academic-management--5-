@@ -96,7 +96,7 @@ import type {
     ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay, DemoRequest,
     InstitutionModuleState,
     LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction, LawAgreementTemplate, LawAgreement,
-    DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
+    DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment,
     CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry, BankTransaction,
     DisciplineIncident, Expense, FinancialGoal, PayrollRecord, CampaignProfile,
     AcademicsOfficerProps, LecturerProps, ParentProps,
@@ -290,6 +290,8 @@ export const App: React.FC = () => {
     const [dsLessons, setDsLessons] = useState<DSLesson[]>([]);
     const [dsMastery, setDsMastery] = useState<DSSkillMastery[]>([]);
     const [dsSettings, setDsSettings] = useState<DSSettings | null>(null);
+    const [dsInvoices, setDsInvoices] = useState<DSInvoice[]>([]);
+    const [dsPayments, setDsPayments] = useState<DSPayment[]>([]);
 
     // Car Sales State
     const [carListings, setCarListings] = useState<CarListing[]>([]);
@@ -875,7 +877,7 @@ export const App: React.FC = () => {
                 let cPayouts: any[] = [], cExps: any[] = [], cInc: any[] = [];
                 let lClients: any[] = [], lMatters: any[] = [], lDocs: any[] = [], lTime: any[] = [], lInvs: any[] = [];
                 let lTrust: any[] = [], lTemplates: any[] = [], lAgreements: any[] = [];
-                let dsInst: any[] = [], dsVeh: any[] = [], dsStud: any[] = [], dsLess: any[] = [], dsMast: any[] = [], dsSet: any[] = [];
+                let dsInst: any[] = [], dsVeh: any[] = [], dsStud: any[] = [], dsLess: any[] = [], dsMast: any[] = [], dsSet: any[] = [], dsInvs: any[] = [], dsPay: any[] = [];
                 let cInvs: any[] = [], cPay: any[] = [];
                 let ims: any[] = [], disc: any[] = [], fExps: any[] = [], fGoals: any[] = [], fPayroll: any[] = [], demoLeads: any[] = [];
                 let csList: any[] = [], csTest: any[] = [], csAppr: any[] = [], csBank: any[] = [];
@@ -966,6 +968,8 @@ export const App: React.FC = () => {
                         apiService.fetchModuleRecords<DSLesson>('ds_lessons', effectiveInstId).catch(() => []),
                         apiService.fetchModuleRecords<DSSkillMastery>('ds_skill_mastery', effectiveInstId).catch(() => []),
                         apiService.fetchModuleRecords<DSSettings>('ds_settings', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<DSInvoice>('ds_invoices', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<DSPayment>('ds_payments', effectiveInstId).catch(() => []),
                     ]) : Promise.resolve([]),
                     // Car Batch
                     isBusiness ? Promise.all([
@@ -1006,7 +1010,7 @@ export const App: React.FC = () => {
                 if (businessResults) [item, retExp, rStores, rInv, cafe, cOrders, rSales, cwJobs, fMaint] = businessResults;
                 if (isCoop && coopResults) [cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc] = coopResults;
                 if (isLaw && legalResults) [lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements] = legalResults;
-                if (isDrivingSchool && drivingResults) [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet] = drivingResults;
+                if (isDrivingSchool && drivingResults) [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay] = drivingResults;
                 if (isBusiness && carResults) [csList, csTest, csAppr, cInvs, cPay, csBank] = carResults;
                 if (systemResults) [sups, stx, apts, vis, sec, reqRecords, tor, fBulletin, fDocs, fWatch, vhcls, tonb, vlogs, ims, fExps, fGoals, fPayroll, demoLeads] = systemResults;
 
@@ -1070,6 +1074,8 @@ export const App: React.FC = () => {
                 setDsLessons(dsLess || []);
                 setDsMastery(dsMast || []);
                 setDsSettings(dsSet && dsSet.length > 0 ? dsSet[0] : null);
+                setDsInvoices(dsInvs || []);
+                setDsPayments(dsPay || []);
                 setCarListings(csList || []);
                 setCarTestDrives(csTest || []);
                 setCarAppraisals(csAppr || []);
@@ -2813,7 +2819,7 @@ export const App: React.FC = () => {
                 role: 'student',
                 institutionId: instId,
                 status: 'active'
-            }, activeInstitution?.name);
+            } as any, activeInstitution?.name);
         } catch (e) {
             console.warn("Could not create platform user for DS student:", e);
         }
@@ -3809,6 +3815,8 @@ export const App: React.FC = () => {
         dsLessons,
         dsMastery,
         dsSettings,
+        dsInvoices,
+        dsPayments,
         onAddDSInstructor: handleAddDSInstructor,
         onAddDSVehicle: handleAddDSVehicle,
         onAddDSStudent: handleAddDSStudent,
@@ -3850,7 +3858,7 @@ export const App: React.FC = () => {
             await apiService.saveCarAppraisal({ ...data, id: `appr_${Date.now()}`, institutionId: instId || '' });
             await loadData();
         }
-    }), [currentUser, activeInstitution, notifications, institutions, counties, users, subjects, departments, courses, companyDetails, transactions, demoRequests, receipts, activityLog, allocations, requests, semesters, activeLetterheadConfig, activeBranding, activeFooterImageUrl, rooms, buildings, academicLevels, academicYears, activeAcademicYear, activeSemester, timetableSettings, assessments, assessmentMarks, incidents, schoolRegistry, leaveOutRequests, invoices, extensionRequests, voteHeads, feeStructures, financialPeriods, userTasks, generatedTimetable, timetableConflicts, timeOffRequests, enrollmentRequests, absenceRequests, studentAbsenceRequests, securityAlerts, visitors, requisitions, studentAttendances, studentCheckIns, lessonRatings, feedbackSubmissions, courseSizes, isGeneratingDemoData, demoDataGenerationProgress, demoDataGenerationMessage, vehicles, transportOnboarding, coopFarmers, coopCollections, coopRiders, coopAgrovetSales, saccoAccounts, coopPayouts, coopExpenses, coopIncome, lawClients, lawMatters, lawDocuments, lawTimeEntries, lawInvoices, lawTrustTransactions, lawAgreementTemplates, lawAgreements, dsInstructors, dsVehicles, dsStudents, dsLessons, dsMastery, dsSettings, carListings, carTestDrives, carAppraisals, carInvoices, carPayments, handleAccessAlumnaPortal, handleUpdateCompanyDetails, onImportStudents, onEditUser, onDeleteUser, onUpdateInstitution, handleUpdateRequest, handleWithdrawRequest, handleAddTimeOffRequest, handleAddTask, handleUpdateTask, handleDeleteTask, handleSaveAttendance, handleProcessPayroll, handleUpdateLeaveStatus, handleLogGateAction, handleTeacherLessonCheckIn, handleOnboardStudent, handleOffboardStudent, handleAddAssessment, handleDeleteAssessment, handleSaveAssessmentMarks, handleAddSubject, handleUpdateSubject, handleDeleteSubject, handleAddCourse, handleUpdateCourse, handleDeleteCourse, handleImportCourses, handleAddDepartment, handleUpdateDepartment, handleDeleteDepartment, handleImportDepartments, handleAddRoom, handleUpdateRoom, handleDeleteRoom, handleImportRooms, loadData]);
+    }), [currentUser, activeInstitution, notifications, institutions, counties, users, subjects, departments, courses, companyDetails, transactions, demoRequests, receipts, activityLog, allocations, requests, semesters, activeLetterheadConfig, activeBranding, activeFooterImageUrl, rooms, buildings, academicLevels, academicYears, activeAcademicYear, activeSemester, timetableSettings, assessments, assessmentMarks, incidents, schoolRegistry, leaveOutRequests, invoices, extensionRequests, voteHeads, feeStructures, financialPeriods, userTasks, generatedTimetable, timetableConflicts, timeOffRequests, enrollmentRequests, absenceRequests, studentAbsenceRequests, securityAlerts, visitors, requisitions, studentAttendances, studentCheckIns, lessonRatings, feedbackSubmissions, courseSizes, isGeneratingDemoData, demoDataGenerationProgress, demoDataGenerationMessage, vehicles, transportOnboarding, coopFarmers, coopCollections, coopRiders, coopAgrovetSales, saccoAccounts, coopPayouts, coopExpenses, coopIncome, lawClients, lawMatters, lawDocuments, lawTimeEntries, lawInvoices, lawTrustTransactions, lawAgreementTemplates, lawAgreements, dsInstructors, dsVehicles, dsStudents, dsLessons, dsMastery, dsSettings, dsInvoices, dsPayments, carListings, carTestDrives, carAppraisals, carInvoices, carPayments, handleAccessAlumnaPortal, handleUpdateCompanyDetails, onImportStudents, onEditUser, onDeleteUser, onUpdateInstitution, handleUpdateRequest, handleWithdrawRequest, handleAddTimeOffRequest, handleAddTask, handleUpdateTask, handleDeleteTask, handleSaveAttendance, handleProcessPayroll, handleUpdateLeaveStatus, handleLogGateAction, handleTeacherLessonCheckIn, handleOnboardStudent, handleOffboardStudent, handleAddAssessment, handleDeleteAssessment, handleSaveAssessmentMarks, handleAddSubject, handleUpdateSubject, handleDeleteSubject, handleAddCourse, handleUpdateCourse, handleDeleteCourse, handleImportCourses, handleAddDepartment, handleUpdateDepartment, handleDeleteDepartment, handleImportDepartments, handleAddRoom, handleUpdateRoom, handleDeleteRoom, handleImportRooms, loadData]);
 
 
     const countyAdminProps = useMemo<Partial<CountyAdminProps>>(() => ({

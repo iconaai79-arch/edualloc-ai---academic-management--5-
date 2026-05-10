@@ -3810,6 +3810,7 @@ export interface DSStudent {
     institutionId: string;
     userId?: string;
     fullName: string;
+    email?: string;
     passportNumber?: string;
     phone?: string;
     licenseTypeInterested?: string;

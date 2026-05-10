@@ -398,9 +398,22 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             : 0
     }), [students, instructors, vehicles, lessons]);
 
+    // Normalize students to handle both camelCase and snake_case from DB
+    const normalizedStudents = useMemo(() => students.map(s => ({
+        ...s,
+        fullName: s.fullName || (s as any).full_name || '(No Name)',
+        phone: s.phone || (s as any).phone_number || '',
+        email: s.email || (s as any).email || '',
+        licenseTypeInterested: s.licenseTypeInterested || (s as any).license_type_interested || '',
+        theoryProgressPercent: s.theoryProgressPercent ?? (s as any).theory_progress_percent ?? 0,
+        practicalProgressPercent: s.practicalProgressPercent ?? (s as any).practical_progress_percent ?? 0,
+        status: s.status || 'Enrolled',
+        enrollmentDate: s.enrollmentDate || (s as any).enrollment_date || '',
+    })), [students]);
+
     const filteredStudents = useMemo(() => 
-        students.filter(s => s.fullName.toLowerCase().includes(searchTerm.toLowerCase())),
-    [students, searchTerm]);
+        normalizedStudents.filter(s => (s.fullName || '').toLowerCase().includes(searchTerm.toLowerCase())),
+    [normalizedStudents, searchTerm]);
 
     return (
         <div className="flex flex-col gap-6 animate-fade-in pb-20">
@@ -867,6 +880,16 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             <h3 className="text-xl font-black text-slate-400 group-hover:text-indigo-600 uppercase tracking-tight leading-none mb-1">Onboard Instructor</h3>
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Add a new professional driver</p>
                         </div>
+                    </button>
+                </div>
+                {/* Sticky Add Button always visible at bottom */}
+                <div className="flex justify-end mt-4">
+                    <button
+                        onClick={() => setActionModal({ type: 'instructor' })}
+                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20"
+                    >
+                        <PlusIcon className="w-4 h-4" />
+                        <span>Add Instructor</span>
                     </button>
                 </div>
             )}
