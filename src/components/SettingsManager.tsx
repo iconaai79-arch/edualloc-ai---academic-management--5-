@@ -2011,7 +2011,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             </div>
                                         </div>
                                         <div className="flex gap-3">
-                                            <button onClick={() => { setIsAddingFee(false); setEditingFeeId(null); setNewFeeForm({ className: '', tuition: 0, pdl: 0, assessment: 0 }); }} className="flex-1 py-4 bg-white dark:bg-slate-800 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button>
+                                            <button onClick={() => { setIsAddingFee(false); setEditingFeeId(null); setNewFeeForm({ className: '', tuition: 0, tuitionPriority: 1, pdl: 0, pdlPriority: 2, assessment: 0, assessmentPriority: 3 }); }} className="flex-1 py-4 bg-white dark:bg-slate-800 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button>
                                             <button 
                                                 onClick={() => {
                                                     const feeData = {
