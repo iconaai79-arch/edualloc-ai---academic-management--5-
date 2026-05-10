@@ -211,7 +211,18 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const result = await apiService.saveModuleRecord('ds_settings', payload);
             console.log("[DS Context] Save Success - Response:", result);
             
-            const count = data.fee_structures?.length || 0;
+            // Mirror fee structures to the standalone ds_fee_structures table if they exist
+            if (data.feeStructures && Array.isArray(data.feeStructures)) {
+                console.log(`[DS Context] Syncing ${data.feeStructures.length} structures to ds_fee_structures table...`);
+                for (const fee of data.feeStructures) {
+                    await apiService.saveModuleRecord('ds_fee_structures', {
+                        ...fee,
+                        institutionId
+                    }).catch(err => console.error("[DS Context] Failed to sync fee structure:", fee.id, err));
+                }
+            }
+
+            const count = data.feeStructures?.length || 0;
             success(`Settings saved: ${count} fee structures synchronized.`);
             await onRefresh();
         } catch (err) {
@@ -263,7 +274,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 ...data,
                 id: `inv_${Date.now()}`,
                 institutionId,
-                invoiceNumber: data.invoiceNumber || `${settings?.invoice_prefix || 'INV-'}${Date.now().toString().slice(-6)}`,
+                invoiceNumber: data.invoiceNumber || `${settings?.invoicePrefix || 'INV-'}${Date.now().toString().slice(-6)}`,
                 items: (data.items || []).map((it: any) => ({ ...it, paidAmount: 0 })),
                 status: 'Pending',
                 paidAmount: 0,
@@ -289,7 +300,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 ...data, 
                 id: `pay_${Date.now()}`, 
                 institutionId,
-                receiptNumber: data.receiptNumber || `${settings?.receipt_prefix || 'REC-'}${Date.now().toString().slice(-6)}`,
+                receiptNumber: data.receiptNumber || `${settings?.receiptPrefix || 'REC-'}${Date.now().toString().slice(-6)}`,
                 paymentDate: new Date().toISOString()
             };
             await apiService.saveModuleRecord('ds_payments', pay);

@@ -1821,9 +1821,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     <div className="flex flex-col gap-2">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cancellation Policy</label>
                                         <textarea 
-                                            value={localDsSettings?.cancellation_policy || ''}
+                                            value={localDsSettings?.cancellationPolicy || ''}
                                             onChange={(e) => {
-                                                const next = { ...(localDsSettings || props.dsSettings || {}), cancellation_policy: e.target.value } as DSSettings;
+                                                const next = { ...(localDsSettings || props.dsSettings || {}), cancellationPolicy: e.target.value } as DSSettings;
                                                 setLocalDsSettings(next);
                                             }}
                                             rows={4}
@@ -1845,12 +1845,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <button 
                                             onClick={() => {
                                                 const current = localDsSettings || props.dsSettings;
-                                                const next = { ...current, auto_scheduling_enabled: !current?.auto_scheduling_enabled } as DSSettings;
+                                                const next = { ...current, autoSchedulingEnabled: !current?.autoSchedulingEnabled } as DSSettings;
                                                 setLocalDsSettings(next);
                                             }}
-                                            className={`w-12 h-6 rounded-full relative transition-all ${localDsSettings?.auto_scheduling_enabled ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                            className={`w-12 h-6 rounded-full relative transition-all ${localDsSettings?.autoSchedulingEnabled ? 'bg-indigo-600' : 'bg-slate-300'}`}
                                         >
-                                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${localDsSettings?.auto_scheduling_enabled ? 'right-1' : 'left-1'}`} />
+                                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${localDsSettings?.autoSchedulingEnabled ? 'right-1' : 'left-1'}`} />
                                         </button>
                                     </div>
                                 </div>
@@ -1936,9 +1936,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <input 
                                             type="text" 
                                             placeholder="e.g. INV-"
-                                            value={localDsSettings?.invoice_prefix || ''} 
+                                            value={localDsSettings?.invoicePrefix || ''} 
                                             onChange={e => {
-                                                const next = { ...(localDsSettings || props.dsSettings || {}), invoice_prefix: e.target.value } as DSSettings;
+                                                const next = { ...(localDsSettings || props.dsSettings || {}), invoicePrefix: e.target.value } as DSSettings;
                                                 setLocalDsSettings(next);
                                             }}
                                             className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
@@ -1949,9 +1949,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <input 
                                             type="text" 
                                             placeholder="e.g. REC-"
-                                            value={localDsSettings?.receipt_prefix || ''} 
+                                            value={localDsSettings?.receiptPrefix || ''} 
                                             onChange={e => {
-                                                const next = { ...(localDsSettings || props.dsSettings || {}), receipt_prefix: e.target.value } as DSSettings;
+                                                const next = { ...(localDsSettings || props.dsSettings || {}), receiptPrefix: e.target.value } as DSSettings;
                                                 setLocalDsSettings(next);
                                             }}
                                             className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
@@ -1962,9 +1962,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <input 
                                             type="text" 
                                             placeholder="e.g. ID-"
-                                            value={localDsSettings?.student_id_prefix || ''} 
+                                            value={localDsSettings?.studentIdPrefix || ''} 
                                             onChange={e => {
-                                                const next = { ...(localDsSettings || props.dsSettings || {}), student_id_prefix: e.target.value } as DSSettings;
+                                                const next = { ...(localDsSettings || props.dsSettings || {}), studentIdPrefix: e.target.value } as DSSettings;
                                                 setLocalDsSettings(next);
                                             }}
                                             className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
@@ -2026,17 +2026,17 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         totalAmount: newFeeForm.tuition + newFeeForm.pdl + newFeeForm.assessment,
                                                         updatedAt: new Date().toISOString()
                                                     };
-                                                    let nextStructures = [...(localDsSettings?.fee_structures || [])];
+                                                    let nextStructures = [...(localDsSettings?.feeStructures || [])];
                                                     if (editingFeeId) { nextStructures = nextStructures.map(f => f.id === editingFeeId ? { ...f, ...feeData } : f); } 
                                                     else { nextStructures.push({ ...feeData, createdAt: new Date().toISOString() } as any); }
                                                     const baseSettings = localDsSettings || props.dsSettings || { 
                                                         institutionId: props.currentInstitution?.id || '', 
                                                         id: `ds_settings_${props.currentInstitution?.id || Date.now()}`,
-                                                        fee_structures: [] 
+                                                        feeStructures: [] 
                                                     };
                                                     const next = { 
                                                         ...baseSettings, 
-                                                        fee_structures: nextStructures 
+                                                        feeStructures: nextStructures 
                                                     } as DSSettings;
                                                     setLocalDsSettings(next);
                                                     setIsAddingFee(false);
@@ -2061,7 +2061,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-                                {(localDsSettings?.fee_structures || []).map((fee) => (
+                                {(localDsSettings?.feeStructures || []).map((fee) => (
                                     <div key={fee.id} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800">
                                         <div className="flex items-center justify-between mb-4">
                                             <span className="text-sm font-black text-indigo-600 uppercase tracking-widest">{fee.className}</span>
@@ -2096,7 +2096,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             </button>
                                             <button 
                                                 onClick={() => {
-                                                    const next = { ...localDsSettings, fee_structures: localDsSettings?.fee_structures?.filter(f => f.id !== fee.id) } as DSSettings;
+                                                    const next = { ...localDsSettings, feeStructures: localDsSettings?.feeStructures?.filter(f => f.id !== fee.id) } as DSSettings;
                                                     setLocalDsSettings(next);
                                                 }}
                                                 className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"
@@ -2106,7 +2106,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         </div>
                                     </div>
                                 ))}
-                                {(localDsSettings?.fee_structures || []).length === 0 && (
+                                {(localDsSettings?.feeStructures || []).length === 0 && (
                                     <div className="md:col-span-2 py-12 text-center bg-slate-50/50 dark:bg-slate-800/50 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700">
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No fee structures defined yet</p>
                                     </div>

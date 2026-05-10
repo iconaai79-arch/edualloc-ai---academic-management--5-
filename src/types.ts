@@ -3855,23 +3855,23 @@ export interface DSSkillMastery {
 export interface DSSettings {
     id: string;
     institutionId: string;
-    lesson_price_practical?: number;
-    lesson_price_theory?: number;
-    fee_structures?: DSFeeStructure[];
-    cancellation_policy?: string;
-    working_hours?: any;
-    auto_scheduling_enabled?: boolean;
-    scheduling_rules?: {
+    lessonPricePractical?: number;
+    lessonPriceTheory?: number;
+    feeStructures?: DSFeeStructure[];
+    cancellationPolicy?: string;
+    workingHours?: any;
+    autoSchedulingEnabled?: boolean;
+    schedulingRules?: {
         maxLessonsPerDayPerStudent?: number;
         minGapMinutesBetweenLessons?: number;
         allowBackToBackLessons?: boolean;
         autoAssignInstructor?: boolean;
         autoAssignVehicle?: boolean;
     };
-    invoice_prefix?: string;
-    receipt_prefix?: string;
-    student_id_prefix?: string;
-    updated_at: string;
+    invoicePrefix?: string;
+    receiptPrefix?: string;
+    studentIdPrefix?: string;
+    updatedAt: string;
 }
 
 export interface DSFeeItem {
