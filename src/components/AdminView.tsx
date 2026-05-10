@@ -70,7 +70,7 @@ import { ChartPieIcon } from './icons/ChartPieIcon';
 import { ArrowsRightLeftIcon } from './icons/ArrowsRightLeftIcon';
 import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTextIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
-import { useDrivingSchool } from '../services/DrivingSchoolContext';
+import { useDrivingSchool, DrivingSchoolContext } from '../services/DrivingSchoolContext';
 import { ChartBarIcon } from './icons/ChartBarIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { AcademicCapIcon } from './icons/AcademicCapIcon';
@@ -408,7 +408,7 @@ export interface AdminViewProps {
 
 
 export const AdminView: React.FC<AdminViewProps> = (props) => {
-    const dsContext = props.currentInstitution?.institutionType === 'Driving School' ? useDrivingSchool() : null;
+    const dsContext = React.useContext(DrivingSchoolContext);
     const { 
         activeAcademicYear, 
         activeSemester, 

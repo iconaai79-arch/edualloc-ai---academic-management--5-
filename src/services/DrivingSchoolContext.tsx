@@ -41,7 +41,7 @@ interface DrivingSchoolContextType {
     };
 }
 
-const DrivingSchoolContext = createContext<DrivingSchoolContextType | undefined>(undefined);
+export const DrivingSchoolContext = createContext<DrivingSchoolContextType | undefined>(undefined);
 
 export const useDrivingSchool = () => {
     const context = useContext(DrivingSchoolContext);

@@ -348,6 +348,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
     const [localDsSettings, setLocalDsSettings] = useState<DSSettings | null>(props.dsSettings || null);
     const [isAddingFee, setIsAddingFee] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [editingFeeId, setEditingFeeId] = useState<string | null>(null);
     const [newFeeForm, setNewFeeForm] = useState({
         className: '',
@@ -2050,20 +2051,31 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                             <button 
                                 onClick={async () => { 
                                     if (localDsSettings) {
+                                        setIsSaving(true);
                                         try {
-                                            await props.onUpdateDSSettings?.(localDsSettings);
+                                            console.log("[SettingsManager] Triggering save...", localDsSettings);
+                                            if (!props.onUpdateDSSettings) {
+                                                console.error("[SettingsManager] onUpdateDSSettings is missing!");
+                                                alert("System error: Save function not found.");
+                                                return;
+                                            }
+                                            await props.onUpdateDSSettings(localDsSettings);
                                             props.onRefreshData?.(); 
                                             alert("Settings saved successfully.");
                                         } catch (err) {
+                                            console.error("[SettingsManager] Save error:", err);
                                             alert("Failed to save settings. Please try again.");
+                                        } finally {
+                                            setIsSaving(false);
                                         }
                                     } else {
                                         alert("No changes to save.");
                                     }
                                 }}
-                                className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-3xl font-black text-sm uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/30 transition-all hover:scale-[1.01] active:scale-[0.98]"
+                                disabled={isSaving}
+                                className={`w-full py-5 text-white rounded-3xl font-black text-sm uppercase tracking-[0.2em] shadow-xl transition-all ${isSaving ? 'bg-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:scale-[1.01] active:scale-[0.98] shadow-indigo-600/30'}`}
                             >
-                                Save Configuration
+                                {isSaving ? 'Processing Persistence...' : 'Save Configuration'}
                             </button>
                         </div>
                     </div>
