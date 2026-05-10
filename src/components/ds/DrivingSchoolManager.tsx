@@ -144,7 +144,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
             if (type === 'instructor') return { ...base, rating: 5 };
             if (type === 'invoice') return { ...base, items: [], totalAmount: 0, paidAmount: 0, balance: 0, status: 'Pending', createdAt: new Date().toISOString() };
             if (type === 'payment') return { ...base, paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'M-Pesa' };
-            if (type === 'fee_structure') return { className: 'CLASS C1', tuition: 15000, pdl: 1500, assessment: 2000 };
+            if (type === 'fee_structure') return { className: 'CLASS C1', tuition: 15000, tuitionPriority: 1, pdl: 1500, pdlPriority: 2, assessment: 2000, assessmentPriority: 3 };
         }
         return base;
     });
@@ -377,15 +377,24 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tuition Fee</label>
-                                    <input required type="number" value={formData.tuition || ''} onChange={e => setFormData({...formData, tuition: Number(e.target.value)})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                    <div className="flex gap-2">
+                                        <input required type="number" value={formData.tuition || ''} onChange={e => setFormData({...formData, tuition: Number(e.target.value)})} className="flex-[3] px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                        <input title="Priority" type="number" value={formData.tuitionPriority || 1} onChange={e => setFormData({...formData, tuitionPriority: Number(e.target.value)})} className="flex-1 px-3 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-center" />
+                                    </div>
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">PDL Fee</label>
-                                    <input required type="number" value={formData.pdl || ''} onChange={e => setFormData({...formData, pdl: Number(e.target.value)})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                    <div className="flex gap-2">
+                                        <input required type="number" value={formData.pdl || ''} onChange={e => setFormData({...formData, pdl: Number(e.target.value)})} className="flex-[3] px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                        <input title="Priority" type="number" value={formData.pdlPriority || 2} onChange={e => setFormData({...formData, pdlPriority: Number(e.target.value)})} className="flex-1 px-3 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-center" />
+                                    </div>
                                 </div>
                                 <div className="md:col-span-2 space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Assessment Fee</label>
-                                    <input required type="number" value={formData.assessment || ''} onChange={e => setFormData({...formData, assessment: Number(e.target.value)})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                    <div className="flex gap-2">
+                                        <input required type="number" value={formData.assessment || ''} onChange={e => setFormData({...formData, assessment: Number(e.target.value)})} className="flex-[3] px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                        <input title="Priority" type="number" value={formData.assessmentPriority || 3} onChange={e => setFormData({...formData, assessmentPriority: Number(e.target.value)})} className="flex-1 px-3 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-center" />
+                                    </div>
                                 </div>
                             </>
                         )}
@@ -978,9 +987,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     institutionId: currentInstitution?.id || '',
                                     className: data.className,
                                     items: [
-                                        { name: 'Tuition Fee', amount: data.tuition || 0 },
-                                        { name: 'PDL', amount: data.pdl || 0 },
-                                        { name: 'Assessment', amount: data.assessment || 0 }
+                                        { name: 'Tuition Fee', amount: data.tuition || 0, priority: data.tuitionPriority || 1 },
+                                        { name: 'PDL', amount: data.pdl || 0, priority: data.pdlPriority || 2 },
+                                        { name: 'Assessment', amount: data.assessment || 0, priority: data.assessmentPriority || 3 }
                                     ],
                                     totalAmount: (data.tuition || 0) + (data.pdl || 0) + (data.assessment || 0),
                                     updatedAt: new Date().toISOString()

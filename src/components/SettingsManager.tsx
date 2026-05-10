@@ -353,17 +353,23 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [newFeeForm, setNewFeeForm] = useState({
         className: '',
         tuition: 0,
+        tuitionPriority: 1,
         pdl: 0,
-        assessment: 0
+        pdlPriority: 2,
+        assessment: 0,
+        assessmentPriority: 3
     });
     useEffect(() => {
         if (activeTab !== 'driving_school') {
             setLocalDsSettings(props.dsSettings || null);
-        } else if (!localDsSettings && props.dsSettings) {
-            // Initial sync when entering the tab if not already loaded
-            setLocalDsSettings(props.dsSettings);
+        } else if (props.dsSettings && (!localDsSettings || !localDsSettings.id)) {
+            // Sync metadata (like ID) from props while preserving local edits
+            setLocalDsSettings(prev => ({
+                ...props.dsSettings,
+                ...(prev || {})
+            }) as DSSettings);
         }
-    }, [props.dsSettings, activeTab, localDsSettings]);
+    }, [props.dsSettings, activeTab]);
     // Update local state when profile changes
     useEffect(() => {
         if (selectedProfileId === 'default') {
@@ -1817,7 +1823,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <textarea 
                                             value={localDsSettings?.cancellation_policy || ''}
                                             onChange={(e) => {
-                                                const next = { ...localDsSettings, cancellation_policy: e.target.value } as DSSettings;
+                                                const next = { ...(localDsSettings || props.dsSettings || {}), cancellation_policy: e.target.value } as DSSettings;
                                                 setLocalDsSettings(next);
                                             }}
                                             rows={4}
@@ -1838,7 +1844,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Auto-Schedule</span>
                                         <button 
                                             onClick={() => {
-                                                const next = { ...localDsSettings, auto_scheduling_enabled: !localDsSettings?.auto_scheduling_enabled } as DSSettings;
+                                                const current = localDsSettings || props.dsSettings;
+                                                const next = { ...current, auto_scheduling_enabled: !current?.auto_scheduling_enabled } as DSSettings;
                                                 setLocalDsSettings(next);
                                             }}
                                             className={`w-12 h-6 rounded-full relative transition-all ${localDsSettings?.auto_scheduling_enabled ? 'bg-indigo-600' : 'bg-slate-300'}`}
@@ -1855,9 +1862,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             type="number" 
                                             value={localDsSettings?.scheduling_rules?.maxLessonsPerDayPerStudent || 1} 
                                             onChange={e => {
+                                                const current = localDsSettings || props.dsSettings;
                                                 const next = { 
-                                                    ...localDsSettings, 
-                                                    scheduling_rules: { ...(localDsSettings?.scheduling_rules || {}), maxLessonsPerDayPerStudent: Number(e.target.value) }
+                                                    ...current, 
+                                                    scheduling_rules: { ...(current?.scheduling_rules || {}), maxLessonsPerDayPerStudent: Number(e.target.value) }
                                                 } as DSSettings;
                                                 setLocalDsSettings(next);
                                             }}
@@ -1870,9 +1878,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             type="number" 
                                             value={localDsSettings?.scheduling_rules?.minGapMinutesBetweenLessons || 15} 
                                             onChange={e => {
+                                                const current = localDsSettings || props.dsSettings;
                                                 const next = { 
-                                                    ...localDsSettings, 
-                                                    scheduling_rules: { ...(localDsSettings?.scheduling_rules || {}), minGapMinutesBetweenLessons: Number(e.target.value) }
+                                                    ...current, 
+                                                    scheduling_rules: { ...(current?.scheduling_rules || {}), minGapMinutesBetweenLessons: Number(e.target.value) }
                                                 } as DSSettings;
                                                 setLocalDsSettings(next);
                                             }}
@@ -1884,9 +1893,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Auto-Instructor</span>
                                             <button 
                                                 onClick={() => {
+                                                    const current = localDsSettings || props.dsSettings;
                                                     const next = { 
-                                                        ...localDsSettings, 
-                                                        scheduling_rules: { ...(localDsSettings?.scheduling_rules || {}), autoAssignInstructor: !localDsSettings?.scheduling_rules?.autoAssignInstructor }
+                                                        ...current, 
+                                                        scheduling_rules: { ...(current?.scheduling_rules || {}), autoAssignInstructor: !current?.scheduling_rules?.autoAssignInstructor }
                                                     } as DSSettings;
                                                     setLocalDsSettings(next);
                                                 }}
@@ -1899,9 +1909,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Auto-Vehicle</span>
                                             <button 
                                                 onClick={() => {
+                                                    const current = localDsSettings || props.dsSettings;
                                                     const next = { 
-                                                        ...localDsSettings, 
-                                                        scheduling_rules: { ...(localDsSettings?.scheduling_rules || {}), autoAssignVehicle: !localDsSettings?.scheduling_rules?.autoAssignVehicle }
+                                                        ...current, 
+                                                        scheduling_rules: { ...(current?.scheduling_rules || {}), autoAssignVehicle: !current?.scheduling_rules?.autoAssignVehicle }
                                                     } as DSSettings;
                                                     setLocalDsSettings(next);
                                                 }}
@@ -1927,7 +1938,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             placeholder="e.g. INV-"
                                             value={localDsSettings?.invoice_prefix || ''} 
                                             onChange={e => {
-                                                const next = { ...localDsSettings, invoice_prefix: e.target.value } as DSSettings;
+                                                const next = { ...(localDsSettings || props.dsSettings || {}), invoice_prefix: e.target.value } as DSSettings;
                                                 setLocalDsSettings(next);
                                             }}
                                             className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
@@ -1940,7 +1951,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             placeholder="e.g. REC-"
                                             value={localDsSettings?.receipt_prefix || ''} 
                                             onChange={e => {
-                                                const next = { ...localDsSettings, receipt_prefix: e.target.value } as DSSettings;
+                                                const next = { ...(localDsSettings || props.dsSettings || {}), receipt_prefix: e.target.value } as DSSettings;
                                                 setLocalDsSettings(next);
                                             }}
                                             className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
@@ -1953,7 +1964,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             placeholder="e.g. ID-"
                                             value={localDsSettings?.student_id_prefix || ''} 
                                             onChange={e => {
-                                                const next = { ...localDsSettings, student_id_prefix: e.target.value } as DSSettings;
+                                                const next = { ...(localDsSettings || props.dsSettings || {}), student_id_prefix: e.target.value } as DSSettings;
                                                 setLocalDsSettings(next);
                                             }}
                                             className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
@@ -1979,15 +1990,24 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             </div>
                                             <div className="space-y-2">
                                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tuition Fee</label>
-                                                <input required type="number" value={newFeeForm.tuition} onChange={e => setNewFeeForm({...newFeeForm, tuition: Number(e.target.value)})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                                <div className="flex gap-2">
+                                                    <input required type="number" value={newFeeForm.tuition} onChange={e => setNewFeeForm({...newFeeForm, tuition: Number(e.target.value)})} className="flex-[3] px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                                    <input title="Payment Priority" type="number" placeholder="Pri" value={newFeeForm.tuitionPriority} onChange={e => setNewFeeForm({...newFeeForm, tuitionPriority: Number(e.target.value)})} className="flex-1 px-3 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-center" />
+                                                </div>
                                             </div>
                                             <div className="space-y-2">
                                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">PDL Fee</label>
-                                                <input required type="number" value={newFeeForm.pdl} onChange={e => setNewFeeForm({...newFeeForm, pdl: Number(e.target.value)})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                                <div className="flex gap-2">
+                                                    <input required type="number" value={newFeeForm.pdl} onChange={e => setNewFeeForm({...newFeeForm, pdl: Number(e.target.value)})} className="flex-[3] px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                                    <input title="Payment Priority" type="number" placeholder="Pri" value={newFeeForm.pdlPriority} onChange={e => setNewFeeForm({...newFeeForm, pdlPriority: Number(e.target.value)})} className="flex-1 px-3 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-center" />
+                                                </div>
                                             </div>
                                             <div className="md:col-span-2 space-y-2">
                                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Assessment Fee</label>
-                                                <input required type="number" value={newFeeForm.assessment} onChange={e => setNewFeeForm({...newFeeForm, assessment: Number(e.target.value)})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                                <div className="flex gap-2">
+                                                    <input required type="number" value={newFeeForm.assessment} onChange={e => setNewFeeForm({...newFeeForm, assessment: Number(e.target.value)})} className="flex-[3] px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                                    <input title="Payment Priority" type="number" placeholder="Pri" value={newFeeForm.assessmentPriority} onChange={e => setNewFeeForm({...newFeeForm, assessmentPriority: Number(e.target.value)})} className="flex-1 px-3 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-center" />
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="flex gap-3">
@@ -1999,9 +2019,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         institutionId: props.currentInstitution?.id || '',
                                                         className: newFeeForm.className,
                                                         items: [
-                                                            { name: 'Tuition Fee', amount: newFeeForm.tuition },
-                                                            { name: 'PDL', amount: newFeeForm.pdl },
-                                                            { name: 'Assessment', amount: newFeeForm.assessment }
+                                                            { name: 'Tuition Fee', amount: newFeeForm.tuition, priority: newFeeForm.tuitionPriority },
+                                                            { name: 'PDL', amount: newFeeForm.pdl, priority: newFeeForm.pdlPriority },
+                                                            { name: 'Assessment', amount: newFeeForm.assessment, priority: newFeeForm.assessmentPriority }
                                                         ],
                                                         totalAmount: newFeeForm.tuition + newFeeForm.pdl + newFeeForm.assessment,
                                                         updatedAt: new Date().toISOString()
@@ -2009,19 +2029,19 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     let nextStructures = [...(localDsSettings?.fee_structures || [])];
                                                     if (editingFeeId) { nextStructures = nextStructures.map(f => f.id === editingFeeId ? { ...f, ...feeData } : f); } 
                                                     else { nextStructures.push({ ...feeData, createdAt: new Date().toISOString() } as any); }
-                                                    const existingSettings = localDsSettings || props.dsSettings || { 
+                                                    const baseSettings = localDsSettings || props.dsSettings || { 
                                                         institutionId: props.currentInstitution?.id || '', 
                                                         id: `ds_settings_${props.currentInstitution?.id || Date.now()}`,
                                                         fee_structures: [] 
                                                     };
                                                     const next = { 
-                                                        ...existingSettings, 
+                                                        ...baseSettings, 
                                                         fee_structures: nextStructures 
                                                     } as DSSettings;
                                                     setLocalDsSettings(next);
                                                     setIsAddingFee(false);
                                                     setEditingFeeId(null);
-                                                    setNewFeeForm({ className: '', tuition: 0, pdl: 0, assessment: 0 });
+                                                    setNewFeeForm({ className: '', tuition: 0, tuitionPriority: 1, pdl: 0, pdlPriority: 2, assessment: 0, assessmentPriority: 3 });
                                                 }}
                                                 className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
                                             >
@@ -2062,8 +2082,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     setNewFeeForm({
                                                         className: fee.className,
                                                         tuition: fee.items.find(i => i.name === 'Tuition Fee')?.amount || 0,
+                                                        tuitionPriority: fee.items.find(i => i.name === 'Tuition Fee')?.priority || 1,
                                                         pdl: fee.items.find(i => i.name === 'PDL')?.amount || 0,
-                                                        assessment: fee.items.find(i => i.name === 'Assessment')?.amount || 0
+                                                        pdlPriority: fee.items.find(i => i.name === 'PDL')?.priority || 2,
+                                                        assessment: fee.items.find(i => i.name === 'Assessment')?.amount || 0,
+                                                        assessmentPriority: fee.items.find(i => i.name === 'Assessment')?.priority || 3
                                                     });
                                                     setIsAddingFee(true);
                                                 }}

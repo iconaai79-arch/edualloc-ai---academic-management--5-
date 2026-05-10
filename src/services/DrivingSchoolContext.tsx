@@ -190,14 +190,24 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
     const updateSettings = useCallback(async (data: any) => {
         if (!institutionId) return;
         try {
-            console.log("[DS Context] Init Save - Payload:", data);
+            // Hardened ID resolution to prevent UNIQUE constraint violations on institution_id
+            let finalId = data.id || settings?.id;
+            
+            if (!finalId) {
+                const existing = await apiService.fetchModuleRecords('ds_settings', institutionId);
+                if (existing && existing.length > 0) {
+                    finalId = (existing[0] as any).id;
+                }
+            }
+
             const payload = {
                 ...data,
-                id: data.id || settings?.id || `ds_settings_${institutionId}`,
+                id: finalId || `ds_settings_${institutionId}`,
                 institutionId,
                 updatedAt: new Date().toISOString()
             };
             
+            console.log("[DS Context] Save triggered - Final ID:", payload.id);
             const result = await apiService.saveModuleRecord('ds_settings', payload);
             console.log("[DS Context] Save Success - Response:", result);
             
@@ -289,11 +299,18 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             if (invoice) {
                 const amountPaid = data.amount;
                 
-                // Distribution Strategy: Proportional (Percentage-based)
-                // This ensures every line item (Tuition, PDL, etc.) is paid off proportionally
-                const updatedItems = invoice.items.map(item => {
-                    const proportion = item.amount / invoice.totalAmount;
-                    const distribution = amountPaid * proportion;
+                // Distribution Strategy: Priority-based Settlement
+                // Settles items in order of priority (lower number = higher priority)
+                let remainingAmount = amountPaid;
+                const sortedItems = [...(invoice.items || [])].sort((a, b) => (a.priority || 99) - (b.priority || 99));
+                
+                const updatedItems = sortedItems.map(item => {
+                    const itemBalance = item.amount - (item.paidAmount || 0);
+                    if (remainingAmount <= 0) return item;
+                    
+                    const distribution = Math.min(remainingAmount, itemBalance);
+                    remainingAmount -= distribution;
+                    
                     return {
                         ...item,
                         paidAmount: (item.paidAmount || 0) + distribution
