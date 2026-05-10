@@ -217,6 +217,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 : { ...recordData, ...(skipTenancy ? {} : { institution_id: recordData.institution_id || recordData.institutionId || user?.institutionId }) };
 
             const { data, error } = await supabase.from(moduleName).upsert(recordWithTenancy).select();
+            if (moduleName === 'ds_settings') {
+                console.log(`[API POST DEBUG] ds_settings upsert:`, { success: !error, count: data?.length, error, payload: JSON.stringify(recordWithTenancy) });
+            }
             if (error) {
                 const message = error.message.toLowerCase();
                 const isUniqueViolation = error.code === '23505' || String(error.code) === '23505' || message.includes('unique constraint') || message.includes('duplicate key');
@@ -291,6 +294,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 const { data, error } = await q.select();
+                if (moduleName === 'ds_settings') {
+                    console.log(`[API PATCH DEBUG] ds_settings update result:`, { success: !error, count: data?.length, error, ids: idsArray });
+                }
                 if (error) {
                     console.error(`[API PATCH Error] ${moduleName}:`, error);
                     return res.status(500).json({ 
