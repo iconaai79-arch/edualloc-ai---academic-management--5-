@@ -351,6 +351,31 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         normalizedStudents.filter(s => (s.fullName || '').toLowerCase().includes(searchTerm.toLowerCase())),
     [normalizedStudents, searchTerm]);
 
+    const filteredLessons = useMemo(() => 
+        lessons.filter(l => {
+            const student = normalizedStudents.find(s => s.id === l.studentId);
+            const instructor = normalizedInstructors.find(i => i.id === l.instructorId);
+            return (student?.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                   (instructor?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                   (l.topic || '').toLowerCase().includes(searchTerm.toLowerCase());
+        }),
+    [lessons, normalizedStudents, normalizedInstructors, searchTerm]);
+
+    const filteredVehicles = useMemo(() => 
+        vehicles.filter(v => 
+            v.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            v.make.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            v.model.toLowerCase().includes(searchTerm.toLowerCase())
+        ),
+    [vehicles, searchTerm]);
+
+    const filteredInstructors = useMemo(() => 
+        normalizedInstructors.filter(i => 
+            i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (i.specialization || '').toLowerCase().includes(searchTerm.toLowerCase())
+        ),
+    [normalizedInstructors, searchTerm]);
+
     const stats = useMemo(() => ({
         totalStudents: students.length,
         activeInstructors: instructors.filter(i => i.status === 'Active').length,
@@ -548,6 +573,159 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         ))}
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'lessons' && (
+                        <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden animate-fade-in">
+                            <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between">
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Training Sessions</h3>
+                                <div className="relative flex-1 max-w-xs">
+                                    <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search lessons..." 
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold"
+                                    />
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 dark:border-slate-800">
+                                            <th className="px-10 py-6">Date & Time</th>
+                                            <th className="px-10 py-6">Student</th>
+                                            <th className="px-10 py-6">Instructor</th>
+                                            <th className="px-10 py-6">Vehicle</th>
+                                            <th className="px-10 py-6">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                        {filteredLessons.map(lesson => (
+                                            <tr key={lesson.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                                                <td className="px-10 py-6">
+                                                    <p className="font-bold text-sm">{new Date(lesson.lessonDate).toLocaleDateString()}</p>
+                                                    <p className="text-[10px] font-black text-indigo-600 uppercase mt-0.5">{lesson.startTime} - {lesson.endTime}</p>
+                                                </td>
+                                                <td className="px-10 py-6 font-bold text-sm">
+                                                    {normalizedStudents.find(s => s.id === lesson.studentId)?.fullName || 'Unknown Student'}
+                                                </td>
+                                                <td className="px-10 py-6 text-sm">
+                                                    {normalizedInstructors.find(i => i.id === lesson.instructorId)?.name || 'Unassigned'}
+                                                </td>
+                                                <td className="px-10 py-6 text-sm">
+                                                    {vehicles.find(v => v.id === lesson.vehicleId)?.plateNumber || 'N/A'}
+                                                </td>
+                                                <td className="px-10 py-6">
+                                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                                        lesson.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' : 
+                                                        lesson.status === 'Cancelled' ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'
+                                                    }`}>
+                                                        {lesson.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'fleet' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-fade-in">
+                            {filteredVehicles.map(vehicle => (
+                                <div key={vehicle.id} className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+                                    <div className="flex items-center justify-between mb-8">
+                                        <div className="w-14 h-14 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center">
+                                            <TruckIcon className="w-7 h-7 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                                        </div>
+                                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                                            vehicle.status === 'Operational' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                                        }`}>
+                                            {vehicle.status}
+                                        </span>
+                                    </div>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{vehicle.make} {vehicle.model}</h3>
+                                    <p className="text-indigo-600 font-black text-sm mt-1">{vehicle.plateNumber}</p>
+                                    <div className="mt-8 pt-8 border-t border-slate-50 dark:border-slate-800 grid grid-cols-2 gap-4">
+                                        <div>
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Transmission</p>
+                                            <p className="text-xs font-bold">{vehicle.transmission}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Type</p>
+                                            <p className="text-xs font-bold">{vehicle.vehicleType || 'Car'}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {activeTab === 'instructors' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">
+                            {filteredInstructors.map(instructor => (
+                                <div key={instructor.id} className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm text-center group hover:border-indigo-500 transition-all">
+                                    <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/30 rounded-3xl flex items-center justify-center font-black text-2xl text-indigo-600 mx-auto mb-6 group-hover:scale-110 transition-transform">
+                                        {instructor.name.charAt(0)}
+                                    </div>
+                                    <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">{instructor.name}</h4>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 mb-4">{instructor.specialization || 'Master Instructor'}</p>
+                                    <div className="flex items-center justify-center gap-1 text-amber-400 mb-6">
+                                        {[...Array(5)].map((_, i) => (
+                                            <span key={i} className={i < instructor.rating ? 'opacity-100' : 'opacity-20'}>★</span>
+                                        ))}
+                                    </div>
+                                    <span className={`inline-block px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                        instructor.status === 'Active' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'
+                                    }`}>
+                                        {instructor.status}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {activeTab === 'finance' && (
+                        <div className="space-y-8 animate-fade-in">
+                            <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                                <div className="p-8 border-b border-slate-50 dark:border-slate-800">
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Recent Invoices</h3>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 dark:border-slate-800">
+                                                <th className="px-10 py-6">Invoice #</th>
+                                                <th className="px-10 py-6">Student</th>
+                                                <th className="px-10 py-6">Amount</th>
+                                                <th className="px-10 py-6">Balance</th>
+                                                <th className="px-10 py-6">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                            {invoices.map(invoice => (
+                                                <tr key={invoice.id} className="hover:bg-slate-50/50">
+                                                    <td className="px-10 py-6 font-bold">{invoice.invoiceNumber}</td>
+                                                    <td className="px-10 py-6 text-sm">{invoice.studentName}</td>
+                                                    <td className="px-10 py-6 font-bold text-sm">KES {invoice.totalAmount.toLocaleString()}</td>
+                                                    <td className="px-10 py-6 text-sm text-rose-600 font-bold">KES {invoice.balance.toLocaleString()}</td>
+                                                    <td className="px-10 py-6">
+                                                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                                            invoice.status === 'Fully Paid' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                                                        }`}>
+                                                            {invoice.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     )}
