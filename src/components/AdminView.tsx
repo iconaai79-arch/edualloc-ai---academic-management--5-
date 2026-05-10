@@ -545,7 +545,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const isDS = useMemo(() => {
         const cat = props.currentInstitution?.category?.toLowerCase() || '';
         const type = institutionType?.toLowerCase() || '';
-        return cat.includes('driving school') || type.includes('driving school');
+        const hasModule = props.currentInstitution?.moduleStates?.some(m => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'));
+        return cat.includes('driving school') || type.includes('driving school') || hasModule;
     }, [props.currentInstitution, institutionType]);
 
     const isLaw = useMemo(() => {

@@ -695,12 +695,13 @@ export const App: React.FC = () => {
             setLoadStatus("Synchronizing Identity...");
             
             // Critical identity fetch - needed for Phase 2 logic
-            const [insts, cnts, sett, u, reg] = await Promise.all([
+            const [insts, cnts, sett, u, reg, imsPhase1] = await Promise.all([
                 apiService.fetchInstitutions().catch(() => []),
                 (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchModuleRecords<County>('counties').catch(() => []),
                 apiService.fetchCompanySettings().catch(() => null),
                 (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchUsers(currentUser?.role === 'super_admin' ? undefined : currentUser?.institutionId).catch(() => []),
                 (isAlumnaeMode && !showAlumnaeRegister && !showInstitutionClaim) ? Promise.resolve([]) : apiService.fetchFullRegistry().catch(() => []),
+                apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states').catch(() => []),
             ]);
 
             // Sync identity state immediately so we can use activeInstitution in Phase 2
@@ -709,8 +710,13 @@ export const App: React.FC = () => {
             if (cnts) setCounties(cnts);
             if (reg) setSchoolRegistry(reg);
             if (sett) setCompanyDetails(sett);
+            if (imsPhase1) setInstitutionModuleStates(imsPhase1);
 
             const activeInst = insts?.find(i => i.id === currentUser?.institutionId);
+            const activeInstWithModules = activeInst ? {
+                ...activeInst,
+                moduleStates: (imsPhase1 || []).filter((m: any) => m.institutionId === activeInst.id)
+            } : null;
             const instType = activeInst?.institutionType || 'General';
             const instId = currentUser && (currentUser.role === 'super_admin' || currentUser.role.startsWith('county_')) ? undefined : currentUser?.institutionId;
             const cntId = currentUser && currentUser.role.startsWith('county_') ? currentUser.countyId : undefined;
@@ -725,7 +731,7 @@ export const App: React.FC = () => {
             const isBusiness = isSuper || ['Business', 'Business Ecosystem', 'Retail', 'Agrovet', 'Car Wash', 'Automotive Marketplace', 'Hardware', 'Pharmacy'].includes(instType);
             const isLogistics = isSuper || ['Logistics', 'Transport'].includes(instType);
             const isHospitality = isSuper || instType === 'Hospitality';
-            const isDrivingSchool = isSuper || instType === 'Driving School' || activeInst?.moduleStates?.some(m => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'));
+            const isDrivingSchool = isSuper || instType === 'Driving School' || activeInstWithModules?.moduleStates?.some(m => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'));
             const isPolitical = isSuper || instType === 'Political Campaign';
             const isCommunity = isSuper || instType === 'Community';
             const isCounty = isSuper || (currentUser?.role || '').startsWith('county_');
@@ -995,7 +1001,6 @@ export const App: React.FC = () => {
                         isLogistics ? apiService.fetchVehicles(effectiveInstId).catch(() => []) : Promise.resolve([]),
                         isLogistics ? apiService.fetchTransportOnboarding(effectiveInstId).catch(() => []) : Promise.resolve([]),
                         isLogistics ? apiService.fetchVehicleLogs(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                        apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', effectiveInstId).catch(() => []),
                         apiService.fetchModuleRecords<Expense>('expenses', effectiveInstId).catch(() => []),
                         apiService.fetchModuleRecords<FinancialGoal>('financial_goals', effectiveInstId).catch(() => []),
                         apiService.fetchModuleRecords<PayrollRecord>('payroll_records', effectiveInstId).catch(() => []),
