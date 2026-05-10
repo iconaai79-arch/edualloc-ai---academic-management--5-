@@ -4090,11 +4090,13 @@ export const App: React.FC = () => {
                                         institutionId={activeInstitution?.id || currentUser?.institutionId}
                                     />
                                 ) : activeRole === 'super_admin' ? (
-                                    <SuperAdminView {...{
-                                        ...superAdminProps,
-                                        payrollRecords: payrollRecords as any
-                                    } as any}
-                                    />
+                                    <DrivingSchoolProvider institutionId={activeInstitution?.id}>
+                                        <SuperAdminView {...{
+                                            ...superAdminProps,
+                                            payrollRecords: payrollRecords as any
+                                        } as any}
+                                        />
+                                    </DrivingSchoolProvider>
                                 ) : (activeRole === 'county_admin' || activeRole?.startsWith('county_')) ? (
                                     <CountyAdminView {...{
                                         ...countyAdminProps,
@@ -4539,13 +4541,15 @@ export const App: React.FC = () => {
                                             onLogAction={handleLogAction}
                                         />
                                     ) : (
-                                        <AdminView
-                                            {...superAdminProps as any}
-                                            currentUser={currentUser}
-                                            currentInstitution={activeInstitution}
-                                            activeRole={activeRole as any}
-                                            onLogAction={handleLogAction}
-                                        />
+                                        <DrivingSchoolProvider institutionId={activeInstitution?.id}>
+                                            <AdminView
+                                                {...superAdminProps as any}
+                                                currentUser={currentUser}
+                                                currentInstitution={activeInstitution}
+                                                activeRole={activeRole as any}
+                                                onLogAction={handleLogAction}
+                                            />
+                                        </DrivingSchoolProvider>
                                     )
                                 ) : (activeRole === 'church_admin' || activeRole === 'church_member') ? (
                                     <ChurchDenominationProvider church={activeInstitution!}>
@@ -4581,14 +4585,16 @@ export const App: React.FC = () => {
                                 ) : (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('industrial logistics')) ? (
                                     <LogisticsDashboard />
                                 ) : (isAdminCatchAll || (activeRole === 'admin' && activeInstitution?.institutionType === 'Driving School')) ? (
-                                    <AdminView
-                                         {...superAdminProps as any}
-                                         currentUser={currentUser}
-                                         currentInstitution={activeInstitution}
-                                         activeRole={(activeRole as any) || undefined}
-                                         onLogAction={handleLogAction}
-                                         onSaveTimetableSettings={(c) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: c })}
-                                     />
+                                    <DrivingSchoolProvider institutionId={activeInstitution?.id}>
+                                        <AdminView
+                                             {...superAdminProps as any}
+                                             currentUser={currentUser}
+                                             currentInstitution={activeInstitution}
+                                             activeRole={(activeRole as any) || undefined}
+                                             onLogAction={handleLogAction}
+                                             onSaveTimetableSettings={(c) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: c })}
+                                         />
+                                    </DrivingSchoolProvider>
                                 ) : null}
                         </Suspense>
                     </main>
