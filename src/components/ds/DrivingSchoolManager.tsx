@@ -405,27 +405,29 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     ))}
                 </div>
 
-                {/* Main Navigation */}
-                <div className="flex flex-wrap items-center gap-2 bg-slate-100 dark:bg-slate-800 p-2 rounded-3xl w-fit">
-                    {[
-                        { id: 'dashboard', label: 'Dashboard', icon: ClipboardListIcon },
-                        { id: 'students', label: 'Students', icon: UsersIcon },
-                        { id: 'lessons', label: 'Lessons', icon: CalendarDaysIcon },
-                        { id: 'fleet', label: 'Fleet', icon: TruckIcon },
-                        { id: 'instructors', label: 'Instructors', icon: AcademicCapIcon },
-                        { id: 'finance', label: 'Finance', icon: CurrencyIcon },
-                        { id: 'settings', label: 'Settings', icon: SettingsIcon }
-                    ].map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
-                            className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm scale-105' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
-                        >
-                            <tab.icon className="w-4 h-4" />
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
+                {/* Main Navigation - Hidden if controlled externally */}
+                {!externalTab && (
+                    <div className="flex flex-wrap items-center gap-2 bg-slate-100 dark:bg-slate-800 p-2 rounded-3xl w-fit">
+                        {[
+                            { id: 'dashboard', label: 'Dashboard', icon: ClipboardListIcon },
+                            { id: 'students', label: 'Students', icon: UsersIcon },
+                            { id: 'lessons', label: 'Lessons', icon: CalendarDaysIcon },
+                            { id: 'fleet', label: 'Fleet', icon: TruckIcon },
+                            { id: 'instructors', label: 'Instructors', icon: AcademicCapIcon },
+                            { id: 'finance', label: 'Finance', icon: CurrencyIcon },
+                            { id: 'settings', label: 'Settings', icon: SettingsIcon }
+                        ].map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id as any)}
+                                className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm scale-105' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                            >
+                                <tab.icon className="w-4 h-4" />
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
 
                 {/* Tab Content */}
                 <div className="min-h-[600px]">

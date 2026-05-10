@@ -650,7 +650,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             } else if (isRetailAgency) {
                 setActiveTab('retail');
             } else if (isDS || role === 'driving_instructor' || (institutionType?.toLowerCase().includes('driving school'))) {
-                setActiveTab('driving_school'); // DS uses specialized manager tab
+                setActiveTab('dashboard');
             } else if (isLaw || role === 'legal_admin') {
                 setActiveTab('law');
             } else if (isLogistics || role === 'transport_admin') {
@@ -726,6 +726,19 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 { id: 'auto_marketplace', label: 'Car Sales Hub', icon: <CarIcon className="w-5 h-5 mr-2" /> },
                 { id: 'users', label: 'Staff Registry', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
                 { id: 'comms', label: 'Marketing', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
+                { id: 'reports', label: 'Analytics', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
+                { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
+            ];
+        }
+
+        if (isDS) {
+            return [
+                { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
+                { id: 'ds_students', label: 'Students', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
+                { id: 'ds_lessons', label: 'Lessons', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
+                { id: 'ds_fleet', label: 'Fleet', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
+                { id: 'ds_instructors', label: 'Instructors', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
+                { id: 'ds_finance', label: 'Finance', icon: <CurrencyIcon className="w-5 h-5 mr-2" /> },
                 { id: 'reports', label: 'Analytics', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
                 { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
             ];
@@ -1698,10 +1711,16 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onApproveAgreement={props.onApproveLawAgreement as any}
                     />
                 )}
-                {activeTab === 'driving_school' && (
+                {(activeTab === 'driving_school' || activeTab === 'dashboard' || activeTab.startsWith('ds_')) && isDS && (
                     <DrivingSchoolManager
                         currentUser={props.currentUser!}
                         currentInstitution={props.currentInstitution!}
+                        externalTab={
+                            activeTab === 'dashboard' ? 'dashboard' : 
+                            activeTab === 'driving_school' ? 'dashboard' :
+                            activeTab.startsWith('ds_') ? activeTab.replace('ds_', '') as any : 
+                            activeTab as any
+                        }
                     />
                 )}
 
