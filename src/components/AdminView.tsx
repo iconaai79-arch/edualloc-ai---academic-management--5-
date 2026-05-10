@@ -1212,7 +1212,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     getSubjectById={props.getSubjectById || ((id: string) => props.subjects?.find(s => s && s.id === id))}
                                     getLecturerById={props.getLecturerById || ((id: string) => props.users?.find(u => u && u.id === id))}
                                     getRoomById={props.getRoomById || ((id: string) => props.rooms?.find(r => r && r.id === id))}
-                                    letterheadConfig={props.letterheadConfig || { headerImageUrl: null, stampImageUrl: null, footerText: '', showStamp: false }}
+                                    letterheadConfig={props.letterheadConfig || { headerImageUrl: null, stampImageUrl: null, showStamp: false }}
                                     logoUrl={props.logoUrl || null}
                                     footerImageUrl={props.footerImageUrl || null}
                                     currentUser={props.currentUser!}
@@ -1231,6 +1231,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                         marks={props.marks || []}
                                         subjects={props.subjects || []}
                                         students={(props.users || []).filter(u => u.role === 'student')}
+                                        teachers={(props.users || []).filter(u => u.role === 'teacher' || u.role === 'lecturer')}
                                     />
                                 </Suspense>
                             ) : timetableSubTab === 'intelligence' ? (
@@ -1368,6 +1369,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             ) : coursesSubTab === 'subjects' ? (
                                 <SubjectManager
                                     {...props}
+                                    subjects={props.subjects || []}
                                     onAddSubject={props.onAddSubject}
                                     onUpdateSubject={props.onUpdateSubject}
                                     onDeleteSubject={props.onDeleteSubject}
@@ -1390,6 +1392,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 {activeTab === 'comms' && (
                     <CommunicationsManager
                         {...props}
+                        users={props.users || []}
                         onSendSms={props.onSendSms || (async (_r: any, _m: any) => ({ success: false, message: 'SMS service disabled' }))}
                         currentUser={props.currentUser}
                         smsBalance={props.currentInstitution?.smsBalance}
@@ -1584,6 +1587,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 {activeTab === 'settings' && !isCoop && (
                     <SettingsManager
                         {...props}
+                        departments={props.departments || []}
                         allocations={(props.requests || []).filter(r => r && r.status === 'approved')}
                         initialTab={requestedSettingsTab}
                         isInstitutionalView={true}
@@ -1686,17 +1690,16 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         <CampaignCommandView user={props.currentUser} />
                     </div>
                 )}
-
-                {activeTab === 'law' && (
+                 {activeTab === 'law' && (
                     <LawManager 
                         currentUser={props.currentUser!}
                         currentInstitution={props.currentInstitution ?? null}
-                        lawClients={props.lawClients || []}
-                        lawMatters={props.lawMatters || []}
-                        lawDocuments={props.lawDocuments || []}
-                        lawTimeEntries={props.lawTimeEntries || []}
-                        lawInvoices={props.lawInvoices || []}
-                        lawTrustTransactions={props.lawTrustTransactions || []}
+                        clients={props.lawClients || []}
+                        matters={props.lawMatters || []}
+                        documents={props.lawDocuments || []}
+                        timeEntries={props.lawTimeEntries || []}
+                        invoices={props.lawInvoices || []}
+                        trustTransactions={props.lawTrustTransactions || []}
                         users={props.users || []}
                         onAddClient={props.onAddLawClient as any}
                         onAddMatter={props.onAddLawMatter as any}
@@ -1711,6 +1714,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onApproveAgreement={props.onApproveLawAgreement as any}
                     />
                 )}
+
                 {(activeTab === 'driving_school' || activeTab === 'dashboard' || activeTab.startsWith('ds_')) && isDS && (
                     <DrivingSchoolManager
                         currentUser={props.currentUser!}
@@ -1877,6 +1881,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         ) : (
                             <ReportsDashboard
                                 {...props}
+                                subjects={props.subjects || []}
                                 lecturers={props.users || []}
                                 allTimetableEntries={props.allTimetableEntries || []}
                                 getLecturerById={props.getLecturerById || ((id: string) => (props.users || []).find(u => u && u.id === id))}

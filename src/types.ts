@@ -718,6 +718,9 @@ export interface Semester {
 export interface LetterheadConfig {
     headerImageUrl: string | null;
     stampImageUrl: string | null;
+    footerImageUrl?: string | null;
+    footerText?: string;
+    showStamp?: boolean;
 }
 
 export interface SmsConfig {
