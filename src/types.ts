@@ -3870,6 +3870,7 @@ export interface DSSettings {
     };
     invoicePrefix?: string;
     receiptPrefix?: string;
+    studentIdPrefix?: string;
     updatedAt: string;
 }
 

@@ -1916,7 +1916,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Document Numbering</h3>
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Define prefixes for financial documents</p>
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Invoice Prefix</label>
                                             <input 
@@ -1939,6 +1939,20 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 value={localDsSettings?.receiptPrefix || ''} 
                                                 onChange={e => {
                                                     const next = { ...localDsSettings, receiptPrefix: e.target.value } as DSSettings;
+                                                    setLocalDsSettings(next);
+                                                    props.onUpdateDSSettings?.(next);
+                                                }}
+                                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Student ID Prefix</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="e.g. ID-"
+                                                value={localDsSettings?.studentIdPrefix || ''} 
+                                                onChange={e => {
+                                                    const next = { ...localDsSettings, studentIdPrefix: e.target.value } as DSSettings;
                                                     setLocalDsSettings(next);
                                                     props.onUpdateDSSettings?.(next);
                                                 }}

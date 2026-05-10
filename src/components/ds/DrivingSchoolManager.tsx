@@ -133,6 +133,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
     const [formData, setFormData] = useState<any>(() => {
         const base = initialData || {
             status: type === 'student' ? 'Enrolled' : type === 'instructor' ? 'Active' : type === 'vehicle' ? 'Operational' : 'Scheduled',
+            studentId: type === 'student' ? `${settings?.studentIdPrefix || 'ID-'}${Date.now().toString().slice(-4)}` : undefined,
             invoiceNumber: type === 'invoice' ? `${settings?.invoicePrefix || 'INV-'}${Date.now().toString().slice(-4)}` : undefined,
             receiptNumber: type === 'payment' ? `${settings?.receiptPrefix || 'REC-'}${Date.now().toString().slice(-4)}` : undefined
         };
