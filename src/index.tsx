@@ -74,13 +74,17 @@ class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode },
   }
 }
 
+import { ToastProvider } from './services/ToastContext';
+
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error("Root element not found");
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <GlobalErrorBoundary>
-      <App />
+      <ToastProvider>
+        <App />
+      </ToastProvider>
     </GlobalErrorBoundary>
   </React.StrictMode>
 );

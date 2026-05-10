@@ -112,6 +112,8 @@ import { SystemPulseLoader } from './common/SystemPulseLoader';
 import { PerspectiveReturnButton } from './common/PerspectiveReturnButton';
 import { SchemaInitializationView } from './common/SchemaInitializationView';
 import { AppErrorBoundary } from './common/AppErrorBoundary';
+import { ToastProvider, useToast } from '../services/ToastContext';
+import { DrivingSchoolProvider } from '../services/DrivingSchoolContext';
 
 
 
@@ -137,6 +139,7 @@ const SIMULATOR_NAMES: Record<string, string> = {
 
 
 export const App: React.FC = () => {
+    const { success, error: toastError, info, warning } = useToast();
     // Security: Disable right-click to prevent source inspection
     useEffect(() => {
         const handleContextMenu = (e: MouseEvent) => e.preventDefault();
@@ -254,6 +257,7 @@ export const App: React.FC = () => {
     const [transportOnboarding, setTransportOnboarding] = useState<TransportOnboarding[]>([]);
     const [vehicleLogs, setVehicleLogs] = useState<VehicleLog[]>([]);
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
+    const [institutionModuleStates, setInstitutionModuleStates] = useState<InstitutionModuleState[]>([]);
     const [jobs, setJobs] = useState<CarWashJob[]>([]);
     const [activityLogLimit, setActivityLogLimit] = useState(50);
     const [transactionLimit, setTransactionLimit] = useState(50);
@@ -283,15 +287,8 @@ export const App: React.FC = () => {
     const [lawAgreementTemplates, setLawAgreementTemplates] = useState<LawAgreementTemplate[]>([]);
     const [lawAgreements, setLawAgreements] = useState<LawAgreement[]>([]);
 
-    // Driving School State
-    const [dsInstructors, setDsInstructors] = useState<DSInstructor[]>([]);
-    const [dsVehicles, setDsVehicles] = useState<DSVehicle[]>([]);
-    const [dsStudents, setDsStudents] = useState<DSStudent[]>([]);
-    const [dsLessons, setDsLessons] = useState<DSLesson[]>([]);
-    const [dsMastery, setDsMastery] = useState<DSSkillMastery[]>([]);
-    const [dsSettings, setDsSettings] = useState<DSSettings | null>(null);
-    const [dsInvoices, setDsInvoices] = useState<DSInvoice[]>([]);
-    const [dsPayments, setDsPayments] = useState<DSPayment[]>([]);
+
+
 
     // Car Sales State
     const [carListings, setCarListings] = useState<CarListing[]>([]);
@@ -474,21 +471,17 @@ export const App: React.FC = () => {
     const activeInstitution = useMemo(() => {
         if (!currentUser || !Array.isArray(institutions)) return null;
 
-        // Support showroom context for SuperAdmins via URL param
-        if (currentUser.role === 'super_admin' && activeStoreTenantId) {
-            const found = institutions.find(i => i && (i.id === activeStoreTenantId || i.slug === activeStoreTenantId));
+        // Support showroom/school context for SuperAdmins via URL param
+        const targetId = activeStoreTenantId || (currentUser.role === 'super_admin' ? null : currentUser.institutionId);
+        if (targetId) {
+            const found = institutions.find(i => i && (i.id === targetId || i.slug === targetId));
             if (found) return found;
-        }
 
-        const found = institutions.find(i => i && i.id === currentUser.institutionId);
-        if (found) return found;
-
-        // Support impersonation of non-onboarded schools from the registry
-        if (currentUser.isImpersonated) {
-            const registryEntry = schoolRegistry.find(s => s.id === currentUser.institutionId || s.institutionId === currentUser.institutionId);
+            // Fallback to registry if not onboarded
+            const registryEntry = schoolRegistry.find(s => s.id === targetId || s.institutionId === targetId || s.slug === targetId);
             if (registryEntry) {
                 return {
-                    id: currentUser.institutionId,
+                    id: targetId,
                     name: registryEntry.name,
                     email: '',
                     phoneNumber: '',
@@ -497,6 +490,10 @@ export const App: React.FC = () => {
                 } as any;
             }
         }
+
+        const found = institutions.find(i => i && i.id === currentUser.institutionId);
+        if (found) return found;
+
         return null;
     }, [currentUser, institutions, schoolRegistry, activeStoreTenantId]);
 
@@ -661,7 +658,7 @@ export const App: React.FC = () => {
     const activeLetterheadConfig = useMemo(() => activeInstitution?.letterheadConfig || companyDetails.letterheadConfig, [activeInstitution, companyDetails]);
     const activeFooterImageUrl = useMemo(() => activeInstitution?.footerImageUrl || companyDetails.footerImageUrl || null, [activeInstitution, companyDetails]);
 
-    const loadData = useCallback(async (isFirstLoad = false, force = false) => {
+    const loadData = useCallback(async (isFirstLoad = false, force = false, instOverrideId?: string) => {
         // Prevent concurrent refreshes
         if (isRefreshingRef.current) return;
         
@@ -718,9 +715,9 @@ export const App: React.FC = () => {
                 moduleStates: (imsPhase1 || []).filter((m: any) => m.institutionId === activeInst.id)
             } : null;
             const instType = activeInst?.institutionType || 'General';
-            const instId = currentUser && (currentUser.role === 'super_admin' || currentUser.role.startsWith('county_')) ? undefined : currentUser?.institutionId;
+            const instId = instOverrideId || (currentUser && (currentUser.role === 'super_admin' || currentUser.role.startsWith('county_')) ? undefined : currentUser?.institutionId);
             const cntId = currentUser && currentUser.role.startsWith('county_') ? currentUser.countyId : undefined;
-            const effectiveInstId = currentUser?.role === 'super_admin' ? undefined : (activeInst?.id || currentUser?.institutionId || instId || '');
+            const effectiveInstId = instOverrideId || (currentUser?.role === 'super_admin' ? undefined : (activeInst?.id || currentUser?.institutionId || instId || ''));
             const isSuper = currentUser?.role === 'super_admin';
 
             // Sector Detection
@@ -852,21 +849,10 @@ export const App: React.FC = () => {
 
             // ── PHASE 3: Context-Specific Extended Data ──────────────────────
             if (currentUser) {
-                const activeInst = insts?.find(i => i.id === currentUser.institutionId);
-                let effectiveInstId: string | undefined = undefined;
+                const activeInst = insts?.find(i => i.id === currentUser?.institutionId);
+                const effectiveInstIdFinal: string = (instOverrideId || (currentUser?.role === 'super_admin' ? activeStoreTenantId : (activeInst?.id || currentUser?.institutionId || instId || ''))) || '';
                 
-                if (currentUser.role === 'super_admin') {
-                    if (activeStoreTenantId) {
-                        const targetInst = insts?.find(i => i && (i.id === activeStoreTenantId || i.slug === activeStoreTenantId));
-                        effectiveInstId = targetInst?.id || activeStoreTenantId;
-                    } else {
-                        effectiveInstId = 'ALL';
-                    }
-                } else {
-                    effectiveInstId = activeInst?.id || currentUser.institutionId || instId || '';
-                }
-                
-                console.log("[Data Refresh] Loading institutional data for:", effectiveInstId);
+                console.log("[Data Refresh] Loading institutional data for:", effectiveInstIdFinal);
             
                 // Initialize all extended variables to empty arrays
                 let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [];
@@ -890,123 +876,115 @@ export const App: React.FC = () => {
                 const cntId = currentUser && currentUser.role.startsWith('county_') ? currentUser.countyId : undefined;
 
                 // ── BATCH 1: Financial & Basic Modules ─────────────────────────
-                const [finResults, acadResults, countyResults, businessResults, coopResults, legalResults, drivingResults, carResults, systemResults] = await Promise.all([
+                const results = await Promise.all([
                     // Fin Batch
                     Promise.all([
-                        apiService.fetchInvoices(effectiveInstId).catch(() => []),
-                        apiService.fetchExtensionRequests(isSuper ? 'ALL' : effectiveInstId).catch(() => []),
-                        apiService.fetchVoteHeads(effectiveInstId).catch(() => []),
-                        apiService.fetchFeeStructures(effectiveInstId).catch(() => []),
-                        apiService.fetchFinancialPeriods(effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<FeedbackSubmission>('feedback_submissions', effectiveInstId).catch(() => []),
+                        apiService.fetchInvoices(effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchExtensionRequests(isSuper ? 'ALL' : effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchVoteHeads(effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchFeeStructures(effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchFinancialPeriods(effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<FeedbackSubmission>('feedback_submissions', effectiveInstIdFinal).catch(() => []),
                     ]),
                     // Acad Batch
                     isAcademic ? Promise.all([
-                        apiService.fetchModuleRecords<StudentAbsenceRequest>('student_absence_requests', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<EnrollmentRequest>('enrollment_requests', effectiveInstId).catch(() => []),
-                        apiService.fetchAbsenceRequests(effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<LecturerContract>('contracts', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<StudentAttendance>('student_attendances', effectiveInstId).catch(() => []),
-                        apiService.fetchTimetable(effectiveInstId || '').catch(() => []),
-                        apiService.fetchExamTimetable(effectiveInstId || '').catch(() => []),
-                        apiService.fetchModuleRecords<Assignment>('assignments', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<Submission>('submissions', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<LessonRating>('lesson_ratings', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<TaAssignment>('ta_assignments', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<Assessment>('assessments', effectiveInstId).catch(() => []),
-                        apiService.fetchAssessmentMarks(effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<Book>('books', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<ObservationNote>('observation_notes', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<DisciplineIncident>('discipline_incidents', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<StudentAbsenceRequest>('student_absence_requests', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<EnrollmentRequest>('enrollment_requests', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchAbsenceRequests(effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<LecturerContract>('contracts', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<StudentAttendance>('student_attendances', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchTimetable(effectiveInstIdFinal || '').catch(() => []),
+                        apiService.fetchExamTimetable(effectiveInstIdFinal || '').catch(() => []),
+                        apiService.fetchModuleRecords<Assignment>('assignments', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<Submission>('submissions', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<LessonRating>('lesson_ratings', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<TaAssignment>('ta_assignments', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<Assessment>('assessments', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchAssessmentMarks(effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<Book>('books', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<ObservationNote>('observation_notes', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<DisciplineIncident>('discipline_incidents', effectiveInstIdFinal).catch(() => []),
                     ]) : Promise.resolve([]),
                     // County Batch
                     isCounty ? Promise.all([
-                        apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory', effectiveInstId, cntId).catch(() => []),
+                        apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory', effectiveInstIdFinal, cntId).catch(() => []),
                         apiService.fetchModuleRecords<CountyInventoryCategory>('county_inventory_categories', undefined, cntId).catch(() => []),
                         apiService.fetchModuleRecords<CountyStore>('county_stores', undefined, cntId).catch(() => []),
-                        apiService.fetchModuleRecords<BursaryApplication>('bursary_applications', effectiveInstId, cntId).catch(() => []),
+                        apiService.fetchModuleRecords<BursaryApplication>('bursary_applications', effectiveInstIdFinal, cntId).catch(() => []),
                         apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds', undefined, cntId).catch(() => []),
                     ]) : Promise.resolve([]),
                     // Business Batch
                     isBusiness || isAcademic ? Promise.all([
-                        apiService.fetchModuleRecords<InventoryItem>('inventory', effectiveInstId).catch(() => []),
-                        isBusiness ? apiService.fetchModuleRecords<RetailExpense>('retail_expenses', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                        isBusiness ? apiService.fetchModuleRecords<RetailStore>('retail_stores', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                        isBusiness ? apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                        isBusiness ? apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                        isBusiness ? apiService.fetchModuleRecords<CafeOrder>('cafe_orders', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                        isBusiness ? apiService.fetchModuleRecords<RetailSale>('retail_sales', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                        isBusiness ? apiService.fetchModuleRecords('carwash_jobs', effectiveInstId).catch(() => []) : Promise.resolve([]),
-                        isBusiness ? apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', effectiveInstId).catch(() => []) : Promise.resolve([]),
+                        apiService.fetchModuleRecords<InventoryItem>('inventory', effectiveInstIdFinal).catch(() => []),
+                        isBusiness ? apiService.fetchModuleRecords<RetailExpense>('retail_expenses', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        isBusiness ? apiService.fetchModuleRecords<RetailStore>('retail_stores', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        isBusiness ? apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        isBusiness ? apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        isBusiness ? apiService.fetchModuleRecords<CafeOrder>('cafe_orders', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        isBusiness ? apiService.fetchModuleRecords<RetailSale>('retail_sales', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        isBusiness ? apiService.fetchModuleRecords('carwash_jobs', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        isBusiness ? apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
                     ]) : Promise.resolve([]),
                     // Coop Batch
                     isCoop ? Promise.all([
-                        apiService.fetchModuleRecords<CoopFarmer>('coop_farmers', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<CoopCollection>('coop_collections', effectiveInstId, undefined, { limit: 1000 }).catch(() => []),
-                        apiService.fetchModuleRecords<CoopRider>('coop_riders', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<CoopAgrovetInventory>('coop_agrovet_inventory', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<CoopAgrovetSales>('coop_agrovet_sales', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<SaccoAccount>('sacco_accounts', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<SaccoTransaction>('sacco_transactions', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<CoopMonthlyPayout>('coop_monthly_payouts', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<CoopExpense>('coop_expenses', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<CoopIncome>('coop_income', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<CoopFarmer>('coop_farmers', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<CoopCollection>('coop_collections', effectiveInstIdFinal, undefined, { limit: 1000 }).catch(() => []),
+                        apiService.fetchModuleRecords<CoopRider>('coop_riders', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<CoopAgrovetInventory>('coop_agrovet_inventory', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<CoopAgrovetSales>('coop_agrovet_sales', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<SaccoAccount>('sacco_accounts', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<SaccoTransaction>('sacco_transactions', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<CoopMonthlyPayout>('coop_monthly_payouts', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<CoopExpense>('coop_expenses', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<CoopIncome>('coop_income', effectiveInstIdFinal).catch(() => []),
                     ]) : Promise.resolve([]),
                     // Legal Batch
                     isLaw ? Promise.all([
-                        apiService.fetchModuleRecords<LawClient>('law_clients', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<LawMatter>('law_matters', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<LawDocument>('law_documents', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<LawTimeEntry>('law_time_entries', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<LawInvoice>('law_invoices', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<LawTrustTransaction>('law_trust_transactions', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<LawAgreementTemplate>('law_agreement_templates', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<LawAgreement>('law_agreements', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<LawClient>('law_clients', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<LawMatter>('law_matters', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<LawDocument>('law_documents', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<LawTimeEntry>('law_time_entries', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<LawInvoice>('law_invoices', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<LawTrustTransaction>('law_trust_transactions', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<LawAgreementTemplate>('law_agreement_templates', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<LawAgreement>('law_agreements', effectiveInstIdFinal).catch(() => []),
                     ]) : Promise.resolve([]),
-                    // Driving Batch
-                    isDrivingSchool ? Promise.all([
-                        apiService.fetchModuleRecords<DSInstructor>('ds_instructors', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<DSVehicle>('ds_vehicles', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<DSStudent>('ds_students', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<DSLesson>('ds_lessons', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<DSSkillMastery>('ds_skill_mastery', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<DSSettings>('ds_settings', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<DSInvoice>('ds_invoices', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<DSPayment>('ds_payments', effectiveInstId).catch(() => []),
-                    ]) : Promise.resolve([]),
+
                     // Car Batch
                     isBusiness ? Promise.all([
-                        apiService.fetchCarListings(effectiveInstId, 'all').catch(() => []),
-                        apiService.fetchCarTestDrives(effectiveInstId).catch(() => []),
-                        apiService.fetchCarAppraisals(effectiveInstId).catch(() => []),
-                        apiService.fetchCarInvoices(effectiveInstId).catch(() => []),
-                        apiService.fetchCarPayments(undefined, effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<BankTransaction>('car_bank_transactions', effectiveInstId).catch(() => []),
+                        apiService.fetchCarListings(effectiveInstIdFinal, 'all').catch(() => []),
+                        apiService.fetchCarTestDrives(effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchCarAppraisals(effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchCarInvoices(effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchCarPayments(undefined, effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<BankTransaction>('car_bank_transactions', effectiveInstIdFinal).catch(() => []),
                     ]) : Promise.resolve([]),
                     // System Batch
                     Promise.all([
-                        apiService.fetchModuleRecords<Supplier>('suppliers', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<StockTransaction>('stock_transactions', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<Appointment>('appointments', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<Visitor>('visitors', effectiveInstId).catch(() => []),
-                        apiService.fetchSecurityAlerts(effectiveInstId || '').catch(() => []),
-                        apiService.fetchModuleRecords<Requisition>('requisitions', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<TimeOffRequest>('time_off_requests', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<BulletinItem>('bulletin_items', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<DocumentCollection>('document_collections', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<WatchlistRecord>('watchlist_records', effectiveInstId).catch(() => []),
-                        isLogistics ? apiService.fetchVehicles(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                        isLogistics ? apiService.fetchTransportOnboarding(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                        isLogistics ? apiService.fetchVehicleLogs(effectiveInstId).catch(() => []) : Promise.resolve([]),
-                        apiService.fetchModuleRecords<Expense>('expenses', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<FinancialGoal>('financial_goals', effectiveInstId).catch(() => []),
-                        apiService.fetchModuleRecords<PayrollRecord>('payroll_records', effectiveInstId).catch(() => []),
+                        apiService.fetchModuleRecords<Supplier>('suppliers', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<StockTransaction>('stock_transactions', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<Appointment>('appointments', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<Visitor>('visitors', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchSecurityAlerts(effectiveInstIdFinal || '').catch(() => []),
+                        apiService.fetchModuleRecords<Requisition>('requisitions', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<TimeOffRequest>('time_off_requests', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<BulletinItem>('bulletin_items', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<DocumentCollection>('document_collections', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<WatchlistRecord>('watchlist_records', effectiveInstIdFinal).catch(() => []),
+                        isLogistics ? apiService.fetchVehicles(effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        isLogistics ? apiService.fetchTransportOnboarding(effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        isLogistics ? apiService.fetchVehicleLogs(effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        apiService.fetchModuleRecords<Expense>('expenses', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<FinancialGoal>('financial_goals', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<PayrollRecord>('payroll_records', effectiveInstIdFinal).catch(() => []),
                         currentUser.role === 'super_admin' ? apiService.fetchDemoRequests().catch(() => []) : Promise.resolve([]),
                     ])
-                ]);
+                ]) as any[];
+                
+                const [finResults, acadResults, countyResults, businessResults, coopResults, legalResults, carResults, systemResults] = results;
 
                 // Destructure Results
                 if (finResults) [inv, ext, vh, fs, fp, fb] = finResults;
@@ -1015,20 +993,16 @@ export const App: React.FC = () => {
                 if (businessResults) [item, retExp, rStores, rInv, cafe, cOrders, rSales, cwJobs, fMaint] = businessResults;
                 if (isCoop && coopResults) [cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc] = coopResults;
                 if (isLaw && legalResults) [lClients, lMatters, lDocs, lTime, lInvs, lTrust, lTemplates, lAgreements] = legalResults;
-                if (isDrivingSchool && drivingResults) {
-                    [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay] = drivingResults;
-                    console.log("[DS Debug] Fetched Instructors:", dsInst?.length, dsInst);
-                    console.log("[DS Debug] Fetched Students:", dsStud?.length, dsStud);
-                }
+
                 if (isBusiness && carResults) [csList, csTest, csAppr, cInvs, cPay, csBank] = carResults;
-                if (systemResults) [sups, stx, apts, vis, sec, reqRecords, tor, fBulletin, fDocs, fWatch, vhcls, tonb, vlogs, ims, fExps, fGoals, fPayroll, demoLeads] = systemResults;
+                if (systemResults) [sups, stx, apts, vis, sec, reqRecords, tor, fBulletin, fDocs, fWatch, vhcls, tonb, vlogs, fExps, fGoals, fPayroll, demoLeads] = systemResults;
 
                 console.log("[Data Refresh] Optimized Batches Resolved");
 
                 if (insts && insts.length > 0) {
                     const finalInsts = insts.map(i => ({
                         ...i,
-                        moduleStates: (ims || []).filter((m: any) => m.institutionId === i.id)
+                        moduleStates: (imsPhase1 || []).filter((m: any) => m.institutionId === i.id)
                     }));
                     setInstitutions(finalInsts);
                 }
@@ -1076,15 +1050,7 @@ export const App: React.FC = () => {
                 setExpenses(fExps || []);
                 setFinancialGoals(fGoals || []);
                 setPayrollRecords(fPayroll || []);
-                // Driving School State Setters
-                setDsInstructors(dsInst || []);
-                setDsVehicles(dsVeh || []);
-                setDsStudents(dsStud || []);
-                setDsLessons(dsLess || []);
-                setDsMastery(dsMast || []);
-                setDsSettings(dsSet && dsSet.length > 0 ? dsSet[0] : null);
-                setDsInvoices(dsInvs || []);
-                setDsPayments(dsPay || []);
+
                 setCarListings(csList || []);
                 setCarTestDrives(csTest || []);
                 setCarAppraisals(csAppr || []);
@@ -1515,9 +1481,9 @@ export const App: React.FC = () => {
                 lastUpdated: new Date().toISOString()
             });
             loadData();
-            alert("Inventory received and acknowledged.");
+            success("Inventory received and acknowledged.");
         }
-    }, [countyInventory, loadData]);
+    }, [countyInventory, loadData, success]);
 
     const onImportStudents = useCallback(async (data: any[]) => {
         if (!currentUser) return;
@@ -2115,10 +2081,10 @@ export const App: React.FC = () => {
                 requestedAt: new Date().toISOString()
             });
             await loadData();
-            alert("Extension request submitted successfully.");
+            success("Extension request submitted successfully.");
         } catch (err) {
             console.error("Failed to submit extension request:", err);
-            alert("Failed to submit extension request. Please contact support.");
+            toastError("Failed to submit extension request. Please contact support.");
         }
     };
 
@@ -2126,11 +2092,11 @@ export const App: React.FC = () => {
         try {
             await apiService.updateExtensionRequestStatus(requestId, status, extensionDays);
             await loadData();
-            alert(`Extension request ${status} successfully.`);
+            success(`Extension request ${status} successfully.`);
         } catch (err) {
             console.error("Failed to update extension request status:", err);
             const errMsg = (err as any)?.message || (err as any)?.error || "Unknown error";
-            alert(`Failed to update status: ${errMsg}. Please try again.`);
+            toastError(`Failed to update status: ${errMsg}. Please try again.`);
         }
     };
 
@@ -2179,11 +2145,11 @@ export const App: React.FC = () => {
             // For now, let's just log and simulate a download.
             console.log(`Downloading receipt for transaction ${receipt.relatedTransactionId}`);
             // Example: apiService.downloadReceipt(receipt.id);
-            alert(`Simulating download for receipt ID: ${receipt.id}. Institution: ${institution?.name}, Job: ${job?.packageName || job?.vehiclePlate}`);
+            info(`Simulating download for receipt ID: ${receipt.id}. Institution: ${institution?.name}, Job: ${job?.packageName || job?.vehiclePlate}`);
             await handleLogAction(`Downloaded receipt for transaction: ${receipt.relatedTransactionId}`);
         } catch (error) {
             console.error('Error downloading receipt:', error);
-            alert('Failed to download receipt. Please try again.');
+            toastError('Failed to download receipt. Please try again.');
         }
     };
 
@@ -2242,11 +2208,11 @@ export const App: React.FC = () => {
                 apiService.storeSession(impersonatedUser);
                 setImpersonatedRole(initialRole || null);
             } else {
-                alert("Critical: Failed to generate administrative session.");
+                toastError("Critical: Failed to generate administrative session.");
             }
             setIsTransitioning(false);
         }, 300);
-    }, [users, institutions, currentUser, originalSuperAdminSession]);
+    }, [users, institutions, currentUser, originalSuperAdminSession, toastError]);
     
 
 
@@ -2423,7 +2389,7 @@ export const App: React.FC = () => {
             setIsGeneratingDemoData(false);
             setDemoDataGenerationProgress(0);
         }, 500);
-    }, [institutions, currentUser]);
+    }, [institutions, currentUser, loadData]);
 
     const onRestoreSuperAdminSession = () => {
         if (originalSuperAdminSession) {
@@ -2703,10 +2669,10 @@ export const App: React.FC = () => {
             await handleLogAction(`Approved ${payoutIds.length} payouts`);
             await loadData(false, true);
         } catch (err: any) {
-            alert(`Approval failed: ${err.message}`);
+            toastError(`Approval failed: ${err.message}`);
             throw err;
         }
-    }, [loadData, handleLogAction, activeInstitution, currentUser]);
+    }, [loadData, handleLogAction, activeInstitution, currentUser, toastError]);
 
     const handleAddLawClient = useCallback(async (data: any) => {
         const instId = activeInstitution?.id || currentUser?.institutionId;
@@ -2796,121 +2762,6 @@ export const App: React.FC = () => {
         }
     }, [lawAgreements, currentUser, loadData, handleLogAction]);
 
-    const handleAddDSInstructor = useCallback(async (data: any) => {
-        const instId = activeInstitution?.id || currentUser?.institutionId;
-        if (!instId) {
-            console.error("[DS Error] Cannot add instructor: No active institution selected.");
-            alert("Please select an institution first.");
-            return;
-        }
-        await apiService.saveModuleRecord('ds_instructors', { ...data, id: `dsi_${Date.now()}`, institutionId: instId, createdAt: new Date().toISOString() });
-        await handleLogAction(`Added driving instructor: ${data.name}`);
-        await loadData(false, true);
-    }, [activeInstitution, currentUser, loadData, handleLogAction]);
-
-    const handleAddDSVehicle = useCallback(async (data: any) => {
-        const instId = activeInstitution?.id || currentUser?.institutionId;
-        if (!instId) {
-            console.error("[DS Error] Cannot add vehicle: No active institution selected.");
-            alert("Please select an institution first.");
-            return;
-        }
-        await apiService.saveModuleRecord('ds_vehicles', { ...data, id: `dsv_${Date.now()}`, institutionId: instId, createdAt: new Date().toISOString() });
-        await handleLogAction(`Added driving school vehicle: ${data.plateNumber}`);
-        await loadData(false, true);
-    }, [activeInstitution, currentUser, loadData, handleLogAction]);
-
-    const handleAddDSStudent = useCallback(async (data: any) => {
-        const instId = activeInstitution?.id || currentUser?.institutionId;
-        if (!instId) {
-            console.error("[DS Error] Cannot add student: No active institution selected.");
-            alert("Please select an institution first.");
-            return;
-        }
-
-        const userId = `u_${Date.now()}`;
-        
-        try {
-            // Create a platform user account for the DS student so they appear in the main Students list
-            await apiService.registerUser({
-                id: userId,
-                name: data.fullName,
-                email: data.email || `${userId}@ds.local`,
-                phoneNumber: data.phone,
-                role: 'student',
-                institutionId: instId,
-                status: 'active'
-            } as any, activeInstitution?.name);
-        } catch (e) {
-            console.warn("Could not create platform user for DS student:", e);
-        }
-
-        await apiService.saveModuleRecord('ds_students', { 
-            ...data, 
-            id: `dss_${Date.now()}`, 
-            user_id: userId,
-            institutionId: instId, 
-            createdAt: new Date().toISOString() 
-        });
-        await handleLogAction(`Enrolled driving student: ${data.fullName}`);
-        await loadData(false, true);
-    }, [activeInstitution, currentUser, loadData, handleLogAction]);
-
-    const handleAddDSLesson = useCallback(async (data: any) => {
-        const instId = activeInstitution?.id || currentUser?.institutionId;
-        if (!instId) return;
-        await apiService.saveModuleRecord('ds_lessons', { ...data, id: `dsl_${Date.now()}`, institutionId: instId, createdAt: new Date().toISOString() });
-        await handleLogAction(`Scheduled driving lesson`);
-        await loadData(false, true);
-    }, [activeInstitution, currentUser, loadData, handleLogAction]);
-
-    const handleAddDSMastery = useCallback(async (data: any) => {
-        const instId = activeInstitution?.id || currentUser?.institutionId;
-        if (!instId) return;
-        await apiService.saveModuleRecord('ds_skill_mastery', { ...data, id: `dsm_${Date.now()}`, institutionId: instId, createdAt: new Date().toISOString() });
-        await handleLogAction(`Recorded skill mastery for student`);
-        await loadData(false, true);
-    }, [activeInstitution, currentUser, loadData, handleLogAction]);
-
-    const handleUpdateDSSettings = useCallback(async (data: any) => {
-        const instId = activeInstitution?.id || currentUser?.institutionId;
-        if (!instId) return;
-        
-        // Ensure we are updating the existing record if it exists
-        const existingId = data.id || dsSettings?.id;
-        const payload = { 
-            ...data, 
-            id: existingId, // If null, apiService.saveModuleRecord will create a new one
-            institutionId: instId, 
-            updatedAt: new Date().toISOString() 
-        };
-
-        try {
-            await apiService.saveModuleRecord('ds_settings', payload);
-            await handleLogAction(`Updated driving school settings`);
-            await loadData(false, true);
-        } catch (err) {
-            console.error("Failed to update DS settings:", err);
-            throw err;
-        }
-    }, [activeInstitution, currentUser, dsSettings, loadData, handleLogAction]);
-
-    const handleAddDSInvoice = useCallback(async (data: any) => {
-        const instId = activeInstitution?.id || currentUser?.institutionId;
-        if (!instId) return;
-        await apiService.saveModuleRecord('ds_invoices', { ...data, id: `dsi_${Date.now()}`, institutionId: instId, createdAt: new Date().toISOString() });
-        await handleLogAction(`Generated driving school invoice`);
-        await loadData(false, true);
-    }, [activeInstitution, currentUser, loadData, handleLogAction]);
-
-    const handleAddDSPayment = useCallback(async (data: any) => {
-        const instId = activeInstitution?.id || currentUser?.institutionId;
-        if (!instId) return;
-        await apiService.saveModuleRecord('ds_payments', { ...data, id: `dsp_${Date.now()}`, institutionId: instId, createdAt: new Date().toISOString() });
-        await handleLogAction(`Recorded driving school payment`);
-        await loadData(false, true);
-    }, [activeInstitution, currentUser, loadData, handleLogAction]);
-
 
     const handleAddPayouts = useCallback(async (payouts: any[]) => {
         try {
@@ -2922,10 +2773,10 @@ export const App: React.FC = () => {
             await handleLogAction(`Generated ${payouts.length} payout drafts`);
             await loadData(false, true);
         } catch (err: any) {
-            alert(`Draft generation failed: ${err.message}`);
+            toastError(`Draft generation failed: ${err.message}`);
             throw err;
         }
-    }, [loadData, handleLogAction, activeInstitution, currentUser]);
+    }, [loadData, handleLogAction, activeInstitution, currentUser, toastError]);
 
     const handleDisbursePayouts = useCallback(async (payoutIds: string[]) => {
         try {
@@ -2934,16 +2785,16 @@ export const App: React.FC = () => {
             await handleLogAction(`Disbursed ${payoutIds.length} payouts`);
             await loadData(false, true);
         } catch (err: any) {
-            alert(`Disbursement failed: ${err.message}`);
+            toastError(`Disbursement failed: ${err.message}`);
             throw err;
         }
-    }, [loadData, handleLogAction]);
+    }, [loadData, handleLogAction, toastError]);
 
     const handleDirectAssign = useCallback(async (lecturerId: string, subjectIds: string[], priority: Priority, justification: string, courseLevelSelections?: Record<string, string[]>) => {
         if (!activeInstitution) return;
 
         if (!activeAcademicYear || !activeSemester) {
-            alert("Please set an active Academic Year and Semester in Settings before assigning subjects.");
+            toastError("Please set an active Academic Year and Semester in Settings before assigning subjects.");
             return;
         }
 
@@ -2971,12 +2822,12 @@ export const App: React.FC = () => {
         try {
             await Promise.all(promises);
             await loadData(); // Refresh data
-            alert("Subjects assigned successfully.");
+            success("Subjects assigned successfully.");
         } catch (error: any) {
             console.error("Failed to assign subjects:", error);
-            alert(`Failed to assign subjects: ${error.message || "Unknown error"}`);
+            toastError(`Failed to assign subjects: ${error.message || "Unknown error"}`);
         }
-    }, [activeInstitution, currentUser, loadData, activeAcademicYear, activeSemester]);
+    }, [activeInstitution, currentUser, loadData, activeAcademicYear, activeSemester, success, toastError]);
 
     const onGenerateReceipt = useCallback(async (txn: MpesaTransaction) => {
         try {
@@ -3010,9 +2861,9 @@ export const App: React.FC = () => {
                 lastUpdated: new Date().toISOString()
             });
             loadData();
-            alert("Inventory received and acknowledged.");
+            success("Inventory received and acknowledged.");
         }
-    }, [countyInventory, loadData]);
+    }, [countyInventory, loadData, success]);
 
     const onUpdateDemoStatus = useCallback(async (id: string, status: DemoRequest['status']) => {
         try {
@@ -3118,16 +2969,16 @@ export const App: React.FC = () => {
             setDemoDataGenerationProgress(100);
             setDemoDataGenerationMessage("Demo data generated successfully.");
             await loadData();
-            alert("Institutional demo data has been generated successfully.");
+            success("Institutional demo data has been generated successfully.");
         } catch (error) {
             console.error("Demo data generation failed:", error);
-            alert("Failed to generate demo data.");
+            toastError("Failed to generate demo data.");
         } finally {
             setIsGeneratingDemoData(false);
             setDemoDataGenerationProgress(0);
             setDemoDataGenerationMessage("");
         }
-    }, [currentUser, activeInstitution, onUpdateInstitution, loadData]);
+    }, [currentUser, activeInstitution, onUpdateInstitution, loadData, success, toastError]);
     
 
 
@@ -3148,16 +2999,16 @@ export const App: React.FC = () => {
             setDemoDataGenerationMessage("Data cleared successfully.");
             
             await loadData();
-            alert("All institutional data has been cleared.");
+            success("All institutional data has been cleared.");
         } catch (error) {
             console.error("Failed to clear demo data:", error);
-            alert("Failed to clear data.");
+            toastError("Failed to clear data.");
         } finally {
             setIsGeneratingDemoData(false);
             setDemoDataGenerationProgress(0);
             setDemoDataGenerationMessage("");
         }
-    }, [currentUser, activeInstitution, loadData]);
+    }, [currentUser, activeInstitution, loadData, success, toastError]);
 
 
 
@@ -3186,7 +3037,7 @@ export const App: React.FC = () => {
             console.log('✅ County saved successfully:', result);
 
             await loadData();
-            alert('County added successfully!');
+            success('County added successfully!');
         } catch (error: any) {
             console.error('❌ Failed to add county:', error);
             console.error('Error details:', {
@@ -3210,9 +3061,9 @@ export const App: React.FC = () => {
                 }
             }
 
-            alert(errorMessage + '\n\nCheck the browser console for details.');
+            toastError(errorMessage + '\n\nCheck the browser console for details.');
         }
-    }, [loadData]);
+    }, [loadData, success, toastError]);
 
     const handleUpdateCounty = useCallback(async (id: string, data: Partial<County>) => {
         try {
@@ -3223,31 +3074,31 @@ export const App: React.FC = () => {
             }
         } catch (error) {
             console.error("Failed to update county:", error);
-            alert("Failed to update county.");
+            toastError("Failed to update county.");
         }
-    }, [counties, loadData]);
+    }, [counties, loadData, toastError]);
 
     const handleAddCoopAgrovetInventory = useCallback(async (data: any) => {
         try {
             await apiService.saveCoopAgrovetInventory(data);
             await loadData();
-            alert("Agrovet inventory added successfully.");
+            success("Agrovet inventory added successfully.");
         } catch (error: any) {
             console.error("Failed to add Agrovet inventory:", error);
-            alert(`Failed: ${error.message || JSON.stringify(error)}`);
+            toastError(`Failed: ${error.message || JSON.stringify(error)}`);
         }
-    }, [loadData]);
+    }, [loadData, success, toastError]);
 
     const handleAddCoopAgrovetSale = useCallback(async (data: any) => {
         try {
             await apiService.saveCoopAgrovetSale(data);
             await loadData();
-            alert("Agrovet sale recorded successfully.");
+            success("Agrovet sale recorded successfully.");
         } catch (error: any) {
             console.error("Failed to record Agrovet sale:", error);
-            alert(`Failed: ${error.message || JSON.stringify(error)}`);
+            toastError(`Failed: ${error.message || JSON.stringify(error)}`);
         }
-    }, [loadData]);
+    }, [loadData, success, toastError]);
 
     const handleDeleteCounty = useCallback(async (id: string) => {
         try {
@@ -3255,9 +3106,9 @@ export const App: React.FC = () => {
             await loadData();
         } catch (error) {
             console.error("Failed to delete county:", error);
-            alert("Failed to delete county.");
+            toastError("Failed to delete county.");
         }
-    }, [loadData]);
+    }, [loadData, toastError]);
 
     const handleAddCountyInstitution = useCallback(async (data: any) => {
         try {
@@ -3309,12 +3160,12 @@ export const App: React.FC = () => {
             }
 
             await loadData();
-            alert(`Institution registered successfully!\n\nAdmin Credentials: \nEmail: ${newAdmin.email} \nPassword: ${generatedPassword} \n\n(Account details have been sent to ${newAdmin.email})`);
+            success(`Institution registered successfully!\n\nAdmin Credentials: \nEmail: ${newAdmin.email} \nPassword: ${generatedPassword} \n\n(Account details have been sent to ${newAdmin.email})`);
         } catch (error: any) {
             console.error("Failed to register institution:", error);
-            alert(`Failed to register institution: ${error.message || 'Unknown error'}`);
+            toastError(`Failed to register institution: ${error.message || 'Unknown error'}`);
         }
-    }, [loadData, companyDetails]);
+    }, [loadData, companyDetails, success, toastError]);
 
     const handleImportCountyInstitutions = useCallback(async (dataList: any[]) => {
         let successCount = 0;
@@ -3372,8 +3223,8 @@ export const App: React.FC = () => {
         }
 
         await loadData();
-        alert(`Bulk Import Complete!\n\nSuccessfully registered: ${successCount} \nFailed: ${failCount}`);
-    }, [loadData, companyDetails]);
+        success(`Bulk Import Complete!\n\nSuccessfully registered: ${successCount} \nFailed: ${failCount}`);
+    }, [loadData, companyDetails, success]);
 
 
     const commonLoginProps = {
@@ -3830,22 +3681,8 @@ export const App: React.FC = () => {
         onAddLawAgreementTemplate: handleAddLawAgreementTemplate,
         onGenerateLawAgreement: handleGenerateLawAgreement,
         onApproveLawAgreement: handleApproveLawAgreement,
-        dsInstructors,
-        dsVehicles,
-        dsStudents,
-        dsLessons,
-        dsMastery,
-        dsSettings,
-        dsInvoices,
-        dsPayments,
-        onAddDSInstructor: handleAddDSInstructor,
-        onAddDSVehicle: handleAddDSVehicle,
-        onAddDSStudent: handleAddDSStudent,
-        onAddDSLesson: handleAddDSLesson,
-        onAddDSMastery: handleAddDSMastery,
-        onUpdateDSSettings: handleUpdateDSSettings,
-        onAddDSInvoice: handleAddDSInvoice,
-        onAddDSPayment: handleAddDSPayment,
+
+
 
         carListings,
         carTestDrives,
@@ -3879,7 +3716,7 @@ export const App: React.FC = () => {
             await apiService.saveCarAppraisal({ ...data, id: `appr_${Date.now()}`, institutionId: instId || '' });
             await loadData();
         }
-    }), [currentUser, activeInstitution, notifications, institutions, counties, users, subjects, departments, courses, companyDetails, transactions, demoRequests, receipts, activityLog, allocations, requests, semesters, activeLetterheadConfig, activeBranding, activeFooterImageUrl, rooms, buildings, academicLevels, academicYears, activeAcademicYear, activeSemester, timetableSettings, assessments, assessmentMarks, incidents, schoolRegistry, leaveOutRequests, invoices, extensionRequests, voteHeads, feeStructures, financialPeriods, userTasks, generatedTimetable, timetableConflicts, timeOffRequests, enrollmentRequests, absenceRequests, studentAbsenceRequests, securityAlerts, visitors, requisitions, studentAttendances, studentCheckIns, lessonRatings, feedbackSubmissions, courseSizes, isGeneratingDemoData, demoDataGenerationProgress, demoDataGenerationMessage, vehicles, transportOnboarding, coopFarmers, coopCollections, coopRiders, coopAgrovetSales, saccoAccounts, coopPayouts, coopExpenses, coopIncome, lawClients, lawMatters, lawDocuments, lawTimeEntries, lawInvoices, lawTrustTransactions, lawAgreementTemplates, lawAgreements, dsInstructors, dsVehicles, dsStudents, dsLessons, dsMastery, dsSettings, dsInvoices, dsPayments, carListings, carTestDrives, carAppraisals, carInvoices, carPayments, handleAccessAlumnaPortal, handleUpdateCompanyDetails, onImportStudents, onEditUser, onDeleteUser, onUpdateInstitution, handleUpdateRequest, handleWithdrawRequest, handleAddTimeOffRequest, handleAddTask, handleUpdateTask, handleDeleteTask, handleSaveAttendance, handleProcessPayroll, handleUpdateLeaveStatus, handleLogGateAction, handleTeacherLessonCheckIn, handleOnboardStudent, handleOffboardStudent, handleAddAssessment, handleDeleteAssessment, handleSaveAssessmentMarks, handleAddSubject, handleUpdateSubject, handleDeleteSubject, handleAddCourse, handleUpdateCourse, handleDeleteCourse, handleImportCourses, handleAddDepartment, handleUpdateDepartment, handleDeleteDepartment, handleImportDepartments, handleAddRoom, handleUpdateRoom, handleDeleteRoom, handleImportRooms, loadData]);
+    }), [currentUser, activeInstitution, notifications, institutions, counties, users, subjects, departments, courses, companyDetails, transactions, demoRequests, receipts, activityLog, allocations, requests, semesters, activeLetterheadConfig, activeBranding, activeFooterImageUrl, rooms, buildings, academicLevels, academicYears, activeAcademicYear, activeSemester, timetableSettings, assessments, assessmentMarks, incidents, schoolRegistry, leaveOutRequests, invoices, extensionRequests, voteHeads, feeStructures, financialPeriods, userTasks, generatedTimetable, timetableConflicts, timeOffRequests, enrollmentRequests, absenceRequests, studentAbsenceRequests, securityAlerts, visitors, requisitions, studentAttendances, studentCheckIns, lessonRatings, feedbackSubmissions, courseSizes, isGeneratingDemoData, demoDataGenerationProgress, demoDataGenerationMessage, vehicles, transportOnboarding, coopFarmers, coopCollections, coopRiders, coopAgrovetSales, saccoAccounts, coopPayouts, coopExpenses, coopIncome, lawClients, lawMatters, lawDocuments, lawTimeEntries, lawInvoices, lawTrustTransactions, lawAgreementTemplates, lawAgreements, carListings, carTestDrives, carAppraisals, carInvoices, carPayments, handleAccessAlumnaPortal, handleUpdateCompanyDetails, onImportStudents, onEditUser, onDeleteUser, onUpdateInstitution, handleUpdateRequest, handleWithdrawRequest, handleAddTimeOffRequest, handleAddTask, handleUpdateTask, handleDeleteTask, handleSaveAttendance, handleProcessPayroll, handleUpdateLeaveStatus, handleLogGateAction, handleTeacherLessonCheckIn, handleOnboardStudent, handleOffboardStudent, handleAddAssessment, handleDeleteAssessment, handleSaveAssessmentMarks, handleAddSubject, handleUpdateSubject, handleDeleteSubject, handleAddCourse, handleUpdateCourse, handleDeleteCourse, handleImportCourses, handleAddDepartment, handleUpdateDepartment, handleDeleteDepartment, handleImportDepartments, handleAddRoom, handleUpdateRoom, handleDeleteRoom, handleImportRooms, loadData]);
 
 
     const countyAdminProps = useMemo<Partial<CountyAdminProps>>(() => ({
@@ -4192,9 +4029,7 @@ export const App: React.FC = () => {
                     // Explicitly reload all data to ensure other components pick up the change
                     await loadData();
                 } catch (err: any) {
-                    console.error("Account activation failed:", err);
-                    alert(`Failed to activate account: ${err.message || 'Unknown error'}`);
-                    throw err; // Re-throw to let MandatoryUpdateView handle local UI state if needed
+                    toastError(`Failed to activate account: ${err.message || 'Unknown error'}`);
                 }
             }} onLogout={handleLogout} logoUrl={activeBranding.logoUrl} />;
         }
@@ -4615,7 +4450,7 @@ export const App: React.FC = () => {
                                     <HROfficerView 
                                         {...{
                                             currentUser,
-                                            currentInstitution: activeInstitution!,
+                                            currentInstitution: activeInstitution || undefined,
                                             users,
                                             payrollRecords: payrollRecords as any,
                                             onAddUser: async (u: any) => { await apiService.registerUser({ ...u, id: generateUserId(), institutionId: currentUser.institutionId }, activeInstitution?.name); loadData(); },
@@ -4998,7 +4833,7 @@ export const App: React.FC = () => {
                                             loginLink: `https://almamater.eduai.co.ke/?view=alumnae_register`
                                         }).catch(console.error);
                                     } catch (e: any) {
-                                        alert("Registration Sync Error: " + e.message);
+                                        toastError("Registration Sync Error: " + e.message);
                                     }
                                 }}
                             />
@@ -5033,7 +4868,7 @@ export const App: React.FC = () => {
                                 onClaimSuccess={() => {
                                     setShowInstitutionClaim(false);
                                     setShowAlumnaeLogin(true);
-                                    alert("Claim request submitted successfully! Our team will verify your credentials and contact you via email.");
+                                    success("Claim request submitted successfully! Our team will verify your credentials and contact you via email.");
                                 }}
                             />
                         ) : (showAlumnaePortal && activeAlumna) ? (
@@ -5088,7 +4923,7 @@ export const App: React.FC = () => {
                             <GuestFeedbackView 
                                 onSubmit={async (f) => { 
                                     await apiService.saveModuleRecord('guest_feedback', { ...f, id: `fdb_${Date.now()}` }); 
-                                    alert('Feedback submitted!'); 
+                                    success('Feedback submitted!'); 
                                     setShowGuestFeedback(false);
                                     loadData();
                                 }} 
@@ -5192,7 +5027,7 @@ export const App: React.FC = () => {
                                                 console.error("[OTP] SMS Dispatch Failure:", smsResult.message);
                                                 // Alert super admins of gateway failures immediately
                                                 if (u.role === 'super_admin') {
-                                                    alert(`SMS OTP Delivery Failed: ${smsResult.message || "Unknown error"}. Check your gateway settings. (Email OTP should still be sent)`);
+                                                    toastError(`SMS OTP Delivery Failed: ${smsResult.message || "Unknown error"}. Check your gateway settings. (Email OTP should still be sent)`);
                                                 }
                                             }
                                         }).catch(err => {
@@ -5245,9 +5080,9 @@ export const App: React.FC = () => {
                                 ]).then(results => {
                                     const smsResult = (results[1] || results[0]) as any;
                                     if (smsResult && smsResult.success === false) {
-                                        alert(`SMS OTP Delivery Failed: ${smsResult.message || "Unknown error"}.`);
+                                        warning(`SMS OTP Delivery Failed: ${smsResult.message || "Unknown error"}.`);
                                     } else {
-                                        alert("OTP sent successfully via both channels.");
+                                        success("OTP sent successfully via both channels.");
                                     }
                                 }).catch(err => {
                                     console.error("[OTP Resend] Dispatch Exception:", err);
@@ -5307,8 +5142,7 @@ export const App: React.FC = () => {
                             }
                         }}
                         onManageUnavailability={() => {
-                            // Placeholder for unavailability management
-                            alert("Unavailability management coming soon.");
+                            info("Unavailability management coming soon.");
                         }}
                     />
                 )}

@@ -23,6 +23,7 @@ interface CarSalesLedgerProps {
     onAddPayment: (invoice?: CarInvoice) => void;
     onPrintInvoice: (invoice: CarInvoice) => void;
     onPrintReceipt: (payment: CarPayment) => void;
+    onPrintAgreement?: (invoice: CarInvoice) => void;
 }
 
 export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
@@ -32,7 +33,8 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
     onAddInvoice,
     onAddPayment,
     onPrintInvoice,
-    onPrintReceipt
+    onPrintReceipt,
+    onPrintAgreement
 }) => {
     const [activeTab, setActiveTab] = useState<'invoices' | 'payments'>('invoices');
     const [searchQuery, setSearchQuery] = useState('');
@@ -188,6 +190,15 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                     >
                                                         <Printer className="w-4 h-4" />
                                                     </button>
+                                                    {onPrintAgreement && (
+                                                        <button 
+                                                            onClick={() => onPrintAgreement(inv)}
+                                                            className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-amber-600 transition-all"
+                                                            title="Print Agreement"
+                                                        >
+                                                            <FileText className="w-4 h-4" />
+                                                        </button>
+                                                    )}
                                                     {inv.status !== 'fully_paid' && (
                                                         <button 
                                                             onClick={() => onAddPayment(inv)}

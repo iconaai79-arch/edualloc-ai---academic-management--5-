@@ -213,8 +213,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Add tenancy if missing (skip for root tables that don't have this column or for super_admin)
             const skipTenancy = user?.role === 'super_admin' || moduleName === 'institutions' || moduleName === 'counties';
             const recordWithTenancy = Array.isArray(recordData) 
-                ? recordData.map(r => ({ ...r, ...(skipTenancy ? {} : { institution_id: r.institution_id || user?.institutionId }) }))
-                : { ...recordData, ...(skipTenancy ? {} : { institution_id: recordData.institution_id || user?.institutionId }) };
+                ? recordData.map(r => ({ ...r, ...(skipTenancy ? {} : { institution_id: r.institution_id || r.institutionId || user?.institutionId }) }))
+                : { ...recordData, ...(skipTenancy ? {} : { institution_id: recordData.institution_id || recordData.institutionId || user?.institutionId }) };
 
             const { data, error } = await supabase.from(moduleName).upsert(recordWithTenancy).select();
             if (error) {

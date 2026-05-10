@@ -6,7 +6,7 @@ import type {
     TimetableSettings, Course, AcademicYear, Semester, RequestStatus,
     Institution, Priority, CompanyDetails, MpesaTransaction,
     ExamTimetableSettings, AcademicLevel, StudentAttendance,
-    Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest,
+    Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest, DisciplineIncident,
     EnrollmentRequest, AbsenceRequest, LecturerContract,
     ExamTimetableEntry, Conflict, UserTask, ExtensionRequest,
     ActivityLog, VoteHead, FeeStructure, FinancialPeriod,
@@ -17,7 +17,7 @@ import type {
     LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction,
     LawAgreement, LawAgreementTemplate,
     DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment,
-    CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry, BankTransaction
+    CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry, BankTransaction, InstitutionModuleState
 } from '../types';
 const UserManager = lazy(() => import('./UserManager').then(m => ({ default: m.UserManager })));
 const TimetableGenerator = lazy(() => import('./TimetableGenerator').then(m => ({ default: m.TimetableGenerator })));
@@ -237,7 +237,7 @@ export interface AdminViewProps {
     onApproveLawAgreement?: (id: string, notes: string) => Promise<void>;
 
     onSendBulkCredentials?: (users: User[], method: 'sms' | 'email') => Promise<{ success_count: number, fail_count: number }>;
-    onSendSms?: (recipient: string | string[], message: string, config?: SmsConfig, units?: number, institutionId: string) => Promise<{ success: boolean; message: string; }>;
+    onSendSms?: (recipient: string | string[], message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<{ success: boolean; message: string; }>;
     onSaveSmsConfig?: (config: SmsConfig) => void;
     onUpdateRequest?: (id: string, data: Partial<Omit<AllocationRequest, 'id'>>) => void;
     onWithdrawRequest?: (id: string) => Promise<void>;
@@ -296,7 +296,7 @@ export interface AdminViewProps {
     courseSizes?: Map<string, number>;
     timeOffRequests?: TimeOffRequest[];
     enrollmentRequests?: EnrollmentRequest[];
-    onImportSubjectsAndAssociate?: (subjects: (Omit<Subject, 'id' | 'institutionId'> & { targetCourseLevelid: string })[]) => Promise<void>;
+    onImportSubjectsAndAssociate?: (subjects: (Omit<Subject, 'id' | 'institutionId'> & { targetCourseLevelId: string })[]) => Promise<void>;
     requisitions?: Requisition[];
     onAddRequisition?: (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => Promise<void>;
     onUpdateRequisition?: (reqId: string, data: Partial<Requisition>) => Promise<void>;
@@ -456,7 +456,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'campaign'>('dashboard');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'subjects' | 'calendar'>('wizard');
     const [coursesSubTab, setCoursesSubTab] = useState<'registry' | 'calendar' | 'subjects' | 'settings'>('registry');
@@ -520,7 +520,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 listing,
                 props.currentInstitution!,
                 companyDetails,
-                props.currentInstitution!.logoUrl
+                (props.currentInstitution?.logoUrl || null) as string | null
             );
             setPdfPreviewData({ uri, title: `Agreement ${invoice.invoiceNumber}` });
         } catch (error) {
@@ -940,7 +940,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     <div className="space-y-6">
                         {isCampaign ? (
                             <div className="animate-fade-in">
-                                <CampaignCommandView user={props.currentUser} />
+                                <CampaignCommandView user={props.currentUser!} />
                             </div>
                         ) : (
                             <>
@@ -1178,9 +1178,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     lecturers={users.filter(u => u.role === 'lecturer' || u.role === 'teacher')}
                                     rooms={rooms}
                                     courses={courses}
-                                    timetableSettings={props.timetableSettings}
-                                    activeAcademicYear={activeAcademicYear}
-                                    activeSemester={activeSemester}
+                                    timetableSettings={props.timetableSettings!}
+                                    activeAcademicYear={props.activeAcademicYear || null}
+                                    activeSemester={activeSemester || null}
                                     currentInstitution={currentInstitution}
                                     courseSizes={props.courseSizes || new Map<string, number>()}
                                     timeOffRequests={props.timeOffRequests || []}
@@ -1227,19 +1227,19 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     <ExamInsights
                                         assessments={props.assessments || []}
                                         marks={props.marks || []}
-                                        subjects={props.subjects}
+                                        subjects={props.subjects || []}
                                         students={props.users.filter(u => u.role === 'student')}
                                     />
                                 </Suspense>
                             ) : timetableSubTab === 'intelligence' ? (
                                 <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
-                                    <AcademicReportsHub
+                                    <AcademicInsights
                                         students={props.users.filter(u => u.role === 'student')}
                                         assessments={props.assessments || []}
                                         marks={props.marks || []}
-                                        subjects={props.subjects}
+                                        subjects={props.subjects || []}
                                         institution={props.currentInstitution!}
-                                        gradingSystem={props.currentInstitution?.academicConfig?.gradingSystem || null}
+                                        gradingSystem={(props.currentInstitution?.academicConfig as any)?.gradingSystem || null}
                                     />
                                 </Suspense>
                             ) : timetableSubTab === 'discipline' ? (
@@ -1274,7 +1274,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     allocations={(props.requests || []).filter((r: AllocationRequest) => r && (r.status === 'approved' || r.status === 'hod_approved'))}
                                     lecturers={props.users || []}
                                     setActiveTab={(tab: string) => setActiveTab(tab as any)}
-                                    onSaveTimetableSettings={props.onSaveTimetableSettings}
+                                    onSaveTimetableSettings={props.onSaveTimetableSettings!}
                                     onTimetableGenerated={props.onTimetableGenerated as any}
                                     getLecturerById={props.getLecturerById || ((id: string) => (props.users || []).find(u => u && u.id === id))}
                                     getSubjectById={props.getSubjectById || ((id: string) => (props.subjects || []).find(s => s && s.id === id))}
@@ -1378,7 +1378,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             ) : (
                                 <AcademicConfigManager
                                     currentInstitution={currentInstitution}
-                                    onUpdateInstitution={props.onUpdateInstitution}
+                                    onUpdateInstitution={props.onUpdateInstitution!}
                                 />
                             )}
                         </div>
@@ -1388,11 +1388,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 {activeTab === 'comms' && (
                     <CommunicationsManager
                         {...props}
-                        onSendSms={props.onSendSms || (async () => ({ success: false, message: 'SMS service disabled' }))}
+                        onSendSms={props.onSendSms || (async (_r: any, _m: any) => ({ success: false, message: 'SMS service disabled' }))}
                         currentUser={props.currentUser}
                         smsBalance={props.currentInstitution?.smsBalance}
-                        currentInstitution={props.currentInstitution}
-                        mpesaConfig={props.companyDetails.mpesaConfig}
+                        currentInstitution={props.currentInstitution!}
+                        mpesaConfig={props.companyDetails?.mpesaConfig}
                         smsConfig={props.smsConfig}
                         onRefreshData={props.onRefreshData}
                         moduleContext={isCoop ? 'cooperative' : (isAutoMarket ? 'auto_marketplace' : (isRetailAgency ? 'agrovet' : isChurch ? 'church' : 'school'))}
@@ -1414,7 +1414,6 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
                 {activeTab === 'retail' && (
                     isRetailAgency ? (
-                        // Retail Agency institutions: render directly, no school_store guard needed
                         <RetailManager
                             institutionId={props.currentInstitution?.id || ''}
                             businessSubType={props.currentInstitution?.businessSubType}
@@ -1428,7 +1427,6 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             onUpdateRequisition={props.onUpdateRequisition}
                         />
                     ) : (
-                        // Schools/non-retail: guard behind school_store module
                         <ModuleAccessGuard
                             moduleId="school_store"
                             moduleName="School Store & Inventory"
@@ -1599,7 +1597,6 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onUpdateDepartment={props.onUpdateDepartment}
                         onDeleteDepartment={props.onDeleteDepartment}
                         onImportDepartments={props.onImportDepartments}
-                        // Explicitly pass academicYears and semesters just in case
                         academicYears={props.academicYears}
                         semesters={props.semesters}
                         onUpdateCompanyDetails={props.onUpdateCompanyDetails}
@@ -1653,7 +1650,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         courses={props.courses}
                         departments={props.departments}
                         onLogAction={props.onLogAction!}
-                        onDataChange={() => props.onAddUser && props.onAddUser({})} // Dummy trigger for refresh if needed
+                        onDataChange={() => props.onAddUser && props.onAddUser({})}
                     />
                 )}
                 {activeTab === 'boarding' && (
@@ -1682,7 +1679,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     />
                 )}
 
-                {activeTab === 'campaign' && isCampaign && (
+                {activeTab === 'campaign' && (
                     <div className="animate-fade-in">
                         <CampaignCommandView user={props.currentUser} />
                     </div>
@@ -1715,31 +1712,14 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 {['dashboard', 'ds_students', 'ds_lessons', 'ds_fleet', 'ds_instructors', 'ds_finance'].includes(activeTab) && isDS && (
                     <DrivingSchoolManager
                         currentUser={props.currentUser!}
-                        currentInstitution={props.currentInstitution}
-                        instructors={props.dsInstructors || []}
-                        vehicles={props.dsVehicles || []}
-                        students={props.dsStudents || []}
-                        lessons={props.dsLessons || []}
-                        mastery={props.dsMastery || []}
-                        settings={props.dsSettings || null}
-                        onAddInstructor={props.onAddDSInstructor || (async () => {})}
-                        onAddVehicle={props.onAddDSVehicle || (async () => {})}
-                        onAddStudent={props.onAddDSStudent || (async () => {})}
-                        onAddLesson={props.onAddDSLesson || (async () => {})}
-                        onAddMastery={props.onAddDSMastery || (async () => {})}
-                        onUpdateSettings={props.onUpdateDSSettings || (async () => {})}
-                        onAddInvoice={props.onAddDSInvoice || (async () => {})}
-                        onAddPayment={props.onAddDSPayment || (async () => {})}
-                        invoices={props.dsInvoices || []}
-                        payments={props.dsPayments || []}
-                        users={props.users || []}
-                        onLogAction={props.onLogAction}
-                        onImportStudents={props.onImportStudents}
-                        externalTab={activeTab === 'ds_students' ? 'students' : 
-                                     activeTab === 'ds_lessons' ? 'lessons' : 
-                                     activeTab === 'ds_fleet' ? 'fleet' : 
-                                     activeTab === 'ds_instructors' ? 'instructors' : 
-                                     activeTab === 'ds_finance' ? 'finance' : 'dashboard'}
+                        currentInstitution={props.activeInstitution}
+                        externalTab={
+                            activeTab === 'ds_students' ? 'students' : 
+                            activeTab === 'ds_lessons' ? 'lessons' : 
+                            activeTab === 'ds_fleet' ? 'fleet' : 
+                            activeTab === 'ds_instructors' ? 'instructors' : 
+                            activeTab === 'ds_finance' ? 'finance' : 'dashboard'
+                        }
                     />
                 )}
 
@@ -1993,6 +1973,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             {editingInstitution && (
                 <EditInstitutionModal
                     institution={editingInstitution}
+                    institutionType={institutionType as any}
                     onClose={() => setEditingInstitution(null)}
                     onSave={async (id, data) => {
                         if (props.onUpdateInstitution) {
