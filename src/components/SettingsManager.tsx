@@ -1924,7 +1924,19 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
                         <div className="md:col-span-2 pt-8 border-t border-slate-50 dark:border-slate-800">
                             <button 
-                                onClick={() => { props.onRefreshData?.(); alert("Settings saved successfully."); }}
+                                onClick={async () => { 
+                                    if (localDsSettings) {
+                                        try {
+                                            await props.onUpdateDSSettings?.(localDsSettings);
+                                            props.onRefreshData?.(); 
+                                            alert("Settings saved successfully.");
+                                        } catch (err) {
+                                            alert("Failed to save settings. Please try again.");
+                                        }
+                                    } else {
+                                        alert("No changes to save.");
+                                    }
+                                }}
                                 className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-3xl font-black text-sm uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/30 transition-all hover:scale-[1.01] active:scale-[0.98]"
                             >
                                 Save Configuration

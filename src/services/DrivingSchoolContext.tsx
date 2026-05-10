@@ -187,16 +187,23 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
     }, [institutionId, onRefresh, error]);
 
     const updateSettings = useCallback(async (data: any) => {
+        if (!institutionId) return;
         try {
+            console.log("[DS Context] Updating Settings:", data);
+            // Use a deterministic ID based on institutionId to ensure upsert works correctly
+            // even if the record was created elsewhere or initial fetch failed.
             const payload = {
                 ...data,
-                id: data.id || settings?.id || `set_${Date.now()}`,
-                institutionId
+                id: data.id || settings?.id || `ds_settings_${institutionId}`,
+                institutionId,
+                updatedAt: new Date().toISOString()
             };
+            
             await apiService.saveModuleRecord('ds_settings', payload);
             success("Settings updated successfully");
             await onRefresh();
         } catch (err) {
+            console.error("[DS Context] Update Settings Error:", err);
             error("Failed to update settings");
             throw err;
         }

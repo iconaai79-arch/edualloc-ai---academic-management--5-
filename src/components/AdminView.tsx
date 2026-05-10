@@ -70,6 +70,7 @@ import { ChartPieIcon } from './icons/ChartPieIcon';
 import { ArrowsRightLeftIcon } from './icons/ArrowsRightLeftIcon';
 import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTextIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
+import { useDrivingSchool } from '../services/DrivingSchoolContext';
 import { ChartBarIcon } from './icons/ChartBarIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { AcademicCapIcon } from './icons/AcademicCapIcon';
@@ -406,7 +407,8 @@ export interface AdminViewProps {
 }
 
 
-export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
+export const AdminView: React.FC<AdminViewProps> = (props) => {
+    const dsContext = props.currentInstitution?.institutionType === 'Driving School' ? useDrivingSchool() : null;
     const { 
         activeAcademicYear, 
         activeSemester, 
@@ -1616,8 +1618,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onAddExtensionRequest={props.onAddExtensionRequest}
                         activityLogLimit={props.activityLogLimit}
                         setActivityLogLimit={props.setActivityLogLimit}
-                        dsSettings={props.dsSettings}
-                        onUpdateDSSettings={props.onUpdateDSSettings}
+                        dsSettings={props.dsSettings || dsContext?.settings || null}
+                        onUpdateDSSettings={props.onUpdateDSSettings || dsContext?.updateSettings}
                     />
                 )}
 
