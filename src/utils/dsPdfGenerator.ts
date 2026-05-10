@@ -97,22 +97,22 @@ export const generateDSPDF = (
     const totalLabel = type === 'invoice' ? 'INVOICE TOTAL:' : 'PAYMENT TOTAL:';
     const totalValue = type === 'invoice' ? (data as DSInvoice).totalAmount : (data as DSPayment).amount;
     
-    doc.text(totalLabel, pageWidth - margin - 60, finalY + 20);
+    doc.text(totalLabel, pageWidth - margin - 85, finalY + 20);
     doc.setFontSize(16);
     doc.text(`KES ${totalValue.toLocaleString()}.00`, pageWidth - margin, finalY + 20, { align: 'right' });
 
     if (type === 'invoice') {
         doc.setFontSize(10);
         doc.setTextColor(100);
-        doc.text('AMOUNT PAID:', pageWidth - margin - 60, finalY + 30);
+        doc.text('AMOUNT PAID:', pageWidth - margin - 85, finalY + 30);
         doc.setTextColor(30, 41, 59);
         doc.text(`KES ${(data as DSInvoice).paidAmount.toLocaleString()}.00`, pageWidth - margin, finalY + 30, { align: 'right' });
         
         doc.setFontSize(12);
         doc.setFont(undefined, 'bold');
-        doc.text('BALANCE DUE:', pageWidth - margin - 60, finalY + 40);
+        doc.text('BALANCE DUE:', pageWidth - margin - 85, finalY + 42);
         doc.setTextColor(220, 38, 38); // Red-600
-        doc.text(`KES ${(data as DSInvoice).balance.toLocaleString()}.00`, pageWidth - margin, finalY + 40, { align: 'right' });
+        doc.text(`KES ${(data as DSInvoice).balance.toLocaleString()}.00`, pageWidth - margin, finalY + 42, { align: 'right' });
     }
 
     // Footer
