@@ -129,7 +129,7 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
 };
 
 const DrivingSchoolActionModal: React.FC<{
-    type: 'student' | 'instructor' | 'vehicle' | 'lesson' | 'invoice' | 'payment' | null;
+    type: 'student' | 'instructor' | 'vehicle' | 'lesson' | 'invoice' | 'payment' | 'fee_structure' | null;
     onClose: () => void;
     onSave: (data: any) => Promise<void>;
     students?: any[];
@@ -146,6 +146,7 @@ const DrivingSchoolActionModal: React.FC<{
         if (type === 'instructor') return { ...base, rating: 5 };
         if (type === 'invoice') return { ...base, items: [], totalAmount: 0, paidAmount: 0, balance: 0, status: 'Pending', createdAt: new Date().toISOString() };
         if (type === 'payment') return { ...base, paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'M-Pesa' };
+        if (type === 'fee_structure') return { className: 'CLASS C1', tuition: 15000, pdl: 1500, assessment: 2000 };
         return base;
     });
     const [isSaving, setIsSaving] = useState(false);
@@ -165,13 +166,15 @@ const DrivingSchoolActionModal: React.FC<{
         }
     };
 
+    const title = {
         student: 'Enrol New Student',
         instructor: 'Add Instructor',
         vehicle: 'Register Vehicle',
         lesson: 'Schedule Lesson',
         invoice: 'Generate Invoice',
-        payment: 'Record Payment'
-    }[type];
+        payment: 'Record Payment',
+        fee_structure: 'Define Class Fee'
+    }[type as string] || 'Driving School Action';
 
     return (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
@@ -346,6 +349,27 @@ const DrivingSchoolActionModal: React.FC<{
                                 </div>
                             </>
                         )}
+
+                        {type === 'fee_structure' && (
+                            <>
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Class Name</label>
+                                    <input required type="text" value={formData.className || ''} onChange={e => setFormData({...formData, className: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. CLASS C1" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tuition Fee</label>
+                                    <input required type="number" value={formData.tuition || ''} onChange={e => setFormData({...formData, tuition: Number(e.target.value)})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">PDL Fee</label>
+                                    <input required type="number" value={formData.pdl || ''} onChange={e => setFormData({...formData, pdl: Number(e.target.value)})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                </div>
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Assessment Fee</label>
+                                    <input required type="number" value={formData.assessment || ''} onChange={e => setFormData({...formData, assessment: Number(e.target.value)})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     <div className="pt-6 flex gap-3">
@@ -384,7 +408,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
     const [searchTerm, setSearchTerm] = useState('');
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const [actionModal, setActionModal] = useState<{ type: 'student' | 'instructor' | 'vehicle' | 'lesson' | null; data?: any }>({ type: null });
+    const [actionModal, setActionModal] = useState<{ type: 'student' | 'instructor' | 'vehicle' | 'lesson' | 'invoice' | 'payment' | 'fee_structure' | null; data?: any }>({ type: null });
 
     // Normalization
     const normalizedStudents = useMemo(() => students.map(s => ({
@@ -795,8 +819,55 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                     {activeTab === 'settings' && (
                         <div className="max-w-4xl bg-white dark:bg-slate-900 p-12 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm animate-fade-in">
-                            <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-8">Settings</h2>
-                            <div className="space-y-8">
+                            <div className="flex items-center justify-between mb-8">
+                                <div>
+                                    <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Settings</h2>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Configuration & Fee Structures</p>
+                                </div>
+                                <button 
+                                    onClick={() => setActionModal({ type: 'fee_structure' })}
+                                    className="px-6 py-3 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-100 transition-all flex items-center gap-2"
+                                >
+                                    <PlusIcon className="w-4 h-4" />
+                                    Add Class Fee
+                                </button>
+                            </div>
+                            
+                            <div className="space-y-12">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {(settings?.feeStructures || []).map((fee) => (
+                                        <div key={fee.id} className="bg-slate-50 dark:bg-slate-800/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 relative group">
+                                            <div className="flex items-center justify-between mb-6">
+                                                <span className="text-sm font-black text-indigo-600 uppercase tracking-widest">{fee.className}</span>
+                                                <span className="text-xl font-black text-slate-900 dark:text-white">KES {fee.totalAmount.toLocaleString()}</span>
+                                            </div>
+                                            <div className="space-y-3">
+                                                {fee.items.map((item, idx) => (
+                                                    <div key={idx} className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                                                        <span>{item.name}</span>
+                                                        <span>{item.amount.toLocaleString()}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <button 
+                                                onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    if (confirm(`Are you sure you want to delete the fee structure for ${fee.className}?`)) {
+                                                        const next = {
+                                                            ...(settings || {}),
+                                                            feeStructures: (settings?.feeStructures || []).filter(f => f.id !== fee.id)
+                                                        };
+                                                        await onUpdateSettings(next);
+                                                    }
+                                                }}
+                                                className="absolute top-6 right-6 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                                            >
+                                                <XIcon className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+
                                 <button 
                                     onClick={async () => {
                                         try {
@@ -806,7 +877,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             toastError("Failed to save settings");
                                         }
                                     }}
-                                    className="w-full py-5 bg-indigo-600 text-white rounded-3xl font-black uppercase tracking-widest shadow-xl shadow-indigo-600/30"
+                                    className="w-full py-5 bg-indigo-600 text-white rounded-3xl font-black uppercase tracking-widest shadow-xl shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98] transition-all"
                                 >
                                     Save Configuration
                                 </button>
@@ -826,6 +897,26 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             else if (actionModal.type === 'lesson') await onAddLesson(data);
                             else if (actionModal.type === 'invoice') await onAddInvoice(data);
                             else if (actionModal.type === 'payment') await onAddPayment(data);
+                            else if (actionModal.type === 'fee_structure') {
+                                const newFee: DSFeeStructure = {
+                                    id: Math.random().toString(36).substr(2, 9),
+                                    institutionId: currentInstitution?.id || '',
+                                    className: data.className,
+                                    items: [
+                                        { name: 'Tuition Fee', amount: data.tuition },
+                                        { name: 'PDL', amount: data.pdl },
+                                        { name: 'Assessment', amount: data.assessment }
+                                    ],
+                                    totalAmount: data.tuition + data.pdl + data.assessment,
+                                    createdAt: new Date().toISOString(),
+                                    updatedAt: new Date().toISOString()
+                                };
+                                const next = {
+                                    ...(settings || {}),
+                                    feeStructures: [...(settings?.feeStructures || []), newFee]
+                                };
+                                await onUpdateSettings(next);
+                            }
                         }}
                         students={normalizedStudents}
                         instructors={normalizedInstructors}

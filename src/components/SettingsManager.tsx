@@ -274,7 +274,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         isOtpEnabled: props.currentInstitution?.isOtpEnabled ?? false,
         parentAbsenceNotificationsEnabled: props.currentInstitution?.parentAbsenceNotificationsEnabled ?? false,
         farmerSmsBillingEnabled: props.currentInstitution?.farmerSmsBillingEnabled ?? false,
-        slug: props.currentInstitution?.slug || ''
+        slug: props.currentInstitution?.slug || '',
+        googleDriveConfig: props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false }
     });
     const [isSavingProfile, setIsSavingProfile] = useState(false);
 
@@ -295,7 +296,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 isOtpEnabled: props.currentInstitution.isOtpEnabled ?? false,
                 parentAbsenceNotificationsEnabled: props.currentInstitution.parentAbsenceNotificationsEnabled ?? false,
                 farmerSmsBillingEnabled: props.currentInstitution.farmerSmsBillingEnabled ?? false,
-                slug: props.currentInstitution.slug || ''
+                slug: props.currentInstitution.slug || '',
+                googleDriveConfig: props.currentInstitution.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false }
             });
         }
     }, [props.currentInstitution]);
@@ -345,6 +347,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     }, [props.currentInstitution]);
 
     const [localDsSettings, setLocalDsSettings] = useState<DSSettings | null>(props.dsSettings || null);
+    const [isAddingFee, setIsAddingFee] = useState(false);
+    const [newFeeForm, setNewFeeForm] = useState({ className: 'CLASS C1', tuition: 15000, pdl: 1500, assessment: 2000 });
     useEffect(() => {
         setLocalDsSettings(props.dsSettings || null);
     }, [props.dsSettings]);
@@ -1818,39 +1822,66 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Fee Structures</h3>
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Define costs for different driving classes</p>
                                 </div>
-                                <button 
-                                    onClick={() => {
-                                        const className = prompt("Enter Class Name (e.g. CLASS C1):", "CLASS C1");
-                                        if (!className) return;
-                                        const tuition = Number(prompt("Tuition Fee Amount:", "15000"));
-                                        const pdl = Number(prompt("PDL Fee Amount:", "1500"));
-                                        const assessment = Number(prompt("Assessment Fee Amount:", "2000"));
-                                        
-                                        const newFee: DSFeeStructure = {
-                                            id: Math.random().toString(36).substr(2, 9),
-                                            institutionId: props.currentInstitution?.id || '',
-                                            className: className,
-                                            items: [
-                                                { name: 'Tuition Fee', amount: tuition },
-                                                { name: 'PDL', amount: pdl },
-                                                { name: 'Assessment', amount: assessment }
-                                            ],
-                                            totalAmount: tuition + pdl + assessment,
-                                            createdAt: new Date().toISOString(),
-                                            updatedAt: new Date().toISOString()
-                                        };
-                                        const next = { 
-                                            ...(localDsSettings || {}), 
-                                            feeStructures: [...(localDsSettings?.feeStructures || []), newFee] 
-                                        } as DSSettings;
-                                        setLocalDsSettings(next);
-                                        props.onUpdateDSSettings?.(next);
-                                    }}
-                                    className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all"
-                                >
-                                    <PlusIcon className="w-4 h-4" />
-                                    <span>Add Class Fee</span>
-                                </button>
+                                {isAddingFee ? (
+                                    <div className="md:col-span-2 bg-indigo-50/50 dark:bg-indigo-900/10 p-8 rounded-[2.5rem] border border-indigo-100 dark:border-indigo-900/30 animate-fade-in-up">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                                            <div className="md:col-span-2 space-y-2">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Class Name</label>
+                                                <input required type="text" value={newFeeForm.className} onChange={e => setNewFeeForm({...newFeeForm, className: e.target.value})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. CLASS C1" />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tuition Fee</label>
+                                                <input required type="number" value={newFeeForm.tuition} onChange={e => setNewFeeForm({...newFeeForm, tuition: Number(e.target.value)})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">PDL Fee</label>
+                                                <input required type="number" value={newFeeForm.pdl} onChange={e => setNewFeeForm({...newFeeForm, pdl: Number(e.target.value)})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                            </div>
+                                            <div className="md:col-span-2 space-y-2">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Assessment Fee</label>
+                                                <input required type="number" value={newFeeForm.assessment} onChange={e => setNewFeeForm({...newFeeForm, assessment: Number(e.target.value)})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-3">
+                                            <button onClick={() => setIsAddingFee(false)} className="flex-1 py-4 bg-white dark:bg-slate-800 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button>
+                                            <button 
+                                                onClick={() => {
+                                                    const newFee: DSFeeStructure = {
+                                                        id: Math.random().toString(36).substr(2, 9),
+                                                        institutionId: props.currentInstitution?.id || '',
+                                                        className: newFeeForm.className,
+                                                        items: [
+                                                            { name: 'Tuition Fee', amount: newFeeForm.tuition },
+                                                            { name: 'PDL', amount: newFeeForm.pdl },
+                                                            { name: 'Assessment', amount: newFeeForm.assessment }
+                                                        ],
+                                                        totalAmount: newFeeForm.tuition + newFeeForm.pdl + newFeeForm.assessment,
+                                                        createdAt: new Date().toISOString(),
+                                                        updatedAt: new Date().toISOString()
+                                                    };
+                                                    const next = { 
+                                                        ...(localDsSettings || { institutionId: props.currentInstitution?.id || '', id: `set_${Date.now()}` }), 
+                                                        feeStructures: [...(localDsSettings?.feeStructures || []), newFee] 
+                                                    } as DSSettings;
+                                                    setLocalDsSettings(next);
+                                                    props.onUpdateDSSettings?.(next);
+                                                    setIsAddingFee(false);
+                                                }}
+                                                className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                                            >
+                                                Save Class Fee
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button 
+                                        onClick={() => setIsAddingFee(true)}
+                                        className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all"
+                                    >
+                                        <PlusIcon className="w-4 h-4" />
+                                        <span>Add Class Fee</span>
+                                    </button>
+                                )}
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -3380,6 +3411,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                             headerImageUrl: props.currentInstitution?.logoUrl || null,
                             stampImageUrl: null
                         }}
+                        onAccessAlumnaPortal={() => { }}
                     />
                 )
             }
