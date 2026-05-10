@@ -1860,12 +1860,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Max Lessons / Student / Day</label>
                                         <input 
                                             type="number" 
-                                            value={localDsSettings?.scheduling_rules?.maxLessonsPerDayPerStudent || 1} 
+                                            value={localDsSettings?.schedulingRules?.maxLessonsPerDayPerStudent || 1} 
                                             onChange={e => {
                                                 const current = localDsSettings || props.dsSettings;
                                                 const next = { 
                                                     ...current, 
-                                                    scheduling_rules: { ...(current?.scheduling_rules || {}), maxLessonsPerDayPerStudent: Number(e.target.value) }
+                                                    schedulingRules: { ...(current?.schedulingRules || {}), maxLessonsPerDayPerStudent: Number(e.target.value) }
                                                 } as DSSettings;
                                                 setLocalDsSettings(next);
                                             }}
@@ -1876,12 +1876,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Min Gap (Mins)</label>
                                         <input 
                                             type="number" 
-                                            value={localDsSettings?.scheduling_rules?.minGapMinutesBetweenLessons || 15} 
+                                            value={localDsSettings?.schedulingRules?.minGapMinutesBetweenLessons || 15} 
                                             onChange={e => {
                                                 const current = localDsSettings || props.dsSettings;
                                                 const next = { 
                                                     ...current, 
-                                                    scheduling_rules: { ...(current?.scheduling_rules || {}), minGapMinutesBetweenLessons: Number(e.target.value) }
+                                                    schedulingRules: { ...(current?.schedulingRules || {}), minGapMinutesBetweenLessons: Number(e.target.value) }
                                                 } as DSSettings;
                                                 setLocalDsSettings(next);
                                             }}
@@ -1896,13 +1896,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     const current = localDsSettings || props.dsSettings;
                                                     const next = { 
                                                         ...current, 
-                                                        scheduling_rules: { ...(current?.scheduling_rules || {}), autoAssignInstructor: !current?.scheduling_rules?.autoAssignInstructor }
+                                                        schedulingRules: { ...(current?.schedulingRules || {}), autoAssignInstructor: !current?.schedulingRules?.autoAssignInstructor }
                                                     } as DSSettings;
                                                     setLocalDsSettings(next);
                                                 }}
-                                                className={`w-10 h-5 rounded-full relative transition-all ${localDsSettings?.scheduling_rules?.autoAssignInstructor ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                                className={`w-10 h-5 rounded-full relative transition-all ${localDsSettings?.schedulingRules?.autoAssignInstructor ? 'bg-indigo-600' : 'bg-slate-300'}`}
                                             >
-                                                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${localDsSettings?.scheduling_rules?.autoAssignInstructor ? 'right-0.5' : 'left-0.5'}`} />
+                                                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${localDsSettings?.schedulingRules?.autoAssignInstructor ? 'right-0.5' : 'left-0.5'}`} />
                                             </button>
                                         </div>
                                         <div className="flex items-center justify-between">
@@ -1912,13 +1912,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     const current = localDsSettings || props.dsSettings;
                                                     const next = { 
                                                         ...current, 
-                                                        scheduling_rules: { ...(current?.scheduling_rules || {}), autoAssignVehicle: !current?.scheduling_rules?.autoAssignVehicle }
+                                                        schedulingRules: { ...(current?.schedulingRules || {}), autoAssignVehicle: !current?.schedulingRules?.autoAssignVehicle }
                                                     } as DSSettings;
                                                     setLocalDsSettings(next);
                                                 }}
-                                                className={`w-10 h-5 rounded-full relative transition-all ${localDsSettings?.scheduling_rules?.autoAssignVehicle ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                                className={`w-10 h-5 rounded-full relative transition-all ${localDsSettings?.schedulingRules?.autoAssignVehicle ? 'bg-indigo-600' : 'bg-slate-300'}`}
                                             >
-                                                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${localDsSettings?.scheduling_rules?.autoAssignVehicle ? 'right-0.5' : 'left-0.5'}`} />
+                                                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${localDsSettings?.schedulingRules?.autoAssignVehicle ? 'right-0.5' : 'left-0.5'}`} />
                                             </button>
                                         </div>
                                     </div>
