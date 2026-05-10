@@ -673,6 +673,18 @@ export const apiService = {
             if (module === 'users') {
                 delete item.metadata;
             }
+
+            // Safety net for Driving School modules to prevent schema mismatch errors
+            if (module === 'ds_vehicles' || module === 'ds_instructors' || module === 'ds_students') {
+                delete item.start_time;
+                delete item.end_time;
+                delete item.lesson_date;
+                delete item.lesson_type;
+                delete item.student_id;
+                delete item.instructor_id;
+                delete item.vehicle_id;
+            }
+            
             return item;
         };
 
