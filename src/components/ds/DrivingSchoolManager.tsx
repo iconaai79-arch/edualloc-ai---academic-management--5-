@@ -317,8 +317,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
     const stats = useMemo(() => ({
         totalStudents: students.length,
-        activeInstructors: instructors.length,
-        operationalVehicles: vehicles.length,
+        activeInstructors: instructors.filter(i => i.status === 'Active').length,
+        operationalVehicles: vehicles.filter(v => v.status === 'Operational').length,
         pendingLessons: lessons.filter(l => l.status === 'Scheduled').length,
     }), [students, instructors, vehicles, lessons]);
 
@@ -393,6 +393,63 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                 {/* Tab Content */}
                 <div className="min-h-[600px]">
+                    {activeTab === 'dashboard' && (
+                        <div className="space-y-8 animate-fade-in">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                {/* Recent Lessons Summary */}
+                                <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                                    <div className="flex justify-between items-center mb-8">
+                                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Upcoming Schedule</h3>
+                                        <button onClick={() => setActiveTab('lessons')} className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline">View All</button>
+                                    </div>
+                                    <div className="space-y-4">
+                                        {lessons.filter(l => l.status === 'Scheduled').slice(0, 5).map(lesson => (
+                                            <div key={lesson.id} className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100/50 dark:border-slate-700/50">
+                                                <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center">
+                                                    <CalendarDaysIcon className="w-5 h-5 text-indigo-600" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <p className="font-bold text-sm text-slate-900 dark:text-white">
+                                                        {students.find(s => s.id === lesson.studentId)?.fullName || 'Student'}
+                                                    </p>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                        {new Date(lesson.startTime).toLocaleDateString()} at {new Date(lesson.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </p>
+                                                </div>
+                                                <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                                                    {lesson.lessonType || 'Practical'}
+                                                </span>
+                                            </div>
+                                        ))}
+                                        {lessons.filter(l => l.status === 'Scheduled').length === 0 && (
+                                            <div className="text-center py-8 text-slate-400 text-sm font-bold">No upcoming lessons scheduled.</div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Quick Actions / Shortcuts */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <button onClick={() => setActionModal({ type: 'student' })} className="bg-indigo-600 p-8 rounded-[2.5rem] text-white flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform shadow-xl shadow-indigo-600/20">
+                                        <UsersIcon className="w-8 h-8" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Enroll Student</span>
+                                    </button>
+                                    <button onClick={() => setActionModal({ type: 'lesson' })} className="bg-slate-900 dark:bg-slate-800 p-8 rounded-[2.5rem] text-white flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform shadow-xl">
+                                        <CalendarDaysIcon className="w-8 h-8" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Book Lesson</span>
+                                    </button>
+                                    <button onClick={() => setActionModal({ type: 'vehicle' })} className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] text-slate-900 dark:text-white flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform border border-slate-100 dark:border-slate-800 shadow-sm">
+                                        <TruckIcon className="w-8 h-8 text-slate-400" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Add Vehicle</span>
+                                    </button>
+                                    <button onClick={() => setActionModal({ type: 'instructor' })} className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] text-slate-900 dark:text-white flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform border border-slate-100 dark:border-slate-800 shadow-sm">
+                                        <AcademicCapIcon className="w-8 h-8 text-slate-400" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Hire Instructor</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {activeTab === 'students' && (
                         <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden animate-fade-in">
                             <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">

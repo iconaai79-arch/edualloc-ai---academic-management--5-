@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode, useMemo } from 'react';
 import { DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment } from '../types';
 import { apiService } from './apiService';
 import { useToast } from './ToastContext';
@@ -32,6 +32,13 @@ interface DrivingSchoolContextType {
     updateSettings: (data: any) => Promise<void>;
     addInvoice: (data: any) => Promise<void>;
     addPayment: (data: any) => Promise<void>;
+    loadDSData: () => Promise<void>;
+    stats: {
+        totalStudents: number;
+        activeInstructors: number;
+        operationalVehicles: number;
+        pendingLessons: number;
+    };
 }
 
 const DrivingSchoolContext = createContext<DrivingSchoolContextType | undefined>(undefined);
@@ -56,8 +63,12 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
     const [isLoading, setIsLoading] = useState(false);
 
     const loadDSData = useCallback(async () => {
-        if (!institutionId) return;
+        if (!institutionId) {
+            console.log("[DSContext] loadDSData: No institutionId provided, skipping fetch.");
+            return;
+        }
         setIsLoading(true);
+        console.log(`[DSContext] loadDSData: Starting fetch for institutionId=${institutionId}`);
         try {
             const [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay] = await Promise.all([
                 apiService.fetchModuleRecords<DSInstructor>('ds_instructors', institutionId).catch(() => []),
@@ -70,6 +81,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 apiService.fetchModuleRecords<DSPayment>('ds_payments', institutionId).catch(() => []),
             ]);
 
+            console.log(`[DSContext] loadDSData: Fetched ${dsInst.length} instructors, ${dsVeh.length} vehicles, ${dsStud.length} students, ${dsLess.length} lessons`);
+
             setInstructors(dsInst || []);
             setVehicles(dsVeh || []);
             setStudents(dsStud || []);
@@ -79,7 +92,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             setInvoices(dsInvs || []);
             setPayments(dsPay || []);
         } catch (err) {
-            console.error("Failed to load DS data:", err);
+            console.error("[DSContext] loadDSData: Failed to load DS data:", err);
         } finally {
             setIsLoading(false);
         }
@@ -221,10 +234,18 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         }
     }, [institutionId, onRefresh, success, error]);
 
+    const stats = useMemo(() => ({
+        totalStudents: students.length,
+        activeInstructors: instructors.filter(i => i.status === 'Active').length,
+        operationalVehicles: vehicles.filter(v => v.status === 'Operational').length,
+        pendingLessons: lessons.filter(l => l.status === 'Scheduled').length,
+    }), [students, instructors, vehicles, lessons]);
+
     const value = {
         instructors, vehicles, students, lessons, mastery, settings, invoices, payments,
         setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments,
-        addInstructor, addVehicle, addStudent, addLesson, addMastery, updateSettings, addInvoice, addPayment
+        addInstructor, addVehicle, addStudent, addLesson, addMastery, updateSettings, addInvoice, addPayment,
+        loadDSData, stats
     };
 
     return (

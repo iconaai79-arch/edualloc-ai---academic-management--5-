@@ -4586,6 +4586,7 @@ export const App: React.FC = () => {
                                     <LogisticsDashboard />
                                 ) : (isAdminCatchAll || (activeRole === 'admin' && activeInstitution?.institutionType === 'Driving School')) ? (
                                     <DrivingSchoolProvider institutionId={activeInstitution?.id}>
+                                        {(() => { console.log("[App] Rendering DS Manager for institutionId:", activeInstitution?.id); return null; })()}
                                         <AdminView
                                              {...superAdminProps as any}
                                              currentUser={currentUser}
