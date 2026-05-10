@@ -3860,6 +3860,14 @@ export interface DSSettings {
     feeStructures?: DSFeeStructure[];
     cancellationPolicy?: string;
     workingHours?: any;
+    autoSchedulingEnabled?: boolean;
+    schedulingRules?: {
+        maxLessonsPerDayPerStudent?: number;
+        minGapMinutesBetweenLessons?: number;
+        allowBackToBackLessons?: boolean;
+        autoAssignInstructor?: boolean;
+        autoAssignVehicle?: boolean;
+    };
     updatedAt: string;
 }
 

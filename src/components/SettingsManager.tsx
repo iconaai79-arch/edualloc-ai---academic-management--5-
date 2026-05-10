@@ -1820,6 +1820,97 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     </div>
                                 </div>
                             </div>
+
+                            <div className="pt-12 border-t border-slate-50 dark:border-slate-800">
+                                <div className="flex items-center justify-between mb-8">
+                                    <div>
+                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Scheduling Rules</h3>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Configure automated lesson scheduling logic</p>
+                                    </div>
+                                    <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800 p-2 rounded-2xl">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Auto-Schedule</span>
+                                        <button 
+                                            onClick={() => {
+                                                const next = { ...localDsSettings, autoSchedulingEnabled: !localDsSettings?.autoSchedulingEnabled } as DSSettings;
+                                                setLocalDsSettings(next);
+                                                props.onUpdateDSSettings?.(next);
+                                            }}
+                                            className={`w-12 h-6 rounded-full relative transition-all ${localDsSettings?.autoSchedulingEnabled ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                        >
+                                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${localDsSettings?.autoSchedulingEnabled ? 'right-1' : 'left-1'}`} />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Max Lessons Per Student / Day</label>
+                                        <input 
+                                            type="number" 
+                                            value={localDsSettings?.schedulingRules?.maxLessonsPerDayPerStudent || 1} 
+                                            onChange={e => {
+                                                const next = { 
+                                                    ...localDsSettings, 
+                                                    schedulingRules: { ...(localDsSettings?.schedulingRules || {}), maxLessonsPerDayPerStudent: Number(e.target.value) }
+                                                } as DSSettings;
+                                                setLocalDsSettings(next);
+                                                props.onUpdateDSSettings?.(next);
+                                            }}
+                                            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Min Gap Between Lessons (Mins)</label>
+                                        <input 
+                                            type="number" 
+                                            value={localDsSettings?.schedulingRules?.minGapMinutesBetweenLessons || 15} 
+                                            onChange={e => {
+                                                const next = { 
+                                                    ...localDsSettings, 
+                                                    schedulingRules: { ...(localDsSettings?.schedulingRules || {}), minGapMinutesBetweenLessons: Number(e.target.value) }
+                                                } as DSSettings;
+                                                setLocalDsSettings(next);
+                                                props.onUpdateDSSettings?.(next);
+                                            }}
+                                            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                        />
+                                    </div>
+                                    <div className="flex flex-col justify-center space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Auto-Assign Instructor</span>
+                                            <button 
+                                                onClick={() => {
+                                                    const next = { 
+                                                        ...localDsSettings, 
+                                                        schedulingRules: { ...(localDsSettings?.schedulingRules || {}), autoAssignInstructor: !localDsSettings?.schedulingRules?.autoAssignInstructor }
+                                                    } as DSSettings;
+                                                    setLocalDsSettings(next);
+                                                    props.onUpdateDSSettings?.(next);
+                                                }}
+                                                className={`w-10 h-5 rounded-full relative transition-all ${localDsSettings?.schedulingRules?.autoAssignInstructor ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                            >
+                                                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${localDsSettings?.schedulingRules?.autoAssignInstructor ? 'right-0.5' : 'left-0.5'}`} />
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Auto-Assign Vehicle</span>
+                                            <button 
+                                                onClick={() => {
+                                                    const next = { 
+                                                        ...localDsSettings, 
+                                                        schedulingRules: { ...(localDsSettings?.schedulingRules || {}), autoAssignVehicle: !localDsSettings?.schedulingRules?.autoAssignVehicle }
+                                                    } as DSSettings;
+                                                    setLocalDsSettings(next);
+                                                    props.onUpdateDSSettings?.(next);
+                                                }}
+                                                className={`w-10 h-5 rounded-full relative transition-all ${localDsSettings?.schedulingRules?.autoAssignVehicle ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                            >
+                                                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${localDsSettings?.schedulingRules?.autoAssignVehicle ? 'right-0.5' : 'left-0.5'}`} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div className="md:col-span-2 pt-12 mt-12 border-t border-slate-100 dark:border-slate-800">
