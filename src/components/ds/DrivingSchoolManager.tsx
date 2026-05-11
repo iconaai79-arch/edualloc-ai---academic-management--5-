@@ -680,13 +680,27 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                 {/* Header Section */}
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm">
                     <div>
-                        <h1 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-4">
-                            Driving <span className="text-indigo-600">School</span>
-                            <div className="px-4 py-1 bg-indigo-50 dark:bg-indigo-900/30 rounded-full">
-                                <span className="text-xs font-black text-indigo-600 uppercase tracking-widest">Enterprise</span>
+                        {activeTab === 'dashboard' && (
+                            <>
+                                <h1 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-4">
+                                    Driving <span className="text-indigo-600">School</span>
+                                    <div className="px-4 py-1 bg-indigo-50 dark:bg-indigo-900/30 rounded-full">
+                                        <span className="text-xs font-black text-indigo-600 uppercase tracking-widest">Enterprise</span>
+                                    </div>
+                                </h1>
+                                <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.3em] mt-2 ml-1">Fleet Management & Student Success</p>
+                            </>
+                        )}
+                        {activeTab !== 'dashboard' && (
+                            <div className="flex items-center gap-4">
+                                <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                    {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+                                </h1>
+                                <div className="px-4 py-1 bg-slate-100 dark:bg-slate-800 rounded-full">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">DS Module</span>
+                                </div>
                             </div>
-                        </h1>
-                        <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.3em] mt-2 ml-1">Fleet Management & Student Success</p>
+                        )}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
