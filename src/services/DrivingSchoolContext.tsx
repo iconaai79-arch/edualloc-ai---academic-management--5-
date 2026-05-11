@@ -662,7 +662,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         instructors, vehicles, students, lessons, mastery, settings, invoices, payments,
         mpesaTransactions, bankTransactions,
         setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments,
-        addInstructor, addVehicle, addStudent, updateStudent, deleteStudent, addLesson, updateLesson, addMastery, updateSettings, addInvoice, addPayment,
+        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, updateStudent, deleteStudent, addLesson, updateLesson, addMastery, updateSettings, addInvoice, addPayment,
         refreshData, stats
     };
 

@@ -3809,6 +3809,7 @@ export interface DSVehicle {
     nextServiceDate?: string;
     status: 'Operational' | 'Maintenance' | 'Out of Service';
     assignedInstructorId?: string;
+    unavailabilitySlots?: { startDate: string; endDate: string; reason: string }[];
     createdAt: string;
 }
 
@@ -3861,6 +3862,12 @@ export interface DSSkillMastery {
     createdAt: string;
 }
 
+export interface DSLessonSlot {
+    type: 'Morning' | 'Noon' | 'Evening';
+    startTime: string;
+    endTime: string;
+}
+
 export interface DSSettings {
     id: string;
     institutionId: string;
@@ -3878,10 +3885,15 @@ export interface DSSettings {
         autoAssignInstructor?: boolean;
         autoAssignVehicle?: boolean;
         requiredDaysToComplete?: number;
+        theoryDurationMinutes?: number;
+        practicalDurationMinutes?: number;
+        dailySequence?: ('Theory' | 'Practical')[];
+        nextDayAutoGenerationTime?: string;
     };
     invoicePrefix?: string;
     receiptPrefix?: string;
     studentIdPrefix?: string;
+    lessonSlots?: DSLessonSlot[];
     updatedAt: string;
 }
 

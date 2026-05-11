@@ -270,9 +270,11 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none"
                                     >
                                         <option value="">Select Preference</option>
-                                        <option value="Morning">Morning (6AM - 12PM)</option>
-                                        <option value="Noon">Noon (12PM - 4PM)</option>
-                                        <option value="Evening">Evening (4PM - 8PM)</option>
+                                        {['Morning', 'Noon', 'Evening'].map(type => {
+                                            const slot = (settings?.lessonSlots || []).find(s => s.type === type);
+                                            const label = slot ? `${type} (${slot.startTime} - ${slot.endTime})` : type;
+                                            return <option key={type} value={type}>{label}</option>;
+                                        })}
                                     </select>
                                 </div>
                                 {initialData && (
@@ -747,14 +749,95 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     
     const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings'>('dashboard');
     const [financeTab, setFinanceTab] = useState<'records' | 'feeds'>('records');
+    const [settingsSubTab, setSettingsSubTab] = useState<'general' | 'fees' | 'slots'>('general');
     const [users, setUsers] = useState<User[]>([]);
     const [isActionLoading, setIsActionLoading] = useState(false);
 
     useEffect(() => {
         if (currentInstitution?.id) {
             apiService.fetchUsers(currentInstitution.id).then(setUsers).catch(console.error);
+            
+            // Auto-migration for new schema fields
+            apiService.runMigration(`
+                ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS preferred_lesson_hours text;
+                NOTIFY pgrst, 'reload schema';
+            `).catch(err => console.error("Migration failed:", err));
         }
     }, [currentInstitution?.id]);
+
+    const handleAutoGenerateTomorrow = async () => {
+        if (!settings?.schedulingRules?.dailySequence?.length) {
+            toastError("Please configure Lesson Sequence in Settings first.");
+            return;
+        }
+
+        setIsActionLoading(true);
+        try {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const dateStr = tomorrow.toISOString().split('T')[0];
+
+            // 1. Filter students who have active enrollment
+            const eligibleStudents = students.filter(s => s.status === 'Enrolled');
+            
+            let lessonsAdded = 0;
+
+            for (const student of eligibleStudents) {
+                // Get student's preferred slot or default to Morning
+                const preferredSlotType = student.preferredLessonHours || 'Morning';
+                const slot = (settings.lessonSlots || []).find(s => s.type === preferredSlotType) || { startTime: '08:00', endTime: '10:00' };
+                
+                let currentTime = slot.startTime;
+                
+                // For each type in the sequence (e.g., Theory, Practical)
+                for (const type of settings.schedulingRules.dailySequence) {
+                    const duration = type === 'Theory' 
+                        ? (settings.schedulingRules.theoryDurationMinutes || 60)
+                        : (settings.schedulingRules.practicalDurationMinutes || 60);
+                    
+                    // Simple end time calculation
+                    const [h, m] = currentTime.split(':').map(Number);
+                    const end = new Date();
+                    end.setHours(h, m + duration, 0, 0);
+                    const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
+
+                    // Assign instructor based on type
+                    const instructor = type === 'Theory' 
+                        ? instructors.find(i => i.instructorType === 'Theory Trainer')
+                        : instructors.find(i => i.instructorType === 'Driving Instructor' || !i.instructorType);
+                    
+                    // Assign vehicle if practical
+                    const vehicle = type === 'Practical' 
+                        ? (vehicles.find(v => v.id === instructor?.assignedVehicleId) || vehicles.find(v => v.status === 'Operational'))
+                        : undefined;
+
+                    await onAddLesson({
+                        studentId: student.id,
+                        instructorId: instructor?.id,
+                        vehicleId: vehicle?.id,
+                        lessonDate: dateStr,
+                        startTime: currentTime,
+                        endTime: endTime,
+                        lessonType: type,
+                        status: 'Scheduled',
+                        institutionId: currentInstitution?.id
+                    });
+                    
+                    lessonsAdded++;
+                    currentTime = endTime; // Set for next in sequence if back-to-back
+                }
+            }
+
+            success(`Auto-generated ${lessonsAdded} lessons for tomorrow (${dateStr})`);
+            if (onRefreshDataProp) await onRefreshDataProp();
+            refreshData();
+        } catch (err) {
+            console.error("Auto-generation failed:", err);
+            toastError("Failed to auto-generate schedule. Check console for details.");
+        } finally {
+            setIsActionLoading(false);
+        }
+    };
 
     const activeTab = externalTab || internalTab;
     const setActiveTab = (tab: any) => setInternalTab(tab);
@@ -762,7 +845,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isBuySMSModalOpen, setIsBuySMSModalOpen] = useState(false);
-    const [actionModal, setActionModal] = useState<{ type: 'student' | 'instructor' | 'vehicle' | 'lesson' | 'invoice' | 'payment' | 'fee_structure' | 'broadcast' | null; data?: any; initialData?: any }>({ type: null });
+    const [actionModal, setActionModal] = useState<{ type: 'student' | 'instructor' | 'vehicle' | 'vehicle_unavailability' | 'lesson' | 'invoice' | 'payment' | 'fee_structure' | 'broadcast' | null; data?: any; initialData?: any }>({ type: null });
 
     // Normalization
     const normalizedStudents = useMemo(() => students.map(s => ({
@@ -1118,8 +1201,18 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                     {activeTab === 'lessons' && (
                         <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden animate-fade-in">
-                            <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between">
-                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Training Sessions</h3>
+                            <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                <div className="flex items-center gap-4">
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Training Sessions</h3>
+                                    <button 
+                                        onClick={handleAutoGenerateTomorrow}
+                                        disabled={isActionLoading}
+                                        className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-100 transition-all flex items-center gap-2 disabled:opacity-50"
+                                    >
+                                        <SparklesIcon className="w-3.5 h-3.5" />
+                                        {isActionLoading ? 'Generating...' : 'Auto-Generate Tomorrow'}
+                                    </button>
+                                </div>
                                 <div className="relative flex-1 max-w-xs">
                                     <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                     <input 
@@ -1127,7 +1220,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         placeholder="Search lessons..." 
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold"
+                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold"
                                     />
                                 </div>
                             </div>
@@ -1203,7 +1296,16 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             {vehicle.status}
                                         </span>
                                     </div>
-                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{vehicle.make} {vehicle.model}</h3>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{vehicle.make} {vehicle.model}</h3>
+                                        <button 
+                                            onClick={() => setActionModal({ type: 'vehicle_unavailability', initialData: vehicle })}
+                                            className="p-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all"
+                                            title="Manage Unavailability"
+                                        >
+                                            <CalendarDaysIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                     <p className="text-indigo-600 font-black text-sm mt-1">{vehicle.plateNumber}</p>
                                     
                                     <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
@@ -1489,123 +1591,281 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     {activeTab === 'settings' && (
                         <div className="animate-fade-in space-y-8">
                             <div className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm">
-                                <div className="flex items-center justify-between mb-10">
-                                    <div>
-                                        <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">DS Settings</h3>
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Configure prefixes and fee structures</p>
+                                <div className="flex flex-wrap items-center justify-between gap-6 mb-10">
+                                    <div className="flex items-center gap-2 p-1.5 bg-slate-50 dark:bg-slate-800 rounded-2xl">
+                                        {[
+                                            { id: 'general', label: 'General', icon: SettingsIcon },
+                                            { id: 'fees', label: 'Fees & Classes', icon: CreditCardIcon },
+                                            { id: 'slots', label: 'Lesson Hours', icon: ClockIcon }
+                                        ].map(tab => (
+                                            <button
+                                                key={tab.id}
+                                                onClick={() => setSettingsSubTab(tab.id as any)}
+                                                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                    settingsSubTab === tab.id 
+                                                    ? 'bg-white dark:bg-slate-900 text-indigo-600 shadow-sm' 
+                                                    : 'text-slate-400 hover:text-slate-600'
+                                                }`}
+                                            >
+                                                <tab.icon className="w-3.5 h-3.5" />
+                                                {tab.label}
+                                            </button>
+                                        ))}
                                     </div>
                                     <button 
                                         onClick={() => onUpdateSettings(settings || {})}
-                                        className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20"
+                                        className="px-8 py-3.5 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98] transition-all"
                                     >
                                         Save All Changes
                                     </button>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Invoice Prefix</label>
-                                        <input 
-                                            type="text" 
-                                            value={settings?.invoicePrefix || ''} 
-                                            onChange={e => onUpdateSettings({ ...settings, invoicePrefix: e.target.value })}
-                                            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
-                                            placeholder="INV-"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Receipt Prefix</label>
-                                        <input 
-                                            type="text" 
-                                            value={settings?.receiptPrefix || ''} 
-                                            onChange={e => onUpdateSettings({ ...settings, receiptPrefix: e.target.value })}
-                                            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
-                                            placeholder="REC-"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Student ID Prefix</label>
-                                        <input 
-                                            type="text" 
-                                            value={settings?.studentIdPrefix || ''} 
-                                            onChange={e => onUpdateSettings({ ...settings, studentIdPrefix: e.target.value })}
-                                            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
-                                            placeholder="ADM-"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="mt-12 border-t border-slate-50 dark:border-slate-800 pt-10">
-                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest mb-8">Scheduling Rules</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Required Days to Complete Schedule</label>
-                                            <input 
-                                                type="number" 
-                                                value={settings?.schedulingRules?.requiredDaysToComplete || ''} 
-                                                onChange={e => onUpdateSettings({ 
-                                                    ...settings, 
-                                                    schedulingRules: { 
-                                                        ...(settings?.schedulingRules || {}), 
-                                                        requiredDaysToComplete: parseInt(e.target.value) || 0 
-                                                    } 
-                                                })}
-                                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
-                                                placeholder="e.g. 21"
-                                            />
-                                            <p className="text-[9px] text-slate-400 ml-1 font-medium">The standard number of days a student should take to complete their training cycle.</p>
+                                {settingsSubTab === 'general' && (
+                                    <>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Invoice Prefix</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={settings?.invoicePrefix || ''} 
+                                                    onChange={e => onUpdateSettings({ ...settings, invoicePrefix: e.target.value })}
+                                                    className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                                    placeholder="INV-"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Receipt Prefix</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={settings?.receiptPrefix || ''} 
+                                                    onChange={e => onUpdateSettings({ ...settings, receiptPrefix: e.target.value })}
+                                                    className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                                    placeholder="REC-"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Student ID Prefix</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={settings?.studentIdPrefix || ''} 
+                                                    onChange={e => onUpdateSettings({ ...settings, studentIdPrefix: e.target.value })}
+                                                    className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                                    placeholder="ADM-"
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>
 
-                                <div className="mt-12 border-t border-slate-50 dark:border-slate-800 pt-10">
-                                    <div className="flex items-center justify-between mb-8">
-                                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Fee Structures (Classes)</h4>
-                                        <button 
-                                            onClick={() => setActionModal({ type: 'fee_structure' })}
-                                            className="p-3 bg-slate-50 dark:bg-slate-800 text-indigo-600 rounded-xl hover:bg-slate-100 transition-all"
-                                        >
-                                            <PlusIcon className="w-5 h-5" />
-                                        </button>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {(settings?.feeStructures || []).map((fee, idx) => (
-                                            <div key={idx} className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-700">
-                                                <div className="flex justify-between items-start mb-4">
-                                                    <h5 className="font-black text-slate-900 dark:text-white uppercase text-xs">{fee.className}</h5>
-                                                    <div className="flex gap-2">
-                                                        <button onClick={() => setActionModal({ type: 'fee_structure', initialData: fee })} className="p-2 text-slate-400 hover:text-indigo-600"><PencilIcon className="w-3.5 h-3.5" /></button>
-                                                        <button 
-                                                            onClick={() => {
-                                                                if (window.confirm("Delete this fee structure?")) {
-                                                                    onUpdateSettings({
-                                                                        ...settings,
-                                                                        feeStructures: settings?.feeStructures?.filter(f => f.id !== fee.id)
-                                                                    });
-                                                                }
-                                                            }}
-                                                            className="p-2 text-slate-400 hover:text-red-500"
-                                                        >
-                                                            <TrashIcon className="w-3.5 h-3.5" />
-                                                        </button>
-                                                    </div>
+                                        <div className="mt-12 border-t border-slate-50 dark:border-slate-800 pt-10">
+                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest mb-8">Scheduling Rules</h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Required Days to Complete Schedule</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={settings?.schedulingRules?.requiredDaysToComplete || ''} 
+                                                        onChange={e => onUpdateSettings({ 
+                                                            ...settings, 
+                                                            schedulingRules: { 
+                                                                ...(settings?.schedulingRules || {}), 
+                                                                requiredDaysToComplete: parseInt(e.target.value) || 0 
+                                                            } 
+                                                        })}
+                                                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                                        placeholder="e.g. 21"
+                                                    />
+                                                    <p className="text-[9px] text-slate-400 ml-1 font-medium">Standard training cycle duration.</p>
                                                 </div>
                                                 <div className="space-y-2">
-                                                    {fee.items?.map((item, i) => (
-                                                        <div key={i} className="flex justify-between text-[10px] font-bold">
-                                                            <span className="text-slate-400 uppercase tracking-widest">{item.name}</span>
-                                                            <span className="text-slate-900 dark:text-white">KES {item.amount.toLocaleString()}</span>
-                                                        </div>
-                                                    ))}
-                                                    <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between font-black text-xs">
-                                                        <span className="text-slate-900 dark:text-white uppercase tracking-widest">Total</span>
-                                                        <span className="text-indigo-600">KES {fee.totalAmount?.toLocaleString()}</span>
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Theory Duration (Mins)</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={settings?.schedulingRules?.theoryDurationMinutes || ''} 
+                                                        onChange={e => onUpdateSettings({ 
+                                                            ...settings, 
+                                                            schedulingRules: { 
+                                                                ...(settings?.schedulingRules || {}), 
+                                                                theoryDurationMinutes: parseInt(e.target.value) || 0 
+                                                            } 
+                                                        })}
+                                                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                                        placeholder="60"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Practical Duration (Mins)</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={settings?.schedulingRules?.practicalDurationMinutes || ''} 
+                                                        onChange={e => onUpdateSettings({ 
+                                                            ...settings, 
+                                                            schedulingRules: { 
+                                                                ...(settings?.schedulingRules || {}), 
+                                                                practicalDurationMinutes: parseInt(e.target.value) || 0 
+                                                            } 
+                                                        })}
+                                                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                                        placeholder="60"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Auto-Generation Time</label>
+                                                    <input 
+                                                        type="time" 
+                                                        value={settings?.schedulingRules?.nextDayAutoGenerationTime || ''} 
+                                                        onChange={e => onUpdateSettings({ 
+                                                            ...settings, 
+                                                            schedulingRules: { 
+                                                                ...(settings?.schedulingRules || {}), 
+                                                                nextDayAutoGenerationTime: e.target.value 
+                                                            } 
+                                                        })}
+                                                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                                    />
+                                                </div>
+                                                <div className="md:col-span-2 space-y-4">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Daily Lesson Sequence</label>
+                                                    <div className="flex flex-wrap gap-3">
+                                                        {[
+                                                            { value: ['Theory', 'Practical'], label: 'Theory → Practical' },
+                                                            { value: ['Practical', 'Theory'], label: 'Practical → Theory' },
+                                                            { value: ['Theory'], label: 'Theory Only' },
+                                                            { value: ['Practical'], label: 'Practical Only' }
+                                                        ].map((seq, i) => {
+                                                            const isSelected = JSON.stringify(settings?.schedulingRules?.dailySequence) === JSON.stringify(seq.value);
+                                                            return (
+                                                                <button
+                                                                    key={i}
+                                                                    type="button"
+                                                                    onClick={() => onUpdateSettings({
+                                                                        ...settings,
+                                                                        schedulingRules: {
+                                                                            ...(settings?.schedulingRules || {}),
+                                                                            dailySequence: seq.value as any
+                                                                        }
+                                                                    })}
+                                                                    className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                                        isSelected ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                                                                    }`}
+                                                                >
+                                                                    {seq.label}
+                                                                </button>
+                                                            );
+                                                        })}
                                                     </div>
                                                 </div>
                                             </div>
-                                        ))}
+                                        </div>
+                                    </>
+                                )}
+
+                                {settingsSubTab === 'fees' && (
+                                    <div className="animate-fade-in">
+                                        <div className="flex items-center justify-between mb-8">
+                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Fee Structures (Classes)</h4>
+                                            <button 
+                                                onClick={() => setActionModal({ type: 'fee_structure' })}
+                                                className="p-3 bg-slate-50 dark:bg-slate-800 text-indigo-600 rounded-xl hover:bg-slate-100 transition-all"
+                                            >
+                                                <PlusIcon className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            {(settings?.feeStructures || []).map((fee, idx) => (
+                                                <div key={idx} className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-700">
+                                                    <div className="flex justify-between items-start mb-4">
+                                                        <h5 className="font-black text-slate-900 dark:text-white uppercase text-xs">{fee.className}</h5>
+                                                        <div className="flex gap-2">
+                                                            <button onClick={() => setActionModal({ type: 'fee_structure', initialData: fee })} className="p-2 text-slate-400 hover:text-indigo-600"><PencilIcon className="w-3.5 h-3.5" /></button>
+                                                            <button 
+                                                                onClick={() => {
+                                                                    if (window.confirm("Delete this fee structure?")) {
+                                                                        onUpdateSettings({
+                                                                            ...settings,
+                                                                            feeStructures: settings?.feeStructures?.filter(f => f.id !== fee.id)
+                                                                        });
+                                                                    }
+                                                                }}
+                                                                className="p-2 text-slate-400 hover:text-red-500"
+                                                            >
+                                                                <TrashIcon className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        {fee.items?.map((item, i) => (
+                                                            <div key={i} className="flex justify-between text-[10px] font-bold">
+                                                                <span className="text-slate-400 uppercase tracking-widest">{item.name}</span>
+                                                                <span className="text-slate-900 dark:text-white">KES {item.amount.toLocaleString()}</span>
+                                                            </div>
+                                                        ))}
+                                                        <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between font-black text-xs">
+                                                            <span className="text-slate-900 dark:text-white uppercase tracking-widest">Total</span>
+                                                            <span className="text-indigo-600">KES {fee.totalAmount?.toLocaleString()}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
+
+                                {settingsSubTab === 'slots' && (
+                                    <div className="animate-fade-in space-y-8">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Lesson Hours (Session Slots)</h4>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                            {['Morning', 'Noon', 'Evening'].map((type) => {
+                                                const slot = (settings?.lessonSlots || []).find(s => s.type === type) || { type, startTime: '08:00', endTime: '10:00' };
+                                                return (
+                                                    <div key={type} className="p-8 bg-slate-50 dark:bg-slate-800/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
+                                                        <div className="flex items-center gap-3 mb-6">
+                                                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
+                                                                type === 'Morning' ? 'bg-amber-50 text-amber-600' :
+                                                                type === 'Noon' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-600'
+                                                            }`}>
+                                                                <ClockIcon className="w-5 h-5" />
+                                                            </div>
+                                                            <h5 className="font-black text-slate-900 dark:text-white uppercase text-xs tracking-widest">{type} Sessions</h5>
+                                                        </div>
+                                                        <div className="space-y-4">
+                                                            <div className="space-y-2">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Time</label>
+                                                                <input 
+                                                                    type="time" 
+                                                                    value={slot.startTime} 
+                                                                    onChange={e => {
+                                                                        const nextSlots = (settings?.lessonSlots || []).filter(s => s.type !== type);
+                                                                        nextSlots.push({ ...slot, startTime: e.target.value } as any);
+                                                                        onUpdateSettings({ ...settings, lessonSlots: nextSlots });
+                                                                    }}
+                                                                    className="w-full px-5 py-3.5 bg-white dark:bg-slate-900 border-none rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold text-sm"
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">End Time</label>
+                                                                <input 
+                                                                    type="time" 
+                                                                    value={slot.endTime} 
+                                                                    onChange={e => {
+                                                                        const nextSlots = (settings?.lessonSlots || []).filter(s => s.type !== type);
+                                                                        nextSlots.push({ ...slot, endTime: e.target.value } as any);
+                                                                        onUpdateSettings({ ...settings, lessonSlots: nextSlots });
+                                                                    }}
+                                                                    className="w-full px-5 py-3.5 bg-white dark:bg-slate-900 border-none rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold text-sm"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 font-medium max-w-2xl bg-indigo-50/50 dark:bg-indigo-900/10 p-6 rounded-2xl border border-indigo-100/50 dark:border-indigo-900/20">
+                                            <span className="font-black text-indigo-600 mr-2 uppercase tracking-widest">Pro Tip:</span> 
+                                            Defining these hours ensures that when students select their preferred lesson times (Morning, Noon, or Evening) during enrollment, the system can automatically allocate them into these specific time windows for optimized scheduling.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
