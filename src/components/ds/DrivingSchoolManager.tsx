@@ -199,7 +199,8 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
         invoice: 'Generate Invoice',
         payment: 'Record Payment',
         fee_structure: 'Define Class Fee',
-        broadcast: 'Institutional Broadcast'
+        broadcast: 'Institutional Broadcast',
+        vehicle_unavailability: 'Manage Vehicle Unavailability'
     }[type as string] || 'Driving School Action';
 
     return (
@@ -353,6 +354,76 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <input required type="number" min="1" value={formData.capacity || 1} onChange={e => setFormData({...formData, capacity: Number(e.target.value)})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. 4" />
                                 </div>
                             </>
+                        )}
+
+                        {type === 'vehicle_unavailability' && (
+                            <div className="md:col-span-2 space-y-6">
+                                <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Add Unavailability Slot</h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="col-span-2 space-y-2">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Reason (e.g. Maintenance)</label>
+                                            <input type="text" id="un_reason" className="w-full px-5 py-3 bg-white dark:bg-slate-900 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Routine Service" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Date</label>
+                                            <input type="date" id="un_start" className="w-full px-5 py-3 bg-white dark:bg-slate-900 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">End Date</label>
+                                            <input type="date" id="un_end" className="w-full px-5 py-3 bg-white dark:bg-slate-900 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500" />
+                                        </div>
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                const reasonEl = document.getElementById('un_reason') as HTMLInputElement;
+                                                const startEl = document.getElementById('un_start') as HTMLInputElement;
+                                                const endEl = document.getElementById('un_end') as HTMLInputElement;
+                                                if (reasonEl.value && startEl.value && endEl.value) {
+                                                    const slots = [...(formData.unavailabilitySlots || []), { reason: reasonEl.value, startDate: startEl.value, endDate: endEl.value }];
+                                                    setFormData({ ...formData, unavailabilitySlots: slots });
+                                                    reasonEl.value = '';
+                                                    startEl.value = '';
+                                                    endEl.value = '';
+                                                }
+                                            }}
+                                            className="col-span-2 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                                        >
+                                            Add to List
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Current Unavailability Slots</h4>
+                                    {(formData.unavailabilitySlots || []).length === 0 ? (
+                                        <div className="p-8 bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-center">
+                                            <p className="text-xs text-slate-400 italic">No unavailability recorded for this vehicle</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar text-left">
+                                            {(formData.unavailabilitySlots || []).map((slot: any, idx: number) => (
+                                                <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                                    <div>
+                                                        <p className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-tight">{slot.reason}</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{new Date(slot.startDate).toLocaleDateString()} — {new Date(slot.endDate).toLocaleDateString()}</p>
+                                                    </div>
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const nextSlots = formData.unavailabilitySlots.filter((_: any, i: number) => i !== idx);
+                                                            setFormData({ ...formData, unavailabilitySlots: nextSlots });
+                                                        }}
+                                                        className="p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                                                    >
+                                                        <TrashIcon className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         )}
 
                         {type === 'lesson' && (
@@ -961,6 +1032,17 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             </div>
                         )}
 
+                        {activeTab === 'lessons' && (
+                            <button 
+                                onClick={handleAutoGenerateTomorrow}
+                                disabled={isActionLoading}
+                                className="px-6 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-3 disabled:opacity-50"
+                            >
+                                <SparklesIcon className="w-4 h-4" />
+                                {isActionLoading ? 'Generating...' : 'Auto-Generate Tomorrow'}
+                            </button>
+                        )}
+
                         {activeTab !== 'dashboard' && (
                             <button 
                                 onClick={() => {
@@ -1205,14 +1287,6 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
                                 <div className="flex items-center gap-4">
                                     <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Training Sessions</h3>
-                                    <button 
-                                        onClick={handleAutoGenerateTomorrow}
-                                        disabled={isActionLoading}
-                                        className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-100 transition-all flex items-center gap-2 disabled:opacity-50"
-                                    >
-                                        <SparklesIcon className="w-3.5 h-3.5" />
-                                        {isActionLoading ? 'Generating...' : 'Auto-Generate Tomorrow'}
-                                    </button>
                                 </div>
                                 <div className="relative flex-1 max-w-xs">
                                     <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -1753,6 +1827,27 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             );
                                                         })}
                                                     </div>
+                                                </div>
+                                                <div className="flex items-center justify-between p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-800">
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-tight">Allow Back-to-Back (Theory + Practical)</p>
+                                                        <p className="text-[9px] text-slate-400 font-medium mt-1">Enable scheduling of consecutive Theory and Practical sessions</p>
+                                                    </div>
+                                                    <label className="relative inline-flex items-center cursor-pointer">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            className="sr-only peer"
+                                                            checked={settings?.schedulingRules?.allowBackToBackLessons || false}
+                                                            onChange={e => onUpdateSettings({ 
+                                                                ...settings, 
+                                                                schedulingRules: { 
+                                                                    ...(settings?.schedulingRules || {}), 
+                                                                    allowBackToBackLessons: e.target.checked 
+                                                                } 
+                                                            })}
+                                                        />
+                                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                                                    </label>
                                                 </div>
                                             </div>
                                         </div>
