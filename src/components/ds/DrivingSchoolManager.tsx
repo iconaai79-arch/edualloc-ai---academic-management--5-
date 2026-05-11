@@ -526,7 +526,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         updateSettings: onUpdateSettings,
         addInvoice: onAddInvoice,
         addPayment: onAddPayment,
-        loadDSData,
+        refreshData,
         mpesaTransactions,
         bankTransactions
     } = useDrivingSchool();
@@ -1078,13 +1078,13 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     metadata: { ...((transaction as any).metadata || {}), reconciled: true, reconciledAt: new Date().toISOString() }
                                                 } as any);
                                                 
-                                                await loadDSData();
+                                                await refreshData();
                                             } catch (err) {
                                                 console.error("Reconciliation failed:", err);
                                             }
                                         }
                                     }}
-                                    onFetchFeeds={loadDSData}
+                                    onFetchFeeds={refreshData}
                                     currentUser={currentUser}
                                     institution={currentInstitution as any}
                                 />

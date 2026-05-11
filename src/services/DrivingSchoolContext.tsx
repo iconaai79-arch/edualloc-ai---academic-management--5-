@@ -35,7 +35,7 @@ interface DrivingSchoolContextType {
     updateSettings: (data: any) => Promise<void>;
     addInvoice: (data: any) => Promise<void>;
     addPayment: (data: any) => Promise<void>;
-    loadDSData: () => Promise<void>;
+    refreshData: () => Promise<void>;
     stats: {
         totalStudents: number;
         activeInstructors: number;
@@ -111,7 +111,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         loadDSData();
     }, [loadDSData]);
 
-    const onRefresh = loadDSData;
+    const refreshData = loadDSData;
+    const onRefresh = refreshData;
 
     const addInstructor = useCallback(async (data: any) => {
         try {
@@ -529,7 +530,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         mpesaTransactions, bankTransactions,
         setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments,
         addInstructor, addVehicle, addStudent, addLesson, addMastery, updateSettings, addInvoice, addPayment,
-        loadDSData, stats
+        refreshData, stats
     };
 
     return (
