@@ -1047,7 +1047,6 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     </div>
                                 </div>
                                 </div>
-                            </div>
                                 </>
                             ) : (
                                 <DSFinanceFeeds 
