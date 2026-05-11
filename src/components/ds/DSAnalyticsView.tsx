@@ -556,7 +556,8 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                         onClick={() => {
                                             const start = (document.getElementById('financial-start-date') as HTMLInputElement).value;
                                             const end = (document.getElementById('financial-end-date') as HTMLInputElement).value;
-                                            const doc = generateBalanceReport(students, invoices, payments, `Arrears Summary (${new Date().toLocaleDateString()})`, institution);
+                                            const vote = (document.getElementById('financial-votehead-select') as HTMLSelectElement).value;
+                                            const doc = generateBalanceReport(students, invoices, payments, `Arrears Summary (${new Date().toLocaleDateString()})`, institution, vote || undefined);
                                             setPreviewPdf(doc.output('datauristring'));
                                         }}
                                         className="w-full bg-rose-600/10 hover:bg-rose-600 text-rose-600 hover:text-white font-black py-4 rounded-2xl transition-all border border-rose-100 dark:border-rose-900 uppercase text-[11px] tracking-widest flex items-center justify-center gap-2"
@@ -566,15 +567,9 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                 </div>
                             </div>
                         </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-            </div>
-            </div>
-            </div>
-            </div>
-            </div>
-            </div>
             </div>
 
             {/* PDF Preview Modal */}

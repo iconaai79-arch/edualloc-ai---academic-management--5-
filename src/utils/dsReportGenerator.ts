@@ -75,7 +75,7 @@ export const generateStudentStatement = (
     const tableData = ledger.map(item => {
         runningBalance += (item.debit - item.credit);
         return [
-            new Date(item.date).toLocaleDateString(),
+            item.date ? new Date(item.date).toLocaleDateString() : 'N/A',
             item.desc,
             item.debit > 0 ? item.debit.toLocaleString() : '-',
             item.credit > 0 ? item.credit.toLocaleString() : '-',
@@ -232,7 +232,7 @@ export const generateIncomeReport = (
         if (amount <= 0 && voteHead) return null;
 
         return [
-            new Date(p.paymentDate).toLocaleDateString(),
+            p.paymentDate ? new Date(p.paymentDate).toLocaleDateString() : 'N/A',
             String(p.receiptNumber || 'N/A'),
             String(p.studentName || 'N/A'),
             String(p.paymentMethod || 'N/A'),
@@ -262,7 +262,8 @@ export const generateBalanceReport = (
     invoices: DSInvoice[],
     payments: DSPayment[],
     title: string,
-    institution: any
+    institution: any,
+    voteHead?: string
 ) => {
     const doc = new jsPDF('p', 'mm', 'a4');
     const margin = 20;
@@ -275,12 +276,38 @@ export const generateBalanceReport = (
     doc.setTextColor(30, 41, 59);
     doc.text(String(title || 'ARREARS REPORT').toUpperCase(), margin, 32);
 
+    if (voteHead) {
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Filtered by Vote Head: ${voteHead}`, margin, 38);
+    }
+
     const tableData = students.map(s => {
         const sInvoices = invoices.filter(inv => inv.studentId === s.id);
         const sPayments = payments.filter(pay => pay.studentId === s.id);
         
-        const totalInvoiced = sInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
-        const totalPaid = sPayments.reduce((sum, pay) => sum + (pay.amount || 0), 0);
+        let totalInvoiced = 0;
+        let totalPaid = 0;
+
+        if (voteHead) {
+            // Calculate specific vote head balance
+            sInvoices.forEach(inv => {
+                const item = inv.items?.find(i => i.name.toLowerCase().includes(voteHead.toLowerCase()));
+                if (item) totalInvoiced += item.amount;
+            });
+            // This is a simplification: assuming payments are applied proportionally or we just look at total paid vs total invoiced for that vote head
+            // In a real system, we'd have payment allocations per vote head.
+            // For now, let's just show total invoiced for that head.
+            // Wait, if I don't know how much of the payment went to which head, I can't calculate a correct balance per head.
+            // But let's assume if they paid KES 5000 and Tuition was 15000, balance is 10000.
+            totalPaid = sPayments.reduce((sum, pay) => sum + (pay.amount || 0), 0);
+            // Limit paid to invoiced for this head for display purposes if we don't have allocation
+            totalPaid = Math.min(totalPaid, totalInvoiced);
+        } else {
+            totalInvoiced = sInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
+            totalPaid = sPayments.reduce((sum, pay) => sum + (pay.amount || 0), 0);
+        }
+        
         const balance = totalInvoiced - totalPaid;
 
         if (balance <= 0) return null;

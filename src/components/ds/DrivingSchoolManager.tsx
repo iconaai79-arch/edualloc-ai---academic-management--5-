@@ -610,7 +610,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
     const [searchTerm, setSearchTerm] = useState('');
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const [actionModal, setActionModal] = useState<{ type: 'student' | 'instructor' | 'vehicle' | 'lesson' | 'invoice' | 'payment' | 'fee_structure' | null; data?: any; initialData?: any }>({ type: null });
+    const [actionModal, setActionModal] = useState<{ type: 'student' | 'instructor' | 'vehicle' | 'lesson' | 'invoice' | 'payment' | 'fee_structure' | 'broadcast' | null; data?: any; initialData?: any }>({ type: null });
 
     // Normalization
     const normalizedStudents = useMemo(() => students.map(s => ({
@@ -792,7 +792,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                         {students.find(s => s.id === lesson.studentId)?.fullName || 'Student'}
                                                     </p>
                                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                        {new Date(lesson.startTime).toLocaleDateString()} at {new Date(lesson.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        {lesson.lessonDate || (lesson as any).date || 'No Date'} at {lesson.startTime || 'No Time'}
                                                     </p>
                                                 </div>
                                                 <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-lg text-[10px] font-black uppercase tracking-widest">
@@ -942,7 +942,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         {filteredLessons.map(lesson => (
                                             <tr key={lesson.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
                                                 <td className="px-10 py-6">
-                                                    <p className="font-bold text-sm">{new Date(lesson.lessonDate).toLocaleDateString()}</p>
+                                                    <p className="font-bold text-sm">{lesson.lessonDate ? new Date(lesson.lessonDate).toLocaleDateString() : 'No Date'}</p>
                                                     <p className="text-[10px] font-black text-indigo-600 uppercase mt-0.5">{lesson.startTime} - {lesson.endTime}</p>
                                                 </td>
                                                 <td className="px-10 py-6 font-bold text-sm">
@@ -1237,6 +1237,35 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     feeStructures: nextStructures
                                 };
                                 await onUpdateSettings(next);
+                            } else if (type === 'broadcast') {
+                                setIsActionLoading(true);
+                                try {
+                                    const targetUsers = data.target === 'Students' ? students : 
+                                                       data.target === 'Instructors' ? instructors : 
+                                                       data.target === 'Staff' ? users.filter(u => u.role !== 'student') : 
+                                                       [...students, ...instructors];
+
+                                    const channels = data.channels || ['Portal'];
+                                    const priorityPrefix = data.priority === 'Critical' ? '🚨 [CRITICAL] ' : data.priority === 'High' ? '⚠️ [URGENT] ' : '';
+                                    
+                                    for (const user of targetUsers) {
+                                        const email = (user as any).email;
+                                        const phone = (user as any).phone || (user as any).phoneNumber;
+
+                                        if (channels.includes('Email') && email) {
+                                            await apiService.sendEmail(email, `${priorityPrefix}${data.title}`, data.message);
+                                        }
+                                        if (channels.includes('SMS') && phone) {
+                                            await apiService.sendSms(phone, `${priorityPrefix}${data.title}: ${data.message}`, undefined, 1, currentInstitution?.id);
+                                        }
+                                    }
+                                    success(`Broadcast sent to ${targetUsers.length} recipients`);
+                                } catch (err) {
+                                    console.error("Broadcast failed:", err);
+                                    toastError("Failed to send broadcast to all recipients");
+                                } finally {
+                                    setIsActionLoading(false);
+                                }
                             }
                         }}
                         students={normalizedStudents}

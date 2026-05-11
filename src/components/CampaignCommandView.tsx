@@ -1139,7 +1139,7 @@ export const CampaignCommandView: React.FC<CampaignCommandViewProps> = ({ user }
                                 <div key={event.id} className="p-6 bg-slate-50 dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 group hover:border-indigo-500 transition-all">
                                     <div className="flex items-center gap-4 mb-4">
                                         <div className="w-12 h-12 bg-white dark:bg-slate-900 rounded-2xl flex items-center justify-center font-black text-indigo-600 shadow-sm text-xs">
-                                            {new Date(event.eventTime).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                                            {event.eventTime ? new Date(event.eventTime).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : 'TBD'}
                                         </div>
                                         <div>
                                             <h4 className="font-black text-slate-900 dark:text-white uppercase text-lg">{event.title}</h4>
