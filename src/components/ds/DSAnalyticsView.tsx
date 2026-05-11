@@ -569,6 +569,13 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                     </div>
                 </div>
             </div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
+            </div>
 
             {/* PDF Preview Modal */}
             {previewPdf && (
@@ -600,7 +607,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                 download="Report.pdf"
                                 className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-105 transition-all flex items-center gap-2"
                             >
-                                Download PDF
+                                <ArrowDownIcon className="w-4 h-4" /> Download PDF
                             </a>
                         </div>
                     </div>
