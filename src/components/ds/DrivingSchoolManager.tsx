@@ -606,9 +606,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         <AppErrorBoundary>
             <div className="space-y-10 animate-fade-in pb-20">
                 {/* Header Section */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white dark:bg-slate-900 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm">
                     <div>
-                        <h1 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-4">
+                        <h1 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-4">
                             Driving <span className="text-indigo-600">School</span>
                             <div className="px-4 py-1 bg-indigo-50 dark:bg-indigo-900/30 rounded-full">
                                 <span className="text-xs font-black text-indigo-600 uppercase tracking-widest">Enterprise</span>
@@ -673,7 +673,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                 {/* Main Navigation - Hidden if controlled externally */}
                 {!externalTab && (
-                    <div className="flex flex-wrap items-center gap-2 bg-slate-100 dark:bg-slate-800 p-2 rounded-3xl w-fit">
+                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-2 rounded-2xl md:rounded-3xl w-full overflow-x-auto scrollbar-hide pb-3 md:pb-2">
+                        <div className="flex items-center gap-2 min-w-max">
                         {[
                             { id: 'dashboard', label: 'Dashboard', icon: ClipboardListIcon },
                             { id: 'students', label: 'Students', icon: UsersIcon },
@@ -693,6 +694,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 {tab.label}
                             </button>
                         ))}
+                        </div>
                     </div>
                 )}
 
@@ -702,7 +704,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         <div className="space-y-8 animate-fade-in">
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                 {/* Recent Lessons Summary */}
-                                <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                                <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm">
                                     <div className="flex justify-between items-center mb-8">
                                         <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Upcoming Schedule</h3>
                                         <button onClick={() => setActiveTab('lessons')} className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline">View All</button>
@@ -734,19 +736,19 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                                 {/* Quick Actions / Shortcuts */}
                                 <div className="grid grid-cols-2 gap-4">
-                                    <button onClick={() => setActionModal({ type: 'student' })} className="bg-indigo-600 p-8 rounded-[2.5rem] text-white flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform shadow-xl shadow-indigo-600/20">
+                                    <button onClick={() => setActionModal({ type: 'student' })} className="bg-indigo-600 p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] text-white flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform shadow-xl shadow-indigo-600/20">
                                         <UsersIcon className="w-8 h-8" />
                                         <span className="text-[10px] font-black uppercase tracking-widest">Enroll Student</span>
                                     </button>
-                                    <button onClick={() => setActionModal({ type: 'lesson' })} className="bg-slate-900 dark:bg-slate-800 p-8 rounded-[2.5rem] text-white flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform shadow-xl">
+                                    <button onClick={() => setActionModal({ type: 'lesson' })} className="bg-slate-900 dark:bg-slate-800 p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] text-white flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform shadow-xl">
                                         <CalendarDaysIcon className="w-8 h-8" />
                                         <span className="text-[10px] font-black uppercase tracking-widest">Book Lesson</span>
                                     </button>
-                                    <button onClick={() => setActionModal({ type: 'vehicle' })} className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] text-slate-900 dark:text-white flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform border border-slate-100 dark:border-slate-800 shadow-sm">
+                                    <button onClick={() => setActionModal({ type: 'vehicle' })} className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] text-slate-900 dark:text-white flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform border border-slate-100 dark:border-slate-800 shadow-sm">
                                         <TruckIcon className="w-8 h-8 text-slate-400" />
                                         <span className="text-[10px] font-black uppercase tracking-widest">Add Vehicle</span>
                                     </button>
-                                    <button onClick={() => setActionModal({ type: 'instructor' })} className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] text-slate-900 dark:text-white flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform border border-slate-100 dark:border-slate-800 shadow-sm">
+                                    <button onClick={() => setActionModal({ type: 'instructor' })} className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] text-slate-900 dark:text-white flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform border border-slate-100 dark:border-slate-800 shadow-sm">
                                         <AcademicCapIcon className="w-8 h-8 text-slate-400" />
                                         <span className="text-[10px] font-black uppercase tracking-widest">Hire Instructor</span>
                                     </button>

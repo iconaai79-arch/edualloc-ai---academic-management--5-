@@ -119,7 +119,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                         Institutional Intelligence & Performance Monitoring
                     </p>
                 </div>
-                <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-3 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-3 md:p-4 rounded-2xl md:rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm w-full md:w-auto">
                     <div className="flex -space-x-3">
                         {instructors.slice(0, 4).map((inst: DSInstructor, i: number) => (
                             <div key={i} className="w-10 h-10 rounded-full border-4 border-white dark:border-slate-800 bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-500 overflow-hidden">
@@ -135,8 +135,8 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
             </div>
 
             {/* Top KPIs */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all group">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all group">
                     <div className="flex justify-between items-start mb-6">
                         <div className="p-4 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-3xl group-hover:rotate-12 transition-transform">
                             <UsersIcon className="w-6 h-6" />
@@ -280,61 +280,64 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
 
                 {/* Right Column: Performance Rankings */}
                 <div className="space-y-8">
-                    <div className="bg-indigo-600 p-10 rounded-[3.5rem] shadow-xl shadow-indigo-600/20 text-white relative overflow-hidden group">
+                    <div className="p-6 md:p-8 bg-indigo-600 rounded-[2rem] md:rounded-[3.5rem] shadow-xl shadow-indigo-600/20 text-white relative overflow-hidden">
                         <div className="relative z-10">
-                            <h3 className="text-2xl font-black uppercase tracking-tight mb-2">Fleet Intelligence</h3>
-                            <p className="text-xs font-bold opacity-80 uppercase tracking-widest mb-8">Vehicle utilization benchmarks</p>
-                            
-                            <div className="space-y-6">
-                                {vehicleUsage.map((v: any, i: number) => (
-                                    <div key={i} className="group/item">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <span className="text-[10px] font-black uppercase tracking-widest truncate max-w-[150px]">{v.label}</span>
-                                            <span className="text-xs font-black">{v.value} SES</span>
-                                        </div>
-                                        <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
-                                            <div 
-                                                className="h-full bg-white rounded-full group-hover/item:scale-x-105 transition-transform origin-left"
-                                                style={{ width: `${(v.value / (Math.max(...vehicleUsage.map((x: any) => x.value), 1))) * 100}%` }}
-                                            />
+                            <h3 className="text-xl font-black uppercase tracking-tight mb-8">Collection Performance</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="space-y-6">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-2">Total Invoiced</p>
+                                        <p className="text-2xl md:text-4xl font-black tracking-tight">KES {totalInvoiced.toLocaleString()}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-2">Total Collected</p>
+                                        <p className="text-2xl md:text-4xl font-black tracking-tight">KES {totalPaid.toLocaleString()}</p>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col items-center justify-center bg-white/10 rounded-[2.5rem] p-8 border border-white/10 backdrop-blur-md">
+                                    <div className="relative w-24 h-24 md:w-32 md:h-32">
+                                        <svg className="w-full h-full -rotate-90">
+                                            <circle cx="50%" cy="50%" r="45%" className="fill-none stroke-white/10 stroke-[10]" />
+                                            <circle cx="50%" cy="50%" r="45%" className="fill-none stroke-white stroke-[10] transition-all duration-1000" style={{ strokeDasharray: '283', strokeDashoffset: 283 - (283 * collectionRate) / 100 }} />
+                                        </svg>
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                            <span className="text-xl md:text-3xl font-black">{Math.round(collectionRate)}%</span>
+                                            <span className="text-[8px] font-black uppercase opacity-60">Target</span>
                                         </div>
                                     </div>
-                                ))}
+                                    <p className="text-[10px] font-black uppercase tracking-widest mt-6 opacity-80">Collection Efficiency</p>
+                                </div>
                             </div>
+                        </div>
+                        <div className="absolute top-0 right-0 p-10 opacity-10">
+                            <CurrencyDollarIcon className="w-48 h-48" />
                         </div>
                     </div>
 
-                    <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm">
-                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">Financial Outlook</h4>
-                        <div className="space-y-6">
-                            <div>
-                                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-2">
-                                    <span className="text-slate-400">Net Receivables</span>
-                                    <span className="text-rose-600">KES {(totalInvoiced - totalPaid).toLocaleString()}</span>
+                    <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">Fleet Utilization</h4>
+                        <div className="space-y-6 max-h-[300px] overflow-y-auto pr-2">
+                            {vehicleUsage.map((v: any, i: number) => (
+                                <div key={i} className="group/item">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-[10px] font-black uppercase tracking-widest truncate max-w-[150px]">{v.label}</span>
+                                        <span className="text-xs font-black">{v.value} SES</span>
+                                    </div>
+                                    <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                        <div 
+                                            className="h-full bg-indigo-600 rounded-full group-hover/item:scale-x-105 transition-transform origin-left"
+                                            style={{ width: `${(v.value / (Math.max(...vehicleUsage.map((x: any) => x.value), 1))) * 100}%` }}
+                                        />
+                                    </div>
                                 </div>
-                                <div className="h-3 bg-slate-50 dark:bg-slate-800 rounded-full overflow-hidden flex">
-                                    <div className="h-full bg-indigo-600" style={{ width: `${collectionRate}%` }} />
-                                    <div className="h-full bg-rose-500" style={{ width: `${100 - collectionRate}%` }} />
-                                </div>
-                            </div>
-                            
-                            <div className="pt-6 border-t border-slate-50 dark:border-slate-800 grid grid-cols-2 gap-4">
-                                <div>
-                                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Growth Index</p>
-                                    <p className="text-lg font-black text-emerald-600">+24.5%</p>
-                                </div>
-                                <div>
-                                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Efficiency</p>
-                                    <p className="text-lg font-black text-indigo-600">High</p>
-                                </div>
-                            </div>
+                            ))}
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Report Hub */}
-            <div className="bg-white dark:bg-slate-950 p-10 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden">
+            <div className="bg-white dark:bg-slate-950 p-6 md:p-10 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/5 rounded-full blur-3xl -mr-32 -mt-32" />
                 
                 <div className="relative z-10">
@@ -348,9 +351,10 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {/* Student Statement Section */}
-                        <div className="p-8 bg-slate-50 dark:bg-slate-900/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 space-y-6">
+                        <div className="bg-white dark:bg-slate-800 p-6 md:p-10 rounded-[2rem] md:rounded-[4rem] border border-slate-100 dark:border-slate-700 shadow-sm col-span-1 md:col-span-12">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                {/* Student Statement Section */}
+                                <div className="p-6 md:p-8 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] md:rounded-[2.5rem] border border-slate-100 dark:border-slate-800 space-y-6">
                             <p className="text-[11px] font-black text-indigo-600 uppercase tracking-widest">Financial Statements</p>
                             <h4 className="text-lg font-black text-slate-900 dark:text-white">Student Ledger</h4>
                             <div className="space-y-4">
@@ -402,11 +406,11 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                         </div>
 
                         {/* Lesson Schedule Section */}
-                        <div className="p-8 bg-slate-50 dark:bg-slate-900/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 space-y-6">
+                        <div className="p-6 md:p-8 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] md:rounded-[2.5rem] border border-slate-100 dark:border-slate-800 space-y-6">
                             <p className="text-[11px] font-black text-amber-600 uppercase tracking-widest">Operational Logistics</p>
                             <h4 className="text-lg font-black text-slate-900 dark:text-white">Training Schedule</h4>
                             <div className="space-y-4">
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     <input 
                                         id="schedule-start-date"
                                         type="date" 
@@ -462,7 +466,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                         </div>
 
                         {/* Attendance Reports Section */}
-                        <div className="p-8 bg-slate-50 dark:bg-slate-900/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 space-y-6">
+                        <div className="p-6 md:p-8 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] md:rounded-[2.5rem] border border-slate-100 dark:border-slate-800 space-y-6">
                             <p className="text-[11px] font-black text-emerald-600 uppercase tracking-widest">Compliance & Monitoring</p>
                             <h4 className="text-lg font-black text-slate-900 dark:text-white">Attendance Summary</h4>
                             <div className="space-y-4">

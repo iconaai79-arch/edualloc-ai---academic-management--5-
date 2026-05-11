@@ -128,7 +128,7 @@ export const DSFinanceFeeds: React.FC<DSFinanceFeedsProps> = ({
                     </button>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                     <button 
                         onClick={onFetchFeeds}
                         className="p-3 bg-white dark:bg-slate-800 text-slate-600 dark:text-white rounded-xl border border-slate-100 dark:border-slate-700 hover:bg-slate-50 transition-all active:scale-95 shadow-sm"
@@ -139,7 +139,7 @@ export const DSFinanceFeeds: React.FC<DSFinanceFeedsProps> = ({
                     <button 
                         onClick={handleAutoMatch}
                         disabled={isReconciling}
-                        className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50"
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50"
                     >
                         <CheckCircle2 className="w-4 h-4" /> Run Smart-Match
                     </button>
@@ -184,8 +184,9 @@ export const DSFinanceFeeds: React.FC<DSFinanceFeedsProps> = ({
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
-                <table className="w-full text-left">
+            <div className="bg-white dark:bg-slate-900 rounded-[2rem] md:rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
                     <thead>
                         <tr className="border-b border-slate-50 dark:border-slate-800">
                             <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Source & Date</th>
@@ -251,6 +252,7 @@ export const DSFinanceFeeds: React.FC<DSFinanceFeedsProps> = ({
                         ))}
                     </tbody>
                 </table>
+                </div>
             </div>
         </div>
     );
