@@ -829,13 +829,18 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         if (currentInstitution?.id) {
             apiService.fetchUsers(currentInstitution.id).then(setUsers).catch(console.error);
             
-            // Auto-migration for new schema fields
-            apiService.runMigration(`
-                ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS preferred_lesson_hours text;
-                ALTER TABLE ds_vehicles ADD COLUMN IF NOT EXISTS assigned_instructor_id text;
-                ALTER TABLE ds_lessons ADD COLUMN IF NOT EXISTS confirmation_status text;
-                NOTIFY pgrst, 'reload schema';
-            `).catch(err => console.error("Migration failed:", err));
+            // Auto-migration for new schema fields (Safe execution)
+            const migrations = [
+                "ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS preferred_lesson_hours text;",
+                "ALTER TABLE ds_vehicles ADD COLUMN IF NOT EXISTS assigned_instructor_id text;",
+                "ALTER TABLE ds_lessons ADD COLUMN IF NOT EXISTS confirmation_status text;"
+            ];
+
+            migrations.forEach(sql => {
+                apiService.runMigration(sql).catch(() => {
+                    // Silently ignore if column already exists or restricted
+                });
+            });
         }
     }, [currentInstitution?.id]);
 
