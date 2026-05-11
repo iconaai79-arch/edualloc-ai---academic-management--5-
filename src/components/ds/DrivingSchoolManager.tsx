@@ -760,6 +760,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             // Auto-migration for new schema fields
             apiService.runMigration(`
                 ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS preferred_lesson_hours text;
+                ALTER TABLE ds_vehicles ADD COLUMN IF NOT EXISTS assigned_instructor_id text;
                 NOTIFY pgrst, 'reload schema';
             `).catch(err => console.error("Migration failed:", err));
         }
@@ -1889,6 +1890,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             else if (type === 'vehicle') {
                                 if (data.id) await onUpdateVehicle(data);
                                 else await onAddVehicle(data);
+                            } else if (type === 'vehicle_unavailability') {
+                                await onUpdateVehicle(data);
                             }
                             else if (type === 'lesson') await onAddLesson(data);
                             else if (type === 'invoice') await onAddInvoice(data);
