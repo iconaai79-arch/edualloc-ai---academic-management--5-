@@ -18,6 +18,10 @@ interface Broadcast {
     timestamp: string;
 }
 
+interface DSBroadcasterViewProps {
+    onNewBroadcast?: () => void;
+}
+
 const MOCK_MESSAGES: Broadcast[] = [
     { id: 'b1', title: 'Lesson Commencement', message: 'Practical Lesson #DS-042 (Class C1) starting at Training Ground A', type: 'Lesson', priority: 'Medium', timestamp: '2 mins ago' },
     { id: 'b2', title: 'Fleet Alert', message: 'Vehicle KCC 789Y reported mechanical issue on Thika Road. Instructor support dispatched.', type: 'Fleet', priority: 'High', timestamp: '15 mins ago' },
@@ -25,7 +29,7 @@ const MOCK_MESSAGES: Broadcast[] = [
     { id: 'b4', title: 'Theory Session', message: 'Defensive Driving theory session for Group B starts in 20 mins at Room 2.', type: 'Info', priority: 'Medium', timestamp: '1 hour ago' },
 ];
 
-export const DSBroadcasterView: React.FC = () => {
+export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({ onNewBroadcast }) => {
     return (
         <div className="animate-fade-in-up space-y-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
@@ -34,10 +38,16 @@ export const DSBroadcasterView: React.FC = () => {
                     <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-2">Unified paging & school-wide priority messaging system</p>
                 </div>
                 <div className="flex flex-wrap gap-2 md:gap-4 w-full md:w-auto">
-                    <button className="flex-1 md:flex-none bg-rose-600 text-white px-6 md:px-8 py-3 rounded-2xl flex items-center justify-center gap-3 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-rose-600/20">
+                    <button 
+                        onClick={onNewBroadcast}
+                        className="flex-1 md:flex-none bg-rose-600 text-white px-6 md:px-8 py-3 rounded-2xl flex items-center justify-center gap-3 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-rose-600/20"
+                    >
                         <ExclamationTriangleIcon className="w-5 h-5" /> Trigger Alert
                     </button>
-                    <button className="flex-1 md:flex-none bg-indigo-600 text-white px-6 md:px-8 py-3 rounded-2xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-600/20">
+                    <button 
+                        onClick={onNewBroadcast}
+                        className="flex-1 md:flex-none bg-indigo-600 text-white px-6 md:px-8 py-3 rounded-2xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-600/20"
+                    >
                         <PlusIcon className="w-4 h-4" /> New Broadcast
                     </button>
                 </div>

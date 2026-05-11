@@ -165,6 +165,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
             if (type === 'invoice') return { ...base, items: [], totalAmount: 0, paidAmount: 0, balance: 0, status: 'Pending', createdAt: new Date().toISOString() };
             if (type === 'payment') return { ...base, paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'M-Pesa' };
             if (type === 'fee_structure') return { className: 'CLASS C1', tuition: 15000, tuitionPriority: 1, pdl: 1500, pdlPriority: 2, assessment: 2000, assessmentPriority: 3 };
+            if (type === 'broadcast') return { title: '', message: '', target: 'All', priority: 'Medium', channels: ['Portal'] };
         }
         return base;
     });
@@ -192,7 +193,8 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
         lesson: 'Schedule Lesson',
         invoice: 'Generate Invoice',
         payment: 'Record Payment',
-        fee_structure: 'Define Class Fee'
+        fee_structure: 'Define Class Fee',
+        broadcast: 'Institutional Broadcast'
     }[type as string] || 'Driving School Action';
 
     return (
@@ -492,6 +494,58 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <div className="flex gap-2">
                                         <input required type="number" value={formData.assessment || ''} onChange={e => setFormData({...formData, assessment: Number(e.target.value)})} className="flex-[3] px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
                                         <input title="Priority" type="number" value={formData.assessmentPriority || 3} onChange={e => setFormData({...formData, assessmentPriority: Number(e.target.value)})} className="flex-1 px-3 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-center" />
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {type === 'broadcast' && (
+                            <>
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Broadcast Title</label>
+                                    <input required type="text" value={formData.title || ''} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. Schedule Update" />
+                                </div>
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Target Audience</label>
+                                    <select value={formData.target || 'All'} onChange={e => setFormData({...formData, target: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="All">All Institutional Users</option>
+                                        <option value="Students">Driving Students Only</option>
+                                        <option value="Instructors">Instructors Only</option>
+                                        <option value="Staff">Administrative Staff</option>
+                                    </select>
+                                </div>
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Message Content</label>
+                                    <textarea required rows={4} value={formData.message || ''} onChange={e => setFormData({...formData, message: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold resize-none" placeholder="Type your school-wide message here..." />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Priority Level</label>
+                                    <select value={formData.priority || 'Medium'} onChange={e => setFormData({...formData, priority: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="Low">Low (Info)</option>
+                                        <option value="Medium">Medium (Routine)</option>
+                                        <option value="High">High (Urgent)</option>
+                                        <option value="Critical">Critical (Immediate)</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Distribution Channels</label>
+                                    <div className="flex flex-wrap gap-2 pt-2">
+                                        {['Portal', 'SMS', 'Email'].map(channel => (
+                                            <button 
+                                                key={channel}
+                                                type="button"
+                                                onClick={() => {
+                                                    const current = formData.channels || [];
+                                                    const next = current.includes(channel) ? current.filter((c: string) => c !== channel) : [...current, channel];
+                                                    setFormData({ ...formData, channels: next });
+                                                }}
+                                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                    (formData.channels || []).includes(channel) ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'bg-slate-100 text-slate-400'
+                                                }`}
+                                            >
+                                                {channel}
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
                             </>
@@ -1096,7 +1150,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                     {activeTab === 'broadcaster' && (
                         <div className="animate-fade-in">
-                            <DSBroadcasterView />
+                            <DSBroadcasterView onNewBroadcast={() => setActionModal({ type: 'broadcast' })} />
                         </div>
                     )}
 
