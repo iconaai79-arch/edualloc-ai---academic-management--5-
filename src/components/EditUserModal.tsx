@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { User, Role, Department, UserUpdateData, Institution } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
-import { getRolesForInstitution, formatRoleDisplayName, isSchoolInstitution, isHigherEdInstitution } from '../utils/roleUtils';
+import { getRolesForInstitution, formatRoleDisplayName, isSchoolInstitution, isHigherEdInstitution, isDSInstitution } from '../utils/roleUtils';
 
 interface EditUserModalProps {
   user: User;
@@ -29,6 +29,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const isSchool = isSchoolInstitution(currentInstitution);
   const isHigherEd = isHigherEdInstitution(currentInstitution);
   const isEdu = isSchool || isHigherEd;
+  const isDS = isDSInstitution(currentInstitution);
   const isCoop = useMemo(() => {
     if (typeof isCoopProp === 'boolean') return isCoopProp;
     const type = currentInstitution?.institutionType;
@@ -215,7 +216,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                     </div>
                   </div>
 
-                  {roles.some(r => rolesWithDepartment.includes(r)) && !isRetailAgency && isEdu && !isCoop && !isPm && (
+                  {roles.some(r => rolesWithDepartment.includes(r)) && !isRetailAgency && isEdu && !isCoop && !isPm && !isDS && (
                     <div className="md:col-span-2">
                       <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Assigned Department</label>
                       <select value={assignedDepartmentId} onChange={(e) => setAssignedDepartmentId(e.target.value)} required disabled={!!fixedDepartmentId} className="form-select disabled:opacity-60">

@@ -4548,6 +4548,7 @@ export const App: React.FC = () => {
                                                 currentInstitution={activeInstitution}
                                                 activeRole={activeRole as any}
                                                 onLogAction={handleLogAction}
+                                                onRefreshData={loadData}
                                             />
                                         </DrivingSchoolProvider>
                                     )
@@ -4593,6 +4594,7 @@ export const App: React.FC = () => {
                                              currentInstitution={activeInstitution}
                                              activeRole={(activeRole as any) || undefined}
                                              onLogAction={handleLogAction}
+                                             onRefreshData={loadData}
                                              onSaveTimetableSettings={(c) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: c })}
                                          />
                                     </DrivingSchoolProvider>

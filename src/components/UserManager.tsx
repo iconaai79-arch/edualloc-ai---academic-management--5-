@@ -1104,7 +1104,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         };
 
         if (activeTab === 'staff') {
-            userData.departmentId = (isCoop || isRetailAgency || isChurch || isPm) ? undefined : ((currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto') ? currentUser.departmentId : departmentId);
+            userData.departmentId = (isCoop || isRetailAgency || isChurch || isPm || isDS) ? undefined : ((currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto') ? currentUser.departmentId : departmentId);
         }
         else {
             userData.courseId = courseId;

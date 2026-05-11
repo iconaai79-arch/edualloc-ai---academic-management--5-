@@ -173,7 +173,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
             // 2. Create Driving School specific record
             const newId = `dss_${Date.now()}`;
-            const duration = data.courseDurationDays || settings?.defaultCourseDuration || 0;
+            const duration = data.courseDurationDays || settings?.schedulingRules?.requiredDaysToComplete || settings?.defaultCourseDuration || 0;
             const newStudent = { 
                 ...data, 
                 id: newId, 

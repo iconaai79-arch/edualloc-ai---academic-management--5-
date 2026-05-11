@@ -160,6 +160,17 @@ export const isEduInstitution = (institution: Partial<Institution> | null | unde
 };
 
 /**
+ * Centralized logic to determine if an institution is a Driving School.
+ */
+export const isDSInstitution = (institution: Partial<Institution> | null | undefined): boolean => {
+    if (!institution) return false;
+    const type = institution.institutionType;
+    const category = institution.category;
+    const subType = institution.businessSubType?.toLowerCase() || '';
+    return type === 'Driving School' || subType.includes('driving school') || category === 'Driving School';
+};
+
+/**
  * Logic to properly display role names to the user.
  */
 export const formatRoleDisplayName = (role: Role, institution?: Institution | null): string => {

@@ -35,6 +35,7 @@ import type {
 } from '../../types';
 import { DSBroadcasterView } from './DSBroadcasterView';
 import { DSFinanceFeeds } from './DSFinanceFeeds';
+import { BuySMSModal } from '../BuySMSModal';
 import { 
     CreditCard as CreditCardIcon, 
     Banknote as BanknotesIcon 
@@ -45,6 +46,7 @@ interface DrivingSchoolManagerProps {
     currentUser: User;
     currentInstitution: any;
     externalTab?: 'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings' | 'broadcaster';
+    onRefreshData?: () => Promise<void>;
 }
 
 const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data: any[]) => Promise<void> }> = ({ onClose, onImport }) => {
@@ -145,9 +147,9 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
         if (settings && !initialData) {
             setFormData((prev: any) => ({
                 ...prev,
-                admissionNumber: type === 'student' && (!prev.admissionNumber || prev.admissionNumber.startsWith('ADM-')) ? `${settings.studentIdPrefix || 'ADM-'}${Date.now().toString().slice(-4)}` : prev.admissionNumber,
-                invoiceNumber: type === 'invoice' && (!prev.invoiceNumber || prev.invoiceNumber.startsWith('INV-')) ? `${settings.invoicePrefix || 'INV-'}${Date.now().toString().slice(-4)}` : prev.invoiceNumber,
-                receiptNumber: type === 'payment' && (!prev.receiptNumber || prev.receiptNumber.startsWith('REC-')) ? `${settings.receiptPrefix || 'REC-'}${Date.now().toString().slice(-4)}` : prev.receiptNumber
+                admissionNumber: type === 'student' ? `${settings.studentIdPrefix || 'ADM-'}${Date.now().toString().slice(-4)}` : prev.admissionNumber,
+                invoiceNumber: type === 'invoice' ? `${settings.invoicePrefix || 'INV-'}${Date.now().toString().slice(-4)}` : prev.invoiceNumber,
+                receiptNumber: type === 'payment' ? `${settings.receiptPrefix || 'REC-'}${Date.now().toString().slice(-4)}` : prev.receiptNumber
             }));
         }
     }, [settings, type, initialData]);
@@ -250,6 +252,29 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Admission Date</label>
                                     <input required type="date" value={formData.enrollmentDate || ''} onChange={e => setFormData({...formData, enrollmentDate: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
                                 </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Required Days to Complete</label>
+                                    <input 
+                                        type="number" 
+                                        value={formData.courseDurationDays || settings?.schedulingRules?.requiredDaysToComplete || ''} 
+                                        onChange={e => setFormData({...formData, courseDurationDays: parseInt(e.target.value) || 0})} 
+                                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" 
+                                        placeholder="e.g. 21"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Preferred Lesson Hours</label>
+                                    <select 
+                                        value={formData.preferredLessonHours || ''} 
+                                        onChange={e => setFormData({...formData, preferredLessonHours: e.target.value})} 
+                                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none"
+                                    >
+                                        <option value="">Select Preference</option>
+                                        <option value="Morning">Morning (6AM - 12PM)</option>
+                                        <option value="Noon">Noon (12PM - 4PM)</option>
+                                        <option value="Evening">Evening (4PM - 8PM)</option>
+                                    </select>
+                                </div>
                                 {initialData && (
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Enrollment Status</label>
@@ -284,10 +309,19 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         <option value="Theory Trainer">Theory Trainer (Classroom)</option>
                                     </select>
                                 </div>
-                                <div className="md:col-span-2 space-y-2">
+                                <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">License Number</label>
                                     <input type="text" value={formData.licenseNumber || ''} onChange={e => setFormData({...formData, licenseNumber: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="DL-XXXXXX" />
                                 </div>
+                                {formData.instructorType === 'Driving Instructor' && (
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Assigned Vehicle</label>
+                                        <select value={formData.assignedVehicleId || ''} onChange={e => setFormData({...formData, assignedVehicleId: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                            <option value="">No Assigned Vehicle</option>
+                                            {vehicles.map(v => <option key={v.id} value={v.id}>{v.make} {v.model} ({v.plateNumber})</option>)}
+                                        </select>
+                                    </div>
+                                )}
                             </>
                         )}
 
@@ -330,7 +364,15 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Instructor</label>
-                                    <select value={formData.instructorId || ''} onChange={e => setFormData({...formData, instructorId: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                    <select value={formData.instructorId || ''} onChange={e => {
+                                        const instId = e.target.value;
+                                        const inst = instructors.find(i => i.id === instId);
+                                        setFormData({
+                                            ...formData, 
+                                            instructorId: instId,
+                                            vehicleId: inst?.assignedVehicleId || formData.vehicleId
+                                        });
+                                    }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
                                         <option value="">Select Instructor</option>
                                         {instructors
                                             .filter(i => {
@@ -447,7 +489,15 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     </div>
                                     <select required value={formData.studentId || ''} onChange={e => {
                                         const s = students.find(x => x.id === e.target.value);
-                                        setFormData({...formData, studentId: e.target.value, studentName: s?.fullName || ''});
+                                        const studentInvoices = invoices.filter(inv => inv.studentId === e.target.value && inv.status !== 'Fully Paid');
+                                        const firstInvoice = studentInvoices[0];
+                                        setFormData({
+                                            ...formData, 
+                                            studentId: e.target.value, 
+                                            studentName: s?.fullName || '',
+                                            invoiceId: firstInvoice?.id || '',
+                                            amount: firstInvoice?.balance || 0
+                                        });
                                     }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
                                         <option value="">Select Student</option>
                                         {students
@@ -656,7 +706,8 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
 export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     currentUser,
     currentInstitution,
-    externalTab
+    externalTab,
+    onRefreshData: onRefreshDataProp
 }) => {
     const { success, error: toastError } = useToast();
     const {
@@ -692,6 +743,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
     const [searchTerm, setSearchTerm] = useState('');
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [isBuySMSModalOpen, setIsBuySMSModalOpen] = useState(false);
     const [actionModal, setActionModal] = useState<{ type: 'student' | 'instructor' | 'vehicle' | 'lesson' | 'invoice' | 'payment' | 'fee_structure' | 'broadcast' | null; data?: any; initialData?: any }>({ type: null });
 
     // Normalization
@@ -797,7 +849,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 <span className="text-xs font-black text-slate-900 dark:text-white">{(currentInstitution?.smsBalance || 0).toLocaleString()} <span className="text-[9px] text-slate-400">Available</span></span>
                             </div>
                             <button 
-                                onClick={() => success("Please contact the platform administrator to purchase additional SMS units.")}
+                                onClick={() => setIsBuySMSModalOpen(true)}
                                 className="ml-2 p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-100 dark:border-slate-800 hover:bg-slate-50 transition-all"
                                 title="Top Up Units"
                             >
@@ -965,6 +1017,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             <th className="px-10 py-8">Student</th>
                                             <th className="px-10 py-8">Contact</th>
                                             <th className="px-10 py-8">Category</th>
+                                            <th className="px-10 py-8">Preferred Hours</th>
                                             <th className="px-10 py-8">Status</th>
                                             <th className="px-10 py-8 text-right">Progress</th>
                                             <th className="px-10 py-8 text-right">Actions</th>
@@ -996,6 +1049,16 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                 <td className="px-10 py-8">
                                                     <span className="text-[10px] font-black uppercase px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg">{student.licenseTypeInterested || 'Class B'}</span>
                                                     <p className="text-[10px] font-medium text-slate-400 mt-1">{student.enrollmentDate ? new Date(student.enrollmentDate).toLocaleDateString() : 'No Date'}</p>
+                                                </td>
+                                                <td className="px-10 py-8">
+                                                    <span className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg ${
+                                                        student.preferredLessonHours === 'Morning' ? 'bg-amber-50 text-amber-600' :
+                                                        student.preferredLessonHours === 'Noon' ? 'bg-indigo-50 text-indigo-600' :
+                                                        student.preferredLessonHours === 'Evening' ? 'bg-emerald-50 text-emerald-600' :
+                                                        'bg-slate-50 text-slate-400'
+                                                    }`}>
+                                                        {student.preferredLessonHours || 'Not Set'}
+                                                    </span>
                                                 </td>
                                                 <td className="px-10 py-8">
                                                     <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${student.status === 'Graduated' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
@@ -1419,6 +1482,29 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 </div>
 
                                 <div className="mt-12 border-t border-slate-50 dark:border-slate-800 pt-10">
+                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest mb-8">Scheduling Rules</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Required Days to Complete Schedule</label>
+                                            <input 
+                                                type="number" 
+                                                value={settings?.schedulingRules?.requiredDaysToComplete || ''} 
+                                                onChange={e => onUpdateSettings({ 
+                                                    ...settings, 
+                                                    schedulingRules: { 
+                                                        ...(settings?.schedulingRules || {}), 
+                                                        requiredDaysToComplete: parseInt(e.target.value) || 0 
+                                                    } 
+                                                })}
+                                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                                placeholder="e.g. 21"
+                                            />
+                                            <p className="text-[9px] text-slate-400 ml-1 font-medium">The standard number of days a student should take to complete their training cycle.</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-12 border-t border-slate-50 dark:border-slate-800 pt-10">
                                     <div className="flex items-center justify-between mb-8">
                                         <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Fee Structures (Classes)</h4>
                                         <button 
@@ -1527,18 +1613,27 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     const channels = data.channels || ['Portal'];
                                     const priorityPrefix = data.priority === 'Critical' ? '🚨 [CRITICAL] ' : data.priority === 'High' ? '⚠️ [URGENT] ' : '';
                                     
-                                    for (const user of targetUsers) {
+                                    const emails: string[] = [];
+                                    const phones: string[] = [];
+
+                                    targetUsers.forEach(user => {
                                         const email = (user as any).email;
                                         const phone = (user as any).phone || (user as any).phoneNumber;
+                                        if (channels.includes('Email') && email) emails.push(email);
+                                        if (channels.includes('SMS') && phone) phones.push(phone);
+                                    });
 
-                                        if (channels.includes('Email') && email) {
-                                            await apiService.sendEmail(email, `${priorityPrefix}${data.title}`, data.message);
-                                        }
-                                        if (channels.includes('SMS') && phone) {
-                                            await apiService.sendSms(phone, `${priorityPrefix}${data.title}: ${data.message}`, undefined, 1, currentInstitution?.id);
-                                        }
+                                    const tasks: Promise<any>[] = [];
+                                    if (phones.length > 0) {
+                                        tasks.push(apiService.sendSms(phones, `${priorityPrefix}${data.title}: ${data.message}`, undefined, 1, currentInstitution?.id));
                                     }
-                                    success(`Broadcast sent to ${targetUsers.length} recipients`);
+                                    if (emails.length > 0) {
+                                        // We send emails in parallel to avoid sequential delay
+                                        tasks.push(...emails.map(email => apiService.sendEmail(email, `${priorityPrefix}${data.title}`, data.message)));
+                                    }
+
+                                    await Promise.all(tasks);
+                                    success(`Broadcast dispatched to ${targetUsers.length} recipients`);
                                 } catch (err) {
                                     console.error("Broadcast failed:", err);
                                     toastError("Failed to send broadcast to all recipients");
@@ -1565,6 +1660,24 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             }
                             success(`Successfully imported ${data.length} students`);
                         }}
+                    />
+                )}
+
+                {isBuySMSModalOpen && (
+                    <BuySMSModal 
+                        isOpen={isBuySMSModalOpen}
+                        onClose={() => setIsBuySMSModalOpen(false)}
+                        onPurchaseComplete={() => {
+                            if (onRefreshDataProp) onRefreshDataProp();
+                            refreshData();
+                            setIsBuySMSModalOpen(false);
+                        }}
+                        institutionId={currentInstitution?.id || ''}
+                        institutionCode={currentInstitution?.institutionCode || currentInstitution?.id || ''}
+                        institutionName={currentInstitution?.name || 'Driving School'}
+                        smsUnitPrice={currentInstitution?.smsUnitPrice || 2}
+                        mpesaConfig={currentInstitution?.mpesaConfig}
+                        ncbaConfig={currentInstitution?.ncbaConfig}
                     />
                 )}
             </div>

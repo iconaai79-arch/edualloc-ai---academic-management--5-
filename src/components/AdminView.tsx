@@ -248,6 +248,7 @@ export interface AdminViewProps {
     onUpdateUnavailability?: (userId: string, id: string, data: any) => void;
     onDeleteUnavailability?: (userId: string, id: string) => void;
     onUpdateTimeOffRequestStatus?: (id: string, status: TimeOffRequestStatus) => Promise<void>;
+    onRefreshData?: () => Promise<void>;
     onMoveTimetableEntry?: (entryId: string, newDay: string, newStartTime: string) => void;
     onActivateModuleTrial?: (moduleId: string) => Promise<void>;
     onAddFarmer?: (data: any) => Promise<void>;
@@ -1734,6 +1735,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             activeTab.startsWith('ds_') ? activeTab.replace('ds_', '') as any : 
                             activeTab as any
                         }
+                        onRefreshData={props.onRefreshData}
                     />
                 )}
 

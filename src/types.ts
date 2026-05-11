@@ -3792,6 +3792,7 @@ export interface DSInstructor {
     instructorType?: 'Driving Instructor' | 'Theory Trainer';
     status: 'Active' | 'Inactive' | 'On Leave';
     rating: number;
+    assignedVehicleId?: string;
     createdAt: string;
 }
 
@@ -3827,6 +3828,7 @@ export interface DSStudent {
     enrollmentDate: string;
     courseDurationDays?: number;
     remainingDays?: number;
+    preferredLessonHours?: 'Morning' | 'Noon' | 'Evening';
     createdAt: string;
 }
 
@@ -3874,6 +3876,7 @@ export interface DSSettings {
         allowBackToBackLessons?: boolean;
         autoAssignInstructor?: boolean;
         autoAssignVehicle?: boolean;
+        requiredDaysToComplete?: number;
     };
     invoicePrefix?: string;
     receiptPrefix?: string;
