@@ -3926,6 +3926,7 @@ export interface DSPayment {
     paymentDate: string;
     receiptNumber: string;
     receivedBy?: string;
+    status?: string;
     createdAt: string;
 }
 

@@ -129,7 +129,7 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
     );
 };
 
-const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => void, students: DSStudent[], instructors: DSInstructor[], vehicles: DSVehicle[], lessons: DSLesson[], onSave: (data: any) => Promise<void>, settings: DSSettings | null, initialData?: any, currentInstitution?: any }> = ({ type, onClose, students, instructors, vehicles, lessons, onSave, settings, initialData, currentInstitution }) => {
+const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => void, students: DSStudent[], instructors: DSInstructor[], vehicles: DSVehicle[], lessons: DSLesson[], invoices: DSInvoice[], onSave: (data: any) => Promise<void>, settings: DSSettings | null, initialData?: any, currentInstitution?: any }> = ({ type, onClose, students, instructors, vehicles, lessons, invoices, onSave, settings, initialData, currentInstitution }) => {
     const { success: toastSuccess, error: toastError } = useToast();
     const [isActionLoading, setIsActionLoading] = useState(false);
     useEffect(() => {
@@ -369,6 +369,17 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <select required value={formData.studentId || ''} onChange={e => setFormData({...formData, studentId: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
                                         <option value="">Select Student</option>
                                         {students.map(s => <option key={s.id} value={s.id}>{s.fullName}</option>)}
+                                    </select>
+                                </div>
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Invoice</label>
+                                    <select required value={formData.invoiceId || ''} onChange={e => setFormData({...formData, invoiceId: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="">Select Invoice</option>
+                                        {invoices.filter((inv: any) => !formData.studentId || inv.studentId === formData.studentId).map((inv: any) => (
+                                            <option key={inv.id} value={inv.id}>
+                                                {inv.invoiceNumber} - {inv.studentName} (Bal: {inv.balance?.toLocaleString()})
+                                            </option>
+                                        ))}
                                     </select>
                                 </div>
                                 <div className="space-y-2">
@@ -1051,6 +1062,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         type={actionModal.type}
                         onClose={() => setActionModal({ type: null })}
                         currentInstitution={currentInstitution}
+                        invoices={invoices}
                         onSave={async (data) => {
                             const { type } = actionModal;
                             if (type === 'student') await onAddStudent(data);
