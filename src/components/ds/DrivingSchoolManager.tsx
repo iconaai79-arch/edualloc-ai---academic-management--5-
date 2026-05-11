@@ -914,6 +914,85 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         }
     };
 
+    const handleAutoScheduleSingleStudent = async (studentId: string) => {
+        const student = normalizedStudents.find(s => s.id === studentId);
+        if (!student) return;
+
+        if (!settings?.schedulingRules?.dailySequence?.length) {
+            toastError("Please configure Lesson Sequence in Settings first.");
+            return;
+        }
+
+        setIsActionLoading(true);
+        try {
+            // Fill available slots for the next 14 days
+            let lessonsAdded = 0;
+            const daysToSchedule = 14; 
+            
+            for (let i = 1; i <= daysToSchedule; i++) {
+                const date = new Date();
+                date.setDate(date.getDate() + i);
+                // Skip Sundays
+                if (date.getDay() === 0) continue;
+
+                const dateStr = date.toISOString().split('T')[0];
+
+                // Check if student already has lessons on this date
+                const existingOnDate = lessons.filter(l => l.studentId === studentId && l.lessonDate === dateStr);
+                if (existingOnDate.length > 0) continue;
+
+                const preferredSlotType = student.preferredLessonHours || 'Morning';
+                const slot = (settings.lessonSlots || []).find(s => s.type === preferredSlotType) || { startTime: '08:00', endTime: '10:00' };
+                
+                let currentTime = slot.startTime;
+                
+                for (const type of settings.schedulingRules.dailySequence) {
+                    const duration = type === 'Theory' 
+                        ? (settings.schedulingRules.theoryDurationMinutes || 60)
+                        : (settings.schedulingRules.practicalDurationMinutes || 60);
+                    
+                    const [h, m] = currentTime.split(':').map(Number);
+                    const end = new Date();
+                    end.setHours(h, m + duration, 0, 0);
+                    const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
+
+                    const instructor = type === 'Theory' 
+                        ? instructors.find(inst => inst.instructorType === 'Theory Trainer')
+                        : instructors.find(inst => inst.instructorType === 'Driving Instructor' || !inst.instructorType);
+                    
+                    const vehicle = type === 'Practical' 
+                        ? (vehicles.find(v => v.id === instructor?.assignedVehicleId) || vehicles.find(v => v.status === 'Operational'))
+                        : undefined;
+
+                    await onAddLesson({
+                        studentId: student.id,
+                        instructorId: instructor?.id,
+                        vehicleId: vehicle?.id,
+                        lessonDate: dateStr,
+                        startTime: currentTime,
+                        endTime: endTime,
+                        lessonType: type,
+                        status: 'Scheduled',
+                        confirmationStatus: 'Pending',
+                        institutionId: currentInstitution?.id
+                    });
+                    
+                    lessonsAdded++;
+                    currentTime = endTime;
+                }
+            }
+
+            success(`Auto-scheduled ${lessonsAdded} lessons for ${student.fullName} over the next 14 days.`);
+            if (onRefreshDataProp) await onRefreshDataProp();
+            refreshData();
+        } catch (err) {
+            console.error("Single student scheduling failed:", err);
+            toastError("Failed to auto-schedule student. Check console.");
+        } finally {
+            setIsActionLoading(false);
+        }
+    };
+
     const activeTab = externalTab || internalTab;
     const setActiveTab = (tab: any) => setInternalTab(tab);
 
@@ -1261,6 +1340,13 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                 </td>
                                                 <td className="px-10 py-8 text-right">
                                                     <div className="flex justify-end gap-2">
+                                                        <button 
+                                                            onClick={() => handleAutoScheduleSingleStudent(student.id)}
+                                                            className="p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
+                                                            title="Auto Schedule Lessons"
+                                                        >
+                                                            <SparklesIcon className="w-4 h-4" />
+                                                        </button>
                                                         <button 
                                                             onClick={() => setActionModal({ type: 'student', initialData: student })}
                                                             className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
