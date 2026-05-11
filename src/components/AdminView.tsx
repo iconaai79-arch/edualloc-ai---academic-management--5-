@@ -27,6 +27,7 @@ const CourseManager = lazy(() => import('./CourseManager').then(m => ({ default:
 const InteractionsManager = lazy(() => import('./InteractionsManager').then(m => ({ default: m.InteractionsManager })));
 const CommunicationsManager = lazy(() => import('./CommunicationsManager').then(m => ({ default: m.CommunicationsManager })));
 const ReportsDashboard = lazy(() => import('./ReportsDashboard').then(m => ({ default: m.ReportsDashboard })));
+const DSAnalyticsView = lazy(() => import('./ds/DSAnalyticsView').then(m => ({ default: m.DSAnalyticsView })));
 const StudentLeaveOutManager = lazy(() => import('./StudentLeaveOutManager').then(m => ({ default: m.StudentLeaveOutManager })));
 const SubscriptionManager = lazy(() => import('./SubscriptionManager').then(m => ({ default: m.SubscriptionManager })));
 const RetailManager = lazy(() => import('./retail/RetailManager').then(m => ({ default: m.RetailManager })));
@@ -741,6 +742,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 { id: 'ds_fleet', label: 'Fleet', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
                 { id: 'ds_instructors', label: 'Instructors', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
                 { id: 'ds_finance', label: 'Finance', icon: <CurrencyIcon className="w-5 h-5 mr-2" /> },
+                { id: 'ds_broadcaster', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
                 { id: 'reports', label: 'Analytics', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
                 { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
             ];
@@ -1879,6 +1881,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             <RetailReportsDashboard
                                 institutionId={props.currentInstitution?.id || ''}
                                 users={props.users || []}
+                            />
+                        ) : isDS ? (
+                            <DSAnalyticsView 
+                                institution={props.currentInstitution!}
                             />
                         ) : (
                             <ReportsDashboard

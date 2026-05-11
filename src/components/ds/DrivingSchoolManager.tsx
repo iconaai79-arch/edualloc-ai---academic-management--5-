@@ -31,11 +31,14 @@ import { AppErrorBoundary } from '../common/AppErrorBoundary';
 import type { 
     User, DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, DSFeeStructure, DSFeeItem 
 } from '../../types';
+import { DSBroadcasterView } from './DSBroadcasterView';
+import { DSFinanceFeeds } from './DSFinanceFeeds';
+import { CreditCardIcon, BanknotesIcon } from '@heroicons/react/24/outline';
 
 interface DrivingSchoolManagerProps {
     currentUser: User;
     currentInstitution: any;
-    externalTab?: 'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings';
+    externalTab?: 'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings' | 'broadcaster';
 }
 
 const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data: any[]) => Promise<void> }> = ({ onClose, onImport }) => {
@@ -366,7 +369,10 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                             <>
                                 <div className="md:col-span-2 space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Student</label>
-                                    <select required value={formData.studentId || ''} onChange={e => setFormData({...formData, studentId: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                    <select required value={formData.studentId || ''} onChange={e => {
+                                        const s = students.find(x => x.id === e.target.value);
+                                        setFormData({...formData, studentId: e.target.value, studentName: s?.fullName || ''});
+                                    }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
                                         <option value="">Select Student</option>
                                         {students.map(s => <option key={s.id} value={s.id}>{s.fullName}</option>)}
                                     </select>
@@ -515,10 +521,13 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         addMastery: onAddMastery,
         updateSettings: onUpdateSettings,
         addInvoice: onAddInvoice,
-        addPayment: onAddPayment
+        addPayment: onAddPayment,
+        mpesaTransactions,
+        bankTransactions
     } = useDrivingSchool();
     
-    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance'>('dashboard');
+    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster'>('dashboard');
+    const [financeTab, setFinanceTab] = useState<'records' | 'feeds'>('records');
     const activeTab = externalTab || internalTab;
     const setActiveTab = (tab: any) => setInternalTab(tab);
 
@@ -565,6 +574,21 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             (i.specialization || '').toLowerCase().includes(searchTerm.toLowerCase())
         ),
     [normalizedInstructors, searchTerm]);
+
+    const filteredInvoices = useMemo(() => 
+        invoices.filter(inv => 
+            (inv.studentName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (inv.invoiceNumber || '').toLowerCase().includes(searchTerm.toLowerCase())
+        ),
+    [invoices, searchTerm]);
+
+    const filteredPayments = useMemo(() => 
+        payments.filter(pay => {
+            const student = normalizedStudents.find(s => s.id === pay.studentId);
+            return (pay.studentName || student?.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                   (pay.receiptNumber || '').toLowerCase().includes(searchTerm.toLowerCase());
+        }),
+    [payments, normalizedStudents, searchTerm]);
 
     const stats = useMemo(() => ({
         totalStudents: students.length,
@@ -652,6 +676,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             { id: 'fleet', label: 'Fleet', icon: TruckIcon },
                             { id: 'instructors', label: 'Instructors', icon: AcademicCapIcon },
                             { id: 'finance', label: 'Finance', icon: CurrencyIcon },
+                            { id: 'broadcaster', label: 'Broadcaster', icon: SparklesIcon },
                             { id: 'settings', label: 'Settings', icon: SettingsIcon }
                         ].map(tab => (
                             <button
@@ -904,6 +929,28 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                     {activeTab === 'finance' && (
                         <div className="space-y-8 animate-fade-in">
+                            {/* Finance Sub-Tabs */}
+                            <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-[2rem] w-fit">
+                                <button 
+                                    onClick={() => setFinanceTab('records')}
+                                    className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${
+                                        financeTab === 'records' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                                >
+                                    Billing Records
+                                </button>
+                                <button 
+                                    onClick={() => setFinanceTab('feeds')}
+                                    className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${
+                                        financeTab === 'feeds' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                                >
+                                    Transaction Feeds
+                                </button>
+                            </div>
+
+                            {financeTab === 'records' ? (
+                                <>
                             <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
                                 <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between">
                                     <div>
@@ -934,7 +981,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                                            {invoices.map(invoice => (
+                                            {filteredInvoices.map(invoice => (
                                                 <tr key={invoice.id} className="hover:bg-slate-50/50">
                                                     <td className="px-10 py-6 font-bold">{invoice.invoiceNumber}</td>
                                                     <td className="px-10 py-6 text-sm">{invoice.studentName}</td>
@@ -999,58 +1046,51 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Track collections and receipting</p>
                                     </div>
                                 </div>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left">
-                                        <thead>
-                                            <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 dark:border-slate-800">
-                                                <th className="px-10 py-6">Receipt #</th>
-                                                <th className="px-10 py-6">Student</th>
-                                                <th className="px-10 py-6">Amount</th>
-                                                <th className="px-10 py-6">Method</th>
-                                                <th className="px-10 py-6 text-right">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                                            {payments.map(payment => (
-                                                <tr key={payment.id} className="hover:bg-slate-50/50">
-                                                    <td className="px-10 py-6 font-bold">{payment.receiptNumber}</td>
-                                                    <td className="px-10 py-6 text-sm">{payment.studentName}</td>
-                                                    <td className="px-10 py-6 font-bold text-sm">KES {payment.amount.toLocaleString()}</td>
-                                                    <td className="px-10 py-6 text-sm">{payment.paymentMethod}</td>
-                                                    <td className="px-10 py-6 text-right space-x-2">
-                                                        <button 
-                                                            onClick={() => {
-                                                                const student = students.find((s: DSStudent) => s.id === payment.studentId);
-                                                                if (student) {
-                                                                    const doc = generateDSPDF('receipt', payment, student as any, settings, currentInstitution);
-                                                                    doc.output('dataurlnewwindow');
-                                                                }
-                                                            }}
-                                                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                                                            title="Preview & Print"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => {
-                                                                const student = students.find((s: DSStudent) => s.id === payment.studentId);
-                                                                if (student) {
-                                                                    const doc = generateDSPDF('receipt', payment, student as any, settings, currentInstitution);
-                                                                    doc.save(`${payment.receiptNumber}.pdf`);
-                                                                }
-                                                            }}
-                                                            className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-all"
-                                                            title="Download PDF"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
                                 </div>
                             </div>
+                                </>
+                            ) : (
+                                <DSFinanceFeeds 
+                                    bankTransactions={bankTransactions}
+                                    mpesaTransactions={mpesaTransactions}
+                                    invoices={invoices}
+                                    onReconcile={async (tid, invId, type) => {
+                                        const transaction = type === 'bank' 
+                                            ? bankTransactions.find(t => t.id === tid)
+                                            : mpesaTransactions.find(t => t.id === tid);
+                                        
+                                        if (transaction) {
+                                            try {
+                                                await onAddPayment({
+                                                    invoiceId: invId,
+                                                    amount: transaction.amount,
+                                                    paymentMethod: type === 'bank' ? 'Bank Transfer' : 'M-Pesa',
+                                                    transactionReference: type === 'bank' ? (transaction as any).reference : (transaction as any).transactionId,
+                                                    paymentDate: type === 'bank' ? (transaction as any).transactionDate : (transaction as any).timestamp
+                                                });
+                                                
+                                                // Update transaction metadata to mark as reconciled
+                                                await apiService.updateModuleRecord(type === 'bank' ? 'bank_transactions' : 'mpesa_transactions', tid, {
+                                                    metadata: { ...(transaction.metadata || {}), reconciled: true, reconciledAt: new Date().toISOString() }
+                                                });
+                                                
+                                                await loadDSData();
+                                            } catch (err) {
+                                                console.error("Reconciliation failed:", err);
+                                            }
+                                        }
+                                    }}
+                                    onFetchFeeds={loadDSData}
+                                    currentUser={currentUser}
+                                    institution={currentInstitution as any}
+                                />
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === 'broadcaster' && (
+                        <div className="animate-fade-in">
+                            <DSBroadcasterView />
                         </div>
                     )}
 

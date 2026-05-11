@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode, useMemo } from 'react';
-import { DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment } from '../types';
+import { DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, MpesaTransaction, BankTransaction } from '../types';
 import { apiService } from './apiService';
 import { useToast } from './ToastContext';
 import { generateDSPDF } from '../utils/dsPdfGenerator';
@@ -13,6 +13,8 @@ interface DrivingSchoolContextType {
     settings: DSSettings | null;
     invoices: DSInvoice[];
     payments: DSPayment[];
+    mpesaTransactions: MpesaTransaction[];
+    bankTransactions: BankTransaction[];
     
     // Setters (used for hydration from main loadData)
     setInstructors: React.Dispatch<React.SetStateAction<DSInstructor[]>>;
@@ -61,6 +63,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
     const [settings, setSettings] = useState<DSSettings | null>(null);
     const [invoices, setInvoices] = useState<DSInvoice[]>([]);
     const [payments, setPayments] = useState<DSPayment[]>([]);
+    const [mpesaTransactions, setMpesaTransactions] = useState<MpesaTransaction[]>([]);
+    const [bankTransactions, setBankTransactions] = useState<BankTransaction[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     const loadDSData = useCallback(async () => {
@@ -71,7 +75,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         setIsLoading(true);
         console.log(`[DSContext] loadDSData: Starting fetch for institutionId=${institutionId}`);
         try {
-            const [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay] = await Promise.all([
+            const [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay, dsMpe, dsBnk] = await Promise.all([
                 apiService.fetchModuleRecords<DSInstructor>('ds_instructors', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<DSVehicle>('ds_vehicles', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<DSStudent>('ds_students', institutionId).catch(() => []),
@@ -80,6 +84,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 apiService.fetchModuleRecords<DSSettings>('ds_settings', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<DSInvoice>('ds_invoices', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<DSPayment>('ds_payments', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<MpesaTransaction>('mpesa_transactions', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<BankTransaction>('bank_transactions', institutionId).catch(() => []),
             ]);
 
             console.log(`[DSContext] loadDSData: Fetched ${dsInst.length} instructors, ${dsVeh.length} vehicles, ${dsStud.length} students, ${dsLess.length} lessons`);
@@ -92,6 +98,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             setSettings(dsSet && dsSet.length > 0 ? dsSet[0] : null);
             setInvoices(dsInvs || []);
             setPayments(dsPay || []);
+            setMpesaTransactions(dsMpe || []);
+            setBankTransactions(dsBnk || []);
         } catch (err) {
             console.error("[DSContext] loadDSData: Failed to load DS data:", err);
         } finally {
@@ -166,16 +174,132 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         }
     }, [institutionId, onRefresh, success, error]);
 
+    const sendLessonNotification = useCallback(async (lesson: DSLesson, isReminder = false) => {
+        const student = students.find(s => s.id === lesson.studentId);
+        const instructor = instructors.find(i => i.id === lesson.instructorId);
+        const vehicle = vehicles.find(v => v.id === lesson.vehicleId);
+
+        if (!student || !instructor) {
+            console.warn("[DS Automation] Missing student or instructor for lesson notification", lesson.id);
+            return;
+        }
+
+        try {
+            const insts = await apiService.fetchModuleRecords('institutions', institutionId);
+            const inst = insts?.[0] || { name: 'Driving School' };
+            const portalTitle = inst.name || 'Driving School';
+
+            // 1. Notification for Student
+            if (student.email) {
+                const subject = isReminder ? `Reminder: Lesson Starting Soon - ${lesson.startTime}` : `New Lesson Scheduled: ${lesson.lessonDate || (lesson as any).date}`;
+                const body = `Dear ${student.fullName},\n\n` +
+                             (isReminder ? `This is a reminder for your upcoming lesson starting at ${lesson.startTime}.\n\n` : `A new driving lesson has been scheduled for you.\n\n`) +
+                             `Details:\n` +
+                             `- Date: ${lesson.lessonDate || (lesson as any).date}\n` +
+                             `- Time: ${lesson.startTime} - ${lesson.endTime || (lesson as any).endTime}\n` +
+                             `- Instructor: ${instructor.name}\n` +
+                             `- Vehicle: ${vehicle?.plateNumber || 'N/A'}\n\n` +
+                             `Please ensure you are at the designated training area at least 5 minutes early.\n\n` +
+                             `Happy Learning,\n${portalTitle}`;
+                
+                await apiService.sendEmail(student.email, subject, body).catch(e => console.error("Email to student failed", e));
+            }
+
+            if (student.phone) {
+                const sms = isReminder 
+                    ? `Reminder: Your ${portalTitle} lesson with ${instructor.name} starts at ${lesson.startTime}. Be ready!`
+                    : `Hello ${student.fullName}, your ${portalTitle} lesson is scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime} with ${instructor.name}.`;
+                
+                await apiService.sendSms(student.phone, sms, undefined, 1, institutionId).catch(e => console.error("SMS to student failed", e));
+            }
+
+            // 2. Notification for Instructor
+            if (instructor.email) {
+                const subject = isReminder ? `Reminder: Lesson Starting Soon - ${lesson.startTime}` : `New Lesson Assigned: ${lesson.lessonDate || (lesson as any).date}`;
+                const body = `Dear ${instructor.name},\n\n` +
+                             (isReminder ? `Your lesson with ${student.fullName} is starting at ${lesson.startTime}.\n\n` : `You have been assigned a new lesson.\n\n`) +
+                             `Details:\n` +
+                             `- Student: ${student.fullName}\n` +
+                             `- Date: ${lesson.lessonDate || (lesson as any).date}\n` +
+                             `- Time: ${lesson.startTime} - ${lesson.endTime || (lesson as any).endTime}\n` +
+                             `- Vehicle: ${vehicle?.plateNumber || 'N/A'}\n\n` +
+                             `Safe driving,\n${portalTitle}`;
+                
+                await apiService.sendEmail(instructor.email, subject, body).catch(e => console.error("Email to instructor failed", e));
+            }
+
+            if (instructor.phone) {
+                const sms = isReminder
+                    ? `Reminder: Your lesson with ${student.fullName} starts at ${lesson.startTime}. Vehicle: ${vehicle?.plateNumber || 'N/A'}.`
+                    : `Hello ${instructor.name}, a new lesson with ${student.fullName} has been scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime}.`;
+                
+                await apiService.sendSms(instructor.phone, sms, undefined, 1, institutionId).catch(e => console.error("SMS to instructor failed", e));
+            }
+
+            console.log(`[DS Automation] ${isReminder ? 'Reminder' : 'Initial'} notifications sent for lesson ${lesson.id}`);
+        } catch (err) {
+            console.error("[DS Automation] Lesson notification critical failure:", err);
+        }
+    }, [institutionId, students, instructors, vehicles]);
+
+    const checkUpcomingLessons = useCallback(async () => {
+        if (!lessons.length) return;
+        
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+        
+        // Find lessons for today that are starting within the next 60 minutes
+        const upcoming = lessons.filter(l => {
+            if (l.status !== 'Scheduled' || (l as any).reminderSent) return false;
+            
+            const lessonDate = l.lessonDate;
+            if (lessonDate !== today) return false;
+            
+            try {
+                const [hours, minutes] = l.startTime.split(':').map(Number);
+                const lessonTime = new Date(now);
+                lessonTime.setHours(hours, minutes, 0, 0);
+                
+                const diffMinutes = (lessonTime.getTime() - now.getTime()) / (1000 * 60);
+                return diffMinutes > 0 && diffMinutes <= 60;
+            } catch (e) {
+                return false;
+            }
+        });
+
+        if (upcoming.length > 0) {
+            console.log(`[DS Automation] Found ${upcoming.length} lessons starting soon. Sending reminders...`);
+            for (const lesson of upcoming) {
+                await sendLessonNotification(lesson, true);
+                // Mark as reminder sent in local state and DB if possible
+                // For simplicity here, we'll just track it in a local set for this session to avoid spam
+                (lesson as any).reminderSent = true;
+                await apiService.saveModuleRecord('ds_lessons', { ...lesson, reminderSent: true } as any);
+            }
+        }
+    }, [lessons, sendLessonNotification]);
+
+    // Periodical background check for upcoming lessons
+    useEffect(() => {
+        const interval = setInterval(checkUpcomingLessons, 5 * 60 * 1000); // Check every 5 minutes
+        return () => clearInterval(interval);
+    }, [checkUpcomingLessons]);
+
     const addLesson = useCallback(async (data: any) => {
         try {
-            await apiService.saveModuleRecord('ds_lessons', { ...data, id: `less_${Date.now()}`, institutionId, status: 'Scheduled' });
+            const lesson = { ...data, id: `less_${Date.now()}`, institutionId, status: 'Scheduled' };
+            await apiService.saveModuleRecord('ds_lessons', lesson);
             success("Lesson scheduled successfully");
+            
+            // Trigger Instant Notification
+            sendLessonNotification(lesson, false);
+            
             await onRefresh();
         } catch (err) {
             error("Failed to schedule lesson");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error]);
+    }, [institutionId, onRefresh, success, error, sendLessonNotification]);
 
     const addMastery = useCallback(async (data: any) => {
         try {
@@ -232,41 +356,65 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         }
     }, [institutionId, settings, onRefresh, success, error]);
 
-    const sendDocumentNotification = async (type: 'invoice' | 'receipt', data: any, studentId: string) => {
+    const sendDocumentNotification = useCallback(async (type: 'invoice' | 'receipt', data: any, studentId: string) => {
         const student = students.find(s => s.id === studentId);
-        if (!student) return;
+        if (!student) {
+            console.warn(`[DS Automation] Student not found for ID: ${studentId}`);
+            return;
+        }
 
         try {
+            console.log(`[DS Automation] Preparing notifications for ${type} #${data.invoiceNumber || data.receiptNumber}`);
+            
             // Fetch institution details for PDF
-            const institutions = await apiService.fetchModuleRecords('institutions', institutionId);
-            const inst = institutions?.[0] || { name: 'Driving School' };
+            const insts = await apiService.fetchModuleRecords('institutions', institutionId);
+            const inst = insts?.[0] || { name: 'Driving School' };
 
             // Generate PDF
             const doc = generateDSPDF(type, data, student as any, settings, inst);
-            const pdfBase64 = doc.output('datauristring').split(',')[1];
+            const pdfBlob = doc.output('blob');
             const fileName = `${type === 'invoice' ? data.invoiceNumber : data.receiptNumber}.pdf`;
+            const storagePath = `driving_school/${type}s/${fileName}`;
 
-            // 1. Send Email
-            const subject = `${inst.name} - ${type === 'invoice' ? 'Invoice' : 'Receipt'} #${type === 'invoice' ? data.invoiceNumber : data.receiptNumber}`;
-            const body = `Dear ${student.fullName},\n\nPlease find attached your ${type}. \n\nAmount: KES ${data.totalAmount || data.amount}\n\nThank you for choosing us!`;
-            
+            // Upload to storage to get a public link
+            let publicUrl = '';
+            try {
+                publicUrl = await apiService.uploadBlob(storagePath, pdfBlob, 'application/pdf');
+            } catch (uploadErr) {
+                console.error("[DS Automation] PDF Upload failed:", uploadErr);
+            }
+
+            // 1. Send Email with Attachment
             if (student.email) {
+                const pdfBase64 = doc.output('datauristring').split(',')[1];
+                const subject = `${inst.name} - ${type === 'invoice' ? 'Invoice' : 'Receipt'} #${type === 'invoice' ? data.invoiceNumber : data.receiptNumber}`;
+                const body = `Dear ${student.fullName},\n\n` +
+                             `Please find attached your ${type} from ${inst.name}.\n\n` +
+                             `Document Number: #${type === 'invoice' ? data.invoiceNumber : data.receiptNumber}\n` +
+                             `Amount: KES ${(data.totalAmount || data.amount).toLocaleString()}\n` +
+                             (type === 'invoice' ? `Balance Due: KES ${data.balance?.toLocaleString()}\n` : '') +
+                             `Date: ${new Date().toLocaleDateString()}\n\n` +
+                             `You can also download it here: ${publicUrl || 'N/A'}\n\n` +
+                             `Thank you for choosing ${inst.name}. We look forward to your success!`;
+                
                 await apiService.sendEmail(student.email, subject, body, undefined, undefined, [
                     { filename: fileName, content: pdfBase64, encoding: 'base64' }
                 ]);
             }
 
-            // 2. Send SMS
-            const smsMessage = `Hello ${student.fullName}, your ${type} #${type === 'invoice' ? data.invoiceNumber : data.receiptNumber} of KES ${data.totalAmount || data.amount} has been generated. Download it here: [LINK]`;
+            // 2. Send SMS with Link
             if (student.phone) {
+                const shortUrl = publicUrl ? `\nDownload: ${publicUrl}` : '';
+                const smsMessage = `Hello ${student.fullName}, your ${inst.name} ${type} #${type === 'invoice' ? data.invoiceNumber : data.receiptNumber} of KES ${(data.totalAmount || data.amount).toLocaleString()} is ready.${shortUrl}`;
+                
                 await apiService.sendSms(student.phone, smsMessage, undefined, 1, institutionId);
             }
 
-            console.log(`[DS Automation] Notifications sent for ${type}`);
+            console.log(`[DS Automation] Notifications successfully dispatched for ${type}`);
         } catch (err) {
-            console.error(`[DS Automation] Failed to send notifications:`, err);
+            console.error(`[DS Automation] Critical failure in notification workflow:`, err);
         }
-    };
+    }, [institutionId, students, settings]);
 
     const addInvoice = useCallback(async (data: any) => {
         try {
@@ -303,16 +451,23 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 receiptNumber: data.receiptNumber || `${settings?.receiptPrefix || 'REC-'}${Date.now().toString().slice(-6)}`,
                 paymentDate: new Date().toISOString()
             };
-            await apiService.saveModuleRecord('ds_payments', pay);
 
             // Automatic Payment Distribution Logic
             const invoice = invoices.find(inv => inv.id === data.invoiceId);
+            let summary = '';
+            
             if (invoice) {
-                const amountPaid = data.amount;
+                // Extra safety: Resolve student details from invoice if missing
+                if (!pay.studentId) {
+                    pay.studentId = invoice.studentId;
+                    pay.studentName = invoice.studentName;
+                }
+
+                const amountPaid = Number(data.amount);
                 
                 // Distribution Strategy: Priority-based Settlement
-                // Settles items in order of priority (lower number = higher priority)
                 let remainingAmount = amountPaid;
+                const distributions: string[] = [];
                 const sortedItems = [...(invoice.items || [])].sort((a, b) => (a.priority || 99) - (b.priority || 99));
                 
                 const updatedItems = sortedItems.map(item => {
@@ -320,6 +475,9 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     if (remainingAmount <= 0) return item;
                     
                     const distribution = Math.min(remainingAmount, itemBalance);
+                    if (distribution > 0) {
+                        distributions.push(`${item.name}: ${distribution.toLocaleString()}`);
+                    }
                     remainingAmount -= distribution;
                     
                     return {
@@ -332,6 +490,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 const newBalance = Math.max(0, invoice.totalAmount - newPaidAmount);
                 const newStatus = newBalance <= 0 ? 'Fully Paid' : 'Partially Paid';
 
+                summary = distributions.join(', ') + (newBalance > 0 ? ` | Balance: KES ${newBalance.toLocaleString()}` : ' | Fully Paid');
+
                 await apiService.saveModuleRecord('ds_invoices', {
                     ...invoice,
                     items: updatedItems,
@@ -342,9 +502,15 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 });
             }
 
-            success("Payment recorded and distributed successfully");
-            sendDocumentNotification('receipt', pay, pay.studentId);
+            await apiService.saveModuleRecord('ds_payments', pay);
             await onRefresh();
+            
+            if (summary) {
+                success(`Payment Recorded: ${summary}`);
+            } else {
+                success("Payment recorded and distributed successfully");
+            }
+            sendDocumentNotification('receipt', pay, pay.studentId);
         } catch (err) {
             error("Failed to record payment");
             throw err;
@@ -360,6 +526,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
     const value = {
         instructors, vehicles, students, lessons, mastery, settings, invoices, payments,
+        mpesaTransactions, bankTransactions,
         setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments,
         addInstructor, addVehicle, addStudent, addLesson, addMastery, updateSettings, addInvoice, addPayment,
         loadDSData, stats
