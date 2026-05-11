@@ -171,6 +171,10 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             await apiService.saveModuleRecord('ds_students', newStudent);
             success("Student enrolled successfully");
             await onRefresh();
+        } catch (err) {
+            error("Failed to enroll student");
+            throw err;
+        }
     }, [institutionId, onRefresh, success, error]);
 
     const updateStudent = useCallback(async (data: any) => {

@@ -3815,6 +3815,7 @@ export interface DSStudent {
     userId?: string;
     fullName: string;
     email?: string;
+    idNumber?: string;
     passportNumber?: string;
     phone?: string;
     licenseTypeInterested?: string;

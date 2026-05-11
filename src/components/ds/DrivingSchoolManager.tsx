@@ -225,6 +225,10 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <input type="tel" value={formData.phone || ''} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="07XX XXX XXX" />
                                 </div>
                                 <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ID / Passport Number</label>
+                                    <input type="text" value={formData.idNumber || ''} onChange={e => setFormData({...formData, idNumber: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. 12345678" />
+                                </div>
+                                <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">License Category</label>
                                     <select value={formData.licenseTypeInterested || ''} onChange={e => setFormData({...formData, licenseTypeInterested: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
                                         <option value="">Select Class</option>
@@ -879,7 +883,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                         </div>
                                                         <div>
                                                             <p className="font-bold text-slate-900 dark:text-white">{student.fullName}</p>
-                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">ID: {student.id.split('_')[1]}</p>
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+                                                                {student.idNumber ? `ID: ${student.idNumber}` : student.passportNumber ? `PASS: ${student.passportNumber}` : `REF: ${student.id.split('_')[1]}`}
+                                                            </p>
                                                         </div>
                                                     </div>
                                                 </td>
