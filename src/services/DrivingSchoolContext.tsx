@@ -426,22 +426,29 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                              `You can also download it here: ${publicUrl || 'N/A'}\n\n` +
                              `Thank you for choosing ${inst.name}. We look forward to your success!`;
                 
-                await apiService.sendEmail(student.email, subject, body, undefined, undefined, [
+                const emailRes = await apiService.sendEmail(student.email, subject, body, undefined, undefined, [
                     { filename: fileName, content: pdfBase64, encoding: 'base64' }
                 ]);
+                if (emailRes && !emailRes.success) {
+                    console.warn(`[DS Automation] Email delivery failed: ${emailRes.message}`);
+                }
             }
 
             // 2. Send SMS with Link
             if (student.phone) {
                 const shortUrl = publicUrl ? `\nDownload: ${publicUrl}` : '';
-                const smsMessage = `Hello ${student.fullName}, your ${inst.name} ${type} #${type === 'invoice' ? data.invoiceNumber : data.receiptNumber} of KES ${(data.totalAmount || data.amount).toLocaleString()} is ready.${shortUrl}`;
+                const smsMessage = `Hello ${student.fullName}, your ${inst.name} ${type} #${type === 'invoice' ? data.invoiceNumber : data.receiptNumber} of KES ${(data.totalAmount || (data.amount || 0)).toLocaleString()} is ready.${shortUrl}`;
                 
-                await apiService.sendSms(student.phone, smsMessage, undefined, 1, institutionId);
+                const smsRes = await apiService.sendSms(student.phone, smsMessage, undefined, 1, institutionId);
+                if (smsRes && !smsRes.success) {
+                    console.warn(`[DS Automation] SMS delivery failed: ${smsRes.message}`);
+                }
             }
 
-            console.log(`[DS Automation] Notifications successfully dispatched for ${type}`);
+            console.log(`[DS Automation] Notifications successfully dispatched for ${type} to ${student.fullName}`);
         } catch (err) {
             console.error(`[DS Automation] Critical failure in notification workflow:`, err);
+            // Non-blocking error for UI
         }
     }, [institutionId, students, settings]);
 
@@ -462,7 +469,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             success("Invoice generated successfully");
             
             // Trigger Automation
-            sendDocumentNotification('invoice', inv, inv.studentId);
+            await sendDocumentNotification('invoice', inv, inv.studentId);
             
             await onRefresh();
         } catch (err) {
@@ -532,14 +539,17 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             }
 
             await apiService.saveModuleRecord('ds_payments', pay);
-            await onRefresh();
             
             if (summary) {
                 success(`Payment Recorded: ${summary}`);
             } else {
                 success("Payment recorded and distributed successfully");
             }
-            sendDocumentNotification('receipt', pay, pay.studentId);
+
+            // Trigger Notification
+            await sendDocumentNotification('receipt', pay, pay.studentId);
+            
+            await onRefresh();
         } catch (err) {
             error("Failed to record payment");
             throw err;
