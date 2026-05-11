@@ -43,8 +43,14 @@ export const generateDSPDF = (
     doc.text(student.fullName, margin, 78);
     doc.setFontSize(10);
     doc.setTextColor(100);
-    doc.text(student.phone || 'N/A', margin, 84);
-    doc.text(student.email || 'N/A', margin, 89);
+    if (student.admissionNumber) {
+        doc.text(`Adm: ${student.admissionNumber}`, margin, 84);
+        doc.text(student.phone || 'N/A', margin, 89);
+        doc.text(student.email || 'N/A', margin, 94);
+    } else {
+        doc.text(student.phone || 'N/A', margin, 84);
+        doc.text(student.email || 'N/A', margin, 89);
+    }
 
     // Date
     doc.text('DATE:', pageWidth - margin - 40, 70);

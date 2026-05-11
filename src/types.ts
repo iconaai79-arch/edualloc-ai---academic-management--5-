@@ -3813,6 +3813,7 @@ export interface DSStudent {
     id: string;
     institutionId: string;
     userId?: string;
+    admissionNumber?: string;
     fullName: string;
     email?: string;
     idNumber?: string;
@@ -3823,6 +3824,8 @@ export interface DSStudent {
     practicalProgressPercent: number;
     status: 'Enrolled' | 'Graduated' | 'Dropped';
     enrollmentDate: string;
+    courseDurationDays?: number;
+    remainingDays?: number;
     createdAt: string;
 }
 
@@ -3860,6 +3863,7 @@ export interface DSSettings {
     lessonPricePractical?: number;
     lessonPriceTheory?: number;
     feeStructures?: DSFeeStructure[];
+    defaultCourseDuration?: number; // in days/attendances
     cancellationPolicy?: string;
     workingHours?: any;
     autoSchedulingEnabled?: boolean;

@@ -37,6 +37,7 @@ interface DrivingSchoolContextType {
     updateSettings: (data: any) => Promise<void>;
     addInvoice: (data: any) => Promise<void>;
     addPayment: (data: any) => Promise<void>;
+    updateLesson: (data: any) => Promise<void>;
     refreshData: () => Promise<void>;
     stats: {
         totalStudents: number;
@@ -139,6 +140,19 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
     }, [institutionId, onRefresh, success, error]);
 
     const addStudent = useCallback(async (data: any) => {
+        if (!institutionId) return;
+        
+        // 0. Validate Admission Number Uniqueness
+        if (data.admissionNumber) {
+            const isDuplicate = students.some(s => 
+                s.admissionNumber?.toLowerCase().trim() === data.admissionNumber.toLowerCase().trim()
+            );
+            if (isDuplicate) {
+                error(`Admission number "${data.admissionNumber}" is already assigned to another student.`);
+                throw new Error("Duplicate admission number");
+            }
+        }
+
         try {
             const userId = `u_${Date.now()}`;
             
@@ -159,12 +173,15 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
             // 2. Create Driving School specific record
             const newId = `dss_${Date.now()}`;
+            const duration = data.courseDurationDays || settings?.defaultCourseDuration || 0;
             const newStudent = { 
                 ...data, 
                 id: newId, 
-                user_id: userId,
+                userId,
                 institutionId,
                 status: 'Enrolled',
+                courseDurationDays: duration,
+                remainingDays: duration,
                 createdAt: new Date().toISOString()
             };
             
@@ -175,10 +192,23 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to enroll student");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error]);
+    }, [institutionId, students, settings, onRefresh, success, error]);
 
     const updateStudent = useCallback(async (data: any) => {
         if (!institutionId) return;
+
+        // 0. Validate Admission Number Uniqueness (if changed)
+        if (data.admissionNumber) {
+            const isDuplicate = students.some(s => 
+                s.id !== data.id && 
+                s.admissionNumber?.toLowerCase().trim() === data.admissionNumber.toLowerCase().trim()
+            );
+            if (isDuplicate) {
+                error(`Admission number "${data.admissionNumber}" is already assigned to another student.`);
+                throw new Error("Duplicate admission number");
+            }
+        }
+
         try {
             await apiService.saveModuleRecord('ds_students', { 
                 ...data, 
@@ -191,7 +221,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to update student");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error]);
+    }, [institutionId, students, onRefresh, success, error]);
 
     const deleteStudent = useCallback(async (id: string) => {
         if (!institutionId) return;
@@ -333,6 +363,32 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             throw err;
         }
     }, [institutionId, onRefresh, success, error, sendLessonNotification]);
+
+    const updateLesson = useCallback(async (data: any) => {
+        try {
+            const oldLesson = lessons.find(l => l.id === data.id);
+            await apiService.saveModuleRecord('ds_lessons', { ...data, institutionId });
+            
+            if (data.status === 'Completed' && oldLesson?.status !== 'Completed') {
+                const student = students.find(s => s.id === data.studentId);
+                if (student) {
+                    const currentRemaining = student.remainingDays ?? student.courseDurationDays ?? 0;
+                    if (currentRemaining > 0) {
+                        await apiService.saveModuleRecord('ds_students', {
+                            ...student,
+                            remainingDays: Math.max(0, currentRemaining - 1)
+                        });
+                    }
+                }
+            }
+            
+            success("Lesson updated");
+            await onRefresh();
+        } catch (err) {
+            error("Failed to update lesson");
+            throw err;
+        }
+    }, [institutionId, lessons, students, onRefresh, success, error]);
 
     const addMastery = useCallback(async (data: any) => {
         try {

@@ -145,7 +145,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
         if (settings && !initialData) {
             setFormData((prev: any) => ({
                 ...prev,
-                studentId: type === 'student' && (!prev.studentId || prev.studentId.startsWith('ID-')) ? `${settings.studentIdPrefix || 'ID-'}${Date.now().toString().slice(-4)}` : prev.studentId,
+                admissionNumber: type === 'student' && (!prev.admissionNumber || prev.admissionNumber.startsWith('ADM-')) ? `${settings.studentIdPrefix || 'ADM-'}${Date.now().toString().slice(-4)}` : prev.admissionNumber,
                 invoiceNumber: type === 'invoice' && (!prev.invoiceNumber || prev.invoiceNumber.startsWith('INV-')) ? `${settings.invoicePrefix || 'INV-'}${Date.now().toString().slice(-4)}` : prev.invoiceNumber,
                 receiptNumber: type === 'payment' && (!prev.receiptNumber || prev.receiptNumber.startsWith('REC-')) ? `${settings.receiptPrefix || 'REC-'}${Date.now().toString().slice(-4)}` : prev.receiptNumber
             }));
@@ -155,7 +155,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
     const [formData, setFormData] = useState<any>(() => {
         const base = initialData || {
             status: type === 'student' ? 'Enrolled' : type === 'instructor' ? 'Active' : type === 'vehicle' ? 'Operational' : 'Scheduled',
-            studentId: type === 'student' ? `${settings?.studentIdPrefix || 'ID-'}${Date.now().toString().slice(-4)}` : undefined,
+            admissionNumber: type === 'student' ? `${settings?.studentIdPrefix || 'ADM-'}${Date.now().toString().slice(-4)}` : undefined,
             invoiceNumber: type === 'invoice' ? `${settings?.invoicePrefix || 'INV-'}${Date.now().toString().slice(-4)}` : undefined,
             receiptNumber: type === 'payment' ? `${settings?.receiptPrefix || 'REC-'}${Date.now().toString().slice(-4)}` : undefined
         };
@@ -216,7 +216,11 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {type === 'student' && (
                             <>
-                                <div className="md:col-span-2 space-y-2">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Admission Number</label>
+                                    <input required type="text" value={formData.admissionNumber || ''} onChange={e => setFormData({...formData, admissionNumber: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="ADM-001" />
+                                </div>
+                                <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Full Name</label>
                                     <input required type="text" value={formData.fullName || ''} onChange={e => setFormData({...formData, fullName: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. John Doe" />
                                 </div>
@@ -609,6 +613,15 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     
     const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster'>('dashboard');
     const [financeTab, setFinanceTab] = useState<'records' | 'feeds'>('records');
+    const [users, setUsers] = useState<User[]>([]);
+    const [isActionLoading, setIsActionLoading] = useState(false);
+
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.fetchUsers(currentInstitution.id).then(setUsers).catch(console.error);
+        }
+    }, [currentInstitution?.id]);
+
     const activeTab = externalTab || internalTab;
     const setActiveTab = (tab: any) => setInternalTab(tab);
 
@@ -628,7 +641,11 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     })), [instructors]);
 
     const filteredStudents = useMemo(() => 
-        normalizedStudents.filter(s => (s.fullName || '').toLowerCase().includes(searchTerm.toLowerCase())),
+        normalizedStudents.filter(s => 
+            (s.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (s.admissionNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (s.idNumber || '').toLowerCase().includes(searchTerm.toLowerCase())
+        ),
     [normalizedStudents, searchTerm]);
 
     const filteredLessons = useMemo(() => 
@@ -883,8 +900,11 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                         </div>
                                                         <div>
                                                             <p className="font-bold text-slate-900 dark:text-white">{student.fullName}</p>
+                                                            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-0.5">
+                                                                {student.admissionNumber || `REF: ${student.id.split('_')[1]}`}
+                                                            </p>
                                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
-                                                                {student.idNumber ? `ID: ${student.idNumber}` : student.passportNumber ? `PASS: ${student.passportNumber}` : `REF: ${student.id.split('_')[1]}`}
+                                                                {student.idNumber ? `ID: ${student.idNumber}` : student.passportNumber ? `PASS: ${student.passportNumber}` : ''}
                                                             </p>
                                                         </div>
                                                     </div>
@@ -1262,7 +1282,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 try {
                                     const targetUsers = data.target === 'Students' ? students : 
                                                        data.target === 'Instructors' ? instructors : 
-                                                       data.target === 'Staff' ? users.filter(u => u.role !== 'student') : 
+                                                       data.target === 'Staff' ? users.filter((u: User) => u.role !== 'student') : 
                                                        [...students, ...instructors];
 
                                     const channels = data.channels || ['Portal'];
