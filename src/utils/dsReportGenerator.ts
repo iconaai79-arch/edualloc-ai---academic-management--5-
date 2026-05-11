@@ -8,26 +8,26 @@ export const generateStudentStatement = (
     payments: DSPayment[],
     institution: any
 ) => {
-    const doc = new jsPDF() as any;
+    const doc = new jsPDF('p', 'mm', 'a4');
     const margin = 20;
     const pageWidth = doc.internal.pageSize.getWidth();
 
     // Header
     doc.setFontSize(20);
     doc.setTextColor(79, 70, 229);
-    doc.text(institution?.name || 'Driving School', margin, 25);
+    doc.text(String(institution?.name || 'Driving School'), margin, 25);
     
     doc.setFontSize(10);
-    doc.setTextColor(100);
+    doc.setTextColor(100, 100, 100);
     doc.text('STUDENT ACCOUNT STATEMENT', margin, 32);
 
     // Student Info
     doc.setFontSize(12);
     doc.setTextColor(30, 41, 59);
-    doc.text(`Student: ${student.fullName}`, margin, 45);
+    doc.text(`Student: ${String(student.fullName || 'N/A')}`, margin, 45);
     doc.setFontSize(10);
-    doc.text(`Phone: ${student.phone || 'N/A'}`, margin, 50);
-    doc.text(`ID/Reg No: ${(student as any).idNumber || 'N/A'}`, margin, 55);
+    doc.text(`Phone: ${String(student.phone || 'N/A')}`, margin, 50);
+    doc.text(`ID/Reg No: ${String((student as any).idNumber || (student as any).passportNumber || 'N/A')}`, margin, 55);
 
     // Summary Box
     const totalInvoiced = invoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
@@ -46,7 +46,10 @@ export const generateStudentStatement = (
     doc.setFontSize(9);
     doc.text(`KES ${totalInvoiced.toLocaleString()}`, pageWidth - margin - 5, 48, { align: 'right' });
     doc.text(`KES ${totalPaid.toLocaleString()}`, pageWidth - margin - 5, 55, { align: 'right' });
-    doc.setTextColor(balance > 0 ? [220, 38, 38] : [16, 185, 129]);
+    
+    if (balance > 0) doc.setTextColor(220, 38, 38);
+    else doc.setTextColor(16, 185, 129);
+    
     doc.setFontSize(11);
     doc.text(`KES ${balance.toLocaleString()}`, pageWidth - margin - 5, 65, { align: 'right' });
 
@@ -104,28 +107,28 @@ export const generateLessonReport = (
     title: string,
     institution: any
 ) => {
-    const doc = new jsPDF() as any;
+    const doc = new jsPDF('p', 'mm', 'a4');
     const margin = 20;
 
     doc.setFontSize(18);
     doc.setTextColor(79, 70, 229);
-    doc.text(institution?.name || 'Driving School', margin, 25);
+    doc.text(String(institution?.name || 'Driving School'), margin, 25);
     
     doc.setFontSize(12);
     doc.setTextColor(30, 41, 59);
-    doc.text(title.toUpperCase(), margin, 32);
+    doc.text(String(title || 'REPORT').toUpperCase(), margin, 32);
 
     const tableData = lessons.map(l => {
         const student = students.find(s => s.id === l.studentId);
         const instructor = instructors.find(i => i.id === l.instructorId);
         const vehicle = vehicles.find(v => v.id === l.vehicleId);
         return [
-            l.lessonDate,
-            l.startTime,
-            student?.fullName || 'N/A',
-            instructor?.name || 'N/A',
-            vehicle?.plateNumber || 'N/A',
-            l.status.toUpperCase()
+            String(l.lessonDate || 'N/A'),
+            String(l.startTime || 'N/A'),
+            String(student?.fullName || 'N/A'),
+            String(instructor?.name || 'N/A'),
+            String(vehicle?.plateNumber || 'N/A'),
+            String(l.status || 'PENDING').toUpperCase()
         ];
     });
 
@@ -146,33 +149,33 @@ export const generateAttendanceSummary = (
     title: string,
     institution: any
 ) => {
-    const doc = new jsPDF() as any;
+    const doc = new jsPDF('p', 'mm', 'a4');
     const margin = 20;
 
     doc.setFontSize(18);
     doc.setTextColor(79, 70, 229);
-    doc.text(institution?.name || 'Driving School', margin, 25);
+    doc.text(String(institution?.name || 'Driving School'), margin, 25);
     
     doc.setFontSize(12);
     doc.setTextColor(30, 41, 59);
-    doc.text(title.toUpperCase(), margin, 32);
+    doc.text(String(title || 'ATTENDANCE').toUpperCase(), margin, 32);
 
     // Group by student
     const stats: Record<string, { present: number, total: number }> = {};
     lessons.forEach(l => {
         if (!stats[l.studentId]) stats[l.studentId] = { present: 0, total: 0 };
         stats[l.studentId].total++;
-        if (l.status.toLowerCase() === 'completed') stats[l.studentId].present++;
+        if (l.status && l.status.toLowerCase() === 'completed') stats[l.studentId].present++;
     });
 
     const tableData = Object.entries(stats).map(([sid, s]) => {
         const student = students.find(x => x.id === sid);
-        const percentage = Math.round((s.present / s.total) * 100);
+        const percentage = s.total > 0 ? Math.round((s.present / s.total) * 100) : 0;
         return [
-            student?.fullName || 'N/A',
-            s.total,
-            s.present,
-            s.total - s.present,
+            String(student?.fullName || 'N/A'),
+            String(s.total),
+            String(s.present),
+            String(s.total - s.present),
             `${percentage}%`
         ];
     });
