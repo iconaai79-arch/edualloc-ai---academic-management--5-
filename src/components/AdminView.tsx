@@ -1297,6 +1297,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         {...props}
                         user={props.currentUser}
                         showOnly="staff"
+                        isDS={isDS}
                         allocations={(props.requests || []).filter(r => r && r.status === 'approved')}
                         onImportUsers={props.onImportUsers}
                         onImportStudents={props.onImportStudents}
@@ -1327,6 +1328,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         companyDetails={props.companyDetails}
                         currentInstitution={props.currentInstitution}
                         isRetailAgency={isRetailAgency}
+                        isDS={isDS}
                     />
                 )}
 
@@ -1374,6 +1376,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 <SubjectManager
                                     {...props}
                                     subjects={props.subjects || []}
+                                    departments={props.departments || []}
                                     onAddSubject={props.onAddSubject}
                                     onUpdateSubject={props.onUpdateSubject}
                                     onDeleteSubject={props.onDeleteSubject}
@@ -1397,6 +1400,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     <CommunicationsManager
                         {...props}
                         users={props.users || []}
+                        departments={props.departments || []}
                         onSendSms={props.onSendSms || (async (_r: any, _m: any) => ({ success: false, message: 'SMS service disabled' }))}
                         currentUser={props.currentUser}
                         smsBalance={props.currentInstitution?.smsBalance}
@@ -1592,6 +1596,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     <SettingsManager
                         {...props}
                         departments={props.departments || []}
+                        subjects={props.subjects || []}
                         allocations={(props.requests || []).filter(r => r && r.status === 'approved')}
                         initialTab={requestedSettingsTab}
                         isInstitutionalView={true}
@@ -1691,7 +1696,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
                 {activeTab === 'campaign' && (
                     <div className="animate-fade-in">
-                        <CampaignCommandView user={props.currentUser} />
+                        <CampaignCommandView user={props.currentUser!} />
                     </div>
                 )}
                  {activeTab === 'law' && (
@@ -1890,6 +1895,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             <ReportsDashboard
                                 {...props}
                                 subjects={props.subjects || []}
+                                departments={props.departments || []}
                                 lecturers={props.users || []}
                                 allTimetableEntries={props.allTimetableEntries || []}
                                 getLecturerById={props.getLecturerById || ((id: string) => (props.users || []).find(u => u && u.id === id))}

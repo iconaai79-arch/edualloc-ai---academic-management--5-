@@ -163,7 +163,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
             if (type === 'student') return { ...base, enrollmentDate: new Date().toISOString().split('T')[0], theoryProgressPercent: 0, practicalProgressPercent: 0 };
             if (type === 'lesson') return { ...base, lessonDate: new Date().toISOString().split('T')[0], startTime: '08:00', endTime: '09:00', lessonType: 'Practical' };
             if (type === 'vehicle') return { ...base, transmission: 'Manual', capacity: 1 };
-            if (type === 'instructor') return { ...base, rating: 5 };
+            if (type === 'instructor') return { ...base, rating: 5, instructorType: 'Driving Instructor' };
             if (type === 'invoice') return { ...base, items: [], totalAmount: 0, paidAmount: 0, balance: 0, status: 'Pending', createdAt: new Date().toISOString() };
             if (type === 'payment') return { ...base, paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'M-Pesa' };
             if (type === 'fee_structure') return { className: 'CLASS C1', tuition: 15000, tuitionPriority: 1, pdl: 1500, pdlPriority: 2, assessment: 2000, assessmentPriority: 3 };
@@ -171,6 +171,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
         }
         return base;
     });
+    const [studentSearch, setStudentSearch] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
     if (!type) return null;
@@ -276,6 +277,13 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Specialization</label>
                                     <input type="text" value={formData.specialization || ''} onChange={e => setFormData({...formData, specialization: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. Heavy Commercial" />
                                 </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Instructor Type</label>
+                                    <select value={formData.instructorType || 'Driving Instructor'} onChange={e => setFormData({...formData, instructorType: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="Driving Instructor">Driving Instructor (Practical)</option>
+                                        <option value="Theory Trainer">Theory Trainer (Classroom)</option>
+                                    </select>
+                                </div>
                                 <div className="md:col-span-2 space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">License Number</label>
                                     <input type="text" value={formData.licenseNumber || ''} onChange={e => setFormData({...formData, licenseNumber: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="DL-XXXXXX" />
@@ -324,7 +332,14 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Instructor</label>
                                     <select value={formData.instructorId || ''} onChange={e => setFormData({...formData, instructorId: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
                                         <option value="">Select Instructor</option>
-                                        {instructors.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                                        {instructors
+                                            .filter(i => {
+                                                if (formData.lessonType === 'Practical') return !i.instructorType || i.instructorType === 'Driving Instructor';
+                                                if (formData.lessonType === 'Theory') return i.instructorType === 'Theory Trainer';
+                                                return true;
+                                            })
+                                            .map(i => <option key={i.id} value={i.id}>{i.name} ({i.instructorType === 'Theory Trainer' ? 'Theory' : 'Practical'})</option>)
+                                        }
                                     </select>
                                 </div>
                                 <div className="space-y-2">
@@ -359,13 +374,28 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                         {type === 'invoice' && (
                             <>
                                 <div className="md:col-span-2 space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Student</label>
+                                    <div className="flex items-center justify-between ml-1">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Select Student</label>
+                                        <div className="flex items-center gap-2">
+                                            <SearchIcon className="w-3 h-3 text-slate-400" />
+                                            <input 
+                                                type="text" 
+                                                value={studentSearch} 
+                                                onChange={e => setStudentSearch(e.target.value)}
+                                                placeholder="Search name..."
+                                                className="text-[10px] bg-transparent border-none focus:ring-0 p-0 font-bold text-indigo-600 placeholder:text-slate-300 w-24 text-right"
+                                            />
+                                        </div>
+                                    </div>
                                     <select required value={formData.studentId || ''} onChange={e => {
                                         const s = students.find(x => x.id === e.target.value);
                                         setFormData({...formData, studentId: e.target.value, studentName: s?.fullName || ''});
                                     }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
                                         <option value="">Select Student</option>
-                                        {students.map(s => <option key={s.id} value={s.id}>{s.fullName}</option>)}
+                                        {students
+                                            .filter(s => s.fullName.toLowerCase().includes(studentSearch.toLowerCase()) || s.admissionNumber?.toLowerCase().includes(studentSearch.toLowerCase()))
+                                            .map(s => <option key={s.id} value={s.id}>{s.fullName} ({s.admissionNumber})</option>)
+                                        }
                                     </select>
                                 </div>
                                 <div className="md:col-span-2 space-y-2">
@@ -402,13 +432,28 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                         {type === 'payment' && (
                             <>
                                 <div className="md:col-span-2 space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Student</label>
+                                    <div className="flex items-center justify-between ml-1">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Student</label>
+                                        <div className="flex items-center gap-2">
+                                            <SearchIcon className="w-3 h-3 text-slate-400" />
+                                            <input 
+                                                type="text" 
+                                                value={studentSearch} 
+                                                onChange={e => setStudentSearch(e.target.value)}
+                                                placeholder="Search name..."
+                                                className="text-[10px] bg-transparent border-none focus:ring-0 p-0 font-bold text-indigo-600 placeholder:text-slate-300 w-24 text-right"
+                                            />
+                                        </div>
+                                    </div>
                                     <select required value={formData.studentId || ''} onChange={e => {
                                         const s = students.find(x => x.id === e.target.value);
                                         setFormData({...formData, studentId: e.target.value, studentName: s?.fullName || ''});
                                     }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
                                         <option value="">Select Student</option>
-                                        {students.map(s => <option key={s.id} value={s.id}>{s.fullName}</option>)}
+                                        {students
+                                            .filter(s => s.fullName.toLowerCase().includes(studentSearch.toLowerCase()) || s.admissionNumber?.toLowerCase().includes(studentSearch.toLowerCase()))
+                                            .map(s => <option key={s.id} value={s.id}>{s.fullName} ({s.admissionNumber})</option>)
+                                        }
                                     </select>
                                 </div>
                                 <div className="md:col-span-2 space-y-2">
@@ -489,6 +534,22 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         )}
                                     </div>
                                 </div>
+
+                                {(formData.paymentMethod === 'M-Pesa' || formData.paymentMethod === 'Bank') && (
+                                    <div className="md:col-span-2 space-y-2 animate-fade-in">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                            {formData.paymentMethod} Reference Code
+                                        </label>
+                                        <input 
+                                            required 
+                                            type="text" 
+                                            value={formData.transactionReference || ''} 
+                                            onChange={e => setFormData({...formData, transactionReference: e.target.value.toUpperCase()})} 
+                                            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" 
+                                            placeholder={formData.paymentMethod === 'M-Pesa' ? "e.g. QXJ1234567" : "e.g. TRF-998877"} 
+                                        />
+                                    </div>
+                                )}
                                 {formData.transactionReference && (
                                     <div className="md:col-span-2 p-4 bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800/50 rounded-2xl">
                                         <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">Transaction Verified: {formData.transactionReference}</p>
@@ -615,7 +676,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         bankTransactions
     } = useDrivingSchool();
     
-    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster'>('dashboard');
+    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings'>('dashboard');
     const [financeTab, setFinanceTab] = useState<'records' | 'feeds'>('records');
     const [users, setUsers] = useState<User[]>([]);
     const [isActionLoading, setIsActionLoading] = useState(false);
@@ -729,6 +790,21 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-3 px-6 py-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800">
+                            <div className={`w-2 h-2 rounded-full ${(currentInstitution?.smsBalance || 0) < 50 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                            <div className="flex flex-col">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">SMS Units</span>
+                                <span className="text-xs font-black text-slate-900 dark:text-white">{(currentInstitution?.smsBalance || 0).toLocaleString()} <span className="text-[9px] text-slate-400">Available</span></span>
+                            </div>
+                            <button 
+                                onClick={() => success("Please contact the platform administrator to purchase additional SMS units.")}
+                                className="ml-2 p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-100 dark:border-slate-800 hover:bg-slate-50 transition-all"
+                                title="Top Up Units"
+                            >
+                                <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                            </button>
+                        </div>
+
                         {activeTab !== 'dashboard' && (
                             <button 
                                 onClick={() => {
@@ -1290,6 +1366,107 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     {activeTab === 'broadcaster' && (
                         <div className="animate-fade-in">
                             <DSBroadcasterView onNewBroadcast={() => setActionModal({ type: 'broadcast' })} />
+                        </div>
+                    )}
+
+                    {activeTab === 'settings' && (
+                        <div className="animate-fade-in space-y-8">
+                            <div className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                                <div className="flex items-center justify-between mb-10">
+                                    <div>
+                                        <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">DS Settings</h3>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Configure prefixes and fee structures</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => onUpdateSettings(settings || {})}
+                                        className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20"
+                                    >
+                                        Save All Changes
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Invoice Prefix</label>
+                                        <input 
+                                            type="text" 
+                                            value={settings?.invoicePrefix || ''} 
+                                            onChange={e => onUpdateSettings({ ...settings, invoicePrefix: e.target.value })}
+                                            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                            placeholder="INV-"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Receipt Prefix</label>
+                                        <input 
+                                            type="text" 
+                                            value={settings?.receiptPrefix || ''} 
+                                            onChange={e => onUpdateSettings({ ...settings, receiptPrefix: e.target.value })}
+                                            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                            placeholder="REC-"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Student ID Prefix</label>
+                                        <input 
+                                            type="text" 
+                                            value={settings?.studentIdPrefix || ''} 
+                                            onChange={e => onUpdateSettings({ ...settings, studentIdPrefix: e.target.value })}
+                                            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                            placeholder="ADM-"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="mt-12 border-t border-slate-50 dark:border-slate-800 pt-10">
+                                    <div className="flex items-center justify-between mb-8">
+                                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Fee Structures (Classes)</h4>
+                                        <button 
+                                            onClick={() => setActionModal({ type: 'fee_structure' })}
+                                            className="p-3 bg-slate-50 dark:bg-slate-800 text-indigo-600 rounded-xl hover:bg-slate-100 transition-all"
+                                        >
+                                            <PlusIcon className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {(settings?.feeStructures || []).map((fee, idx) => (
+                                            <div key={idx} className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-700">
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <h5 className="font-black text-slate-900 dark:text-white uppercase text-xs">{fee.className}</h5>
+                                                    <div className="flex gap-2">
+                                                        <button onClick={() => setActionModal({ type: 'fee_structure', initialData: fee })} className="p-2 text-slate-400 hover:text-indigo-600"><PencilIcon className="w-3.5 h-3.5" /></button>
+                                                        <button 
+                                                            onClick={() => {
+                                                                if (window.confirm("Delete this fee structure?")) {
+                                                                    onUpdateSettings({
+                                                                        ...settings,
+                                                                        feeStructures: settings?.feeStructures?.filter(f => f.id !== fee.id)
+                                                                    });
+                                                                }
+                                                            }}
+                                                            className="p-2 text-slate-400 hover:text-red-500"
+                                                        >
+                                                            <TrashIcon className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {fee.items?.map((item, i) => (
+                                                        <div key={i} className="flex justify-between text-[10px] font-bold">
+                                                            <span className="text-slate-400 uppercase tracking-widest">{item.name}</span>
+                                                            <span className="text-slate-900 dark:text-white">KES {item.amount.toLocaleString()}</span>
+                                                        </div>
+                                                    ))}
+                                                    <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between font-black text-xs">
+                                                        <span className="text-slate-900 dark:text-white uppercase tracking-widest">Total</span>
+                                                        <span className="text-indigo-600">KES {fee.totalAmount?.toLocaleString()}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
 

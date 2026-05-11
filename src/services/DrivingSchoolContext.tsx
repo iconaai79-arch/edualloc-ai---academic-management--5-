@@ -269,11 +269,15 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             }
 
             if (student.phone) {
-                const sms = isReminder 
-                    ? `Reminder: Your ${portalTitle} lesson with ${instructor.name} starts at ${lesson.startTime}. Be ready!`
-                    : `Hello ${student.fullName}, your ${portalTitle} lesson is scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime} with ${instructor.name}.`;
-                
-                await apiService.sendSms(student.phone, sms, undefined, 1, institutionId).catch(e => console.error("SMS to student failed", e));
+                if ((inst.smsBalance || 0) <= 0) {
+                    console.warn(`[DS Automation] SMS failed: Insufficient balance (${inst.smsBalance} units)`);
+                } else {
+                    const sms = isReminder 
+                        ? `Reminder: Your ${portalTitle} lesson with ${instructor.name} starts at ${lesson.startTime}. Be ready!`
+                        : `Hello ${student.fullName}, your ${portalTitle} lesson is scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime} with ${instructor.name}.`;
+                    
+                    await apiService.sendSms(student.phone, sms, undefined, 1, institutionId).catch(e => console.error("SMS to student failed", e));
+                }
             }
 
             // 2. Notification for Instructor
@@ -292,11 +296,15 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             }
 
             if (instructor.phone) {
-                const sms = isReminder
-                    ? `Reminder: Your lesson with ${student.fullName} starts at ${lesson.startTime}. Vehicle: ${vehicle?.plateNumber || 'N/A'}.`
-                    : `Hello ${instructor.name}, a new lesson with ${student.fullName} has been scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime}.`;
-                
-                await apiService.sendSms(instructor.phone, sms, undefined, 1, institutionId).catch(e => console.error("SMS to instructor failed", e));
+                if ((inst.smsBalance || 0) <= 0) {
+                    console.warn(`[DS Automation] Instructor SMS failed: Insufficient balance`);
+                } else {
+                    const sms = isReminder
+                        ? `Reminder: Your lesson with ${student.fullName} starts at ${lesson.startTime}. Vehicle: ${vehicle?.plateNumber || 'N/A'}.`
+                        : `Hello ${instructor.name}, a new lesson with ${student.fullName} has been scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime}.`;
+                    
+                    await apiService.sendSms(instructor.phone, sms, undefined, 1, institutionId).catch(e => console.error("SMS to instructor failed", e));
+                }
             }
 
             console.log(`[DS Automation] ${isReminder ? 'Reminder' : 'Initial'} notifications sent for lesson ${lesson.id}`);
@@ -499,9 +507,14 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 const shortUrl = publicUrl ? `\nDownload: ${publicUrl}` : '';
                 const smsMessage = `Hello ${student.fullName}, your ${inst.name} ${type} #${type === 'invoice' ? data.invoiceNumber : data.receiptNumber} of KES ${(data.totalAmount || (data.amount || 0)).toLocaleString()} is ready.${shortUrl}`;
                 
-                const smsRes = await apiService.sendSms(student.phone, smsMessage, undefined, 1, institutionId);
-                if (smsRes && !smsRes.success) {
-                    console.warn(`[DS Automation] SMS delivery failed: ${smsRes.message}`);
+                if ((inst.smsBalance || 0) <= 0) {
+                    error("Insufficient SMS units. Please top up to send student notifications.");
+                    console.warn(`[DS Automation] Document SMS failed: Insufficient balance (${inst.smsBalance} units)`);
+                } else {
+                    const smsRes = await apiService.sendSms(student.phone, smsMessage, undefined, 1, institutionId);
+                    if (smsRes && !smsRes.success) {
+                        console.warn(`[DS Automation] SMS delivery failed: ${smsRes.message}`);
+                    }
                 }
             }
 

@@ -849,6 +849,7 @@ interface UserManagerProps {
     isPm?: boolean;
     onAccessAlumnaPortal: (school: any) => void;
     isAutoMarket?: boolean;
+    isDS?: boolean;
 }
 
 export const UserManager: React.FC<UserManagerProps> = (props) => {
@@ -859,7 +860,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         onAddParent, onDeleteParent, onAddTimeOffRequest,
         onUpdateRequest, showOnly, onSendBulkCredentials, onAddTransaction, companyDetails, isRetailAgency: isRetailAgencyProp,
         isCoop: isCoopProp, isPm: isPmProp, isAutoMarket: isAutoMarketProp,
-        isAdding: isAddingProp = false, onAddExtensionRequest
+        isAdding: isAddingProp = false, onAddExtensionRequest, isDS
     } = props;
     const isRetailAgency = isRetailAgencyProp ?? RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
 
@@ -1334,7 +1335,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                             ))}
                                         </div>
                                     </div>
-                                    {!isRetailAgency && !isCoop && !isChurch && !isPm && isEdu && (
+                                    {!isRetailAgency && !isCoop && !isChurch && !isPm && !isDS && isEdu && (
                                         <div>
                                             <label className="block text-sm font-medium mb-1">Department</label>
                                             <select
