@@ -16,7 +16,9 @@ import {
     ArrowUp as ArrowUpIcon,
     ArrowDown as ArrowDownIcon,
     Calendar as CalendarIcon,
-    BadgeCheck as CheckBadgeIcon
+    BadgeCheck as CheckBadgeIcon,
+    Eye as EyeIcon,
+    X as XIcon
 } from 'lucide-react';
 import { 
     generateStudentStatement, 
@@ -56,6 +58,8 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
         vehicles, 
         instructors 
     } = useDrivingSchool();
+    
+    const [previewPdf, setPreviewPdf] = React.useState<string | null>(null);
 
     // 1. Financial Stats
     const totalInvoiced = useMemo(() => invoices.reduce((sum: number, inv: DSInvoice) => sum + (inv.totalAmount || 0), 0), [invoices]);
@@ -370,12 +374,29 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                             const sInvoices = invoices.filter((i: DSInvoice) => i.studentId === sid);
                                             const sPayments = payments.filter((p: DSPayment) => p.studentId === sid);
                                             const doc = generateStudentStatement(student, sInvoices, sPayments, institution);
+                                            setPreviewPdf(doc.output('datauristring'));
+                                        }
+                                    }}
+                                    className="w-full bg-indigo-600/10 hover:bg-indigo-600 text-indigo-600 hover:text-white font-black py-4 rounded-2xl transition-all border border-indigo-100 dark:border-indigo-900 uppercase text-[11px] tracking-widest flex items-center justify-center gap-2"
+                                >
+                                    <EyeIcon className="w-4 h-4" /> Preview Statement
+                                </button>
+                                <button 
+                                    onClick={() => {
+                                        const select = document.getElementById('statement-student-select') as HTMLSelectElement;
+                                        const sid = select.value;
+                                        if (!sid) return;
+                                        const student = students.find((s: DSStudent) => s.id === sid);
+                                        if (student) {
+                                            const sInvoices = invoices.filter((i: DSInvoice) => i.studentId === sid);
+                                            const sPayments = payments.filter((p: DSPayment) => p.studentId === sid);
+                                            const doc = generateStudentStatement(student, sInvoices, sPayments, institution);
                                             doc.save(`${student.fullName.replace(/\s+/g, '_')}_Statement.pdf`);
                                         }
                                     }}
-                                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-2xl transition-all shadow-lg shadow-indigo-600/20 uppercase text-[11px] tracking-widest"
+                                    className="w-full bg-slate-900 dark:bg-indigo-600 text-white font-black py-4 rounded-2xl transition-all shadow-lg shadow-indigo-600/20 uppercase text-[11px] tracking-widest"
                                 >
-                                    Generate Statement
+                                    Download PDF
                                 </button>
                             </div>
                         </div>
@@ -412,11 +433,30 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                             `Training Schedule (${start} to ${end})`, 
                                             institution
                                         );
+                                        setPreviewPdf(doc.output('datauristring'));
+                                    }}
+                                    className="w-full bg-amber-500/10 hover:bg-amber-500 text-amber-600 hover:text-white font-black py-4 rounded-2xl transition-all border border-amber-100 dark:border-amber-900 uppercase text-[11px] tracking-widest flex items-center justify-center gap-2"
+                                >
+                                    <EyeIcon className="w-4 h-4" /> Preview Schedule
+                                </button>
+                                <button 
+                                    onClick={() => {
+                                        const start = (document.getElementById('schedule-start-date') as HTMLInputElement).value;
+                                        const end = (document.getElementById('schedule-end-date') as HTMLInputElement).value;
+                                        const filtered = lessons.filter((l: DSLesson) => (l.lessonDate || (l as any).date) >= start && (l.lessonDate || (l as any).date) <= end);
+                                        const doc = generateLessonReport(
+                                            filtered, 
+                                            students, 
+                                            vehicles, 
+                                            instructors, 
+                                            `Training Schedule (${start} to ${end})`, 
+                                            institution
+                                        );
                                         doc.save(`Training_Schedule_${start}_to_${end}.pdf`);
                                     }}
-                                    className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-4 rounded-2xl transition-all shadow-lg shadow-amber-500/20 uppercase text-[11px] tracking-widest"
+                                    className="w-full bg-slate-900 dark:bg-amber-500 text-white font-black py-4 rounded-2xl transition-all shadow-lg shadow-amber-500/20 uppercase text-[11px] tracking-widest"
                                 >
-                                    Generate Schedule
+                                    Download PDF
                                 </button>
                             </div>
                         </div>
@@ -451,17 +491,71 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                             `Attendance Summary (${start} to ${end})`, 
                                             institution
                                         );
+                                        setPreviewPdf(doc.output('datauristring'));
+                                    }}
+                                    className="w-full bg-emerald-600/10 hover:bg-emerald-600 text-emerald-600 hover:text-white font-black py-4 rounded-2xl transition-all border border-emerald-100 dark:border-emerald-900 uppercase text-[11px] tracking-widest flex items-center justify-center gap-2"
+                                >
+                                    <EyeIcon className="w-4 h-4" /> Preview Attendance
+                                </button>
+                                <button 
+                                    onClick={() => {
+                                        const start = (document.getElementById('attendance-start-date') as HTMLInputElement).value;
+                                        const end = (document.getElementById('attendance-end-date') as HTMLInputElement).value;
+                                        const filtered = lessons.filter((l: DSLesson) => (l.lessonDate || (l as any).date) >= start && (l.lessonDate || (l as any).date) <= end);
+                                        const doc = generateAttendanceSummary(
+                                            filtered, 
+                                            students, 
+                                            `Attendance Summary (${start} to ${end})`, 
+                                            institution
+                                        );
                                         doc.save(`Attendance_Summary_${start}_to_${end}.pdf`);
                                     }}
-                                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl transition-all shadow-lg shadow-emerald-600/20 uppercase text-[11px] tracking-widest"
+                                    className="w-full bg-slate-900 dark:bg-emerald-600 text-white font-black py-4 rounded-2xl transition-all shadow-lg shadow-emerald-600/20 uppercase text-[11px] tracking-widest"
                                 >
-                                    Generate Report
+                                    Download PDF
                                 </button>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* PDF Preview Modal */}
+            {previewPdf && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-5xl h-[85vh] rounded-[3rem] shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Document Preview</h3>
+                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-1">Driving School Reports Hub</p>
+                            </div>
+                            <button 
+                                onClick={() => setPreviewPdf(null)}
+                                className="p-3 bg-white dark:bg-slate-800 text-slate-400 hover:text-rose-600 rounded-2xl border border-slate-100 dark:border-slate-700 transition-all active:scale-95"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="flex-1 bg-slate-100 dark:bg-slate-950 p-4">
+                            <iframe 
+                                src={previewPdf} 
+                                className="w-full h-full rounded-2xl border-none shadow-inner"
+                                title="Report Preview"
+                            />
+                        </div>
+                        <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+                            <button onClick={() => setPreviewPdf(null)} className="px-8 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">Close</button>
+                            <a 
+                                href={previewPdf} 
+                                download="Report.pdf"
+                                className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-105 transition-all flex items-center gap-2"
+                            >
+                                Download PDF
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
