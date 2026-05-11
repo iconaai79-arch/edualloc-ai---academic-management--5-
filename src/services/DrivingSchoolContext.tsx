@@ -30,6 +30,8 @@ interface DrivingSchoolContextType {
     addInstructor: (data: any) => Promise<void>;
     addVehicle: (data: any) => Promise<void>;
     addStudent: (data: any) => Promise<void>;
+    updateStudent: (data: any) => Promise<void>;
+    deleteStudent: (id: string) => Promise<void>;
     addLesson: (data: any) => Promise<void>;
     addMastery: (data: any) => Promise<void>;
     updateSettings: (data: any) => Promise<void>;
@@ -169,8 +171,34 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             await apiService.saveModuleRecord('ds_students', newStudent);
             success("Student enrolled successfully");
             await onRefresh();
+    }, [institutionId, onRefresh, success, error]);
+
+    const updateStudent = useCallback(async (data: any) => {
+        if (!institutionId) return;
+        try {
+            await apiService.saveModuleRecord('ds_students', { 
+                ...data, 
+                institutionId,
+                updatedAt: new Date().toISOString()
+            });
+            success("Student updated successfully");
+            await onRefresh();
         } catch (err) {
-            error("Failed to enroll student");
+            error("Failed to update student");
+            throw err;
+        }
+    }, [institutionId, onRefresh, success, error]);
+
+    const deleteStudent = useCallback(async (id: string) => {
+        if (!institutionId) return;
+        if (!window.confirm("Are you sure you want to remove this student? This action cannot be undone.")) return;
+        
+        try {
+            await apiService.deleteModuleRecord('ds_students', id);
+            success("Student removed successfully");
+            await onRefresh();
+        } catch (err) {
+            error("Failed to remove student");
             throw err;
         }
     }, [institutionId, onRefresh, success, error]);
@@ -529,7 +557,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         instructors, vehicles, students, lessons, mastery, settings, invoices, payments,
         mpesaTransactions, bankTransactions,
         setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments,
-        addInstructor, addVehicle, addStudent, addLesson, addMastery, updateSettings, addInvoice, addPayment,
+        addInstructor, addVehicle, addStudent, updateStudent, deleteStudent, addLesson, addMastery, updateSettings, addInvoice, addPayment,
         refreshData, stats
     };
 

@@ -21,7 +21,9 @@ import {
     CurrencyIcon,
     SparklesIcon,
     XIcon,
-    ArrowUpTrayIcon
+    ArrowUpTrayIcon,
+    PencilIcon,
+    TrashIcon
 } from '../icons';
 import { generateDSPDF } from '../../utils/dsPdfGenerator';
 import { useToast } from '../../services/ToastContext';
@@ -187,7 +189,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
     };
 
     const title = {
-        student: 'Enrol New Student',
+        student: initialData ? 'Update Student Record' : 'Enrol New Student',
         instructor: 'Add Instructor',
         vehicle: 'Register Vehicle',
         lesson: 'Schedule Lesson',
@@ -231,6 +233,20 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         <option value="Class C1">Class C1 (Truck)</option>
                                     </select>
                                 </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
+                                    <input type="email" value={formData.email || ''} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="student@example.com" />
+                                </div>
+                                {initialData && (
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Enrollment Status</label>
+                                        <select value={formData.status || 'Enrolled'} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                            <option value="Enrolled">Enrolled</option>
+                                            <option value="Graduated">Graduated</option>
+                                            <option value="Dropped">Dropped</option>
+                                        </select>
+                                    </div>
+                                )}
                             </>
                         )}
 
@@ -575,6 +591,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         addInstructor: onAddInstructor,
         addVehicle: onAddVehicle,
         addStudent: onAddStudent,
+        updateStudent: onUpdateStudent,
+        deleteStudent: onDeleteStudent,
         addLesson: onAddLesson,
         addMastery: onAddMastery,
         updateSettings: onUpdateSettings,
@@ -834,6 +852,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             <th className="px-10 py-8">Category</th>
                                             <th className="px-10 py-8">Status</th>
                                             <th className="px-10 py-8 text-right">Progress</th>
+                                            <th className="px-10 py-8 text-right">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
@@ -865,6 +884,24 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                 <td className="px-10 py-8 text-right">
                                                     <div className="w-24 bg-slate-100 dark:bg-slate-800 h-2 rounded-full ml-auto overflow-hidden">
                                                         <div className="bg-indigo-600 h-full rounded-full" style={{ width: `${(student.practicalProgressPercent || 0)}%` }}></div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-10 py-8 text-right">
+                                                    <div className="flex justify-end gap-2">
+                                                        <button 
+                                                            onClick={() => setActionModal({ type: 'student', initialData: student })}
+                                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
+                                                            title="Edit Student"
+                                                        >
+                                                            <PencilIcon className="w-4 h-4" />
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => onDeleteStudent(student.id)}
+                                                            className="p-2 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
+                                                            title="Remove Student"
+                                                        >
+                                                            <TrashIcon className="w-4 h-4" />
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -1165,7 +1202,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         invoices={invoices}
                         onSave={async (data) => {
                             const { type } = actionModal;
-                            if (type === 'student') await onAddStudent(data);
+                            if (type === 'student') {
+                                if (data.id) await onUpdateStudent(data);
+                                else await onAddStudent(data);
+                            }
                             else if (type === 'instructor') await onAddInstructor(data);
                             else if (type === 'vehicle') await onAddVehicle(data);
                             else if (type === 'lesson') await onAddLesson(data);
