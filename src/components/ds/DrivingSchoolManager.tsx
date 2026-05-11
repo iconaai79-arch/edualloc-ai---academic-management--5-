@@ -367,10 +367,14 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <select value={formData.instructorId || ''} onChange={e => {
                                         const instId = e.target.value;
                                         const inst = instructors.find(i => i.id === instId);
+                                        // Priority 1: Instructor's specific assignedVehicleId
+                                        // Priority 2: Look for a vehicle that points to this instructor
+                                        const linkedVehicle = vehicles.find(v => v.id === inst?.assignedVehicleId) || vehicles.find(v => (v as any).assignedInstructorId === instId);
+                                        
                                         setFormData({
                                             ...formData, 
                                             instructorId: instId,
-                                            vehicleId: inst?.assignedVehicleId || formData.vehicleId
+                                            vehicleId: linkedVehicle?.id || formData.vehicleId
                                         });
                                     }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
                                         <option value="">Select Instructor</option>
@@ -390,7 +394,19 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Vehicle</label>
-                                    <select value={formData.vehicleId || ''} onChange={e => setFormData({...formData, vehicleId: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                    <select value={formData.vehicleId || ''} onChange={e => {
+                                        const vhId = e.target.value;
+                                        const vh = vehicles.find(v => v.id === vhId);
+                                        // Priority 1: Vehicle's specific assignedInstructorId
+                                        // Priority 2: Look for an instructor that points to this vehicle
+                                        const linkedInstructor = instructors.find(i => i.id === (vh as any).assignedInstructorId) || instructors.find(i => i.assignedVehicleId === vhId);
+
+                                        setFormData({
+                                            ...formData, 
+                                            vehicleId: vhId,
+                                            instructorId: linkedInstructor?.id || formData.instructorId
+                                        });
+                                    }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
                                         <option value="">Select Vehicle</option>
                                         {vehicles.map(v => <option key={v.id} value={v.id}>{v.make} {v.model} ({v.plateNumber})</option>)}
                                     </select>
@@ -714,6 +730,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         instructors, vehicles, students, lessons, mastery, settings, invoices, payments,
         addInstructor: onAddInstructor,
         addVehicle: onAddVehicle,
+        updateVehicle: onUpdateVehicle,
+        deleteVehicle: onDeleteVehicle,
         addStudent: onAddStudent,
         updateStudent: onUpdateStudent,
         deleteStudent: onDeleteStudent,
@@ -842,20 +860,22 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex items-center gap-3 px-6 py-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800">
-                            <div className={`w-2 h-2 rounded-full ${(currentInstitution?.smsBalance || 0) < 50 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
-                            <div className="flex flex-col">
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">SMS Units</span>
-                                <span className="text-xs font-black text-slate-900 dark:text-white">{(currentInstitution?.smsBalance || 0).toLocaleString()} <span className="text-[9px] text-slate-400">Available</span></span>
+                        {activeTab === 'broadcaster' && (
+                            <div className="flex items-center gap-3 px-6 py-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                <div className={`w-2 h-2 rounded-full ${(currentInstitution?.smsBalance || 0) < 50 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                                <div className="flex flex-col">
+                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">SMS Units</span>
+                                    <span className="text-xs font-black text-slate-900 dark:text-white">{(currentInstitution?.smsBalance || 0).toLocaleString()} <span className="text-[9px] text-slate-400">Available</span></span>
+                                </div>
+                                <button 
+                                    onClick={() => setIsBuySMSModalOpen(true)}
+                                    className="ml-2 p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-100 dark:border-slate-800 hover:bg-slate-50 transition-all"
+                                    title="Top Up Units"
+                                >
+                                    <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                                </button>
                             </div>
-                            <button 
-                                onClick={() => setIsBuySMSModalOpen(true)}
-                                className="ml-2 p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-100 dark:border-slate-800 hover:bg-slate-50 transition-all"
-                                title="Top Up Units"
-                            >
-                                <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                            </button>
-                        </div>
+                        )}
 
                         {activeTab !== 'dashboard' && (
                             <button 
@@ -1158,6 +1178,21 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-fade-in">
                             {filteredVehicles.map(vehicle => (
                                 <div key={vehicle.id} className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+                                    <div className="absolute top-6 right-8 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button 
+                                            onClick={() => setActionModal({ type: 'vehicle', initialData: vehicle })}
+                                            className="p-2 bg-white dark:bg-slate-800 text-slate-400 hover:text-indigo-600 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-all"
+                                        >
+                                            <PencilIcon className="w-4 h-4" />
+                                        </button>
+                                        <button 
+                                            onClick={() => onDeleteVehicle(vehicle.id)}
+                                            className="p-2 bg-white dark:bg-slate-800 text-slate-400 hover:text-red-500 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 transition-all"
+                                        >
+                                            <TrashIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
+
                                     <div className="flex items-center justify-between mb-8">
                                         <div className="w-14 h-14 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center">
                                             <TruckIcon className="w-7 h-7 text-slate-400 group-hover:text-indigo-600 transition-colors" />
@@ -1170,6 +1205,25 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     </div>
                                     <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{vehicle.make} {vehicle.model}</h3>
                                     <p className="text-indigo-600 font-black text-sm mt-1">{vehicle.plateNumber}</p>
+                                    
+                                    <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 ml-1">Assigned Driver</label>
+                                        <select 
+                                            value={vehicle.assignedInstructorId || ''} 
+                                            onChange={async (e) => {
+                                                const instructorId = e.target.value;
+                                                await onUpdateVehicle({ ...vehicle, assignedInstructorId: instructorId });
+                                                // Also update instructor to link back if needed, but vehicle side is primary here
+                                            }}
+                                            className="w-full bg-white dark:bg-slate-900 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 py-2.5 px-4"
+                                        >
+                                            <option value="">Select Instructor</option>
+                                            {normalizedInstructors.map(inst => (
+                                                <option key={inst.id} value={inst.id}>{inst.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
                                     <div className="mt-8 pt-8 border-t border-slate-50 dark:border-slate-800 grid grid-cols-2 gap-4">
                                         <div>
                                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Transmission</p>
@@ -1572,7 +1626,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 else await onAddStudent(data);
                             }
                             else if (type === 'instructor') await onAddInstructor(data);
-                            else if (type === 'vehicle') await onAddVehicle(data);
+                            else if (type === 'vehicle') {
+                                if (data.id) await onUpdateVehicle(data);
+                                else await onAddVehicle(data);
+                            }
                             else if (type === 'lesson') await onAddLesson(data);
                             else if (type === 'invoice') await onAddInvoice(data);
                             else if (type === 'payment') await onAddPayment(data);

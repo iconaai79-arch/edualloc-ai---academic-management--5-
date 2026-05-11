@@ -3808,6 +3808,7 @@ export interface DSVehicle {
     lastServiceDate?: string;
     nextServiceDate?: string;
     status: 'Operational' | 'Maintenance' | 'Out of Service';
+    assignedInstructorId?: string;
     createdAt: string;
 }
 

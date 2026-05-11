@@ -29,6 +29,8 @@ interface DrivingSchoolContextType {
     // Operations
     addInstructor: (data: any) => Promise<void>;
     addVehicle: (data: any) => Promise<void>;
+    updateVehicle: (data: any) => Promise<void>;
+    deleteVehicle: (id: string) => Promise<void>;
     addStudent: (data: any) => Promise<void>;
     updateStudent: (data: any) => Promise<void>;
     deleteStudent: (id: string) => Promise<void>;
@@ -130,11 +132,31 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
     const addVehicle = useCallback(async (data: any) => {
         try {
-            await apiService.saveModuleRecord('ds_vehicles', { ...data, id: `vh_${Date.now()}`, institutionId });
-            success("Vehicle registered successfully");
+            const isUpdate = !!data.id;
+            await apiService.saveModuleRecord('ds_vehicles', { 
+                ...data, 
+                id: data.id || `vh_${Date.now()}`, 
+                institutionId 
+            });
+            success(isUpdate ? "Vehicle updated successfully" : "Vehicle registered successfully");
             await onRefresh();
         } catch (err) {
-            error("Failed to register vehicle");
+            error(data.id ? "Failed to update vehicle" : "Failed to register vehicle");
+            throw err;
+        }
+    }, [institutionId, onRefresh, success, error]);
+
+    const updateVehicle = addVehicle;
+
+    const deleteVehicle = useCallback(async (id: string) => {
+        if (!institutionId) return;
+        if (!window.confirm("Are you sure you want to remove this vehicle from the fleet?")) return;
+        try {
+            await apiService.deleteModuleRecord('ds_vehicles', id);
+            success("Vehicle removed from fleet");
+            await onRefresh();
+        } catch (err) {
+            error("Failed to remove vehicle");
             throw err;
         }
     }, [institutionId, onRefresh, success, error]);
