@@ -1806,6 +1806,42 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             <p className="text-xs font-medium text-slate-400">Configure how your driving school automates lesson scheduling and student progression.</p>
                                         </div>
 
+                                        <div className="p-8 bg-indigo-50/30 dark:bg-indigo-900/10 rounded-[2.5rem] border border-indigo-100/50 dark:border-indigo-900/20">
+                                            <div className="flex items-center gap-3 mb-6">
+                                                <SparklesIcon className="w-5 h-5 text-indigo-600" />
+                                                <h5 className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">Daily Lesson Sequence (Automation)</h5>
+                                            </div>
+                                            <div className="flex flex-wrap gap-3">
+                                                {[
+                                                    { value: ['Theory', 'Practical'], label: 'Theory → Practical' },
+                                                    { value: ['Practical', 'Theory'], label: 'Practical → Theory' },
+                                                    { value: ['Theory'], label: 'Theory Only' },
+                                                    { value: ['Practical'], label: 'Practical Only' }
+                                                ].map((seq, i) => {
+                                                    const isSelected = JSON.stringify(settings?.schedulingRules?.dailySequence) === JSON.stringify(seq.value);
+                                                    return (
+                                                        <button
+                                                            key={i}
+                                                            type="button"
+                                                            onClick={() => onUpdateSettings({
+                                                                ...settings,
+                                                                schedulingRules: {
+                                                                    ...(settings?.schedulingRules || {}),
+                                                                    dailySequence: seq.value as any
+                                                                }
+                                                            })}
+                                                            className={`px-8 py-5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                                isSelected ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/20 scale-105' : 'bg-white dark:bg-slate-900 text-slate-400 border border-slate-100 dark:border-slate-800'
+                                                            }`}
+                                                        >
+                                                            {seq.label}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 font-medium mt-6 ml-1 italic">Note: This defines the order and type of lessons automatically generated for students.</p>
+                                        </div>
+
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                                             <div className="space-y-3">
                                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Training Cycle (Days)</label>
@@ -1867,41 +1903,6 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     })}
                                                     className="w-full px-8 py-5 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
                                                 />
-                                            </div>
-                                        </div>
-
-                                        <div className="p-8 bg-slate-50 dark:bg-slate-800/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
-                                            <div className="flex items-center gap-3 mb-6">
-                                                <SparklesIcon className="w-5 h-5 text-indigo-600" />
-                                                <h5 className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">Automation Sequence</h5>
-                                            </div>
-                                            <div className="flex flex-wrap gap-3">
-                                                {[
-                                                    { value: ['Theory', 'Practical'], label: 'Theory → Practical' },
-                                                    { value: ['Practical', 'Theory'], label: 'Practical → Theory' },
-                                                    { value: ['Theory'], label: 'Theory Only' },
-                                                    { value: ['Practical'], label: 'Practical Only' }
-                                                ].map((seq, i) => {
-                                                    const isSelected = JSON.stringify(settings?.schedulingRules?.dailySequence) === JSON.stringify(seq.value);
-                                                    return (
-                                                        <button
-                                                            key={i}
-                                                            type="button"
-                                                            onClick={() => onUpdateSettings({
-                                                                ...settings,
-                                                                schedulingRules: {
-                                                                    ...(settings?.schedulingRules || {}),
-                                                                    dailySequence: seq.value as any
-                                                                }
-                                                            })}
-                                                            className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                                                isSelected ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/20' : 'bg-white dark:bg-slate-900 text-slate-400 border border-slate-100 dark:border-slate-800'
-                                                            }`}
-                                                        >
-                                                            {seq.label}
-                                                        </button>
-                                                    );
-                                                })}
                                             </div>
                                         </div>
 
