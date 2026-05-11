@@ -23,7 +23,9 @@ import {
 import { 
     generateStudentStatement, 
     generateLessonReport, 
-    generateAttendanceSummary 
+    generateAttendanceSummary,
+    generateIncomeReport,
+    generateBalanceReport
 } from '../../utils/dsReportGenerator';
 
 interface DSAnalyticsViewProps {
@@ -518,6 +520,50 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                 >
                                     Download PDF
                                 </button>
+                            </div>
+                        </div>
+
+                        {/* Financial Analytics Section */}
+                        <div className="p-6 md:p-8 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] md:rounded-[2.5rem] border border-slate-100 dark:border-slate-800 space-y-6">
+                            <p className="text-[11px] font-black text-indigo-600 uppercase tracking-widest">Revenue & Collections</p>
+                            <h4 className="text-lg font-black text-slate-900 dark:text-white">Financial Reports</h4>
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <input id="financial-start-date" type="date" className="bg-white dark:bg-slate-800 border-none rounded-2xl p-4 text-[10px] font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 shadow-sm" defaultValue={new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]} />
+                                    <input id="financial-end-date" type="date" className="bg-white dark:bg-slate-800 border-none rounded-2xl p-4 text-[10px] font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 shadow-sm" defaultValue={new Date().toISOString().split('T')[0]} />
+                                </div>
+                                <select id="financial-votehead-select" className="w-full bg-white dark:bg-slate-800 border-none rounded-2xl p-4 text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 shadow-sm">
+                                    <option value="">All Vote Heads</option>
+                                    <option value="Tuition">Tuition Fee</option>
+                                    <option value="PDL">PDL / License</option>
+                                    <option value="Assessment">Assessment / Exam</option>
+                                </select>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <button 
+                                        onClick={() => {
+                                            const start = (document.getElementById('financial-start-date') as HTMLInputElement).value;
+                                            const end = (document.getElementById('financial-end-date') as HTMLInputElement).value;
+                                            const vote = (document.getElementById('financial-votehead-select') as HTMLSelectElement).value;
+                                            const filtered = payments.filter((p: DSPayment) => p.paymentDate >= start && p.paymentDate <= end);
+                                            const doc = generateIncomeReport(filtered, invoices, `Income Report (${start} to ${end})`, institution, vote || undefined);
+                                            setPreviewPdf(doc.output('datauristring'));
+                                        }}
+                                        className="w-full bg-indigo-600/10 hover:bg-indigo-600 text-indigo-600 hover:text-white font-black py-4 rounded-2xl transition-all border border-indigo-100 dark:border-indigo-900 uppercase text-[11px] tracking-widest flex items-center justify-center gap-2"
+                                    >
+                                        <EyeIcon className="w-4 h-4" /> Income Preview
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            const start = (document.getElementById('financial-start-date') as HTMLInputElement).value;
+                                            const end = (document.getElementById('financial-end-date') as HTMLInputElement).value;
+                                            const doc = generateBalanceReport(students, invoices, payments, `Arrears Summary (${new Date().toLocaleDateString()})`, institution);
+                                            setPreviewPdf(doc.output('datauristring'));
+                                        }}
+                                        className="w-full bg-rose-600/10 hover:bg-rose-600 text-rose-600 hover:text-white font-black py-4 rounded-2xl transition-all border border-rose-100 dark:border-rose-900 uppercase text-[11px] tracking-widest flex items-center justify-center gap-2"
+                                    >
+                                        <EyeIcon className="w-4 h-4" /> Debt Analysis
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

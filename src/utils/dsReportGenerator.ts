@@ -190,3 +190,122 @@ export const generateAttendanceSummary = (
 
     return doc;
 };
+
+export const generateIncomeReport = (
+    payments: DSPayment[],
+    invoices: DSInvoice[],
+    title: string,
+    institution: any,
+    voteHead?: string
+) => {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const margin = 20;
+
+    doc.setFontSize(18);
+    doc.setTextColor(79, 70, 229);
+    doc.text(String(institution?.name || 'Driving School'), margin, 25);
+    
+    doc.setFontSize(12);
+    doc.setTextColor(30, 41, 59);
+    doc.text(String(title || 'INCOME REPORT').toUpperCase(), margin, 32);
+
+    if (voteHead) {
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Filtered by Vote Head: ${voteHead}`, margin, 38);
+    }
+
+    const tableData = payments.map(p => {
+        let amount = p.amount;
+        
+        if (voteHead) {
+            const invoice = invoices.find(inv => inv.id === p.invoiceId);
+            if (invoice && invoice.items) {
+                const item = invoice.items.find(i => i.name.toLowerCase().includes(voteHead.toLowerCase()));
+                if (!item) amount = 0;
+                else {
+                    amount = Math.min(p.amount, item.amount);
+                }
+            }
+        }
+
+        if (amount <= 0 && voteHead) return null;
+
+        return [
+            new Date(p.paymentDate).toLocaleDateString(),
+            String(p.receiptNumber || 'N/A'),
+            String(p.studentName || 'N/A'),
+            String(p.paymentMethod || 'N/A'),
+            String(p.transactionReference || '-'),
+            amount.toLocaleString()
+        ];
+    }).filter(Boolean) as any[];
+
+    const total = tableData.reduce((sum, row) => sum + parseFloat(row[5].replace(/,/g, '')), 0);
+
+    autoTable(doc, {
+        startY: voteHead ? 45 : 40,
+        head: [['Date', 'Receipt', 'Student', 'Method', 'Ref', 'Amount (KES)']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] },
+        foot: [['', '', '', '', 'TOTAL INCOME', total.toLocaleString()]],
+        footStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold' },
+        columnStyles: { 5: { halign: 'right' } }
+    });
+
+    return doc;
+};
+
+export const generateBalanceReport = (
+    students: DSStudent[],
+    invoices: DSInvoice[],
+    payments: DSPayment[],
+    title: string,
+    institution: any
+) => {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const margin = 20;
+
+    doc.setFontSize(18);
+    doc.setTextColor(79, 70, 229);
+    doc.text(String(institution?.name || 'Driving School'), margin, 25);
+    
+    doc.setFontSize(12);
+    doc.setTextColor(30, 41, 59);
+    doc.text(String(title || 'ARREARS REPORT').toUpperCase(), margin, 32);
+
+    const tableData = students.map(s => {
+        const sInvoices = invoices.filter(inv => inv.studentId === s.id);
+        const sPayments = payments.filter(pay => pay.studentId === s.id);
+        
+        const totalInvoiced = sInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
+        const totalPaid = sPayments.reduce((sum, pay) => sum + (pay.amount || 0), 0);
+        const balance = totalInvoiced - totalPaid;
+
+        if (balance <= 0) return null;
+
+        return [
+            String(s.fullName || 'N/A'),
+            String(s.phone || 'N/A'),
+            totalInvoiced.toLocaleString(),
+            totalPaid.toLocaleString(),
+            balance.toLocaleString()
+        ];
+    }).filter(Boolean) as any[];
+
+    const totalBalance = tableData.reduce((sum, row) => sum + parseFloat(row[4].replace(/,/g, '')), 0);
+
+    autoTable(doc, {
+        startY: 40,
+        head: [['Student Name', 'Phone', 'Invoiced (KES)', 'Paid (KES)', 'Balance (KES)']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [220, 38, 38] },
+        foot: [['', '', '', 'TOTAL ARREARS', totalBalance.toLocaleString()]],
+        footStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold' },
+        columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } }
+    });
+
+    return doc;
+};
