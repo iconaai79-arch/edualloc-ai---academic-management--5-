@@ -1,15 +1,23 @@
 import React, { useMemo } from 'react';
-import { DrivingSchoolContext } from '../../services/DrivingSchoolContext';
+import { useDrivingSchool } from '../../services/DrivingSchoolContext';
 import { 
-    ChartBarIcon, 
-    UsersIcon, 
-    CurrencyDollarIcon, 
-    TruckIcon,
-    ArrowUpIcon,
-    ArrowDownIcon,
-    CalendarIcon,
-    CheckBadgeIcon
-} from '@heroicons/react/24/outline';
+    DSInvoice, 
+    DSPayment, 
+    DSStudent, 
+    DSLesson, 
+    DSVehicle, 
+    DSInstructor 
+} from '../../types';
+import { 
+    BarChart3 as ChartBarIcon, 
+    Users as UsersIcon, 
+    CircleDollarSign as CurrencyDollarIcon, 
+    Truck as TruckIcon,
+    ArrowUp as ArrowUpIcon,
+    ArrowDown as ArrowDownIcon,
+    Calendar as CalendarIcon,
+    BadgeCheck as CheckBadgeIcon
+} from 'lucide-react';
 import { 
     generateStudentStatement, 
     generateLessonReport, 
@@ -26,7 +34,7 @@ const MiniChart: React.FC<{ data: number[], color: string }> = ({ data, color })
     const max = Math.max(...data, 1);
     return (
         <div className="flex items-end gap-1 h-8">
-            {data.map((v, i) => (
+            {data.map((v: number, i: number) => (
                 <div 
                     key={i} 
                     className="w-1 rounded-t-sm transition-all duration-500" 
@@ -41,24 +49,24 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
     institution
 }) => {
     const { 
-        students = [], 
-        invoices = [], 
-        payments = [], 
-        lessons = [], 
-        vehicles = [], 
-        instructors = [] 
-    } = React.useContext(DrivingSchoolContext);
+        students, 
+        invoices, 
+        payments, 
+        lessons, 
+        vehicles, 
+        instructors 
+    } = useDrivingSchool();
 
     // 1. Financial Stats
-    const totalInvoiced = useMemo(() => invoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0), [invoices]);
-    const totalPaid = useMemo(() => payments.reduce((sum, pay) => sum + (pay.amount || 0), 0), [payments]);
+    const totalInvoiced = useMemo(() => invoices.reduce((sum: number, inv: DSInvoice) => sum + (inv.totalAmount || 0), 0), [invoices]);
+    const totalPaid = useMemo(() => payments.reduce((sum: number, pay: DSPayment) => sum + (pay.amount || 0), 0), [payments]);
     const collectionRate = totalInvoiced > 0 ? (totalPaid / totalInvoiced) * 100 : 0;
 
     // 2. Student Distribution by Category
     const categoryData = useMemo(() => {
         const counts: Record<string, number> = {};
-        students.forEach(s => {
-            const cat = s.category || 'Standard';
+        students.forEach((s: DSStudent) => {
+            const cat = s.licenseTypeInterested || 'Standard';
             counts[cat] = (counts[cat] || 0) + 1;
         });
         return Object.entries(counts).map(([label, value]) => ({ label, value }));
@@ -73,25 +81,25 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
         }).reverse();
 
         return last7Days.map(date => {
-            const count = lessons.filter(l => (l.lessonDate || (l as any).date) === date).length;
+            const count = lessons.filter((l: DSLesson) => (l.lessonDate || (l as any).date) === date).length;
             return { date, count };
         });
     }, [lessons]);
 
     // 4. Vehicle Utilization
     const vehicleUsage = useMemo(() => {
-        return vehicles.map(v => {
-            const usageCount = lessons.filter(l => l.vehicleId === v.id).length;
+        return vehicles.map((v: DSVehicle) => {
+            const usageCount = lessons.filter((l: DSLesson) => l.vehicleId === v.id).length;
             return { label: `${v.make} ${v.model} (${v.plateNumber})`, value: usageCount };
-        }).sort((a, b) => b.value - a.value).slice(0, 5);
+        }).sort((a: any, b: any) => b.value - a.value).slice(0, 5);
     }, [vehicles, lessons]);
 
     // 5. Instructor Performance
     const instructorStats = useMemo(() => {
-        return instructors.map(inst => {
-            const count = lessons.filter(l => l.instructorId === inst.id).length;
+        return instructors.map((inst: DSInstructor) => {
+            const count = lessons.filter((l: DSLesson) => l.instructorId === inst.id).length;
             return { label: inst.name, value: count };
-        }).sort((a, b) => b.value - a.value).slice(0, 5);
+        }).sort((a: any, b: any) => b.value - a.value).slice(0, 5);
     }, [instructors, lessons]);
 
     return (
@@ -109,9 +117,9 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                 </div>
                 <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-3 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm">
                     <div className="flex -space-x-3">
-                        {instructors.slice(0, 4).map((inst, i) => (
+                        {instructors.slice(0, 4).map((inst: DSInstructor, i: number) => (
                             <div key={i} className="w-10 h-10 rounded-full border-4 border-white dark:border-slate-800 bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-500 overflow-hidden">
-                                {inst.avatarUrl ? <img src={inst.avatarUrl} alt="" /> : inst.name[0]}
+                                {inst.name[0]}
                             </div>
                         ))}
                     </div>
@@ -219,7 +227,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                         <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm">
                             <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">Course Distribution</h4>
                             <div className="space-y-4">
-                                {categoryData.map((cat, i) => (
+                                {categoryData.map((cat: any, i: number) => (
                                     <div key={i}>
                                         <div className="flex justify-between items-center mb-1 text-[10px] font-black uppercase tracking-widest">
                                             <span className="text-slate-500">{cat.label}</span>
@@ -242,7 +250,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                         <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm">
                             <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">Instructor Efficiency</h4>
                             <div className="space-y-4">
-                                {instructorStats.map((inst, i) => (
+                                {instructorStats.map((inst: any, i: number) => (
                                     <div key={i} className="flex items-center gap-4">
                                         <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-[10px] font-black text-slate-400">
                                             #{i+1}
@@ -255,7 +263,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                             <div className="h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                                                 <div 
                                                     className="h-full bg-indigo-500 rounded-full"
-                                                    style={{ width: `${(inst.value / (Math.max(...instructorStats.map(x => x.value), 1))) * 100}%` }}
+                                                    style={{ width: `${(inst.value / (Math.max(...instructorStats.map((x: any) => x.value), 1))) * 100}%` }}
                                                 />
                                             </div>
                                         </div>
@@ -274,7 +282,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                             <p className="text-xs font-bold opacity-80 uppercase tracking-widest mb-8">Vehicle utilization benchmarks</p>
                             
                             <div className="space-y-6">
-                                {vehicleUsage.map((v, i) => (
+                                {vehicleUsage.map((v: any, i: number) => (
                                     <div key={i} className="group/item">
                                         <div className="flex justify-between items-center mb-2">
                                             <span className="text-[10px] font-black uppercase tracking-widest truncate max-w-[150px]">{v.label}</span>
@@ -283,7 +291,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                         <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
                                             <div 
                                                 className="h-full bg-white rounded-full group-hover/item:scale-x-105 transition-transform origin-left"
-                                                style={{ width: `${(v.value / (Math.max(...vehicleUsage.map(x => x.value), 1))) * 100}%` }}
+                                                style={{ width: `${(v.value / (Math.max(...vehicleUsage.map((x: any) => x.value), 1))) * 100}%` }}
                                             />
                                         </div>
                                     </div>
@@ -348,7 +356,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                     defaultValue=""
                                 >
                                     <option value="" disabled>Select Student</option>
-                                    {students.map(s => (
+                                    {students.map((s: DSStudent) => (
                                         <option key={s.id} value={s.id}>{s.fullName}</option>
                                     ))}
                                 </select>
@@ -357,10 +365,10 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                         const select = document.getElementById('statement-student-select') as HTMLSelectElement;
                                         const sid = select.value;
                                         if (!sid) return;
-                                        const student = students.find(s => s.id === sid);
+                                        const student = students.find((s: DSStudent) => s.id === sid);
                                         if (student) {
-                                            const sInvoices = invoices.filter(i => i.studentId === sid);
-                                            const sPayments = payments.filter(p => p.studentId === sid);
+                                            const sInvoices = invoices.filter((i: DSInvoice) => i.studentId === sid);
+                                            const sPayments = payments.filter((p: DSPayment) => p.studentId === sid);
                                             const doc = generateStudentStatement(student, sInvoices, sPayments, institution);
                                             doc.save(`${student.fullName.replace(/\s+/g, '_')}_Statement.pdf`);
                                         }
@@ -395,7 +403,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                     onClick={() => {
                                         const start = (document.getElementById('schedule-start-date') as HTMLInputElement).value;
                                         const end = (document.getElementById('schedule-end-date') as HTMLInputElement).value;
-                                        const filtered = lessons.filter(l => (l.lessonDate || (l as any).date) >= start && (l.lessonDate || (l as any).date) <= end);
+                                        const filtered = lessons.filter((l: DSLesson) => (l.lessonDate || (l as any).date) >= start && (l.lessonDate || (l as any).date) <= end);
                                         const doc = generateLessonReport(
                                             filtered, 
                                             students, 
@@ -436,7 +444,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                     onClick={() => {
                                         const start = (document.getElementById('attendance-start-date') as HTMLInputElement).value;
                                         const end = (document.getElementById('attendance-end-date') as HTMLInputElement).value;
-                                        const filtered = lessons.filter(l => (l.lessonDate || (l as any).date) >= start && (l.lessonDate || (l as any).date) <= end);
+                                        const filtered = lessons.filter((l: DSLesson) => (l.lessonDate || (l as any).date) >= start && (l.lessonDate || (l as any).date) <= end);
                                         const doc = generateAttendanceSummary(
                                             filtered, 
                                             students, 

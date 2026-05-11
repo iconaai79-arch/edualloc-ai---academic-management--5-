@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { DSStudent, DSInvoice, DSPayment, DSLesson, DSVehicle, User } from '../types';
+import { DSStudent, DSInvoice, DSPayment, DSLesson, DSVehicle, DSInstructor, User } from '../types';
 
 export const generateStudentStatement = (
     student: DSStudent,
@@ -27,11 +27,11 @@ export const generateStudentStatement = (
     doc.text(`Student: ${student.fullName}`, margin, 45);
     doc.setFontSize(10);
     doc.text(`Phone: ${student.phone || 'N/A'}`, margin, 50);
-    doc.text(`ID/Reg No: ${student.idNumber || 'N/A'}`, margin, 55);
+    doc.text(`ID/Reg No: ${(student as any).idNumber || 'N/A'}`, margin, 55);
 
     // Summary Box
-    const totalInvoiced = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
-    const totalPaid = payments.reduce((sum, pay) => sum + pay.amount, 0);
+    const totalInvoiced = invoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
+    const totalPaid = payments.reduce((sum, pay) => sum + (pay.amount || 0), 0);
     const balance = totalInvoiced - totalPaid;
 
     doc.setFillColor(248, 250, 252);
@@ -100,7 +100,7 @@ export const generateLessonReport = (
     lessons: DSLesson[],
     students: DSStudent[],
     vehicles: DSVehicle[],
-    instructors: User[],
+    instructors: DSInstructor[],
     title: string,
     institution: any
 ) => {
@@ -120,7 +120,7 @@ export const generateLessonReport = (
         const instructor = instructors.find(i => i.id === l.instructorId);
         const vehicle = vehicles.find(v => v.id === l.vehicleId);
         return [
-            l.date,
+            l.lessonDate,
             l.startTime,
             student?.fullName || 'N/A',
             instructor?.name || 'N/A',
@@ -162,7 +162,7 @@ export const generateAttendanceSummary = (
     lessons.forEach(l => {
         if (!stats[l.studentId]) stats[l.studentId] = { present: 0, total: 0 };
         stats[l.studentId].total++;
-        if (l.status === 'completed') stats[l.studentId].present++;
+        if (l.status.toLowerCase() === 'completed') stats[l.studentId].present++;
     });
 
     const tableData = Object.entries(stats).map(([sid, s]) => {
