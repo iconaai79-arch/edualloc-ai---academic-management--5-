@@ -275,6 +275,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const portalTitle = inst.name || 'Driving School';
 
             // 1. Notification for Student
+            const actionLink = `${window.location.origin}/ds/lesson/${lesson.id}/manage`;
+            
             if (student.email) {
                 const subject = isReminder ? `Reminder: Lesson Starting Soon - ${lesson.startTime}` : `New Lesson Scheduled: ${lesson.lessonDate || (lesson as any).date}`;
                 const body = `Dear ${student.fullName},\n\n` +
@@ -284,19 +286,20 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                              `- Time: ${lesson.startTime} - ${lesson.endTime || (lesson as any).endTime}\n` +
                              `- Instructor: ${instructor.name}\n` +
                              `- Vehicle: ${vehicle?.plateNumber || 'N/A'}\n\n` +
+                             `Please confirm your attendance or request a reschedule here: ${actionLink}\n\n` +
                              `Please ensure you are at the designated training area at least 5 minutes early.\n\n` +
                              `Happy Learning,\n${portalTitle}`;
                 
                 await apiService.sendEmail(student.email, subject, body).catch(e => console.error("Email to student failed", e));
             }
-
+ 
             if (student.phone) {
                 if ((inst.smsBalance || 0) <= 0) {
                     console.warn(`[DS Automation] SMS failed: Insufficient balance (${inst.smsBalance} units)`);
                 } else {
                     const sms = isReminder 
                         ? `Reminder: Your ${portalTitle} lesson with ${instructor.name} starts at ${lesson.startTime}. Be ready!`
-                        : `Hello ${student.fullName}, your ${portalTitle} lesson is scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime} with ${instructor.name}.`;
+                        : `Hello ${student.fullName}, your ${portalTitle} lesson is scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime}. Manage here: ${actionLink}`;
                     
                     await apiService.sendSms(student.phone, sms, undefined, 1, institutionId).catch(e => console.error("SMS to student failed", e));
                 }

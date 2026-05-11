@@ -3846,6 +3846,7 @@ export interface DSLesson {
     lessonType: 'Practical' | 'Theory';
     topic?: string;
     status: 'Scheduled' | 'Completed' | 'Cancelled' | 'No Show';
+    confirmationStatus?: 'Pending' | 'Confirmed' | 'Reschedule Requested';
     instructorNotes?: string;
     routeTrackedData?: any;
     createdAt: string;

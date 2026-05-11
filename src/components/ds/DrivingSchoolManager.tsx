@@ -832,6 +832,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             apiService.runMigration(`
                 ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS preferred_lesson_hours text;
                 ALTER TABLE ds_vehicles ADD COLUMN IF NOT EXISTS assigned_instructor_id text;
+                ALTER TABLE ds_lessons ADD COLUMN IF NOT EXISTS confirmation_status text;
                 NOTIFY pgrst, 'reload schema';
             `).catch(err => console.error("Migration failed:", err));
         }
@@ -892,6 +893,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         endTime: endTime,
                         lessonType: type,
                         status: 'Scheduled',
+                        confirmationStatus: 'Pending',
                         institutionId: currentInstitution?.id
                     });
                     
