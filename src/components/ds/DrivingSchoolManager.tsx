@@ -25,7 +25,7 @@ import {
     PencilIcon,
     TrashIcon
 } from '../icons';
-import { generateDSPDF } from '../../utils/dsPdfGenerator';
+import { generateDSPDF, generateDSThermalReceipt } from '../../utils/dsPdfGenerator';
 import { useToast } from '../../services/ToastContext';
 import { useDrivingSchool } from '../../services/DrivingSchoolContext';
 import { AppErrorBoundary } from '../common/AppErrorBoundary';
@@ -59,8 +59,8 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
             // Simulate parsing excel and mapping fields
             await new Promise(resolve => setTimeout(resolve, 1500));
             const mockData = [
-                { fullName: "John Doe", email: "john@example.com", phone: "0711223344", licenseTypeInterested: "Class C1" },
-                { fullName: "Jane Smith", email: "jane@example.com", phone: "0722334455", licenseTypeInterested: "Class B" }
+                { fullName: "John Doe", email: "john@example.com", phone: "0711223344", licenseTypeInterested: "Class C1", enrollmentDate: new Date().toISOString().split('T')[0] },
+                { fullName: "Jane Smith", email: "jane@example.com", phone: "0722334455", licenseTypeInterested: "Class B", enrollmentDate: new Date().toISOString().split('T')[0] }
             ];
             await onImport(mockData);
             onClose();
@@ -244,6 +244,10 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
                                     <input type="email" value={formData.email || ''} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="student@example.com" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Admission Date</label>
+                                    <input required type="date" value={formData.enrollmentDate || ''} onChange={e => setFormData({...formData, enrollmentDate: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
                                 </div>
                                 {initialData && (
                                     <div className="space-y-2">
@@ -915,6 +919,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                 </td>
                                                 <td className="px-10 py-8">
                                                     <span className="text-[10px] font-black uppercase px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg">{student.licenseTypeInterested || 'Class B'}</span>
+                                                    <p className="text-[10px] font-medium text-slate-400 mt-1">{student.enrollmentDate ? new Date(student.enrollmentDate).toLocaleDateString() : 'No Date'}</p>
                                                 </td>
                                                 <td className="px-10 py-8">
                                                     <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${student.status === 'Graduated' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
@@ -1144,10 +1149,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     </td>
                                                     <td className="px-10 py-6 text-right space-x-2">
                                                         <button 
-                                                            onClick={() => {
+                                                            onClick={async () => {
                                                                 const student = students.find(s => s.id === invoice.studentId);
                                                                 if (student) {
-                                                                    const doc = generateDSPDF('invoice', invoice, student as any, settings, currentInstitution);
+                                                                    const doc = await generateDSPDF('invoice', invoice, student as any, settings, currentInstitution);
                                                                     doc.output('dataurlnewwindow');
                                                                 }
                                                             }}
@@ -1157,10 +1162,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                                                         </button>
                                                         <button 
-                                                            onClick={() => {
+                                                            onClick={async () => {
                                                                 const student = students.find(s => s.id === invoice.studentId);
                                                                 if (student) {
-                                                                    const doc = generateDSPDF('invoice', invoice, student as any, settings, currentInstitution);
+                                                                    const doc = await generateDSPDF('invoice', invoice, student as any, settings, currentInstitution);
                                                                     doc.save(`${invoice.invoiceNumber}.pdf`);
                                                                 }
                                                             }}
@@ -1184,7 +1189,64 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Track collections and receipting</p>
                                     </div>
                                 </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 dark:border-slate-800">
+                                                <th className="px-10 py-6">Receipt #</th>
+                                                <th className="px-10 py-6">Student</th>
+                                                <th className="px-10 py-6">Method</th>
+                                                <th className="px-10 py-6">Amount</th>
+                                                <th className="px-10 py-6">Date</th>
+                                                <th className="px-10 py-6 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                            {payments.slice(0, 10).map(payment => (
+                                                <tr key={payment.id} className="hover:bg-slate-50/50">
+                                                    <td className="px-10 py-6 font-bold">{payment.receiptNumber}</td>
+                                                    <td className="px-10 py-6 text-sm">{payment.studentName}</td>
+                                                    <td className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-indigo-600">{payment.paymentMethod}</td>
+                                                    <td className="px-10 py-6 font-bold text-sm">KES {payment.amount.toLocaleString()}</td>
+                                                    <td className="px-10 py-6 text-xs text-slate-500">{new Date(payment.paymentDate).toLocaleDateString()}</td>
+                                                    <td className="px-10 py-6 text-right space-x-2">
+                                                        <button 
+                                                            onClick={async () => {
+                                                                const student = students.find(s => s.id === payment.studentId);
+                                                                if (student) {
+                                                                    const doc = await generateDSPDF('receipt', payment, student as any, settings, currentInstitution);
+                                                                    doc.save(`${payment.receiptNumber}.pdf`);
+                                                                }
+                                                            }}
+                                                            className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-all"
+                                                            title="Download PDF"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                                        </button>
+                                                        <button 
+                                                            onClick={async () => {
+                                                                const student = students.find(s => s.id === payment.studentId);
+                                                                if (student) {
+                                                                    const url = await generateDSThermalReceipt(payment, student as any, currentInstitution);
+                                                                    const win = window.open(url, '_blank');
+                                                                    if (win) {
+                                                                        win.focus();
+                                                                        setTimeout(() => win.print(), 500);
+                                                                    }
+                                                                }
+                                                            }}
+                                                            className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                                                            title="Thermal Print (EPOS)"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
+                            </div>
                                 </>
                             ) : (
                                 <DSFinanceFeeds 

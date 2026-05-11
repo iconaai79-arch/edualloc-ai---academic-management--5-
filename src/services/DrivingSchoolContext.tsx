@@ -460,7 +460,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const inst = insts?.[0] || { name: 'Driving School' };
 
             // Generate PDF
-            const doc = generateDSPDF(type, data, student as any, settings, inst);
+            const doc = await generateDSPDF(type, data, student as any, settings, inst);
             const pdfBlob = doc.output('blob');
             const fileName = `${type === 'invoice' ? data.invoiceNumber : data.receiptNumber}.pdf`;
             const storagePath = `driving_school/${type}s/${fileName}`;
@@ -627,7 +627,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         instructors, vehicles, students, lessons, mastery, settings, invoices, payments,
         mpesaTransactions, bankTransactions,
         setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments,
-        addInstructor, addVehicle, addStudent, updateStudent, deleteStudent, addLesson, addMastery, updateSettings, addInvoice, addPayment,
+        addInstructor, addVehicle, addStudent, updateStudent, deleteStudent, addLesson, updateLesson, addMastery, updateSettings, addInvoice, addPayment,
         refreshData, stats
     };
 
