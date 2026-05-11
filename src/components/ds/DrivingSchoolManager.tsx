@@ -33,7 +33,11 @@ import type {
 } from '../../types';
 import { DSBroadcasterView } from './DSBroadcasterView';
 import { DSFinanceFeeds } from './DSFinanceFeeds';
-import { CreditCardIcon, BanknotesIcon } from '@heroicons/react/24/outline';
+import { 
+    CreditCard as CreditCardIcon, 
+    Banknote as BanknotesIcon 
+} from 'lucide-react';
+import { apiService } from '../../services/apiService';
 
 interface DrivingSchoolManagerProps {
     currentUser: User;
@@ -137,7 +141,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
     const [isActionLoading, setIsActionLoading] = useState(false);
     useEffect(() => {
         if (settings && !initialData) {
-            setFormData(prev => ({
+            setFormData((prev: any) => ({
                 ...prev,
                 studentId: type === 'student' && (!prev.studentId || prev.studentId.startsWith('ID-')) ? `${settings.studentIdPrefix || 'ID-'}${Date.now().toString().slice(-4)}` : prev.studentId,
                 invoiceNumber: type === 'invoice' && (!prev.invoiceNumber || prev.invoiceNumber.startsWith('INV-')) ? `${settings.invoicePrefix || 'INV-'}${Date.now().toString().slice(-4)}` : prev.invoiceNumber,
@@ -522,6 +526,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         updateSettings: onUpdateSettings,
         addInvoice: onAddInvoice,
         addPayment: onAddPayment,
+        loadDSData,
         mpesaTransactions,
         bankTransactions
     } = useDrivingSchool();
@@ -1070,8 +1075,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                 
                                                 // Update transaction metadata to mark as reconciled
                                                 await apiService.updateModuleRecord(type === 'bank' ? 'bank_transactions' : 'mpesa_transactions', tid, {
-                                                    metadata: { ...(transaction.metadata || {}), reconciled: true, reconciledAt: new Date().toISOString() }
-                                                });
+                                                    metadata: { ...((transaction as any).metadata || {}), reconciled: true, reconciledAt: new Date().toISOString() }
+                                                } as any);
                                                 
                                                 await loadDSData();
                                             } catch (err) {
