@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS ds_votes (
     UNIQUE(vote_name, institution_id)
 );
 
+-- Extend ds_settings table with atomic cache columns
+ALTER TABLE ds_settings ADD COLUMN IF NOT EXISTS license_categories JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE ds_settings ADD COLUMN IF NOT EXISTS votes JSONB DEFAULT '[]'::jsonb;
+
 -- Enable RLS for new tables
 ALTER TABLE ds_license_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ds_votes ENABLE ROW LEVEL SECURITY;

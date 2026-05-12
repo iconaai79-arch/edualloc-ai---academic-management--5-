@@ -81,7 +81,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         setIsLoading(true);
         console.log(`[DSContext] loadDSData: Starting fetch for institutionId=${institutionId}`);
         try {
-            const [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay, dsMpe, dsBnk] = await Promise.all([
+            const [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay, dsMpe, dsBnk, dsVotesStandalone, dsCatsStandalone] = await Promise.all([
                 apiService.fetchModuleRecords<DSInstructor>('ds_instructors', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<DSVehicle>('ds_vehicles', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<DSStudent>('ds_students', institutionId).catch(() => []),
@@ -92,6 +92,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 apiService.fetchModuleRecords<DSPayment>('ds_payments', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<MpesaTransaction>('mpesa_transactions', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<BankTransaction>('bank_transactions', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<any>('ds_votes', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<any>('ds_license_categories', institutionId).catch(() => []),
             ]);
 
             console.log(`[DSContext] loadDSData: Fetched ${dsInst.length} instructors, ${dsVeh.length} vehicles, ${dsStud.length} students, ${dsLess.length} lessons`);
@@ -101,7 +103,26 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             setStudents(dsStud || []);
             setLessons(dsLess || []);
             setMastery(dsMast || []);
-            setSettings(dsSet && dsSet.length > 0 ? dsSet[0] : null);
+
+            // Safely consolidate embedded cache columns with standalone DB rows
+            let baseSettings: any = dsSet && dsSet.length > 0 ? dsSet[0] : null;
+            if (baseSettings) {
+                const mergedVotes = baseSettings.votes?.length ? baseSettings.votes : (dsVotesStandalone || []);
+                const mergedCats = baseSettings.licenseCategories?.length ? baseSettings.licenseCategories : (dsCatsStandalone || []);
+                baseSettings = {
+                    ...baseSettings,
+                    votes: mergedVotes,
+                    licenseCategories: mergedCats
+                };
+            } else {
+                baseSettings = {
+                    id: `ds_settings_${institutionId}`,
+                    institutionId,
+                    votes: dsVotesStandalone || [],
+                    licenseCategories: dsCatsStandalone || []
+                };
+            }
+            setSettings(baseSettings);
             setInvoices(dsInvs || []);
             setPayments(dsPay || []);
             setMpesaTransactions(dsMpe || []);
@@ -594,8 +615,28 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 }
             }
 
+            // Mirror votes to ds_votes table
+            if (data.votes && Array.isArray(data.votes)) {
+                for (const vt of data.votes) {
+                    await apiService.saveModuleRecord('ds_votes', {
+                        ...vt,
+                        institutionId
+                    }).catch(err => console.error("[DS Context] Failed to sync vote:", vt.id, err));
+                }
+            }
+
+            // Mirror license categories to ds_license_categories table
+            if (data.licenseCategories && Array.isArray(data.licenseCategories)) {
+                for (const cat of data.licenseCategories) {
+                    await apiService.saveModuleRecord('ds_license_categories', {
+                        ...cat,
+                        institutionId
+                    }).catch(err => console.error("[DS Context] Failed to sync category:", cat.id, err));
+                }
+            }
+
             const count = data.feeStructures?.length || 0;
-            success(`Settings saved: ${count} fee structures synchronized.`);
+            success(`Settings saved successfully.`);
             await onRefresh();
         } catch (err) {
             console.error("[DS Context] Save Error:", err);
