@@ -122,8 +122,60 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
     const addInstructor = useCallback(async (data: any) => {
         try {
-            await apiService.saveModuleRecord('ds_instructors', { ...data, id: `inst_${Date.now()}`, institutionId });
+            const userId = `u_${Date.now()}`;
+            const generatedPassword = Math.random().toString(36).slice(-8).toUpperCase();
+            const userEmail = data.email || `${userId}@ds.local`;
+
+            // 1. Register central user account for portal login
+            try {
+                await apiService.registerUser({
+                    id: userId,
+                    name: data.name,
+                    email: userEmail,
+                    password: generatedPassword,
+                    role: 'driving_instructor',
+                    institutionId,
+                    status: 'active'
+                } as any);
+
+                // Persist phone number directly to bypass generic SMS dispatchers
+                await apiService.saveUser({
+                    id: userId,
+                    name: data.name,
+                    email: userEmail,
+                    phoneNumber: data.phone,
+                    password: generatedPassword,
+                    role: 'driving_instructor',
+                    institutionId,
+                    status: 'active'
+                } as any);
+            } catch (e) {
+                console.warn("Platform instructor registration warning:", e);
+            }
+
+            const instId = `inst_${Date.now()}`;
+            await apiService.saveModuleRecord('ds_instructors', { ...data, id: instId, userId, institutionId });
             success("Instructor added successfully");
+
+            // Automated Welcome Credentials via SMS
+            if (data.phone && data.phone.trim().length >= 9) {
+                try {
+                    const insts = await apiService.fetchModuleRecords('institutions', institutionId);
+                    const inst = insts?.[0] || { name: 'Driving School' };
+                    const companySettings = await apiService.fetchCompanySettings().catch(() => null);
+                    const portalTitle = inst.name || 'Driving School';
+                    const activeSmsConfig = inst.smsConfig || companySettings?.smsConfig;
+
+                    const portalUrl = window.location.origin;
+                    const smsMsg = `Welcome to ${portalTitle}! Your Driving Instructor account is ready.\nPortal: ${portalUrl}\nUser ID: ${data.phone}\nTemp Password: ${generatedPassword}`;
+                    
+                    await apiService.sendSms(data.phone, smsMsg, activeSmsConfig, 1, institutionId);
+                    console.log("[DS Automation] Welcome credentials SMS dispatched to instructor:", data.phone);
+                } catch (smsErr) {
+                    console.error("[DS Automation] Failed to dispatch instructor welcome SMS:", smsErr);
+                }
+            }
+
             await onRefresh();
         } catch (err) {
             error("Failed to add instructor");
@@ -209,14 +261,28 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
         try {
             const userId = `u_${Date.now()}`;
+            const generatedPassword = Math.random().toString(36).slice(-8).toUpperCase();
+            const userEmail = data.email || `${userId}@ds.local`;
             
             // 1. Create platform user account so they appear in global student views
             try {
                 await apiService.registerUser({
                     id: userId,
                     name: data.fullName,
-                    email: data.email || `${userId}@ds.local`,
+                    email: userEmail,
+                    password: generatedPassword,
+                    role: 'student',
+                    institutionId,
+                    status: 'active'
+                } as any);
+
+                // Ensure the phone number is correctly persisted on the user record directly
+                await apiService.saveUser({
+                    id: userId,
+                    name: data.fullName,
+                    email: userEmail,
                     phoneNumber: data.phone,
+                    password: generatedPassword,
                     role: 'student',
                     institutionId,
                     status: 'active'
@@ -242,6 +308,26 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             
             await apiService.saveModuleRecord('ds_students', newStudent);
             success("Student enrolled successfully");
+
+            // Automated Welcome Credentials via SMS
+            if (data.phone && data.phone.trim().length >= 9) {
+                try {
+                    const insts = await apiService.fetchModuleRecords('institutions', institutionId);
+                    const inst = insts?.[0] || { name: 'Driving School' };
+                    const companySettings = await apiService.fetchCompanySettings().catch(() => null);
+                    const portalTitle = inst.name || 'Driving School';
+                    const activeSmsConfig = inst.smsConfig || companySettings?.smsConfig;
+
+                    const portalUrl = window.location.origin;
+                    const smsMsg = `Welcome to ${portalTitle}! Your Driving School account is ready.\nPortal: ${portalUrl}\nUser ID: ${admNumber}\nTemp Password: ${generatedPassword}`;
+                    
+                    await apiService.sendSms(data.phone, smsMsg, activeSmsConfig, 1, institutionId);
+                    console.log("[DS Automation] Welcome credentials SMS dispatched to student:", data.phone);
+                } catch (smsErr) {
+                    console.error("[DS Automation] Failed to dispatch student welcome SMS:", smsErr);
+                }
+            }
+
             await onRefresh();
         } catch (err) {
             error("Failed to enroll student");
