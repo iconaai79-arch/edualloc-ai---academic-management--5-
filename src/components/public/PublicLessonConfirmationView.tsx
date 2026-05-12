@@ -82,10 +82,12 @@ export const PublicLessonConfirmationView: React.FC<PublicLessonConfirmationView
 
             // Dispatch instant status alerts if appropriate
             if (instructor?.phone && institution) {
+                const companySettings = await apiService.fetchCompanySettings().catch(() => null);
+                const activeSmsConfig = companySettings?.smsConfig || institution.smsConfig;
                 const msgText = newStatus === 'Confirmed'
                     ? `Update: Student ${student?.fullName || 'Assigned Student'} confirmed attendance for lesson on ${lesson.lessonDate || lesson.date} at ${lesson.startTime}.`
                     : `Alert: Student ${student?.fullName || 'Assigned Student'} requested a reschedule for lesson on ${lesson.lessonDate || lesson.date} at ${lesson.startTime}.`;
-                apiService.sendSms(instructor.phone, msgText, institution.smsConfig, 1, institution.id).catch(() => {});
+                apiService.sendSms(instructor.phone, msgText, activeSmsConfig, 1, institution.id).catch(() => {});
             }
         } catch (err) {
             console.error("Status update error:", err);

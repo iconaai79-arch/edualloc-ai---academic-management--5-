@@ -304,7 +304,9 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         try {
             const insts = await apiService.fetchModuleRecords('institutions', institutionId);
             const inst = insts?.[0] || { name: 'Driving School' };
+            const companySettings = await apiService.fetchCompanySettings().catch(() => null);
             const portalTitle = inst.name || 'Driving School';
+            const activeSmsConfig = companySettings?.smsConfig || inst.smsConfig;
 
             // 1. Notification for Student
             const actionLink = `${window.location.origin}/ds/lesson/${lesson.id}/manage`;
@@ -326,15 +328,11 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             }
  
             if (student.phone) {
-                if ((inst.smsBalance || 0) <= 0) {
-                    console.warn(`[DS Automation] SMS failed: Insufficient balance (${inst.smsBalance} units)`);
-                } else {
-                    const sms = isReminder 
-                        ? `Reminder: Your ${portalTitle} lesson with ${instructor.name} starts at ${lesson.startTime}. Be ready!`
-                        : `Hello ${student.fullName}, your ${portalTitle} lesson is scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime}. Manage here: ${actionLink}`;
-                    
-                    await apiService.sendSms(student.phone, sms, undefined, 1, institutionId).catch(e => console.error("SMS to student failed", e));
-                }
+                const sms = isReminder 
+                    ? `Reminder: Your ${portalTitle} lesson with ${instructor.name} starts at ${lesson.startTime}. Be ready!`
+                    : `Hello ${student.fullName}, your ${portalTitle} lesson is scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime}. Manage here: ${actionLink}`;
+                
+                await apiService.sendSms(student.phone, sms, activeSmsConfig, 1, institutionId).catch(e => console.error("SMS to student failed", e));
             }
 
             // 2. Notification for Instructor
@@ -353,15 +351,11 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             }
 
             if (instructor.phone) {
-                if ((inst.smsBalance || 0) <= 0) {
-                    console.warn(`[DS Automation] Instructor SMS failed: Insufficient balance`);
-                } else {
-                    const sms = isReminder
-                        ? `Reminder: Your lesson with ${student.fullName} starts at ${lesson.startTime}. Vehicle: ${vehicle?.plateNumber || 'N/A'}.`
-                        : `Hello ${instructor.name}, a new lesson with ${student.fullName} has been scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime}.`;
-                    
-                    await apiService.sendSms(instructor.phone, sms, undefined, 1, institutionId).catch(e => console.error("SMS to instructor failed", e));
-                }
+                const sms = isReminder
+                    ? `Reminder: Your lesson with ${student.fullName} starts at ${lesson.startTime}. Vehicle: ${vehicle?.plateNumber || 'N/A'}.`
+                    : `Hello ${instructor.name}, a new lesson with ${student.fullName} has been scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime}.`;
+                
+                await apiService.sendSms(instructor.phone, sms, activeSmsConfig, 1, institutionId).catch(e => console.error("SMS to instructor failed", e));
             }
 
             console.log(`[DS Automation] ${isReminder ? 'Reminder' : 'Initial'} notifications sent for lesson ${lesson.id}`);
