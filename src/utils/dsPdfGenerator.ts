@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { DSInvoice, DSPayment, DSStudent, DSSettings } from '../types';
+import { apiService } from '../services/apiService';
 
 // Internal utility to load images safely for PDF insertion
 const loadImage = (url: string | null | undefined): Promise<HTMLImageElement | null> => {
@@ -28,8 +29,11 @@ export const generateDSPDF = async (
     const margin = 20;
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Letterhead Support
-    const letterheadUrl = institution?.letterheadConfig?.headerImageUrl || institution?.letterheadUrl;
+    // Fetch system-wide default company settings to support global letterhead fallback
+    const companyDetails = await apiService.fetchCompanySettings().catch(() => null);
+
+    // Letterhead Support cascade: Institution -> System Default
+    const letterheadUrl = institution?.letterheadConfig?.headerImageUrl || institution?.letterheadUrl || companyDetails?.letterheadConfig?.headerImageUrl || companyDetails?.letterheadUrl || (companyDetails as any)?.logoUrl;
     const headerImg = await loadImage(letterheadUrl);
 
     let currentY = 30;
