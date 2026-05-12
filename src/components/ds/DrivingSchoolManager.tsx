@@ -142,48 +142,127 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
     );
 };
 
-const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => void, students: DSStudent[], instructors: DSInstructor[], vehicles: DSVehicle[], lessons: DSLesson[], invoices: DSInvoice[], onSave: (data: any) => Promise<void>, settings: DSSettings | null, initialData?: any, currentInstitution?: any, departments?: any[] }> = ({ type, onClose, students, instructors, vehicles, lessons, invoices, onSave, settings, initialData, currentInstitution, departments }) => {
+const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => void, students: DSStudent[], instructors: DSInstructor[], vehicles: DSVehicle[], lessons: DSLesson[], invoices: DSInvoice[], payments: DSPayment[], onSave: (data: any) => Promise<void>, settings: DSSettings | null, initialData?: any, currentInstitution?: any, departments?: any[] }> = ({ type, onClose, students, instructors, vehicles, lessons, invoices, payments, onSave, settings, initialData, currentInstitution, departments }) => {
     const { success: toastSuccess, error: toastError } = useToast();
     const [isActionLoading, setIsActionLoading] = useState(false);
 
     const nextAdmissionNumber = useMemo(() => {
-        const prefix = (settings?.studentIdPrefix || 'ADM-').trim();
-        let maxNum = 0;
-        students.forEach(s => {
-            if (s.admissionNumber && s.admissionNumber.toUpperCase().startsWith(prefix.toUpperCase())) {
-                const remainder = s.admissionNumber.slice(prefix.length).trim();
-                const match = remainder.match(/\d+/);
-                if (match) {
-                    const num = parseInt(match[0], 10);
-                    if (!isNaN(num) && num > maxNum) {
-                        maxNum = num;
+        const prefixStr = (settings?.studentIdPrefix || 'ADM-').trim();
+        const asNum = Number(prefixStr);
+        if (!isNaN(asNum) && prefixStr !== '') {
+            let maxVal = asNum;
+            students.forEach(s => {
+                if (s.admissionNumber) {
+                    const sNum = Number(s.admissionNumber.trim());
+                    if (!isNaN(sNum) && sNum >= asNum && sNum > maxVal) {
+                        maxVal = sNum;
                     }
                 }
-            }
-        });
-        return `${prefix}${String(maxNum + 1).padStart(3, '0')}`;
+            });
+            return String(maxVal + 1);
+        } else {
+            let maxNum = 0;
+            students.forEach(s => {
+                if (s.admissionNumber && s.admissionNumber.toUpperCase().startsWith(prefixStr.toUpperCase())) {
+                    const remainder = s.admissionNumber.slice(prefixStr.length).trim();
+                    const match = remainder.match(/\d+/);
+                    if (match) {
+                        const num = parseInt(match[0], 10);
+                        if (!isNaN(num) && num > maxNum) {
+                            maxNum = num;
+                        }
+                    }
+                }
+            });
+            return `${prefixStr}${String(maxNum + 1).padStart(3, '0')}`;
+        }
     }, [settings?.studentIdPrefix, students]);
+
+    const nextInvoiceNumber = useMemo(() => {
+        const prefixStr = (settings?.invoicePrefix || 'INV-').trim();
+        const asNum = Number(prefixStr);
+        if (!isNaN(asNum) && prefixStr !== '') {
+            let maxVal = asNum;
+            invoices.forEach(inv => {
+                if (inv.invoiceNumber) {
+                    const num = Number(inv.invoiceNumber.trim());
+                    if (!isNaN(num) && num >= asNum && num > maxVal) {
+                        maxVal = num;
+                    }
+                }
+            });
+            return String(maxVal + 1);
+        } else {
+            let maxNum = 0;
+            invoices.forEach(inv => {
+                if (inv.invoiceNumber && inv.invoiceNumber.toUpperCase().startsWith(prefixStr.toUpperCase())) {
+                    const remainder = inv.invoiceNumber.slice(prefixStr.length).trim();
+                    const match = remainder.match(/\d+/);
+                    if (match) {
+                        const num = parseInt(match[0], 10);
+                        if (!isNaN(num) && num > maxNum) {
+                            maxNum = num;
+                        }
+                    }
+                }
+            });
+            return `${prefixStr}${String(maxNum + 1).padStart(3, '0')}`;
+        }
+    }, [settings?.invoicePrefix, invoices]);
+
+    const nextReceiptNumber = useMemo(() => {
+        const prefixStr = (settings?.receiptPrefix || 'REC-').trim();
+        const asNum = Number(prefixStr);
+        if (!isNaN(asNum) && prefixStr !== '') {
+            let maxVal = asNum;
+            payments.forEach(pay => {
+                if (pay.receiptNumber) {
+                    const num = Number(pay.receiptNumber.trim());
+                    if (!isNaN(num) && num >= asNum && num > maxVal) {
+                        maxVal = num;
+                    }
+                }
+            });
+            return String(maxVal + 1);
+        } else {
+            let maxNum = 0;
+            payments.forEach(pay => {
+                if (pay.receiptNumber && pay.receiptNumber.toUpperCase().startsWith(prefixStr.toUpperCase())) {
+                    const remainder = pay.receiptNumber.slice(prefixStr.length).trim();
+                    const match = remainder.match(/\d+/);
+                    if (match) {
+                        const num = parseInt(match[0], 10);
+                        if (!isNaN(num) && num > maxNum) {
+                            maxNum = num;
+                        }
+                    }
+                }
+            });
+            return `${prefixStr}${String(maxNum + 1).padStart(3, '0')}`;
+        }
+    }, [settings?.receiptPrefix, payments]);
 
     useEffect(() => {
         if (settings && !initialData) {
             setFormData((prev: any) => ({
                 ...prev,
                 admissionNumber: type === 'student' ? nextAdmissionNumber : prev.admissionNumber,
-                invoiceNumber: type === 'invoice' ? `${settings.invoicePrefix || 'INV-'}${Date.now().toString().slice(-4)}` : prev.invoiceNumber,
-                receiptNumber: type === 'payment' ? `${settings.receiptPrefix || 'REC-'}${Date.now().toString().slice(-4)}` : prev.receiptNumber
+                courseDurationDays: type === 'student' ? (settings.schedulingRules?.requiredDaysToComplete || settings.defaultCourseDuration || 21) : prev.courseDurationDays,
+                invoiceNumber: type === 'invoice' ? nextInvoiceNumber : prev.invoiceNumber,
+                receiptNumber: type === 'payment' ? nextReceiptNumber : prev.receiptNumber
             }));
         }
-    }, [settings, type, initialData, nextAdmissionNumber]);
+    }, [settings, type, initialData, nextAdmissionNumber, nextInvoiceNumber, nextReceiptNumber]);
 
     const [formData, setFormData] = useState<any>(() => {
         const base = initialData || {
             status: type === 'student' ? 'Enrolled' : type === 'instructor' ? 'Active' : type === 'vehicle' ? 'Operational' : 'Scheduled',
             admissionNumber: type === 'student' ? nextAdmissionNumber : undefined,
-            invoiceNumber: type === 'invoice' ? `${settings?.invoicePrefix || 'INV-'}${Date.now().toString().slice(-4)}` : undefined,
-            receiptNumber: type === 'payment' ? `${settings?.receiptPrefix || 'REC-'}${Date.now().toString().slice(-4)}` : undefined
+            invoiceNumber: type === 'invoice' ? nextInvoiceNumber : undefined,
+            receiptNumber: type === 'payment' ? nextReceiptNumber : undefined
         };
         if (!initialData) {
-            if (type === 'student') return { ...base, enrollmentDate: new Date().toISOString().split('T')[0], theoryProgressPercent: 0, practicalProgressPercent: 0 };
+            if (type === 'student') return { ...base, courseDurationDays: settings?.schedulingRules?.requiredDaysToComplete || settings?.defaultCourseDuration || 21, enrollmentDate: new Date().toISOString().split('T')[0], theoryProgressPercent: 0, practicalProgressPercent: 0 };
             if (type === 'lesson') return { ...base, lessonDate: new Date().toISOString().split('T')[0], startTime: '08:00', endTime: '09:00', lessonType: 'Practical' };
             if (type === 'vehicle') return { ...base, transmission: 'Manual', capacity: 1 };
             if (type === 'instructor') return { ...base, rating: 5, instructorType: 'Driving Instructor' };
@@ -275,12 +354,15 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <input required type="date" value={formData.enrollmentDate || ''} onChange={e => setFormData({...formData, enrollmentDate: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Required Days to Complete</label>
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Required Days to Complete</label>
+                                        <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/40 px-2 py-0.5 rounded">Configured in Settings</span>
+                                    </div>
                                     <input 
                                         type="number" 
-                                        value={formData.courseDurationDays || settings?.schedulingRules?.requiredDaysToComplete || ''} 
-                                        onChange={e => setFormData({...formData, courseDurationDays: parseInt(e.target.value) || 0})} 
-                                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" 
+                                        disabled
+                                        value={formData.courseDurationDays || settings?.schedulingRules?.requiredDaysToComplete || settings?.defaultCourseDuration || ''} 
+                                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold disabled:opacity-80 disabled:cursor-not-allowed" 
                                         placeholder="e.g. 21"
                                     />
                                 </div>
@@ -2194,6 +2276,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         instructors={normalizedInstructors}
                         vehicles={vehicles}
                         lessons={lessons}
+                        payments={payments}
                         settings={settings}
                         initialData={actionModal.initialData}
                         departments={departments}

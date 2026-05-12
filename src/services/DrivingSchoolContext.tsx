@@ -166,21 +166,35 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         
         let admNumber = data.admissionNumber;
         if (!admNumber) {
-            const prefix = (settings?.studentIdPrefix || 'ADM-').trim();
-            let maxNum = 0;
-            students.forEach(s => {
-                if (s.admissionNumber && s.admissionNumber.toUpperCase().startsWith(prefix.toUpperCase())) {
-                    const remainder = s.admissionNumber.slice(prefix.length).trim();
-                    const match = remainder.match(/\d+/);
-                    if (match) {
-                        const num = parseInt(match[0], 10);
-                        if (!isNaN(num) && num > maxNum) {
-                            maxNum = num;
+            const prefixStr = (settings?.studentIdPrefix || 'ADM-').trim();
+            const asNum = Number(prefixStr);
+            if (!isNaN(asNum) && prefixStr !== '') {
+                let maxVal = asNum;
+                students.forEach(s => {
+                    if (s.admissionNumber) {
+                        const sNum = Number(s.admissionNumber.trim());
+                        if (!isNaN(sNum) && sNum >= asNum && sNum > maxVal) {
+                            maxVal = sNum;
                         }
                     }
-                }
-            });
-            admNumber = `${prefix}${String(maxNum + 1).padStart(3, '0')}`;
+                });
+                admNumber = String(maxVal + 1);
+            } else {
+                let maxNum = 0;
+                students.forEach(s => {
+                    if (s.admissionNumber && s.admissionNumber.toUpperCase().startsWith(prefixStr.toUpperCase())) {
+                        const remainder = s.admissionNumber.slice(prefixStr.length).trim();
+                        const match = remainder.match(/\d+/);
+                        if (match) {
+                            const num = parseInt(match[0], 10);
+                            if (!isNaN(num) && num > maxNum) {
+                                maxNum = num;
+                            }
+                        }
+                    }
+                });
+                admNumber = `${prefixStr}${String(maxNum + 1).padStart(3, '0')}`;
+            }
         } else {
             // 0. Validate Admission Number Uniqueness
             const isDuplicate = students.some(s => 
@@ -570,11 +584,44 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
     const addInvoice = useCallback(async (data: any) => {
         try {
+            let invNumber = data.invoiceNumber;
+            if (!invNumber) {
+                const prefixStr = (settings?.invoicePrefix || 'INV-').trim();
+                const asNum = Number(prefixStr);
+                if (!isNaN(asNum) && prefixStr !== '') {
+                    let maxVal = asNum;
+                    invoices.forEach(inv => {
+                        if (inv.invoiceNumber) {
+                            const num = Number(inv.invoiceNumber.trim());
+                            if (!isNaN(num) && num >= asNum && num > maxVal) {
+                                maxVal = num;
+                            }
+                        }
+                    });
+                    invNumber = String(maxVal + 1);
+                } else {
+                    let maxNum = 0;
+                    invoices.forEach(inv => {
+                        if (inv.invoiceNumber && inv.invoiceNumber.toUpperCase().startsWith(prefixStr.toUpperCase())) {
+                            const remainder = inv.invoiceNumber.slice(prefixStr.length).trim();
+                            const match = remainder.match(/\d+/);
+                            if (match) {
+                                const num = parseInt(match[0], 10);
+                                if (!isNaN(num) && num > maxNum) {
+                                    maxNum = num;
+                                }
+                            }
+                        }
+                    });
+                    invNumber = `${prefixStr}${String(maxNum + 1).padStart(3, '0')}`;
+                }
+            }
+
             const inv = {
                 ...data,
                 id: `inv_${Date.now()}`,
                 institutionId,
-                invoiceNumber: data.invoiceNumber || `${settings?.invoicePrefix || 'INV-'}${Date.now().toString().slice(-6)}`,
+                invoiceNumber: invNumber,
                 items: (data.items || []).map((it: any) => ({ ...it, paidAmount: 0 })),
                 status: 'Pending',
                 paidAmount: 0,
@@ -592,15 +639,48 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to generate invoice");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error, students, settings, sendDocumentNotification]);
+    }, [institutionId, onRefresh, success, error, students, settings, invoices, sendDocumentNotification]);
 
     const addPayment = useCallback(async (data: any) => {
         try {
+            let recNumber = data.receiptNumber;
+            if (!recNumber) {
+                const prefixStr = (settings?.receiptPrefix || 'REC-').trim();
+                const asNum = Number(prefixStr);
+                if (!isNaN(asNum) && prefixStr !== '') {
+                    let maxVal = asNum;
+                    payments.forEach(pay => {
+                        if (pay.receiptNumber) {
+                            const num = Number(pay.receiptNumber.trim());
+                            if (!isNaN(num) && num >= asNum && num > maxVal) {
+                                maxVal = num;
+                            }
+                        }
+                    });
+                    recNumber = String(maxVal + 1);
+                } else {
+                    let maxNum = 0;
+                    payments.forEach(pay => {
+                        if (pay.receiptNumber && pay.receiptNumber.toUpperCase().startsWith(prefixStr.toUpperCase())) {
+                            const remainder = pay.receiptNumber.slice(prefixStr.length).trim();
+                            const match = remainder.match(/\d+/);
+                            if (match) {
+                                const num = parseInt(match[0], 10);
+                                if (!isNaN(num) && num > maxNum) {
+                                    maxNum = num;
+                                }
+                            }
+                        }
+                    });
+                    recNumber = `${prefixStr}${String(maxNum + 1).padStart(3, '0')}`;
+                }
+            }
+
             const pay = { 
                 ...data, 
                 id: `pay_${Date.now()}`, 
                 institutionId,
-                receiptNumber: data.receiptNumber || `${settings?.receiptPrefix || 'REC-'}${Date.now().toString().slice(-6)}`,
+                receiptNumber: recNumber,
                 paymentDate: new Date().toISOString()
             };
 
@@ -670,7 +750,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to record payment");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error, students, settings, invoices, sendDocumentNotification]);
+    }, [institutionId, onRefresh, success, error, students, settings, invoices, payments, sendDocumentNotification]);
 
     const stats = useMemo(() => ({
         totalStudents: students.length,
