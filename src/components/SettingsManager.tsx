@@ -4021,6 +4021,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                     <UserManager
                         {...props}
                         logoUrl={props.logoUrl || null}
+                        footerImageUrl={props.footerImageUrl || null}
                         isDS={isDS}
                         user={props.currentUser}
                         showOnly="staff"
@@ -4069,6 +4070,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                     <CourseManager
                         {...props}
                         logoUrl={props.logoUrl || null}
+                        footerImageUrl={props.footerImageUrl || null}
                         academicLevels={props.academicLevels || []}
                         courses={props.courses || []}
                         onAddCourse={props.onAddCourse}
