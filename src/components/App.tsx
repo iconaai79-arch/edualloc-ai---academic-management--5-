@@ -8,6 +8,7 @@ import { MandatoryUpdateView } from './MandatoryUpdateView';
 import { SuspendedAccountView } from './SuspendedAccountView';
 import { TrialExpiredView } from './TrialExpiredView';
 import { PublicAppointmentView } from './PublicAppointmentView';
+import { PublicLessonConfirmationView } from './public/PublicLessonConfirmationView';
 import { GuestFeedbackView } from './GuestFeedbackView';
 import { ProfileModal } from './ProfileModal';
 import { SecurityView, StoreView, InfoDeskView, SupplierView, TransportAssistantView } from './SupportStaffViews';
@@ -407,6 +408,15 @@ export const App: React.FC = () => {
         } catch (e) { return null; }
     });
 
+    const [targetManageLessonId, setTargetManageLessonId] = useState<string | null>(() => {
+        try {
+            const path = window.location.pathname;
+            const match = path.match(/^\/ds\/lesson\/([^\/]+)\/manage\/?$/);
+            if (match && match[1]) return match[1];
+            return null;
+        } catch (e) { return null; }
+    });
+
     const [showMarketing, setShowMarketing] = useState(() => {
         try {
             const params = new URLSearchParams(window.location.search);
@@ -417,13 +427,15 @@ export const App: React.FC = () => {
             // Subdomain detection for Alumnae Portal
             const isAlumnaeSubdomain = hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.startsWith('network.') || hostname.startsWith('circle.') || hostname.includes('almamater') || hostname.includes('alma_mater');
             
+            const isLessonManageLink = !!window.location.pathname.match(/^\/ds\/lesson\/([^\/]+)\/manage\/?$/);
+
             if (isMarketingSubdomain || params.get('view') === 'showcase') return true;
-            if (isAlumnaeSubdomain) return false; // Don't show marketing if on alumnae subdomain
+            if (isAlumnaeSubdomain || isLessonManageLink) return false; // Don't show marketing if on alumnae subdomain or lesson link
             
             const isAlumnaeDeepLink = params.get('school') || params.get('alumnae') || params.get('view') === 'alumnae_register' || params.get('view') === 'alumnae_social' || params.get('view') === 'alumnae_portal';
             const isPasswordReset = !!params.get('resetToken');
             
-            return !currentUser && !showMarketplace && !showCommunityHub && !showGuestPortal && !showGuestFeedback && !showTenantStore && !showDrivingSchoolPortal && !isAlumnaeDeepLink && !isPasswordReset;
+            return !currentUser && !showMarketplace && !showCommunityHub && !showGuestPortal && !showGuestFeedback && !showTenantStore && !showDrivingSchoolPortal && !isAlumnaeDeepLink && !isPasswordReset && !isLessonManageLink;
         } catch (e) {
             return !currentUser && !window.location.search.includes('resetToken');
         }
@@ -4040,6 +4052,13 @@ export const App: React.FC = () => {
 
     return (
         <AppErrorBoundary>
+            {targetManageLessonId ? (
+                <PublicLessonConfirmationView 
+                    lessonId={targetManageLessonId} 
+                    onClose={() => { window.location.href = '/'; }} 
+                />
+            ) : (
+                <>
             {currentUser && (
                 <style dangerouslySetInnerHTML={{ __html: `
                     :root {
@@ -5172,6 +5191,8 @@ export const App: React.FC = () => {
                     />
                 )}
             </div>
+                </>
+            )}
         </AppErrorBoundary>
     );
 };

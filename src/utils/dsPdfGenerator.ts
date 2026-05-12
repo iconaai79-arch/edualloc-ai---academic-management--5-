@@ -33,7 +33,7 @@ export const generateDSPDF = async (
     const companyDetails = await apiService.fetchCompanySettings().catch(() => null);
 
     // Letterhead Support cascade: Institution -> System Default
-    const letterheadUrl = institution?.letterheadConfig?.headerImageUrl || institution?.letterheadUrl || companyDetails?.letterheadConfig?.headerImageUrl || companyDetails?.letterheadUrl || (companyDetails as any)?.logoUrl;
+    const letterheadUrl = institution?.letterheadConfig?.headerImageUrl || institution?.letterheadUrl || companyDetails?.letterheadConfig?.headerImageUrl || (companyDetails as any)?.letterheadUrl || (companyDetails as any)?.logoUrl;
     const headerImg = await loadImage(letterheadUrl);
 
     let currentY = 30;
