@@ -1,8 +1,62 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { DSStudent, DSInvoice, DSPayment, DSLesson, DSVehicle, DSInstructor, User } from '../types';
+import { apiService } from '../services/apiService';
 
-export const generateStudentStatement = (
+const loadImage = (url: string | null | undefined): Promise<HTMLImageElement | null> => {
+    return new Promise((resolve) => {
+        if (!url) return resolve(null);
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.src = url;
+        img.onload = () => resolve(img);
+        img.onerror = () => {
+            console.warn("Report Generator: Failed to load letterhead image.", url);
+            resolve(null);
+        };
+    });
+};
+
+const renderHeader = async (doc: any, institution: any, defaultTitle: string) => {
+    const margin = 20;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const companyDetails = await apiService.fetchCompanySettings().catch(() => null);
+    const letterheadUrl = institution?.letterheadConfig?.headerImageUrl || institution?.letterheadUrl || companyDetails?.letterheadConfig?.headerImageUrl || (companyDetails as any)?.letterheadUrl || (companyDetails as any)?.logoUrl;
+    const headerImg = await loadImage(letterheadUrl);
+
+    let currentY = 25;
+
+    if (headerImg) {
+        const imgWidth = pageWidth - (margin * 2);
+        const imgHeight = (headerImg.height * imgWidth) / headerImg.width;
+        const maxHeight = 45;
+
+        if (imgHeight > maxHeight) {
+            const finalHeight = maxHeight;
+            const finalWidth = (headerImg.width * finalHeight) / headerImg.height;
+            const xPos = (pageWidth - finalWidth) / 2;
+            doc.addImage(headerImg, 'JPEG', xPos, 15, finalWidth, finalHeight);
+            currentY = finalHeight + 25;
+        } else {
+            doc.addImage(headerImg, 'JPEG', margin, 15, imgWidth, imgHeight);
+            currentY = imgHeight + 25;
+        }
+    } else {
+        doc.setFontSize(20);
+        doc.setTextColor(79, 70, 229);
+        doc.text(String(institution?.name || 'Driving School'), margin, currentY);
+        currentY += 8;
+    }
+
+    doc.setFontSize(12);
+    doc.setTextColor(30, 41, 59);
+    doc.text(String(defaultTitle).toUpperCase(), margin, currentY);
+    currentY += 12;
+
+    return currentY;
+};
+
+export const generateStudentStatement = async (
     student: DSStudent,
     invoices: DSInvoice[],
     payments: DSPayment[],
@@ -12,22 +66,15 @@ export const generateStudentStatement = (
     const margin = 20;
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Header
-    doc.setFontSize(20);
-    doc.setTextColor(79, 70, 229);
-    doc.text(String(institution?.name || 'Driving School'), margin, 25);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text('STUDENT ACCOUNT STATEMENT', margin, 32);
+    let currentY = await renderHeader(doc, institution, 'STUDENT ACCOUNT STATEMENT');
 
     // Student Info
     doc.setFontSize(12);
     doc.setTextColor(30, 41, 59);
-    doc.text(`Student: ${String(student.fullName || 'N/A')}`, margin, 45);
+    doc.text(`Student: ${String(student.fullName || 'N/A')}`, margin, currentY);
     doc.setFontSize(10);
-    doc.text(`Phone: ${String(student.phone || 'N/A')}`, margin, 50);
-    doc.text(`ID/Reg No: ${String((student as any).idNumber || (student as any).passportNumber || 'N/A')}`, margin, 55);
+    doc.text(`Phone: ${String(student.phone || 'N/A')}`, margin, currentY + 5);
+    doc.text(`ID/Reg No: ${String((student as any).idNumber || (student as any).passportNumber || 'N/A')}`, margin, currentY + 10);
 
     // Summary Box
     const totalInvoiced = invoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
@@ -35,23 +82,25 @@ export const generateStudentStatement = (
     const balance = totalInvoiced - totalPaid;
 
     doc.setFillColor(248, 250, 252);
-    doc.roundedRect(pageWidth - margin - 70, 40, 70, 30, 5, 5, 'F');
+    doc.roundedRect(pageWidth - margin - 70, currentY - 5, 70, 30, 5, 5, 'F');
     doc.setTextColor(30, 41, 59);
     doc.setFontSize(9);
-    doc.text('TOTAL INVOICED:', pageWidth - margin - 65, 48);
-    doc.text('TOTAL PAID:', pageWidth - margin - 65, 55);
+    doc.text('TOTAL INVOICED:', pageWidth - margin - 65, currentY + 3);
+    doc.text('TOTAL PAID:', pageWidth - margin - 65, currentY + 10);
     doc.setFontSize(11);
-    doc.text('BALANCE DUE:', pageWidth - margin - 65, 65);
+    doc.text('BALANCE DUE:', pageWidth - margin - 65, currentY + 20);
     
     doc.setFontSize(9);
-    doc.text(`KES ${totalInvoiced.toLocaleString()}`, pageWidth - margin - 5, 48, { align: 'right' });
-    doc.text(`KES ${totalPaid.toLocaleString()}`, pageWidth - margin - 5, 55, { align: 'right' });
+    doc.text(`KES ${totalInvoiced.toLocaleString()}`, pageWidth - margin - 5, currentY + 3, { align: 'right' });
+    doc.text(`KES ${totalPaid.toLocaleString()}`, pageWidth - margin - 5, currentY + 10, { align: 'right' });
     
     if (balance > 0) doc.setTextColor(220, 38, 38);
     else doc.setTextColor(16, 185, 129);
     
     doc.setFontSize(11);
-    doc.text(`KES ${balance.toLocaleString()}`, pageWidth - margin - 5, 65, { align: 'right' });
+    doc.text(`KES ${balance.toLocaleString()}`, pageWidth - margin - 5, currentY + 20, { align: 'right' });
+
+    currentY += 35;
 
     // Ledger Table
     const ledger = [
@@ -84,7 +133,7 @@ export const generateStudentStatement = (
     });
 
     autoTable(doc, {
-        startY: 80,
+        startY: currentY,
         head: [['Date', 'Description', 'Debit (KES)', 'Credit (KES)', 'Balance (KES)']],
         body: tableData,
         theme: 'grid',
@@ -99,7 +148,7 @@ export const generateStudentStatement = (
     return doc;
 };
 
-export const generateLessonReport = (
+export const generateLessonReport = async (
     lessons: DSLesson[],
     students: DSStudent[],
     vehicles: DSVehicle[],
@@ -108,15 +157,7 @@ export const generateLessonReport = (
     institution: any
 ) => {
     const doc = new jsPDF('p', 'mm', 'a4');
-    const margin = 20;
-
-    doc.setFontSize(18);
-    doc.setTextColor(79, 70, 229);
-    doc.text(String(institution?.name || 'Driving School'), margin, 25);
-    
-    doc.setFontSize(12);
-    doc.setTextColor(30, 41, 59);
-    doc.text(String(title || 'REPORT').toUpperCase(), margin, 32);
+    let currentY = await renderHeader(doc, institution, title || 'REPORT');
 
     const tableData = lessons.map(l => {
         const student = students.find(s => s.id === l.studentId);
@@ -133,7 +174,7 @@ export const generateLessonReport = (
     });
 
     autoTable(doc, {
-        startY: 45,
+        startY: currentY + 5,
         head: [['Date', 'Time', 'Student', 'Instructor', 'Vehicle', 'Status']],
         body: tableData,
         theme: 'striped',
@@ -143,22 +184,14 @@ export const generateLessonReport = (
     return doc;
 };
 
-export const generateAttendanceSummary = (
+export const generateAttendanceSummary = async (
     lessons: DSLesson[],
     students: DSStudent[],
     title: string,
     institution: any
 ) => {
     const doc = new jsPDF('p', 'mm', 'a4');
-    const margin = 20;
-
-    doc.setFontSize(18);
-    doc.setTextColor(79, 70, 229);
-    doc.text(String(institution?.name || 'Driving School'), margin, 25);
-    
-    doc.setFontSize(12);
-    doc.setTextColor(30, 41, 59);
-    doc.text(String(title || 'ATTENDANCE').toUpperCase(), margin, 32);
+    let currentY = await renderHeader(doc, institution, title || 'ATTENDANCE');
 
     // Group by student
     const stats: Record<string, { present: number, total: number }> = {};
@@ -181,7 +214,7 @@ export const generateAttendanceSummary = (
     });
 
     autoTable(doc, {
-        startY: 45,
+        startY: currentY + 5,
         head: [['Student Name', 'Total Scheduled', 'Completed', 'Missed/Pending', 'Completion Rate']],
         body: tableData,
         theme: 'grid',
@@ -191,7 +224,7 @@ export const generateAttendanceSummary = (
     return doc;
 };
 
-export const generateIncomeReport = (
+export const generateIncomeReport = async (
     payments: DSPayment[],
     invoices: DSInvoice[],
     title: string,
@@ -200,19 +233,15 @@ export const generateIncomeReport = (
 ) => {
     const doc = new jsPDF('p', 'mm', 'a4');
     const margin = 20;
-
-    doc.setFontSize(18);
-    doc.setTextColor(79, 70, 229);
-    doc.text(String(institution?.name || 'Driving School'), margin, 25);
-    
-    doc.setFontSize(12);
-    doc.setTextColor(30, 41, 59);
-    doc.text(String(title || 'INCOME REPORT').toUpperCase(), margin, 32);
+    let currentY = await renderHeader(doc, institution, title || 'INCOME REPORT');
 
     if (voteHead) {
         doc.setFontSize(10);
         doc.setTextColor(100, 100, 100);
-        doc.text(`Filtered by Vote Head: ${voteHead}`, margin, 38);
+        doc.text(`Filtered by Vote Head: ${voteHead}`, margin, currentY);
+        currentY += 8;
+    } else {
+        currentY += 4;
     }
 
     const tableData = payments.map(p => {
@@ -244,7 +273,7 @@ export const generateIncomeReport = (
     const total = tableData.reduce((sum, row) => sum + parseFloat(row[5].replace(/,/g, '')), 0);
 
     autoTable(doc, {
-        startY: voteHead ? 45 : 40,
+        startY: currentY,
         head: [['Date', 'Receipt', 'Student', 'Method', 'Ref', 'Amount (KES)']],
         body: tableData,
         theme: 'striped',
@@ -257,7 +286,7 @@ export const generateIncomeReport = (
     return doc;
 };
 
-export const generateBalanceReport = (
+export const generateBalanceReport = async (
     students: DSStudent[],
     invoices: DSInvoice[],
     payments: DSPayment[],
@@ -267,19 +296,15 @@ export const generateBalanceReport = (
 ) => {
     const doc = new jsPDF('p', 'mm', 'a4');
     const margin = 20;
-
-    doc.setFontSize(18);
-    doc.setTextColor(79, 70, 229);
-    doc.text(String(institution?.name || 'Driving School'), margin, 25);
-    
-    doc.setFontSize(12);
-    doc.setTextColor(30, 41, 59);
-    doc.text(String(title || 'ARREARS REPORT').toUpperCase(), margin, 32);
+    let currentY = await renderHeader(doc, institution, title || 'ARREARS REPORT');
 
     if (voteHead) {
         doc.setFontSize(10);
         doc.setTextColor(100, 100, 100);
-        doc.text(`Filtered by Vote Head: ${voteHead}`, margin, 38);
+        doc.text(`Filtered by Vote Head: ${voteHead}`, margin, currentY);
+        currentY += 8;
+    } else {
+        currentY += 4;
     }
 
     const tableData = students.map(s => {
@@ -290,18 +315,11 @@ export const generateBalanceReport = (
         let totalPaid = 0;
 
         if (voteHead) {
-            // Calculate specific vote head balance
             sInvoices.forEach(inv => {
                 const item = inv.items?.find(i => i.name.toLowerCase().includes(voteHead.toLowerCase()));
                 if (item) totalInvoiced += item.amount;
             });
-            // This is a simplification: assuming payments are applied proportionally or we just look at total paid vs total invoiced for that vote head
-            // In a real system, we'd have payment allocations per vote head.
-            // For now, let's just show total invoiced for that head.
-            // Wait, if I don't know how much of the payment went to which head, I can't calculate a correct balance per head.
-            // But let's assume if they paid KES 5000 and Tuition was 15000, balance is 10000.
             totalPaid = sPayments.reduce((sum, pay) => sum + (pay.amount || 0), 0);
-            // Limit paid to invoiced for this head for display purposes if we don't have allocation
             totalPaid = Math.min(totalPaid, totalInvoiced);
         } else {
             totalInvoiced = sInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
@@ -324,7 +342,7 @@ export const generateBalanceReport = (
     const totalBalance = tableData.reduce((sum, row) => sum + parseFloat(row[4].replace(/,/g, '')), 0);
 
     autoTable(doc, {
-        startY: 40,
+        startY: currentY,
         head: [['Student Name', 'Phone', 'Invoiced (KES)', 'Paid (KES)', 'Balance (KES)']],
         body: tableData,
         theme: 'grid',

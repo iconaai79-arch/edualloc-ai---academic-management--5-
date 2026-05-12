@@ -3866,6 +3866,14 @@ export interface DSSkillMastery {
     createdAt: string;
 }
 
+export interface DSLicenseCategory {
+    id: string;
+    code: string;
+    name: string;
+    description?: string;
+    isActive?: boolean;
+}
+
 export interface DSLessonSlot {
     type: 'Morning' | 'Noon' | 'Evening';
     startTime: string;
@@ -3878,6 +3886,7 @@ export interface DSSettings {
     lessonPricePractical?: number;
     lessonPriceTheory?: number;
     feeStructures?: DSFeeStructure[];
+    licenseCategories?: DSLicenseCategory[];
     defaultCourseDuration?: number; // in days/attendances
     cancellationPolicy?: string;
     workingHours?: any;

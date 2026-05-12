@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import { Institution, BulletinItem, Course, AcademicLevel, User, SchoolGallery, SchoolAd } from '../../types';
 import { apiService } from '../../services/apiService';
 import { AcademicCapIcon } from '../icons/AcademicCapIcon';

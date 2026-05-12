@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { User, AppNotification, Institution, Role } from '../types';
 import { NotificationBell } from './NotificationBell';
+import { InstallAppButton } from './InstallAppButton';
 import { getInitials } from '../utils/stringUtils';
 import { formatRoleDisplayName } from '../utils/roleUtils';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
@@ -232,6 +233,14 @@ export const Header: React.FC<HeaderProps> = ({
                                 </button>
                             );
                         })()}
+
+                        <InstallAppButton
+                            currentInstitution={currentInstitution}
+                            activeRole={activeRole}
+                            applicationTitle={applicationTitle}
+                            logoUrl={logoUrl}
+                            primaryColor={primaryColor}
+                        />
 
                         <NotificationBell notifications={notifications} onMarkAsRead={onMarkAsRead} />
 

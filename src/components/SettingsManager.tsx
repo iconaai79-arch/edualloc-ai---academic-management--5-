@@ -228,7 +228,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'ncba'>('mpesa');
     const [instIntegrationTab, setInstIntegrationTab] = useState<'mpesa' | 'ncba' | 'googledrive'>('mpesa');
     const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>(isDS ? 'buildings' : 'departments');
+    const [dsConfigSubTab, setDsConfigSubTab] = useState<'business_rules' | 'license_category' | 'vote_heads'>('business_rules');
     const [showPaperPreview, setShowPaperPreview] = useState(false);
+    const [isAddingVoteHead, setIsAddingVoteHead] = useState(false);
+    const [editingVoteHeadId, setEditingVoteHeadId] = useState<string | null>(null);
+    const [newVoteHeadForm, setNewVoteHeadForm] = useState({ name: '', allocatedAmount: 0, priority: 1 });
 
 
 
@@ -366,6 +370,14 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         pdlPriority: 2,
         assessment: 0,
         assessmentPriority: 3
+    });
+    const [isAddingLicenseCategory, setIsAddingLicenseCategory] = useState(false);
+    const [editingLicenseCategoryId, setEditingLicenseCategoryId] = useState<string | null>(null);
+    const [newLicenseCategoryForm, setNewLicenseCategoryForm] = useState({
+        code: '',
+        name: '',
+        description: '',
+        isActive: true
     });
     useEffect(() => {
         if (activeTab !== 'driving_school') {
@@ -1815,10 +1827,38 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
             {activeTab === 'driving_school' && (
                 <div className="max-w-4xl bg-white dark:bg-slate-900 p-12 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm animate-fade-in">
-                    <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Driving School <span className="text-indigo-600">Business Rules</span></h2>
-                    <p className="text-slate-500 font-medium uppercase text-[10px] tracking-widest mb-12">Configure pricing, policies and course fees</p>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                        <div>
+                            <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1">Driving School <span className="text-indigo-600">Configuration</span></h2>
+                            <p className="text-slate-500 font-medium uppercase text-[10px] tracking-widest">Manage sub-modules, pricing, and system policies</p>
+                        </div>
+                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                    <div className="border-b border-slate-200 dark:border-slate-800 overflow-x-auto no-scrollbar mb-8">
+                        <nav className="-mb-px flex space-x-6 overflow-x-auto">
+                            <button
+                                onClick={() => setDsConfigSubTab('business_rules')}
+                                className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${dsConfigSubTab === 'business_rules' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <Cog8ToothIcon className="w-4 h-4" /> Business Rules & Fees
+                            </button>
+                            <button
+                                onClick={() => setDsConfigSubTab('license_category')}
+                                className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${dsConfigSubTab === 'license_category' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <ClipboardListIcon className="w-4 h-4" /> License Category
+                            </button>
+                            <button
+                                onClick={() => setDsConfigSubTab('vote_heads')}
+                                className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${dsConfigSubTab === 'vote_heads' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <CalculatorIcon className="w-4 h-4" /> Votes (Fee Heads)
+                            </button>
+                        </nav>
+                    </div>
+
+                    {dsConfigSubTab === 'business_rules' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 animate-fade-in">
                         {/* Column 1: Policies & Rules */}
                         <div className="space-y-8">
                             <div>
@@ -2043,8 +2083,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
-                            <div className="pt-12 border-t border-slate-50 dark:border-slate-800">
+                    <div className="pt-12 border-t border-slate-50 dark:border-slate-800">
                                 <div className="mb-8">
                                     <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Document Numbering</h3>
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Define prefixes for financial documents</p>
@@ -2091,7 +2132,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
                         {/* Column 2: Fee Structures */}
                         <div className="pt-12 mt-12 border-t border-slate-100 dark:border-slate-800">
@@ -2233,6 +2273,260 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                             </div>
                         </div>
                     </div>
+                    )}
+
+                    {dsConfigSubTab === 'license_category' && (
+                        <div className="space-y-8 animate-fade-in">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">License Categories</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Define customizable driving license classes (e.g. Class A, Class B, Class C1)</p>
+                                </div>
+                                {!isAddingLicenseCategory && (
+                                    <button 
+                                        onClick={() => {
+                                            setIsAddingLicenseCategory(true);
+                                            setEditingLicenseCategoryId(null);
+                                            setNewLicenseCategoryForm({ code: '', name: '', description: '', isActive: true });
+                                        }}
+                                        className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all"
+                                    >
+                                        <PlusIcon className="w-4 h-4" />
+                                        <span>Add Category</span>
+                                    </button>
+                                )}
+                            </div>
+
+                            {isAddingLicenseCategory && (
+                                <div className="bg-indigo-50/50 dark:bg-indigo-900/10 p-8 rounded-[2.5rem] border border-indigo-100 dark:border-indigo-900/30 animate-fade-in-up">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Class Code</label>
+                                            <input required type="text" value={newLicenseCategoryForm.code} onChange={e => setNewLicenseCategoryForm({...newLicenseCategoryForm, code: e.target.value})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. Class C1" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Category Name</label>
+                                            <input required type="text" value={newLicenseCategoryForm.name} onChange={e => setNewLicenseCategoryForm({...newLicenseCategoryForm, name: e.target.value})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. Light Truck / Commercial" />
+                                        </div>
+                                        <div className="md:col-span-2 space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Description & Vehicles Covered</label>
+                                            <input type="text" value={newLicenseCategoryForm.description} onChange={e => setNewLicenseCategoryForm({...newLicenseCategoryForm, description: e.target.value})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs" placeholder="e.g. Motor vehicles of gross vehicle weight exceeding 3500kg..." />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <button onClick={() => { setIsAddingLicenseCategory(false); setEditingLicenseCategoryId(null); }} className="flex-1 py-4 bg-white dark:bg-slate-800 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button>
+                                        <button 
+                                            onClick={() => {
+                                                if (!newLicenseCategoryForm.code || !newLicenseCategoryForm.name) {
+                                                    alert("Please provide both Class Code and Category Name.");
+                                                    return;
+                                                }
+                                                const catData = {
+                                                    id: editingLicenseCategoryId || `cat_${Date.now()}`,
+                                                    code: newLicenseCategoryForm.code.trim(),
+                                                    name: newLicenseCategoryForm.name.trim(),
+                                                    description: newLicenseCategoryForm.description.trim(),
+                                                    isActive: newLicenseCategoryForm.isActive
+                                                };
+                                                let nextList = [...(localDsSettings?.licenseCategories || [])];
+                                                if (editingLicenseCategoryId) {
+                                                    nextList = nextList.map(c => c.id === editingLicenseCategoryId ? { ...c, ...catData } : c);
+                                                } else {
+                                                    nextList.push(catData);
+                                                }
+                                                const baseSettings = localDsSettings || props.dsSettings || { 
+                                                    institutionId: props.currentInstitution?.id || '', 
+                                                    id: `ds_settings_${props.currentInstitution?.id || Date.now()}`,
+                                                    licenseCategories: [] 
+                                                };
+                                                const next = { ...baseSettings, licenseCategories: nextList } as DSSettings;
+                                                setLocalDsSettings(next);
+                                                setIsAddingLicenseCategory(false);
+                                                setEditingLicenseCategoryId(null);
+                                                setNewLicenseCategoryForm({ code: '', name: '', description: '', isActive: true });
+                                            }}
+                                            className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                                        >
+                                            {editingLicenseCategoryId ? 'Update License Category' : 'Save License Category'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {(localDsSettings?.licenseCategories || []).map((cat) => (
+                                    <div key={cat.id} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-black text-xs rounded-xl uppercase tracking-widest">{cat.code}</span>
+                                            </div>
+                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{cat.name}</h4>
+                                            {cat.description && (
+                                                <p className="text-xs text-slate-500 font-medium mt-2 leading-relaxed">{cat.description}</p>
+                                            )}
+                                        </div>
+                                        <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700/60 flex items-center justify-end gap-4">
+                                            <button 
+                                                onClick={() => {
+                                                    setEditingLicenseCategoryId(cat.id);
+                                                    setNewLicenseCategoryForm({
+                                                        code: cat.code,
+                                                        name: cat.name,
+                                                        description: cat.description || '',
+                                                        isActive: cat.isActive ?? true
+                                                    });
+                                                    setIsAddingLicenseCategory(true);
+                                                }}
+                                                className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
+                                            >
+                                                Edit Category
+                                            </button>
+                                            <button 
+                                                onClick={() => {
+                                                    const next = { ...localDsSettings, licenseCategories: localDsSettings?.licenseCategories?.filter(c => c.id !== cat.id) } as DSSettings;
+                                                    setLocalDsSettings(next);
+                                                }}
+                                                className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                                {(localDsSettings?.licenseCategories || []).length === 0 && (
+                                    <div className="md:col-span-2 py-12 text-center bg-slate-50/50 dark:bg-slate-800/50 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">No custom license categories configured</p>
+                                        <p className="text-[9px] text-slate-400">System will use standard legacy defaults (Class A, Class B, Class C1)</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {dsConfigSubTab === 'vote_heads' && (
+                        <div className="space-y-8 animate-fade-in">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Votes (Fee Heads)</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Manage institutional revenue streams and tuition fee components</p>
+                                </div>
+                                {!isAddingVoteHead && (
+                                    <button 
+                                        onClick={() => {
+                                            setIsAddingVoteHead(true);
+                                            setEditingVoteHeadId(null);
+                                            setNewVoteHeadForm({ name: '', allocatedAmount: 0, priority: 1 });
+                                        }}
+                                        className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all"
+                                    >
+                                        <PlusIcon className="w-4 h-4" />
+                                        <span>Add Vote Head</span>
+                                    </button>
+                                )}
+                            </div>
+
+                            {isAddingVoteHead && (
+                                <div className="bg-indigo-50/50 dark:bg-indigo-900/10 p-8 rounded-[2.5rem] border border-indigo-100 dark:border-indigo-900/30 animate-fade-in-up">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Vote Head Name</label>
+                                            <input required type="text" value={newVoteHeadForm.name} onChange={e => setNewVoteHeadForm({...newVoteHeadForm, name: e.target.value})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. Tuition Fee" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Allocated Budget (KES)</label>
+                                            <input type="number" min="0" value={newVoteHeadForm.allocatedAmount} onChange={e => setNewVoteHeadForm({...newVoteHeadForm, allocatedAmount: parseFloat(e.target.value) || 0})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="0.00" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Priority / Order</label>
+                                            <input required type="number" min="1" value={newVoteHeadForm.priority} onChange={e => setNewVoteHeadForm({...newVoteHeadForm, priority: parseInt(e.target.value) || 1})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="1" />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <button onClick={() => { setIsAddingVoteHead(false); setEditingVoteHeadId(null); }} className="flex-1 py-4 bg-white dark:bg-slate-800 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button>
+                                        <button 
+                                            onClick={() => {
+                                                if (!newVoteHeadForm.name) {
+                                                    alert("Please provide a Vote Head Name.");
+                                                    return;
+                                                }
+                                                const vData = {
+                                                    id: editingVoteHeadId || `vote_${Date.now()}`,
+                                                    name: newVoteHeadForm.name.trim(),
+                                                    allocatedAmount: newVoteHeadForm.allocatedAmount || 0,
+                                                    amountSpent: 0,
+                                                    academicYearId: props.academicYears?.[0]?.id || 'default_year',
+                                                    priority: newVoteHeadForm.priority || 1,
+                                                    institutionId: props.currentInstitution?.id || ''
+                                                };
+                                                let nextList = [...(props.voteHeads || [])];
+                                                if (editingVoteHeadId) {
+                                                    nextList = nextList.map(v => v.id === editingVoteHeadId ? { ...v, ...vData } : v);
+                                                } else {
+                                                    nextList.push(vData);
+                                                }
+                                                props.onUpdateVoteHeads?.(nextList);
+                                                setIsAddingVoteHead(false);
+                                                setEditingVoteHeadId(null);
+                                                setNewVoteHeadForm({ name: '', allocatedAmount: 0, priority: 1 });
+                                            }}
+                                            className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                                        >
+                                            {editingVoteHeadId ? 'Update Vote Head' : 'Save Vote Head'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {(props.voteHeads || []).map((vote) => (
+                                    <div key={vote.id} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-black text-xs rounded-xl uppercase tracking-widest">Priority {vote.priority}</span>
+                                                {vote.allocatedAmount > 0 && (
+                                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Budget: KES {vote.allocatedAmount.toLocaleString()}</span>
+                                                )}
+                                            </div>
+                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{vote.name}</h4>
+                                        </div>
+                                        <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700/60 flex items-center justify-end gap-4">
+                                            <button 
+                                                onClick={() => {
+                                                    setEditingVoteHeadId(vote.id);
+                                                    setNewVoteHeadForm({
+                                                        name: vote.name,
+                                                        allocatedAmount: vote.allocatedAmount || 0,
+                                                        priority: vote.priority || 1
+                                                    });
+                                                    setIsAddingVoteHead(true);
+                                                }}
+                                                className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button 
+                                                onClick={() => {
+                                                    if (confirm(`Are you sure you want to remove ${vote.name}?`)) {
+                                                        const nextList = (props.voteHeads || []).filter(v => v.id !== vote.id);
+                                                        props.onUpdateVoteHeads?.(nextList);
+                                                    }
+                                                }}
+                                                className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                                {(props.voteHeads || []).length === 0 && (
+                                    <div className="md:col-span-2 py-12 text-center bg-slate-50/50 dark:bg-slate-800/50 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">No vote heads configured</p>
+                                        <p className="text-[9px] text-slate-400">Click 'Add Vote Head' above to register components like Tuition Fee.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     <div className="pt-8 border-t border-slate-50 dark:border-slate-800 mt-12">
                         <button 

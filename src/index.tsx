@@ -5,6 +5,19 @@ import { App } from './components/App';
 import '../index.css';
 
 // Suppress sensitive info and non-essential logs
+declare global {
+  interface Window {
+    __deferredInstallPrompt?: any;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    window.__deferredInstallPrompt = e;
+    console.log('[PWA] beforeinstallprompt captured globally.');
+  });
+}
 if (typeof window !== 'undefined') {
   const originalLog = console.log;
   const originalInfo = console.info;

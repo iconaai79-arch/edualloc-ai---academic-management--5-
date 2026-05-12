@@ -681,11 +681,23 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
     const addInvoice = useCallback(async (data: any) => {
         try {
+            const prefixStr = (settings?.invoicePrefix || 'INV-').trim();
             let invNumber = data.invoiceNumber;
-            if (!invNumber) {
-                const prefixStr = (settings?.invoicePrefix || 'INV-').trim();
-                const asNum = Number(prefixStr);
-                if (!isNaN(asNum) && prefixStr !== '') {
+            
+            const asNum = Number(prefixStr);
+            const isNumericPrefix = !isNaN(asNum) && prefixStr !== '';
+            
+            let adheresToPrefix = false;
+            if (invNumber) {
+                if (isNumericPrefix) {
+                    adheresToPrefix = !isNaN(Number(invNumber)) && Number(invNumber) >= asNum;
+                } else {
+                    adheresToPrefix = invNumber.toUpperCase().startsWith(prefixStr.toUpperCase());
+                }
+            }
+
+            if (!adheresToPrefix) {
+                if (isNumericPrefix) {
                     let maxVal = asNum;
                     invoices.forEach(inv => {
                         if (inv.invoiceNumber) {

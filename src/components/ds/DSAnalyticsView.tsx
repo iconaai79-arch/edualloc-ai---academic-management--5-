@@ -371,7 +371,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                     ))}
                                 </select>
                                 <button 
-                                    onClick={() => {
+                                    onClick={async () => {
                                         const select = document.getElementById('statement-student-select') as HTMLSelectElement;
                                         const sid = select.value;
                                         if (!sid) return;
@@ -379,7 +379,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                         if (student) {
                                             const sInvoices = invoices.filter((i: DSInvoice) => i.studentId === sid);
                                             const sPayments = payments.filter((p: DSPayment) => p.studentId === sid);
-                                            const doc = generateStudentStatement(student, sInvoices, sPayments, institution);
+                                            const doc = await generateStudentStatement(student, sInvoices, sPayments, institution);
                                             setPreviewPdf(doc.output('datauristring'));
                                         }
                                     }}
@@ -388,7 +388,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                     <EyeIcon className="w-4 h-4" /> Preview Statement
                                 </button>
                                 <button 
-                                    onClick={() => {
+                                    onClick={async () => {
                                         const select = document.getElementById('statement-student-select') as HTMLSelectElement;
                                         const sid = select.value;
                                         if (!sid) return;
@@ -396,7 +396,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                         if (student) {
                                             const sInvoices = invoices.filter((i: DSInvoice) => i.studentId === sid);
                                             const sPayments = payments.filter((p: DSPayment) => p.studentId === sid);
-                                            const doc = generateStudentStatement(student, sInvoices, sPayments, institution);
+                                            const doc = await generateStudentStatement(student, sInvoices, sPayments, institution);
                                             doc.save(`${student.fullName.replace(/\s+/g, '_')}_Statement.pdf`);
                                         }
                                     }}
@@ -427,11 +427,11 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                     />
                                 </div>
                                 <button 
-                                    onClick={() => {
+                                    onClick={async () => {
                                         const start = (document.getElementById('schedule-start-date') as HTMLInputElement).value;
                                         const end = (document.getElementById('schedule-end-date') as HTMLInputElement).value;
                                         const filtered = lessons.filter((l: DSLesson) => (l.lessonDate || (l as any).date) >= start && (l.lessonDate || (l as any).date) <= end);
-                                        const doc = generateLessonReport(
+                                        const doc = await generateLessonReport(
                                             filtered, 
                                             students, 
                                             vehicles, 
@@ -446,11 +446,11 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                     <EyeIcon className="w-4 h-4" /> Preview Schedule
                                 </button>
                                 <button 
-                                    onClick={() => {
+                                    onClick={async () => {
                                         const start = (document.getElementById('schedule-start-date') as HTMLInputElement).value;
                                         const end = (document.getElementById('schedule-end-date') as HTMLInputElement).value;
                                         const filtered = lessons.filter((l: DSLesson) => (l.lessonDate || (l as any).date) >= start && (l.lessonDate || (l as any).date) <= end);
-                                        const doc = generateLessonReport(
+                                        const doc = await generateLessonReport(
                                             filtered, 
                                             students, 
                                             vehicles, 
@@ -487,11 +487,11 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                     />
                                 </div>
                                 <button 
-                                    onClick={() => {
+                                    onClick={async () => {
                                         const start = (document.getElementById('attendance-start-date') as HTMLInputElement).value;
                                         const end = (document.getElementById('attendance-end-date') as HTMLInputElement).value;
                                         const filtered = lessons.filter((l: DSLesson) => (l.lessonDate || (l as any).date) >= start && (l.lessonDate || (l as any).date) <= end);
-                                        const doc = generateAttendanceSummary(
+                                        const doc = await generateAttendanceSummary(
                                             filtered, 
                                             students, 
                                             `Attendance Summary (${start} to ${end})`, 
@@ -504,11 +504,11 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                     <EyeIcon className="w-4 h-4" /> Preview Attendance
                                 </button>
                                 <button 
-                                    onClick={() => {
+                                    onClick={async () => {
                                         const start = (document.getElementById('attendance-start-date') as HTMLInputElement).value;
                                         const end = (document.getElementById('attendance-end-date') as HTMLInputElement).value;
                                         const filtered = lessons.filter((l: DSLesson) => (l.lessonDate || (l as any).date) >= start && (l.lessonDate || (l as any).date) <= end);
-                                        const doc = generateAttendanceSummary(
+                                        const doc = await generateAttendanceSummary(
                                             filtered, 
                                             students, 
                                             `Attendance Summary (${start} to ${end})`, 
@@ -540,12 +540,12 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                 </select>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <button 
-                                        onClick={() => {
+                                        onClick={async () => {
                                             const start = (document.getElementById('financial-start-date') as HTMLInputElement).value;
                                             const end = (document.getElementById('financial-end-date') as HTMLInputElement).value;
                                             const vote = (document.getElementById('financial-votehead-select') as HTMLSelectElement).value;
                                             const filtered = payments.filter((p: DSPayment) => p.paymentDate >= start && p.paymentDate <= end);
-                                            const doc = generateIncomeReport(filtered, invoices, `Income Report (${start} to ${end})`, institution, vote || undefined);
+                                            const doc = await generateIncomeReport(filtered, invoices, `Income Report (${start} to ${end})`, institution, vote || undefined);
                                             setPreviewPdf(doc.output('datauristring'));
                                         }}
                                         className="w-full bg-indigo-600/10 hover:bg-indigo-600 text-indigo-600 hover:text-white font-black py-4 rounded-2xl transition-all border border-indigo-100 dark:border-indigo-900 uppercase text-[11px] tracking-widest flex items-center justify-center gap-2"
@@ -553,11 +553,11 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
                                         <EyeIcon className="w-4 h-4" /> Income Preview
                                     </button>
                                     <button 
-                                        onClick={() => {
+                                        onClick={async () => {
                                             const start = (document.getElementById('financial-start-date') as HTMLInputElement).value;
                                             const end = (document.getElementById('financial-end-date') as HTMLInputElement).value;
                                             const vote = (document.getElementById('financial-votehead-select') as HTMLSelectElement).value;
-                                            const doc = generateBalanceReport(students, invoices, payments, `Arrears Summary (${new Date().toLocaleDateString()})`, institution, vote || undefined);
+                                            const doc = await generateBalanceReport(students, invoices, payments, `Arrears Summary (${new Date().toLocaleDateString()})`, institution, vote || undefined);
                                             setPreviewPdf(doc.output('datauristring'));
                                         }}
                                         className="w-full bg-rose-600/10 hover:bg-rose-600 text-rose-600 hover:text-white font-black py-4 rounded-2xl transition-all border border-rose-100 dark:border-rose-900 uppercase text-[11px] tracking-widest flex items-center justify-center gap-2"
