@@ -15,7 +15,7 @@ import type {
     CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, SecurityAlert,
     CoopExpense, CoopIncome, DemoRequest, InstitutionModuleState,
     ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay,
-    CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry
+    CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry, CarInvoice, CarPayment
 } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
@@ -638,8 +638,8 @@ export const apiService = {
             throw e;
         }
     },
-    async fetchTodayTeacherCheckIn(teacherId: string): Promise<TeacherCheckInWithDetails | null> {
-        const records = await apiService.fetchModuleRecords<TeacherCheckInWithDetails>('v_today_teacher_checkins', undefined, undefined, {
+    async fetchTodayTeacherCheckIn(teacherId: string): Promise<any | null> {
+        const records = await apiService.fetchModuleRecords<any>('v_today_teacher_checkins', undefined, undefined, {
             filter: { teacher_id: teacherId },
             limit: 1
         });
@@ -914,7 +914,7 @@ export const apiService = {
         let payload = apiService.sanitizePayload(module, data.map(toSnakeCase));
 
         if (!_supabase) {
-            payload.forEach(item => ls.upsert(module, item));
+            payload.forEach((item: any) => ls.upsert(module, item));
             return data;
         }
 
@@ -1628,7 +1628,7 @@ export const apiService = {
             
             const headers: Record<string, string> = {
                 'Content-Type': 'application/json',
-                'apikey': systemConfig.key
+                'apikey': systemConfig.key || ''
             };
             
             if (token) {
@@ -2418,7 +2418,7 @@ export const apiService = {
 
             const headers: Record<string, string> = {
                 'Content-Type': 'application/json',
-                'apikey': config.key
+                'apikey': config.key || ''
             };
             
             if (token) {
@@ -2467,7 +2467,7 @@ export const apiService = {
 
             const headers: Record<string, string> = {
                 'Content-Type': 'application/json',
-                'apikey': config.key
+                'apikey': config.key || ''
             };
             
             if (token) {
@@ -2501,7 +2501,7 @@ export const apiService = {
             const config = apiService.getActiveConfig();
             const response = await fetch('/api/integrations', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'apikey': config.key },
+                headers: { 'Content-Type': 'application/json', 'apikey': config.key || '' },
                 body: JSON.stringify({ action: 'sendAlumnaWelcome', ...params })
             });
             if (!response.ok) {
