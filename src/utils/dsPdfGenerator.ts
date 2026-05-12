@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { DSInvoice, DSPayment, DSStudent, DSSettings } from '../types';
+import { DSInvoice, DSPayment, DSStudent, DSSettings, DSLesson, DSInstructor, DSVehicle } from '../types';
 import { apiService } from '../services/apiService';
 
 // Internal utility to load images safely for PDF insertion
@@ -276,4 +276,122 @@ export const generateDSThermalReceipt = async (
     centerText("Powered by EduAi Automation", yPos);
 
     return doc.output('bloburl');
+};
+
+export const generateDSSchedulePDF = async (
+    lessons: DSLesson[],
+    students: DSStudent[],
+    instructors: DSInstructor[],
+    vehicles: DSVehicle[],
+    institution: any,
+    letterheadConfig?: any
+) => {
+    const doc = new jsPDF() as any;
+    const margin = 20;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Fetch system-wide default company settings to support global letterhead fallback
+    const companyDetails = await apiService.fetchCompanySettings().catch(() => null);
+
+    // Letterhead Support cascade
+    const letterheadUrl = letterheadConfig?.headerImageUrl || institution?.letterheadConfig?.headerImageUrl || institution?.letterheadUrl || companyDetails?.letterheadConfig?.headerImageUrl || (companyDetails as any)?.letterheadUrl || (companyDetails as any)?.logoUrl;
+    const headerImg = await loadImage(letterheadUrl);
+
+    let currentY = 30;
+
+    if (headerImg) {
+        const imgWidth = pageWidth - (margin * 2);
+        const imgHeight = (headerImg.height * imgWidth) / headerImg.width;
+        const maxHeight = 45;
+
+        if (imgHeight > maxHeight) {
+            const finalHeight = maxHeight;
+            const finalWidth = (headerImg.width * finalHeight) / headerImg.height;
+            const xPos = (pageWidth - finalWidth) / 2;
+            doc.addImage(headerImg, 'JPEG', xPos, 15, finalWidth, finalHeight);
+            currentY = finalHeight + 25;
+        } else {
+            doc.addImage(headerImg, 'JPEG', margin, 15, imgWidth, imgHeight);
+            currentY = imgHeight + 25;
+        }
+    } else {
+        doc.setFontSize(22);
+        doc.setTextColor(79, 70, 229); // Indigo-600
+        doc.text(institution?.name || 'Driving School Academy', margin, currentY);
+
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(institution?.address || 'Official Campus', margin, currentY + 8);
+        doc.text(`Tel: ${institution?.phone || 'N/A'}`, margin, currentY + 13);
+        currentY += 25;
+    }
+
+    // Document Title
+    doc.setFontSize(18);
+    doc.setTextColor(30, 41, 59);
+    doc.text('OFFICIAL TRAINING SCHEDULE REPORT', margin, currentY);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth - margin, currentY, { align: 'right' });
+    currentY += 12;
+
+    // Table mapping
+    const tableHead = ['Date & Time', 'Type', 'Student', 'Instructor', 'Vehicle', 'Status'];
+    const tableData = lessons.map(lesson => {
+        const student = students.find(s => s.id === lesson.studentId);
+        const instructor = instructors.find(i => i.id === lesson.instructorId);
+        const vehicle = vehicles.find(v => v.id === lesson.vehicleId);
+        
+        const dateStr = lesson.lessonDate ? new Date(lesson.lessonDate).toLocaleDateString() : 'No Date';
+        const timeStr = `${lesson.startTime} - ${lesson.endTime}`;
+
+        return [
+            `${dateStr}\n${timeStr}`,
+            lesson.lessonType || 'Practical',
+            student?.fullName || 'Unknown Student',
+            instructor?.name || 'Unassigned',
+            vehicle?.plateNumber || 'N/A',
+            lesson.status
+        ];
+    });
+
+    autoTable(doc, {
+        startY: currentY + 5,
+        head: [tableHead],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
+        styles: { fontSize: 9, cellPadding: 4 },
+        margin: { left: margin, right: margin }
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY || currentY + 50;
+
+    // Footer asset if present
+    const footerUrl = letterheadConfig?.footerImageUrl || institution?.letterheadConfig?.footerImageUrl || companyDetails?.letterheadConfig?.footerImageUrl;
+    const footerImg = await loadImage(footerUrl);
+
+    if (footerImg) {
+        const fWidth = pageWidth - (margin * 2);
+        const fHeight = (footerImg.height * fWidth) / footerImg.width;
+        const maxFHeight = 25;
+        const renderedHeight = fHeight > maxFHeight ? maxFHeight : fHeight;
+        const renderedWidth = (footerImg.width * renderedHeight) / footerImg.height;
+        const fX = (pageWidth - renderedWidth) / 2;
+        
+        // Ensure footer fits on current page or start new page if needed
+        if (finalY + renderedHeight + 15 > doc.internal.pageSize.getHeight()) {
+            doc.addPage();
+            doc.addImage(footerImg, 'JPEG', fX, doc.internal.pageSize.getHeight() - renderedHeight - 15, renderedWidth, renderedHeight);
+        } else {
+            doc.addImage(footerImg, 'JPEG', fX, doc.internal.pageSize.getHeight() - renderedHeight - 15, renderedWidth, renderedHeight);
+        }
+    } else {
+        doc.setFontSize(9);
+        doc.setTextColor(150);
+        doc.text('Official Training Roster • Generated by EduAi Driving School Management', pageWidth / 2, doc.internal.pageSize.getHeight() - 15, { align: 'center' });
+    }
+
+    return doc;
 };

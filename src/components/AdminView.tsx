@@ -1738,6 +1738,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         }
                         onRefreshData={props.onRefreshData}
                         departments={props.departments || []}
+                        letterheadConfig={props.letterheadConfig}
                     />
                 )}
 

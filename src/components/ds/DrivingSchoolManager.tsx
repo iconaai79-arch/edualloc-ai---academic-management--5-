@@ -25,15 +25,17 @@ import {
     PencilIcon,
     TrashIcon,
     ListIcon,
-    CreditCardIcon
+    CreditCardIcon,
+    PrinterIcon,
+    DownloadIcon
 } from '../icons';
-import { generateDSPDF, generateDSThermalReceipt } from '../../utils/dsPdfGenerator';
+import { generateDSPDF, generateDSThermalReceipt, generateDSSchedulePDF } from '../../utils/dsPdfGenerator';
 import { useToast } from '../../services/ToastContext';
 import { useDrivingSchool } from '../../services/DrivingSchoolContext';
 import { AppErrorBoundary } from '../common/AppErrorBoundary';
 
 import type { 
-    User, DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, DSFeeStructure, DSFeeItem 
+    User, DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, DSFeeStructure, DSFeeItem, LetterheadConfig 
 } from '../../types';
 import { DSBroadcasterView } from './DSBroadcasterView';
 import { DSFinanceFeeds } from './DSFinanceFeeds';
@@ -49,6 +51,7 @@ interface DrivingSchoolManagerProps {
     externalTab?: 'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings' | 'broadcaster';
     onRefreshData?: () => Promise<void>;
     departments?: any[];
+    letterheadConfig?: LetterheadConfig;
 }
 
 const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data: any[]) => Promise<void> }> = ({ onClose, onImport }) => {
@@ -907,7 +910,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     currentInstitution,
     externalTab,
     onRefreshData: onRefreshDataProp,
-    departments
+    departments,
+    letterheadConfig
 }) => {
     const { success, error: toastError } = useToast();
     const {
@@ -1587,93 +1591,171 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             )}
 
                             <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
-                                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                <div className="flex items-center gap-4">
-                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Training Sessions</h3>
+                                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6 print:hidden">
+                                    <div className="flex items-center gap-4">
+                                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Training Sessions</h3>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                                        <div className="relative flex-1 md:w-64">
+                                            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                            <input 
+                                                type="text" 
+                                                placeholder="Search lessons..." 
+                                                value={searchTerm}
+                                                onChange={(e) => setSearchTerm(e.target.value)}
+                                                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold"
+                                            />
+                                        </div>
+                                        <button 
+                                            onClick={async () => {
+                                                try {
+                                                    const doc = await generateDSSchedulePDF(filteredLessons, students, instructors, vehicles, currentInstitution, letterheadConfig);
+                                                    doc.save(`Training_Schedule_${new Date().toISOString().split('T')[0]}.pdf`);
+                                                    success?.('Schedule PDF generated successfully!');
+                                                } catch (err) {
+                                                    console.error('PDF Generation Error:', err);
+                                                    toastError?.('Failed to generate PDF schedule');
+                                                }
+                                            }}
+                                            className="h-10 px-5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-sm"
+                                        >
+                                            <DownloadIcon className="w-4 h-4" /> Download PDF
+                                        </button>
+                                        <button 
+                                            onClick={() => window.print()} 
+                                            className="h-10 px-5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-slate-900 dark:bg-slate-800 text-white hover:opacity-90 transition-all flex items-center gap-2 shadow-sm"
+                                        >
+                                            <PrinterIcon className="w-4 h-4" /> Print Schedule
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="relative flex-1 max-w-xs">
-                                    <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                    <input 
-                                        type="text" 
-                                        placeholder="Search lessons..." 
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold"
-                                    />
+
+                                {/* Printable Branded Letterhead Header (Hidden on screen, visible when printing) */}
+                                <div className="hidden print:block w-full border-b border-slate-100 dark:border-slate-800 p-8">
+                                    {letterheadConfig?.headerImageUrl ? (
+                                        <div className="w-full h-32 flex items-center justify-center overflow-hidden mb-4">
+                                            <img 
+                                                src={letterheadConfig.headerImageUrl} 
+                                                alt="Institution Header" 
+                                                className="max-w-full max-h-full object-contain"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="flex justify-between items-center pb-6 border-b border-slate-100">
+                                            <div className="space-y-1">
+                                                <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                                                    {currentInstitution?.name || 'Driving School Academy'}
+                                                </h2>
+                                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">
+                                                    Official Training Schedule Report
+                                                </p>
+                                            </div>
+                                            <div className="text-right">
+                                                <h1 className="text-sm font-black text-slate-400 uppercase tracking-widest">Scheduled Sessions</h1>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Printed: {new Date().toLocaleDateString()}</p>
+                                            </div>
+                                            {currentInstitution?.logoUrl && (
+                                                <img src={currentInstitution.logoUrl} alt="Logo" className="h-12 w-12 object-contain ml-4" />
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead>
-                                        <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 dark:border-slate-800">
-                                            <th className="px-10 py-6">Date & Time</th>
-                                            <th className="px-10 py-6">Type</th>
-                                            <th className="px-10 py-6">Student</th>
-                                            <th className="px-10 py-6">Instructor</th>
-                                            <th className="px-10 py-6">Vehicle</th>
-                                            <th className="px-10 py-6">Status</th>
-                                            <th className="px-10 py-6 text-right">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                                        {filteredLessons.map(lesson => (
-                                            <tr key={lesson.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
-                                                <td className="px-10 py-6">
-                                                    <p className="font-bold text-sm">{lesson.lessonDate ? new Date(lesson.lessonDate).toLocaleDateString() : 'No Date'}</p>
-                                                    <p className="text-[10px] font-black text-indigo-600 uppercase mt-0.5">{lesson.startTime} - {lesson.endTime}</p>
-                                                </td>
-                                                <td className="px-10 py-6">
-                                                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
-                                                        lesson.lessonType === 'Theory' ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400' : 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400'
-                                                    }`}>
-                                                        {lesson.lessonType || 'Practical'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-10 py-6 font-bold text-sm">
-                                                    {normalizedStudents.find(s => s.id === lesson.studentId)?.fullName || 'Unknown Student'}
-                                                </td>
-                                                <td className="px-10 py-6 text-sm">
-                                                    {normalizedInstructors.find(i => i.id === lesson.instructorId)?.name || 'Unassigned'}
-                                                </td>
-                                                <td className="px-10 py-6 text-sm">
-                                                    {vehicles.find(v => v.id === lesson.vehicleId)?.plateNumber || 'N/A'}
-                                                </td>
-                                                <td className="px-10 py-6">
-                                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                                                        lesson.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' : 
-                                                        lesson.status === 'Cancelled' ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'
-                                                    }`}>
-                                                        {lesson.status}
-                                                    </span>
-                                                </td>
-                                                <td className="px-10 py-6 text-right">
-                                                    <div className="flex justify-end gap-2">
-                                                        <button 
-                                                            onClick={() => setActionModal({ type: 'lesson', initialData: lesson })}
-                                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
-                                                            title="Edit Lesson"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                            </svg>
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => onDeleteLesson(lesson.id)}
-                                                            className="p-2 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
-                                                            title="Delete Lesson"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                </td>
+
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50 dark:border-slate-800">
+                                                <th className="px-10 py-6 print:px-4 print:py-3">Date & Time</th>
+                                                <th className="px-10 py-6 print:px-4 print:py-3">Type</th>
+                                                <th className="px-10 py-6 print:px-4 print:py-3">Student</th>
+                                                <th className="px-10 py-6 print:px-4 print:py-3">Instructor</th>
+                                                <th className="px-10 py-6 print:px-4 print:py-3">Vehicle</th>
+                                                <th className="px-10 py-6 print:px-4 print:py-3">Status</th>
+                                                <th className="px-10 py-6 text-right print:hidden">Actions</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                            {filteredLessons.map(lesson => (
+                                                <tr key={lesson.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 print:hover:bg-transparent">
+                                                    <td className="px-10 py-6 print:px-4 print:py-3">
+                                                        <p className="font-bold text-sm print:text-xs">{lesson.lessonDate ? new Date(lesson.lessonDate).toLocaleDateString() : 'No Date'}</p>
+                                                        <p className="text-[10px] font-black text-indigo-600 uppercase mt-0.5 print:text-[9px]">{lesson.startTime} - {lesson.endTime}</p>
+                                                    </td>
+                                                    <td className="px-10 py-6 print:px-4 print:py-3">
+                                                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest print:text-[9px] print:px-0 print:border-none print:bg-transparent ${
+                                                            lesson.lessonType === 'Theory' ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 print:text-amber-700' : 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400 print:text-indigo-700'
+                                                        }`}>
+                                                            {lesson.lessonType || 'Practical'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-10 py-6 font-bold text-sm print:px-4 print:py-3 print:text-xs">
+                                                        {normalizedStudents.find(s => s.id === lesson.studentId)?.fullName || 'Unknown Student'}
+                                                    </td>
+                                                    <td className="px-10 py-6 text-sm print:px-4 print:py-3 print:text-xs">
+                                                        {normalizedInstructors.find(i => i.id === lesson.instructorId)?.name || 'Unassigned'}
+                                                    </td>
+                                                    <td className="px-10 py-6 text-sm print:px-4 print:py-3 print:text-xs">
+                                                        {vehicles.find(v => v.id === lesson.vehicleId)?.plateNumber || 'N/A'}
+                                                    </td>
+                                                    <td className="px-10 py-6 print:px-4 print:py-3">
+                                                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest print:px-0 print:bg-transparent print:border-none ${
+                                                            lesson.status === 'Completed' ? 'bg-emerald-50 text-emerald-600 print:text-emerald-700' : 
+                                                            lesson.status === 'Cancelled' ? 'bg-rose-50 text-rose-600 print:text-rose-700' : 'bg-blue-50 text-blue-600 print:text-blue-700'
+                                                        }`}>
+                                                            {lesson.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-10 py-6 text-right print:hidden">
+                                                        <div className="flex justify-end gap-2">
+                                                            <button 
+                                                                onClick={() => setActionModal({ type: 'lesson', initialData: lesson })}
+                                                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
+                                                                title="Edit Lesson"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                                </svg>
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => onDeleteLesson(lesson.id)}
+                                                                className="p-2 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
+                                                                title="Delete Lesson"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Printable Branded Letterhead Footer (Hidden on screen, visible when printing) */}
+                                <div className="hidden print:block w-full border-t border-slate-100 dark:border-slate-800 p-8 mt-12">
+                                    {letterheadConfig?.footerImageUrl ? (
+                                        <div className="w-full h-20 flex items-center justify-center overflow-hidden border-t border-slate-50 pt-4">
+                                            <img 
+                                                src={letterheadConfig.footerImageUrl} 
+                                                alt="Report Footer" 
+                                                className="max-w-full max-h-full object-contain"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="border-t border-slate-200 dark:border-slate-800 pt-4 flex justify-between items-end">
+                                            <div className="text-[10px] text-slate-400 font-medium">
+                                                <p>Generated by EduAi Driving School Automation</p>
+                                                <p>&copy; {new Date().getFullYear()} {currentInstitution?.name}</p>
+                                            </div>
+                                            <div className="text-[10px] text-slate-400 font-mono uppercase tracking-widest">
+                                                Official Record
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        </div>
                         </div>
                     )}
 
