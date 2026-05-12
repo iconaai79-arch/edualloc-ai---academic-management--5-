@@ -542,12 +542,19 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 const student = students.find(s => s.id === data.studentId);
                 if (student) {
                     const currentRemaining = student.remainingDays ?? student.courseDurationDays ?? 0;
-                    if (currentRemaining > 0) {
-                        await apiService.saveModuleRecord('ds_students', {
-                            ...student,
-                            remainingDays: Math.max(0, currentRemaining - 1)
-                        });
-                    }
+                    const durationDays = student.courseDurationDays || 21;
+                    const increment = Math.max(5, Math.round(100 / durationDays));
+                    const isTheory = data.lessonType === 'Theory';
+                    
+                    const nextTheory = isTheory ? Math.min(100, (student.theoryProgressPercent || 0) + increment) : (student.theoryProgressPercent || 0);
+                    const nextPractical = !isTheory ? Math.min(100, (student.practicalProgressPercent || 0) + increment) : (student.practicalProgressPercent || 0);
+
+                    await apiService.saveModuleRecord('ds_students', {
+                        ...student,
+                        remainingDays: Math.max(0, currentRemaining - 1),
+                        theoryProgressPercent: nextTheory,
+                        practicalProgressPercent: nextPractical
+                    });
                 }
             }
             
