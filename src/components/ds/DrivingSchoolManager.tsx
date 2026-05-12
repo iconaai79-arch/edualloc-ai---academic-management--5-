@@ -970,8 +970,16 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             const eligibleStudents = students.filter(s => s.status === 'Enrolled');
             
             let lessonsAdded = 0;
+            let skippedStudents = 0;
 
             for (const student of eligibleStudents) {
+                // Robust duplicate prevention: check if student already has a lesson scheduled for tomorrow
+                const existingLessonsTomorrow = lessons.filter(l => l.studentId === student.id && l.lessonDate === dateStr);
+                if (existingLessonsTomorrow.length > 0) {
+                    skippedStudents++;
+                    continue;
+                }
+
                 // Get student's preferred slot or default to Morning
                 const preferredSlotType = student.preferredLessonHours || 'Morning';
                 const slot = (settings.lessonSlots || []).find(s => s.type === preferredSlotType) || { startTime: '08:00', endTime: '10:00' };
@@ -1018,7 +1026,11 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                 }
             }
 
-            success(`Auto-generated ${lessonsAdded} lessons for tomorrow (${dateStr})`);
+            if (lessonsAdded > 0) {
+                success(`Auto-generated ${lessonsAdded} lessons for tomorrow (${dateStr})`);
+            } else {
+                success(`Tomorrow's schedule is already complete. Skipped ${skippedStudents} student(s) to avoid duplicates.`);
+            }
             if (onRefreshDataProp) await onRefreshDataProp();
             refreshData();
         } catch (err) {
