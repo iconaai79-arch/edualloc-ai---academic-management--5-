@@ -78,42 +78,7 @@ export const InstallAppButton: React.FC<InstallAppButtonProps> = ({
         const deferredPrompt = window.__deferredInstallPrompt;
         if (deferredPrompt) {
             try {
-                // Dynamically build and inject context-scoped PWA manifest JSON
-                const dynamicManifest = {
-                    name: appTitle,
-                    short_name: appTitle.split(' ')[0] || 'Portal',
-                    start_url: targetUrl,
-                    display: 'standalone',
-                    background_color: '#ffffff',
-                    theme_color: primaryColor,
-                    icons: [
-                        {
-                            src: iconUrl,
-                            sizes: '512x512',
-                            type: 'image/png',
-                            purpose: 'any maskable'
-                        },
-                        {
-                            src: '/favicon.png',
-                            sizes: '192x192',
-                            type: 'image/png'
-                        }
-                    ]
-                };
-
-                const stringManifest = JSON.stringify(dynamicManifest);
-                const blob = new Blob([stringManifest], { type: 'application/json' });
-                const manifestUrl = URL.createObjectURL(blob);
-                
-                let manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement;
-                if (!manifestLink) {
-                    manifestLink = document.createElement('link');
-                    manifestLink.rel = 'manifest';
-                    document.head.appendChild(manifestLink);
-                }
-                manifestLink.href = manifestUrl;
-                
-                // Prompt native browser installation interface
+                // Prompt pre-validated native browser installation interface directly
                 deferredPrompt.prompt();
                 const { outcome } = await deferredPrompt.userChoice;
                 if (outcome === 'accepted') {
