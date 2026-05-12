@@ -957,6 +957,59 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [settingsSubTab, setSettingsSubTab] = useState<'policies' | 'numbering' | 'fees' | 'slots'>('policies');
     const [users, setUsers] = useState<User[]>([]);
     const [isActionLoading, setIsActionLoading] = useState(false);
+    const [isSendingReminders, setIsSendingReminders] = useState(false);
+
+    const handleSendBulkReminders = async () => {
+        // Filter out pending invoices with balance > 0
+        const pendingInvoices = invoices.filter(inv => inv.status !== 'Fully Paid' && inv.balance > 0);
+        if (pendingInvoices.length === 0) {
+            success("All student accounts are currently fully settled!");
+            return;
+        }
+
+        // Collect distinct valid student mobile contacts and build individual notifications
+        const targets: { phone: string; message: string; name: string }[] = [];
+        pendingInvoices.forEach(inv => {
+            const student = students.find(s => s.id === inv.studentId);
+            const phone = student?.phone || (student as any)?.phoneNumber;
+            if (student && phone) {
+                const textMsg = `Hello ${student.fullName.split(' ')[0]}, your driving course account (${inv.invoiceNumber}) has an outstanding balance of KES ${inv.balance.toLocaleString()}. Please settle via M-Pesa to avoid lesson interruption.`;
+                targets.push({ phone, message: textMsg, name: student.fullName });
+            }
+        });
+
+        if (targets.length === 0) {
+            toastError("Found pending invoices but no valid student phone numbers attached.");
+            return;
+        }
+
+        const currentBalance = currentInstitution?.smsBalance || 0;
+        if (currentBalance < targets.length) {
+            toastError(`Insufficient SMS Units! Required: ${targets.length}, Available: ${currentBalance}. Please top up.`);
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to broadcast fee reminder SMS notifications to ${targets.length} students?`)) {
+            return;
+        }
+
+        setIsSendingReminders(true);
+        try {
+            // Dispatch personalized SMS batches
+            const tasks = targets.map(t => 
+                apiService.sendSms(t.phone, t.message, undefined, 1, currentInstitution?.id)
+            );
+            await Promise.all(tasks);
+            
+            const remainingBalance = Math.max(0, currentBalance - targets.length);
+            success(`Successfully dispatched fee reminders to ${targets.length} students! Remaining Units: ${remainingBalance}.`);
+        } catch (err) {
+            console.error("Bulk reminders failure:", err);
+            toastError("Failed to deliver some fee reminder notifications.");
+        } finally {
+            setIsSendingReminders(false);
+        }
+    };
 
     useEffect(() => {
         if (currentInstitution?.id) {
@@ -1344,7 +1397,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         fleet: 'vehicle',
                                         instructors: 'instructor',
                                         finance: 'invoice',
-                                        settings: 'fee_structure'
+                                        settings: 'fee_structure',
+                                        broadcaster: 'broadcast'
                                     };
                                     setActionModal({ type: typeMap[activeTab] || 'student' });
                                 }} 
@@ -1356,7 +1410,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                  activeTab === 'fleet' ? 'Register Vehicle' :
                                  activeTab === 'instructors' ? 'Add Instructor' :
                                  activeTab === 'finance' ? 'Generate Invoice' :
-                                 activeTab === 'settings' ? 'Add Class Fee' : 'New Action'}
+                                 activeTab === 'settings' ? 'Add Class Fee' :
+                                 activeTab === 'broadcaster' ? 'New Broadcast' : 'New Action'}
                             </button>
                         )}
                         {activeTab === 'students' && (
@@ -1920,6 +1975,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Manage billing and student receivables</p>
                                     </div>
                                     <div className="flex gap-3">
+                                        <button onClick={handleSendBulkReminders} disabled={isSendingReminders} className="px-5 py-3 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-amber-100 transition-all flex items-center gap-2 border border-amber-200 dark:border-amber-800/40 disabled:opacity-50">
+                                            <PhoneIcon className="w-4 h-4" />
+                                            {isSendingReminders ? 'Sending...' : 'Remind Balances'}
+                                        </button>
                                         <button onClick={() => setActionModal({ type: 'payment' })} className="px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-2">
                                             <CurrencyIcon className="w-4 h-4" />
                                             Record Payment
