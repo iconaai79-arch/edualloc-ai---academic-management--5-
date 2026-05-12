@@ -40,6 +40,7 @@ interface DrivingSchoolContextType {
     addInvoice: (data: any) => Promise<void>;
     addPayment: (data: any) => Promise<void>;
     updateLesson: (data: any) => Promise<void>;
+    deleteLesson: (id: string) => Promise<void>;
     refreshData: () => Promise<void>;
     stats: {
         totalStudents: number;
@@ -449,6 +450,19 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         }
     }, [institutionId, lessons, students, onRefresh, success, error]);
 
+    const deleteLesson = useCallback(async (id: string) => {
+        if (!institutionId) return;
+        if (!window.confirm("Are you sure you want to delete this lesson?")) return;
+        try {
+            await apiService.deleteModuleRecord('ds_lessons', id);
+            success("Lesson deleted successfully");
+            await onRefresh();
+        } catch (err) {
+            error("Failed to delete lesson");
+            throw err;
+        }
+    }, [institutionId, onRefresh, success, error]);
+
     const addMastery = useCallback(async (data: any) => {
         try {
             await apiService.saveModuleRecord('ds_skill_mastery', { ...data, id: `mast_${Date.now()}`, institutionId });
@@ -757,7 +771,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         instructors, vehicles, students, lessons, mastery, settings, invoices, payments,
         mpesaTransactions, bankTransactions,
         setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments,
-        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, updateStudent, deleteStudent, addLesson, updateLesson, addMastery, updateSettings, addInvoice, addPayment,
+        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, updateStudent, deleteStudent, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, addPayment,
         refreshData, stats
     };
 

@@ -167,6 +167,7 @@ interface SettingsManagerProps {
     setActivityLogLimit?: (limit: number | ((prev: number) => number)) => void;
     dsSettings?: DSSettings | null;
     onUpdateDSSettings?: (data: any) => Promise<void>;
+    isDS?: boolean;
 }
 
 const CONSTRAINT_TYPE_LABELS: Record<TimetableConstraintType, string> = {
@@ -214,10 +215,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
     const isCampaign = useMemo(() => props.currentInstitution?.institutionType === 'Political Campaign', [props.currentInstitution]);
     const isDS = useMemo(() => {
+        if (typeof props.isDS === 'boolean') return props.isDS;
         const type = props.currentInstitution?.institutionType?.toLowerCase() || '';
         const category = props.currentInstitution?.category?.toLowerCase() || '';
         return type.includes('driving school') || category.includes('driving school');
-    }, [props.currentInstitution]);
+    }, [props.currentInstitution, props.isDS]);
 
     const [activeTab, setActiveTab] = useState<SettingsTab | 'driving_school'>((isSuperAdmin && !isCoop) ? 'global_config' : isDS ? 'driving_school' : 'general');
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');

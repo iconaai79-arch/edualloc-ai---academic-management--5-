@@ -924,6 +924,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         updateStudent: onUpdateStudent,
         deleteStudent: onDeleteStudent,
         addLesson: onAddLesson,
+        deleteLesson: onDeleteLesson,
         addMastery: onAddMastery,
         updateSettings: onUpdateSettings,
         addInvoice: onAddInvoice,

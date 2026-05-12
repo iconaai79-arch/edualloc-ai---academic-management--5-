@@ -272,7 +272,6 @@ export interface AdminViewProps {
     onUpdateCompanyDetails?: (data: Partial<CompanyDetails>) => Promise<void>;
     onSwitchPerspective?: (role: Role) => void;
     onSaveLetterheadConfig?: (config: LetterheadConfig) => void;
-    onRefreshData?: () => void;
     onAddSaccoAccount?: (data: Partial<SaccoAccount>) => Promise<void>;
     
     getLecturerById?: (id: string) => User | undefined;
@@ -1386,6 +1385,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     onUpdateCourse={props.onUpdateCourse}
                                     onImportSubjectsAndAssociate={props.onImportSubjectsAndAssociate as any}
                                     currentUser={props.currentUser!}
+                                    rooms={props.rooms || []}
                                 />
                             ) : (
                                 <AcademicConfigManager
@@ -1410,6 +1410,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         smsConfig={props.smsConfig}
                         onRefreshData={props.onRefreshData}
                         moduleContext={(isCoop ? 'cooperative' : (isRetailAgency ? 'agrovet' : isChurch ? 'church' : 'school')) as any}
+                        courses={props.courses || []}
                     />
                 )}
 
@@ -1907,6 +1908,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 getSubjectById={props.getSubjectById || ((id: string) => (props.subjects || []).find(s => s && s.id === id))}
                                 getRoomById={props.getRoomById || ((id: string) => (props.rooms || []).find(r => r && r.id === id))}
                                 currentInstitution={props.currentInstitution}
+                                allocations={props.allocations || []}
                                 requests={requests || []}
                                 contracts={props.contracts || []}
                                 timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
