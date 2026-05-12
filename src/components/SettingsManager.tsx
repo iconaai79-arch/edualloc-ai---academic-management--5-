@@ -776,6 +776,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         if (isDS) {
             tabs.push({ id: 'driving_school', label: 'Driving School', icon: <TruckIcon className="w-5 h-5 mr-2" /> });
             tabs.push({ id: 'general', label: 'Institutional', icon: <InformationCircleIcon className="w-5 h-5 mr-2" /> });
+            tabs.push({ id: 'facilities', label: 'Facilities / Rooms', icon: <BuildingOfficeIcon className="w-5 h-5 mr-2" /> });
             tabs.push({ id: 'staff', label: 'Staff & Roles', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> });
             return tabs;
         }

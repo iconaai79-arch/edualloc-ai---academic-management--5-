@@ -2493,16 +2493,35 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     });
 
                                     const tasks: Promise<any>[] = [];
+                                    let smsResInfo: any = null;
+                                    const currentBalance = currentInstitution?.smsBalance || 0;
+
                                     if (phones.length > 0) {
-                                        tasks.push(apiService.sendSms(phones, `${priorityPrefix}${data.title}: ${data.message}`, undefined, 1, currentInstitution?.id));
+                                        if (currentBalance < phones.length) {
+                                            toastError(`Insufficient SMS Units! Required: ${phones.length}, Available: ${currentBalance}. Please top up.`);
+                                            setIsActionLoading(false);
+                                            return;
+                                        }
+                                        // Await SMS dispatch to capture precise delivery metadata
+                                        smsResInfo = await apiService.sendSms(phones, `${priorityPrefix}${data.title}: ${data.message}`, undefined, 1, currentInstitution?.id);
                                     }
+
                                     if (emails.length > 0) {
                                         // We send emails in parallel to avoid sequential delay
                                         tasks.push(...emails.map(email => apiService.sendEmail(email, `${priorityPrefix}${data.title}`, data.message)));
                                     }
 
                                     await Promise.all(tasks);
-                                    success(`Broadcast dispatched to ${targetUsers.length} recipients`);
+
+                                    let deliverySummary = `Broadcast dispatched to ${targetUsers.length} recipients.`;
+                                    if (phones.length > 0) {
+                                        const remainingBalance = Math.max(0, currentBalance - phones.length);
+                                        deliverySummary += ` SMS Delivery: dispatched to ${phones.length} destination numbers. Remaining Units: ${remainingBalance}.`;
+                                        if (smsResInfo?.message) {
+                                            deliverySummary += ` Gateway Status: ${smsResInfo.message}`;
+                                        }
+                                    }
+                                    success(deliverySummary);
                                 } catch (err) {
                                     console.error("Broadcast failed:", err);
                                     toastError("Failed to send broadcast to all recipients");
