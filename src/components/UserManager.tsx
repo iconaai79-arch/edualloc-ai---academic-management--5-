@@ -942,8 +942,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const [driverType, setDriverType] = useState<'staff' | 'private'>('staff');
 
     const resetForm = () => {
+        const defaultRole = isDS ? 'driving_instructor' : (isCoop ? 'cooperative_manager' : (isAutoMarket ? 'sales' : (isRetailAgency ? 'retail_agent' : (isChurch ? 'worker' : 'teacher'))));
         setName(''); setEmail(''); setPhone(''); setStaffId('');
-        setGender('Male'); setRole('lecturer'); setRoles(['teacher']); setDepartmentId('');
+        setGender('Male'); setRole(defaultRole as Role); setRoles([defaultRole as Role]); setDepartmentId('');
         setCourseId(''); setCourseLevelId(''); setDriverType('staff');
         setSendWelcomeSms(false);
         setSendWelcomeEmail(false);
@@ -959,14 +960,14 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
     useEffect(() => {
         if (activeTab === 'staff') {
-            const defaultRole = isCoop ? 'cooperative_manager' : (isAutoMarket ? 'sales' : (isRetailAgency ? 'retail_agent' : (isChurch ? 'worker' : 'teacher')));
+            const defaultRole = isDS ? 'driving_instructor' : (isCoop ? 'cooperative_manager' : (isAutoMarket ? 'sales' : (isRetailAgency ? 'retail_agent' : (isChurch ? 'worker' : 'teacher'))));
             setRoles([defaultRole as Role]);
         } else if (activeTab === 'customer') {
             setRoles(['customer']);
         } else {
             setRoles(isChurch ? ['member'] as any : ['student']);
         }
-    }, [activeTab, isCoop, isRetailAgency, isAutoMarket, isChurch]);
+    }, [activeTab, isDS, isCoop, isRetailAgency, isAutoMarket, isChurch]);
 
     const canManageUserRecords = useMemo(() => {
         if (!currentUser) return false;
@@ -1104,7 +1105,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         };
 
         if (activeTab === 'staff') {
-            userData.departmentId = (isCoop || isRetailAgency || isChurch || isPm) ? undefined : ((currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto') ? currentUser.departmentId : departmentId);
+            userData.departmentId = (isCoop || isRetailAgency || isChurch || isPm || isDS) ? undefined : ((currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto') ? currentUser.departmentId : departmentId);
         }
         else {
             userData.courseId = courseId;
@@ -1335,7 +1336,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                             ))}
                                         </div>
                                     </div>
-                                    {!isRetailAgency && !isCoop && !isChurch && !isPm && isEdu && (
+                                    {!isRetailAgency && !isCoop && !isChurch && !isPm && !isDS && isEdu && (
                                         <div>
                                             <label className="block text-sm font-medium mb-1">Department</label>
                                             <select
