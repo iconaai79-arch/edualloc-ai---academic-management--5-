@@ -1868,47 +1868,41 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     )}
 
                     {activeTab === 'settings' && (
-                        <div className="animate-fade-in flex flex-col lg:flex-row gap-8">
-                            {/* Vertical Sub-navigation */}
-                            <div className="w-full lg:w-80 space-y-3">
-                                {[
-                                    { id: 'policies', label: 'Operating Policies', icon: ClipboardListIcon, description: 'Rules, sequence & automation' },
-                                    { id: 'numbering', label: 'Document Numbering', icon: ListIcon, description: 'Invoice & receipt prefixes' },
-                                    { id: 'fees', label: 'Fee Structures', icon: CreditCardIcon, description: 'Classes & pricing' },
-                                    { id: 'slots', label: 'Lesson Hours', icon: ClockIcon, description: 'Daily time slots' }
-                                ].map(tab => (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setSettingsSubTab(tab.id as any)}
-                                        className={`w-full flex items-center gap-5 px-8 py-6 rounded-[2rem] transition-all text-left group ${
-                                            settingsSubTab === tab.id 
-                                            ? 'bg-indigo-600 text-white shadow-2xl shadow-indigo-600/20 scale-[1.02]' 
-                                            : 'bg-white dark:bg-slate-900 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-800 shadow-sm'
-                                        }`}
-                                    >
-                                        <div className={`p-3 rounded-2xl transition-colors ${settingsSubTab === tab.id ? 'bg-white/20' : 'bg-slate-50 dark:bg-slate-800 group-hover:bg-indigo-50'}`}>
-                                            <tab.icon className={`w-5 h-5 ${settingsSubTab === tab.id ? 'text-white' : 'text-slate-400 group-hover:text-indigo-600'}`} />
-                                        </div>
-                                        <div>
-                                            <p className={`text-xs font-black uppercase tracking-widest ${settingsSubTab === tab.id ? 'text-white' : 'text-slate-900 dark:text-white'}`}>{tab.label}</p>
-                                            <p className={`text-[10px] font-medium mt-0.5 ${settingsSubTab === tab.id ? 'text-indigo-100' : 'text-slate-400'}`}>{tab.description}</p>
-                                        </div>
-                                    </button>
-                                ))}
-
-                                <div className="pt-6">
-                                    <button 
-                                        onClick={() => onUpdateSettings(settings || {})}
-                                        className="w-full px-8 py-5 bg-slate-900 dark:bg-indigo-600 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
-                                    >
-                                        <CheckCircleIcon className="w-5 h-5" />
-                                        Save All Settings
-                                    </button>
+                        <div className="animate-fade-in space-y-8">
+                            {/* Horizontal Sub-navigation Bar */}
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-3 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide w-full md:w-auto">
+                                    {[
+                                        { id: 'policies', label: 'Operating Policies', icon: ClipboardListIcon },
+                                        { id: 'numbering', label: 'Document Numbering', icon: ListIcon },
+                                        { id: 'fees', label: 'Fee Structures', icon: CreditCardIcon },
+                                        { id: 'slots', label: 'Lesson Hours', icon: ClockIcon }
+                                    ].map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setSettingsSubTab(tab.id as any)}
+                                            className={`flex items-center gap-2.5 px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest whitespace-nowrap transition-all ${
+                                                settingsSubTab === tab.id 
+                                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 scale-105' 
+                                                : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                            }`}
+                                        >
+                                            <tab.icon className="w-4 h-4" />
+                                            {tab.label}
+                                        </button>
+                                    ))}
                                 </div>
+                                <button 
+                                    onClick={() => onUpdateSettings(settings || {})}
+                                    className="px-8 py-4 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 whitespace-nowrap self-end md:self-auto"
+                                >
+                                    <CheckCircleIcon className="w-4 h-4" />
+                                    Save All Settings
+                                </button>
                             </div>
 
                             {/* Settings Content Area */}
-                            <div className="flex-1 bg-white dark:bg-slate-900 p-8 md:p-12 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-sm min-h-[600px] animate-fade-in overflow-hidden">
+                            <div className="bg-white dark:bg-slate-900 p-8 md:p-12 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-sm min-h-[500px] animate-fade-in overflow-hidden">
                                 {settingsSubTab === 'policies' && (
                                     <div className="space-y-12">
                                         <div>
