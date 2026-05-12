@@ -75,7 +75,7 @@ interface SettingsManagerProps {
     buildings: Building[];
     rooms: Room[];
     courses: Course[];
-    academicLevels: AcademicLevel[];
+    academicLevels?: AcademicLevel[];
     timetableSettings: TimetableSettings;
     examTimetableSettings: ExamTimetableSettings;
     logoUrl: string | null;

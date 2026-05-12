@@ -45,7 +45,7 @@ interface ReportsDashboardProps {
     rooms: Room[];
     buildings: Building[];
     letterheadConfig: LetterheadConfig;
-    logoUrl: string | null;
+    logoUrl?: string | null;
     footerImageUrl: string | null;
     timetableConflicts: Conflict[];
     getLecturerById?: (id: string) => User | undefined;

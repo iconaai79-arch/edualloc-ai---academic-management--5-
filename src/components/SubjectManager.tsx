@@ -57,7 +57,7 @@ interface SubjectManagerProps {
     onDisassociateSubjectFromCourseLevel?: (subjectId: string, courseLevelId: string) => void;
     timetableSettings: TimetableSettings;
     onSaveTimetableSettings?: (config: TimetableSettings) => void;
-    letterheadConfig: LetterheadConfig;
+    letterheadConfig?: LetterheadConfig;
     logoUrl: string | null;
     footerImageUrl: string | null;
     buildings: Building[];
