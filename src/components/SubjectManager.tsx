@@ -58,8 +58,8 @@ interface SubjectManagerProps {
     timetableSettings: TimetableSettings;
     onSaveTimetableSettings?: (config: TimetableSettings) => void;
     letterheadConfig?: LetterheadConfig;
-    logoUrl: string | null;
-    footerImageUrl: string | null;
+    logoUrl?: string | null;
+    footerImageUrl?: string | null;
     buildings: Building[];
     currentInstitution?: Institution | null;
     currentUser: User;

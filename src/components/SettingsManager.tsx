@@ -78,8 +78,8 @@ interface SettingsManagerProps {
     academicLevels?: AcademicLevel[];
     timetableSettings: TimetableSettings;
     examTimetableSettings: ExamTimetableSettings;
-    logoUrl: string | null;
-    footerImageUrl: string | null;
+    logoUrl?: string | null;
+    footerImageUrl?: string | null;
     themeColor: string;
     academicYears: AcademicYear[];
     semesters: Semester[];
@@ -3907,7 +3907,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                             )}
 
                             {facilitiesSubTab === 'levels' && !isSchool && (
-                                <AcademicLevelManager onAdd={props.onAddAcademicLevel} onUpdate={props.onUpdateAcademicLevel} onDelete={props.onDeleteAcademicLevel} academicLevels={props.academicLevels} currentInstitution={props.currentInstitution} />
+                                <AcademicLevelManager onAdd={props.onAddAcademicLevel} onUpdate={props.onUpdateAcademicLevel} onDelete={props.onDeleteAcademicLevel} academicLevels={props.academicLevels || []} currentInstitution={props.currentInstitution} />
                             )}
 
                             {facilitiesSubTab === 'streams' && isSchool && (
@@ -4067,6 +4067,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 activeTab === 'courses' && (
                     <CourseManager
                         {...props}
+                        academicLevels={props.academicLevels || []}
                         courses={props.courses || []}
                         onAddCourse={props.onAddCourse}
                         onImportCourses={props.onImportCourses}
