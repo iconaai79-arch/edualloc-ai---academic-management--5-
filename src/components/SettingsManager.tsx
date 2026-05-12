@@ -227,7 +227,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'integrations' | 'showcase' | 'storage' | 'googledrive'>('profile');
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'ncba'>('mpesa');
     const [instIntegrationTab, setInstIntegrationTab] = useState<'mpesa' | 'ncba' | 'googledrive'>('mpesa');
-    const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>('departments');
+    const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>(isDS ? 'buildings' : 'departments');
     const [showPaperPreview, setShowPaperPreview] = useState(false);
 
 
@@ -238,6 +238,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             setActiveTab(props.initialTab as SettingsTab);
         }
     }, [props.initialTab]);
+
+    useEffect(() => {
+        if (isDS && facilitiesSubTab === 'departments') {
+            setFacilitiesSubTab('buildings');
+        }
+    }, [isDS, facilitiesSubTab]);
 
     // --- Timetable Rules State ---
     const [selectedProfileId, setSelectedProfileId] = useState<string>('default');
@@ -3520,12 +3526,14 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                     <div className="space-y-8 animate-fade-in-up">
                         <div className="border-b border-slate-200 dark:border-slate-700 overflow-x-auto no-scrollbar">
                             <nav className="-mb-px flex space-x-6">
-                                <button
-                                    onClick={() => setFacilitiesSubTab('departments')}
-                                    className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${facilitiesSubTab === 'departments' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    <RectangleStackIcon className="w-4 h-4" /> Departments
-                                </button>
+                                {!isDS && (
+                                    <button
+                                        onClick={() => setFacilitiesSubTab('departments')}
+                                        className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${facilitiesSubTab === 'departments' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        <RectangleStackIcon className="w-4 h-4" /> Departments
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => setFacilitiesSubTab('buildings')}
                                     className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${facilitiesSubTab === 'buildings' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}

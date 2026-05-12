@@ -997,7 +997,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         try {
             // Dispatch personalized SMS batches
             const tasks = targets.map(t => 
-                apiService.sendSms(t.phone, t.message, undefined, 1, currentInstitution?.id)
+                apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, 1, currentInstitution?.id)
             );
             await Promise.all(tasks);
             
@@ -2562,7 +2562,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             return;
                                         }
                                         // Await SMS dispatch to capture precise delivery metadata
-                                        smsResInfo = await apiService.sendSms(phones, `${priorityPrefix}${data.title}: ${data.message}`, undefined, 1, currentInstitution?.id);
+                                        smsResInfo = await apiService.sendSms(phones, `${priorityPrefix}${data.title}: ${data.message}`, currentInstitution?.smsConfig, 1, currentInstitution?.id);
                                     }
 
                                     if (emails.length > 0) {
