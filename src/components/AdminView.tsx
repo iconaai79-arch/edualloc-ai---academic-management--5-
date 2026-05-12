@@ -1378,6 +1378,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     subjects={props.subjects || []}
                                     courses={props.courses || []}
                                     departments={props.departments || []}
+                                    buildings={props.buildings || []}
                                     timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                                     onAddSubject={props.onAddSubject}
                                     onUpdateSubject={props.onUpdateSubject}
@@ -1599,6 +1600,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 {activeTab === 'settings' && !isCoop && (
                     <SettingsManager
                         {...props}
+                        themeColor={props.themeColor || 'indigo'}
                         departments={props.departments || []}
                         buildings={props.buildings || []}
                         rooms={props.rooms || []}
@@ -1921,6 +1923,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 requests={requests || []}
                                 contracts={props.contracts || []}
                                 timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                timetableConflicts={props.timetableConflicts || []}
                                 activityLog={props.activityLog || []}
                                 courseSizes={props.courseSizes || new Map()}
                                 examTimetable={[]}

@@ -2823,7 +2823,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     onAddTransaction={props.onAddTransaction || (async () => 'failed')}
                                     invoices={props.invoices || []}
                                     receipts={props.receipts || []}
-                                    logoUrl={props.logoUrl}
+                                    logoUrl={props.logoUrl || null}
                                     onRefreshData={props.onRefreshData}
                                     extensionRequests={props.extensionRequests || []}
                                     onAddExtensionRequest={props.onAddExtensionRequest}
@@ -4020,6 +4020,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 activeTab === 'staff' && (
                     <UserManager
                         {...props}
+                        logoUrl={props.logoUrl || null}
                         isDS={isDS}
                         user={props.currentUser}
                         showOnly="staff"
@@ -4067,6 +4068,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 activeTab === 'courses' && (
                     <CourseManager
                         {...props}
+                        logoUrl={props.logoUrl || null}
                         academicLevels={props.academicLevels || []}
                         courses={props.courses || []}
                         onAddCourse={props.onAddCourse}
