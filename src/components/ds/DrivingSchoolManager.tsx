@@ -961,6 +961,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         }
 
         setIsActionLoading(true);
+        setUnassignedDueToVehicles([]); // Reset previous tracking list
         try {
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
@@ -969,8 +970,19 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             // 1. Filter students who have active enrollment
             const eligibleStudents = students.filter(s => s.status === 'Enrolled');
             
+            // Track busy vehicles grouped by simultaneous time slots
+            const assignedVehiclesBySlot: Record<string, Set<string>> = {};
+            // Pre-populate with pre-existing busy vehicles for tomorrow
+            lessons.filter(l => l.lessonDate === dateStr && l.vehicleId).forEach(l => {
+                if (!assignedVehiclesBySlot[l.startTime]) {
+                    assignedVehiclesBySlot[l.startTime] = new Set<string>();
+                }
+                assignedVehiclesBySlot[l.startTime].add(l.vehicleId!);
+            });
+
             let lessonsAdded = 0;
             let skippedStudents = 0;
+            const leftOutCandidates: Array<{ name: string; slot: string }> = [];
 
             for (const student of eligibleStudents) {
                 // Robust duplicate prevention: check if student already has a lesson scheduled for tomorrow
@@ -985,6 +997,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                 const slot = (settings.lessonSlots || []).find(s => s.type === preferredSlotType) || { startTime: '08:00', endTime: '10:00' };
                 
                 let currentTime = slot.startTime;
+                let missingVehicleConstraint = false;
+                let targetSlotTime = slot.startTime;
                 
                 // For each type in the sequence (e.g., Theory, Practical)
                 for (const type of settings.schedulingRules.dailySequence) {
@@ -1003,10 +1017,33 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         ? instructors.find(i => i.instructorType === 'Theory Trainer')
                         : instructors.find(i => i.instructorType === 'Driving Instructor' || !i.instructorType);
                     
-                    // Assign vehicle if practical
-                    const vehicle = type === 'Practical' 
-                        ? (vehicles.find(v => v.id === instructor?.assignedVehicleId) || vehicles.find(v => v.status === 'Operational'))
-                        : undefined;
+                    let vehicle: any = undefined;
+                    if (type === 'Practical') {
+                        const operationalVehicles = vehicles.filter(v => v.status === 'Operational');
+                        const busySet = assignedVehiclesBySlot[currentTime] || new Set<string>();
+                        
+                        // Attempt to assign the instructor's default vehicle first if operational and not busy
+                        if (instructor?.assignedVehicleId && !busySet.has(instructor.assignedVehicleId)) {
+                            vehicle = operationalVehicles.find(v => v.id === instructor.assignedVehicleId);
+                        }
+                        // Fallback to any operational vehicle that is not currently busy in this target slot
+                        if (!vehicle) {
+                            vehicle = operationalVehicles.find(v => !busySet.has(v.id));
+                        }
+
+                        if (!vehicle) {
+                            // Fleet capacity constraint reached for this parallel time slot
+                            missingVehicleConstraint = true;
+                            targetSlotTime = currentTime;
+                            break; // Abort remaining practical generation sequence for this student
+                        } else {
+                            // Register vehicle as occupied for this parallel target slot
+                            if (!assignedVehiclesBySlot[currentTime]) {
+                                assignedVehiclesBySlot[currentTime] = new Set<string>();
+                            }
+                            assignedVehiclesBySlot[currentTime].add(vehicle.id);
+                        }
+                    }
 
                     await onAddLesson({
                         studentId: student.id,
@@ -1024,6 +1061,18 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     lessonsAdded++;
                     currentTime = endTime; // Set for next in sequence if back-to-back
                 }
+
+                if (missingVehicleConstraint) {
+                    leftOutCandidates.push({
+                        name: student.fullName || (student as any).name || 'Unknown Candidate',
+                        slot: targetSlotTime
+                    });
+                }
+            }
+
+            if (leftOutCandidates.length > 0) {
+                setUnassignedDueToVehicles(leftOutCandidates);
+                setActiveTab('lessons'); // Redirect to lessons view to prominently showcase the capacity warning list
             }
 
             if (lessonsAdded > 0) {
@@ -1127,6 +1176,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isBuySMSModalOpen, setIsBuySMSModalOpen] = useState(false);
     const [actionModal, setActionModal] = useState<{ type: 'student' | 'instructor' | 'vehicle' | 'vehicle_unavailability' | 'lesson' | 'invoice' | 'payment' | 'fee_structure' | 'broadcast' | null; data?: any; initialData?: any }>({ type: null });
+    const [unassignedDueToVehicles, setUnassignedDueToVehicles] = useState<Array<{ name: string; slot: string }>>([]);
 
     // Normalization
     const normalizedStudents = useMemo(() => students.map(s => ({
@@ -1499,8 +1549,45 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                     )}
 
                     {activeTab === 'lessons' && (
-                        <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden animate-fade-in">
-                            <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="space-y-8 animate-fade-in">
+                            {unassignedDueToVehicles.length > 0 && (
+                                <div className="p-6 md:p-8 bg-amber-50 dark:bg-amber-950/30 rounded-[2.5rem] border border-amber-200 dark:border-amber-900/50 shadow-sm animate-fade-in">
+                                    <div className="flex items-center justify-between gap-4 mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/50 rounded-xl flex items-center justify-center text-amber-600 dark:text-amber-400 font-bold">
+                                                !
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-amber-900 dark:text-amber-200 uppercase tracking-tight text-sm">
+                                                    Unassigned Candidates (Fleet Capacity Reached)
+                                                </h4>
+                                                <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                                                    The following enrolled students could not be allocated practical slots tomorrow due to full utilization of operational vehicles:
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => setUnassignedDueToVehicles([])}
+                                            className="text-xs font-black text-amber-800 dark:text-amber-300 uppercase tracking-widest hover:underline px-3 py-1.5 bg-amber-100 dark:bg-amber-900/40 rounded-lg"
+                                        >
+                                            Dismiss
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                        {unassignedDueToVehicles.map((item, idx) => (
+                                            <div key={idx} className="bg-white/80 dark:bg-slate-900/80 px-4 py-3 rounded-xl border border-amber-100 dark:border-amber-900/30 flex items-center justify-between shadow-sm">
+                                                <span className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">{item.name}</span>
+                                                <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-black text-[9px] uppercase rounded">
+                                                    {item.slot} Slot
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
                                 <div className="flex items-center gap-4">
                                     <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Training Sessions</h3>
                                 </div>
@@ -1555,6 +1642,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
                         </div>
                     )}
 
