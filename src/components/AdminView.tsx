@@ -1601,6 +1601,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     <SettingsManager
                         {...props}
                         themeColor={props.themeColor || 'indigo'}
+                        users={props.users || []}
                         onImportSubjectsAndAssociate={props.onImportSubjectsAndAssociate ? (subjects) => props.onImportSubjectsAndAssociate!(subjects as any) : undefined}
                         departments={props.departments || []}
                         buildings={props.buildings || []}
@@ -1910,6 +1911,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             <ReportsDashboard
                                 {...props}
                                 currentUser={props.currentUser!}
+                                courses={props.courses || []}
                                 subjects={props.subjects || []}
                                 rooms={props.rooms || []}
                                 buildings={props.buildings || []}
