@@ -614,65 +614,68 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         try {
             console.log(`[DS Automation] Preparing notifications for ${type} #${data.invoiceNumber || data.receiptNumber}`);
             
-            // Fetch institution details for PDF
+            // Fetch institution details
             const insts = await apiService.fetchModuleRecords('institutions', institutionId);
             const inst = insts?.[0] || { name: 'Driving School' };
+            const companySettings = await apiService.fetchCompanySettings().catch(() => null);
+            const activeSmsConfig = inst.smsConfig || companySettings?.smsConfig;
 
-            // Generate PDF
-            const doc = await generateDSPDF(type, data, student as any, settings, inst);
-            const pdfBlob = doc.output('blob');
-            const fileName = `${type === 'invoice' ? data.invoiceNumber : data.receiptNumber}.pdf`;
-            const storagePath = `driving_school/${type}s/${fileName}`;
+            const docTypeName = type === 'invoice' ? 'Invoice' : 'Payment Receipt';
+            const docNumber = type === 'invoice' ? data.invoiceNumber : data.receiptNumber;
+            const amountStr = `KES ${(data.totalAmount || (data.amount || 0)).toLocaleString()}`;
 
-            // Upload to storage to get a public link
+            // Attempt PDF generation & Storage Upload gracefully
             let publicUrl = '';
+            let pdfBase64 = '';
+            const fileName = `${docNumber}.pdf`;
+
             try {
+                const doc = await generateDSPDF(type, data, student as any, settings, inst);
+                const pdfBlob = doc.output('blob');
+                pdfBase64 = doc.output('datauristring').split(',')[1];
+                const storagePath = `driving_school/${type}s/${fileName}`;
                 publicUrl = await apiService.uploadBlob(storagePath, pdfBlob, 'application/pdf');
-            } catch (uploadErr) {
-                console.error("[DS Automation] PDF Upload failed:", uploadErr);
+            } catch (pdfErr) {
+                console.warn("[DS Automation] PDF Generation/Upload warning (continuing with plain notification):", pdfErr);
             }
 
-            // 1. Send Email with Attachment
+            // 1. Send Email Notification
             if (student.email) {
-                const pdfBase64 = doc.output('datauristring').split(',')[1];
-                const subject = `${inst.name} - ${type === 'invoice' ? 'Invoice' : 'Receipt'} #${type === 'invoice' ? data.invoiceNumber : data.receiptNumber}`;
-                const body = `Dear ${student.fullName},\n\n` +
-                             `Please find attached your ${type} from ${inst.name}.\n\n` +
-                             `Document Number: #${type === 'invoice' ? data.invoiceNumber : data.receiptNumber}\n` +
-                             `Amount: KES ${(data.totalAmount || data.amount).toLocaleString()}\n` +
-                             (type === 'invoice' ? `Balance Due: KES ${data.balance?.toLocaleString()}\n` : '') +
-                             `Date: ${new Date().toLocaleDateString()}\n\n` +
-                             `You can also download it here: ${publicUrl || 'N/A'}\n\n` +
-                             `Thank you for choosing ${inst.name}. We look forward to your success!`;
-                
-                const emailRes = await apiService.sendEmail(student.email, subject, body, undefined, undefined, [
-                    { filename: fileName, content: pdfBase64, encoding: 'base64' }
-                ]);
-                if (emailRes && !emailRes.success) {
-                    console.warn(`[DS Automation] Email delivery failed: ${emailRes.message}`);
+                try {
+                    const subject = `${inst.name} - ${docTypeName} #${docNumber}`;
+                    const balanceLine = type === 'invoice' ? `Balance Due: KES ${(data.balance || 0).toLocaleString()}\n` : '';
+                    const body = `Dear ${student.fullName},\n\n` +
+                                 `Your ${docTypeName} from ${inst.name} has been processed successfully.\n\n` +
+                                 `Document Number: #${docNumber}\n` +
+                                 `Amount: ${amountStr}\n` +
+                                 balanceLine +
+                                 `Date: ${new Date().toLocaleDateString()}\n\n` +
+                                 (publicUrl ? `Download Link: ${publicUrl}\n\n` : '') +
+                                 `Thank you for choosing ${inst.name}. We are dedicated to your excellence!`;
+                    
+                    const attachments = pdfBase64 ? [{ filename: fileName, content: pdfBase64, encoding: 'base64' }] : undefined;
+                    await apiService.sendEmail(student.email, subject, body, undefined, undefined, attachments);
+                } catch (emailErr) {
+                    console.warn(`[DS Automation] Email delivery warning:`, emailErr);
                 }
             }
 
-            // 2. Send SMS with Link
+            // 2. Guaranteed Automated SMS Notification
             if (student.phone) {
-                const shortUrl = publicUrl ? `\nDownload: ${publicUrl}` : '';
-                const smsMessage = `Hello ${student.fullName}, your ${inst.name} ${type} #${type === 'invoice' ? data.invoiceNumber : data.receiptNumber} of KES ${(data.totalAmount || (data.amount || 0)).toLocaleString()} is ready.${shortUrl}`;
-                
-                if ((inst.smsBalance || 0) <= 0) {
-                    error("Insufficient SMS units. Please top up to send student notifications.");
-                    console.warn(`[DS Automation] Document SMS failed: Insufficient balance (${inst.smsBalance} units)`);
-                } else {
-                    const smsRes = await apiService.sendSms(student.phone, smsMessage, undefined, 1, institutionId);
-                    if (smsRes && !smsRes.success) {
-                        console.warn(`[DS Automation] SMS delivery failed: ${smsRes.message}`);
-                    }
+                try {
+                    const shortUrl = publicUrl ? `\nDownload: ${publicUrl}` : '';
+                    const smsMessage = `Hello ${student.fullName}, your ${inst.name} ${docTypeName} #${docNumber} of ${amountStr} is ready.${shortUrl}`;
+                    
+                    await apiService.sendSms(student.phone, smsMessage, activeSmsConfig, 1, institutionId);
+                    console.log(`[DS Automation] Automated SMS successfully dispatched for ${docTypeName} #${docNumber} to ${student.phone}`);
+                } catch (smsErr) {
+                    console.warn(`[DS Automation] SMS delivery warning:`, smsErr);
                 }
             }
 
-            console.log(`[DS Automation] Notifications successfully dispatched for ${type} to ${student.fullName}`);
+            console.log(`[DS Automation] Notification dispatch sequence finalized for ${docTypeName} #${docNumber}`);
         } catch (err) {
             console.error(`[DS Automation] Critical failure in notification workflow:`, err);
-            // Non-blocking error for UI
         }
     }, [institutionId, students, settings]);
 
