@@ -1593,6 +1593,8 @@ CREATE TABLE IF NOT EXISTS ds_settings (
     invoice_prefix TEXT,
     receipt_prefix TEXT,
     student_id_prefix TEXT,
+    license_categories JSONB DEFAULT '[]'::jsonb,
+    votes JSONB DEFAULT '[]'::jsonb,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -1602,6 +1604,31 @@ ALTER TABLE ds_settings ADD COLUMN IF NOT EXISTS scheduling_rules JSONB DEFAULT 
 ALTER TABLE ds_settings ADD COLUMN IF NOT EXISTS invoice_prefix TEXT;
 ALTER TABLE ds_settings ADD COLUMN IF NOT EXISTS receipt_prefix TEXT;
 ALTER TABLE ds_settings ADD COLUMN IF NOT EXISTS student_id_prefix TEXT;
+ALTER TABLE ds_settings ADD COLUMN IF NOT EXISTS license_categories JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE ds_settings ADD COLUMN IF NOT EXISTS votes JSONB DEFAULT '[]'::jsonb;
+
+CREATE TABLE IF NOT EXISTS ds_license_categories (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    base_fee DECIMAL(12, 2) DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(code, institution_id)
+);
+
+CREATE TABLE IF NOT EXISTS ds_votes (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    vote_name TEXT NOT NULL,
+    default_amount DECIMAL(12, 2) DEFAULT 0,
+    is_mandatory BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(vote_name, institution_id)
+);
 
 CREATE TABLE IF NOT EXISTS ds_fee_structures (
     id TEXT PRIMARY KEY,
@@ -1871,7 +1898,7 @@ BEGIN
         'teacher_check_ins', 'his_staff_attendance', 'his_dental_charts',
         'his_eye_prescriptions', 'his_medication_logs', 'his_financial_records',
         'his_broadcasts', 'institution_module_states',
-        'ds_instructors', 'ds_vehicles', 'ds_students', 'ds_lessons', 'ds_skill_mastery', 'ds_settings', 'ds_fee_structures', 'ds_invoices', 'ds_payments',
+        'ds_instructors', 'ds_vehicles', 'ds_students', 'ds_lessons', 'ds_skill_mastery', 'ds_settings', 'ds_fee_structures', 'ds_invoices', 'ds_payments', 'ds_license_categories', 'ds_votes',
         'car_listings', 'car_test_drive_bookings', 'car_appraisals', 'car_invoices', 'car_payments',
         'heritage_members', 'heritage_stories', 'heritage_galleries', 'heritage_announcements'
     ]) LOOP

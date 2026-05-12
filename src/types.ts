@@ -1125,6 +1125,7 @@ export interface LecturerContract {
     };
     status: 'pending' | 'signed' | 'expired';
     signedAt?: string;
+    signatureUrl?: string;
 }
 
 
@@ -3314,6 +3315,7 @@ export interface PharmacySettings {
     stopRemindersEnabled?: boolean;
     checkupRemindersEnabled?: boolean;
     autoPrintReceipt: boolean;
+    letterheadConfig?: LetterheadConfig;
     theme?: 'indigo' | 'emerald' | 'rose' | 'amber' | 'cyan' | 'violet' | 'fuchsia' | 'sky' | 'lime';
     updatedAt: string;
 }

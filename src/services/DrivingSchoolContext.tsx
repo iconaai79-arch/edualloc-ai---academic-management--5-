@@ -104,25 +104,27 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             setLessons(dsLess || []);
             setMastery(dsMast || []);
 
-            // Safely consolidate embedded cache columns with standalone DB rows
-            let baseSettings: any = dsSet && dsSet.length > 0 ? dsSet[0] : null;
-            if (baseSettings) {
-                const mergedVotes = baseSettings.votes?.length ? baseSettings.votes : (dsVotesStandalone || []);
-                const mergedCats = baseSettings.licenseCategories?.length ? baseSettings.licenseCategories : (dsCatsStandalone || []);
-                baseSettings = {
-                    ...baseSettings,
-                    votes: mergedVotes,
-                    licenseCategories: mergedCats
-                };
-            } else {
-                baseSettings = {
-                    id: `ds_settings_${institutionId}`,
-                    institutionId,
-                    votes: dsVotesStandalone || [],
-                    licenseCategories: dsCatsStandalone || []
-                };
-            }
-            setSettings(baseSettings);
+            // Safely consolidate embedded cache columns with standalone DB rows and preserve local state if backend strips newly added columns
+            setSettings(prev => {
+                let baseSettings: any = dsSet && dsSet.length > 0 ? dsSet[0] : null;
+                if (baseSettings) {
+                    const mergedVotes = baseSettings.votes?.length ? baseSettings.votes : (dsVotesStandalone?.length ? dsVotesStandalone : (prev?.votes || []));
+                    const mergedCats = baseSettings.licenseCategories?.length ? baseSettings.licenseCategories : (dsCatsStandalone?.length ? dsCatsStandalone : (prev?.licenseCategories || []));
+                    return {
+                        ...baseSettings,
+                        votes: mergedVotes,
+                        licenseCategories: mergedCats
+                    };
+                } else {
+                    return {
+                        id: `ds_settings_${institutionId}`,
+                        institutionId,
+                        ...prev,
+                        votes: dsVotesStandalone?.length ? dsVotesStandalone : (prev?.votes || []),
+                        licenseCategories: dsCatsStandalone?.length ? dsCatsStandalone : (prev?.licenseCategories || [])
+                    };
+                }
+            });
             setInvoices(dsInvs || []);
             setPayments(dsPay || []);
             setMpesaTransactions(dsMpe || []);
@@ -603,6 +605,14 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             console.log("[DS Context] Save triggered - Final ID:", payload.id);
             const result = await apiService.saveModuleRecord('ds_settings', payload);
             console.log("[DS Context] Save Success - Response:", result);
+            
+            // Instantly update local React state to guarantee stability even if backend schema caches lag behind
+            setSettings(prev => ({
+                ...prev,
+                ...payload,
+                votes: payload.votes || prev?.votes || [],
+                licenseCategories: payload.licenseCategories || prev?.licenseCategories || []
+            }));
             
             // Mirror fee structures to the standalone ds_fee_structures table if they exist
             if (data.feeStructures && Array.isArray(data.feeStructures)) {
