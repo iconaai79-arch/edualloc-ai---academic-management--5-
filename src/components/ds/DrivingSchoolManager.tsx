@@ -1256,12 +1256,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     
     const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings' | 'reports'>('dashboard');
     const [financeTab, setFinanceTab] = useState<'records' | 'feeds'>('records');
-    const [settingsSubTab, setSettingsSubTab] = useState<'policies' | 'numbering' | 'fees' | 'slots'>('policies');
+    const [settingsSubTab, setSettingsSubTab] = useState<'categories' | 'votes' | 'rules' | 'numbering' | 'fees' | 'slots'>('categories');
     const [reportSubTab, setReportSubTab] = useState<'instructor_timetable' | 'sessions'>('instructor_timetable');
     const [selectedReportInstructorId, setSelectedReportInstructorId] = useState<string>('all');
     const [users, setUsers] = useState<User[]>([]);
     const [isActionLoading, setIsActionLoading] = useState(false);
     const [isSendingReminders, setIsSendingReminders] = useState(false);
+    const [newCategoryInput, setNewCategoryInput] = useState({ code: '', name: '', description: '', baseFee: 0, isActive: true });
+    const [newVoteInput, setNewVoteInput] = useState({ voteName: '', defaultAmount: 0, isMandatory: false });
 
     const handleSendBulkReminders = async () => {
         // Filter out pending invoices with balance > 0
@@ -2496,7 +2498,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-3 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
                                 <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide w-full md:w-auto">
                                     {[
-                                        { id: 'policies', label: 'Operating Policies', icon: ClipboardListIcon },
+                                        { id: 'categories', label: 'License Categories', icon: AcademicCapIcon },
+                                        { id: 'votes', label: 'Fee Votes / Heads', icon: CreditCardIcon },
+                                        { id: 'rules', label: 'Scheduling Rules', icon: ClipboardListIcon },
                                         { id: 'numbering', label: 'Document Numbering', icon: ListIcon },
                                         { id: 'fees', label: 'Fee Structures', icon: CreditCardIcon },
                                         { id: 'slots', label: 'Lesson Hours', icon: ClockIcon }
@@ -2526,10 +2530,287 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                             {/* Settings Content Area */}
                             <div className="bg-white dark:bg-slate-900 p-8 md:p-12 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-sm min-h-[500px] animate-fade-in overflow-hidden">
-                                {settingsSubTab === 'policies' && (
-                                    <div className="space-y-12">
+                                {settingsSubTab === 'categories' && (
+                                    <div className="space-y-12 animate-fade-in">
                                         <div>
-                                            <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Operating Policies</h4>
+                                            <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">License Categories</h4>
+                                            <p className="text-xs font-medium text-slate-400">Configure supported NTSA/Local driving license classifications and their standard base pricing.</p>
+                                        </div>
+
+                                        {/* Presets Block */}
+                                        <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">Quick Standard Presets</p>
+                                            <div className="flex flex-wrap gap-2.5">
+                                                {[
+                                                    { code: 'A1', name: 'Light Passenger Craft (Moped)', baseFee: 6500, description: 'Up to 50cc lightweight motorcycles.' },
+                                                    { code: 'B', name: 'Light Passenger Vehicle (Car)', baseFee: 15000, description: 'Standard light vehicles (Manual/Automatic).' },
+                                                    { code: 'C1', name: 'Light Commercial Vehicle', baseFee: 18500, description: 'Commercial vehicle exceeding 3,500kg up to 7,500kg.' },
+                                                    { code: 'C', name: 'Heavy Commercial Vehicle', baseFee: 22000, description: 'Large multi-axle freight trucks.' },
+                                                    { code: 'E', name: 'Special Purpose Vehicle', baseFee: 25000, description: 'Tractors, heavy machinery, or specialized carriers.' }
+                                                ].map((preset, idx) => (
+                                                    <button
+                                                        key={idx}
+                                                        type="button"
+                                                        onClick={() => setNewCategoryInput({ ...preset, isActive: true })}
+                                                        className="px-5 py-3 bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-[11px] font-bold border border-slate-200 dark:border-slate-700/60 shadow-xs hover:border-indigo-200 transition-all flex items-center gap-2"
+                                                    >
+                                                        <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 rounded-md font-black text-[10px]">{preset.code}</span>
+                                                        {preset.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Add Category Form */}
+                                        <div className="p-8 bg-indigo-50/30 dark:bg-indigo-900/10 rounded-[2.5rem] border border-indigo-100/50 dark:border-indigo-900/20 space-y-6">
+                                            <div className="flex items-center gap-2">
+                                                <PlusIcon className="w-4 h-4 text-indigo-600" />
+                                                <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest">Register License Category</h5>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Category Code *</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={newCategoryInput.code}
+                                                        onChange={e => setNewCategoryInput({ ...newCategoryInput, code: e.target.value.toUpperCase() })}
+                                                        placeholder="e.g. B"
+                                                        className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xs"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Category Name *</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={newCategoryInput.name}
+                                                        onChange={e => setNewCategoryInput({ ...newCategoryInput, name: e.target.value })}
+                                                        placeholder="e.g. Light Passenger Vehicle"
+                                                        className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xs"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Base Course Fee (KES)</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={newCategoryInput.baseFee || ''}
+                                                        onChange={e => setNewCategoryInput({ ...newCategoryInput, baseFee: parseFloat(e.target.value) || 0 })}
+                                                        placeholder="e.g. 15000"
+                                                        className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xs"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Description Scope</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={newCategoryInput.description}
+                                                    onChange={e => setNewCategoryInput({ ...newCategoryInput, description: e.target.value })}
+                                                    placeholder="e.g. Standard saloons and hatchbacks capacity up to 7 passengers."
+                                                    className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xs"
+                                                />
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (!newCategoryInput.code.trim() || !newCategoryInput.name.trim()) {
+                                                        toastError("Category code and name are mandatory.");
+                                                        return;
+                                                    }
+                                                    const existingCats = settings?.licenseCategories || [];
+                                                    const filtered = existingCats.filter(c => c.code !== newCategoryInput.code.trim());
+                                                    const updated = [...filtered, { 
+                                                        id: `cat_${Date.now()}`,
+                                                        code: newCategoryInput.code.trim(),
+                                                        name: newCategoryInput.name.trim(),
+                                                        description: newCategoryInput.description.trim(),
+                                                        baseFee: newCategoryInput.baseFee,
+                                                        isActive: newCategoryInput.isActive
+                                                    }];
+                                                    onUpdateSettings({ ...settings, licenseCategories: updated });
+                                                    setNewCategoryInput({ code: '', name: '', description: '', baseFee: 0, isActive: true });
+                                                    success("License category appended successfully.");
+                                                }}
+                                                className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:scale-105 transition-all"
+                                            >
+                                                Add / Update Category
+                                            </button>
+                                        </div>
+
+                                        {/* Categories List View */}
+                                        <div className="space-y-4">
+                                            <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Active Classifications ({settings?.licenseCategories?.length || 0})</h5>
+                                            {(settings?.licenseCategories || []).length === 0 ? (
+                                                <p className="p-8 text-center text-xs font-medium text-slate-400 bg-slate-50 dark:bg-slate-800/30 rounded-3xl border border-dashed">No driving license categories configured yet. Use presets above to instantiate.</p>
+                                            ) : (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    {(settings?.licenseCategories || []).map(cat => (
+                                                        <div key={cat.id} className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xs flex items-start justify-between gap-4">
+                                                            <div className="space-y-1">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg font-black text-xs">{cat.code}</span>
+                                                                    <h6 className="font-bold text-sm text-slate-900 dark:text-white">{cat.name}</h6>
+                                                                </div>
+                                                                {cat.description && <p className="text-xs text-slate-500">{cat.description}</p>}
+                                                                <p className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-2">KES {(cat.baseFee || 0).toLocaleString()}</p>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const updated = (settings?.licenseCategories || []).filter(c => c.id !== cat.id);
+                                                                    onUpdateSettings({ ...settings, licenseCategories: updated });
+                                                                }}
+                                                                className="p-2 text-slate-300 hover:text-red-500 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                                                            >
+                                                                <TrashIcon className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {settingsSubTab === 'votes' && (
+                                    <div className="space-y-12 animate-fade-in">
+                                        <div>
+                                            <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Fee Votes / Heads</h4>
+                                            <p className="text-xs font-medium text-slate-400">Manage configurable billing items and mandatory assessment fees added to student fee projections.</p>
+                                        </div>
+
+                                        {/* Presets Block */}
+                                        <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">Standard Institutional Fee Heads</p>
+                                            <div className="flex flex-wrap gap-2.5">
+                                                {[
+                                                    { voteName: 'Tuition Fee', defaultAmount: 12000, isMandatory: true },
+                                                    { voteName: 'Registration Fee', defaultAmount: 1500, isMandatory: true },
+                                                    { voteName: 'NTSA Test Booking Fee', defaultAmount: 3500, isMandatory: true },
+                                                    { voteName: 'Driving Assessment Fee', defaultAmount: 2000, isMandatory: false },
+                                                    { voteName: 'First Aid Training Fee', defaultAmount: 1000, isMandatory: false },
+                                                    { voteName: 'Student ID & Logbook', defaultAmount: 800, isMandatory: false }
+                                                ].map((preset, idx) => (
+                                                    <button
+                                                        key={idx}
+                                                        type="button"
+                                                        onClick={() => setNewVoteInput(preset)}
+                                                        className="px-5 py-3 bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-[11px] font-bold border border-slate-200 dark:border-slate-700/60 shadow-xs hover:border-indigo-200 transition-all flex items-center gap-2"
+                                                    >
+                                                        {preset.isMandatory && <span className="w-2 h-2 rounded-full bg-indigo-600"></span>}
+                                                        {preset.voteName}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Add Vote Form */}
+                                        <div className="p-8 bg-indigo-50/30 dark:bg-indigo-900/10 rounded-[2.5rem] border border-indigo-100/50 dark:border-indigo-900/20 space-y-6">
+                                            <div className="flex items-center gap-2">
+                                                <PlusIcon className="w-4 h-4 text-indigo-600" />
+                                                <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest">Register Fee Vote</h5>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Fee Head Name *</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={newVoteInput.voteName}
+                                                        onChange={e => setNewVoteInput({ ...newVoteInput, voteName: e.target.value })}
+                                                        placeholder="e.g. Tuition Fee"
+                                                        className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xs"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Default Amount (KES)</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={newVoteInput.defaultAmount || ''}
+                                                        onChange={e => setNewVoteInput({ ...newVoteInput, defaultAmount: parseFloat(e.target.value) || 0 })}
+                                                        placeholder="e.g. 1500"
+                                                        className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xs"
+                                                    />
+                                                </div>
+                                                <div className="flex items-center h-full pb-3">
+                                                    <label className="flex items-center gap-3 cursor-pointer">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={newVoteInput.isMandatory}
+                                                            onChange={e => setNewVoteInput({ ...newVoteInput, isMandatory: e.target.checked })}
+                                                            className="w-5 h-5 rounded-lg text-indigo-600 focus:ring-indigo-500"
+                                                        />
+                                                        <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-tight">Mandatory on Enrolment</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (!newVoteInput.voteName.trim()) {
+                                                        toastError("Fee vote name is mandatory.");
+                                                        return;
+                                                    }
+                                                    const existingVotes = settings?.votes || [];
+                                                    const filtered = existingVotes.filter(v => v.voteName.toLowerCase() !== newVoteInput.voteName.trim().toLowerCase());
+                                                    const updated = [...filtered, {
+                                                        id: `vt_${Date.now()}`,
+                                                        institutionId: currentInstitution?.id || 'inst',
+                                                        voteName: newVoteInput.voteName.trim(),
+                                                        defaultAmount: newVoteInput.defaultAmount,
+                                                        isMandatory: newVoteInput.isMandatory
+                                                    }];
+                                                    onUpdateSettings({ ...settings, votes: updated });
+                                                    setNewVoteInput({ voteName: '', defaultAmount: 0, isMandatory: false });
+                                                    success("Fee vote appended successfully.");
+                                                }}
+                                                className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:scale-105 transition-all"
+                                            >
+                                                Add / Update Vote
+                                            </button>
+                                        </div>
+
+                                        {/* Votes List View */}
+                                        <div className="space-y-4">
+                                            <h5 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Configured Fee Heads ({settings?.votes?.length || 0})</h5>
+                                            {(settings?.votes || []).length === 0 ? (
+                                                <p className="p-8 text-center text-xs font-medium text-slate-400 bg-slate-50 dark:bg-slate-800/30 rounded-3xl border border-dashed">No fee heads configured yet. Click standard institutional presets above to initialize.</p>
+                                            ) : (
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                    {(settings?.votes || []).map(vt => (
+                                                        <div key={vt.id} className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xs flex items-start justify-between gap-4">
+                                                            <div className="space-y-1">
+                                                                <div className="flex items-center gap-2">
+                                                                    <h6 className="font-bold text-sm text-slate-900 dark:text-white">{vt.voteName}</h6>
+                                                                    {vt.isMandatory && <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-600 rounded text-[9px] font-black uppercase">Mandatory</span>}
+                                                                </div>
+                                                                <p className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-2">KES {(vt.defaultAmount || 0).toLocaleString()}</p>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const updated = (settings?.votes || []).filter(v => v.id !== vt.id);
+                                                                    onUpdateSettings({ ...settings, votes: updated });
+                                                                }}
+                                                                className="p-2 text-slate-300 hover:text-red-500 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                                                            >
+                                                                <TrashIcon className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {settingsSubTab === 'rules' && (
+                                    <div className="space-y-12 animate-fade-in">
+                                        <div>
+                                            <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Scheduling Rules</h4>
                                             <p className="text-xs font-medium text-slate-400">Configure how your driving school automates lesson scheduling and student progression.</p>
                                         </div>
 

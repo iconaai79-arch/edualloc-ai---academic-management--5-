@@ -3868,10 +3868,22 @@ export interface DSSkillMastery {
 
 export interface DSLicenseCategory {
     id: string;
+    institutionId?: string;
     code: string;
     name: string;
     description?: string;
+    baseFee?: number;
     isActive?: boolean;
+}
+
+export interface DSVote {
+    id: string;
+    institutionId: string;
+    voteName: string;
+    defaultAmount: number;
+    isMandatory: boolean;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface DSLessonSlot {
@@ -3887,6 +3899,7 @@ export interface DSSettings {
     lessonPriceTheory?: number;
     feeStructures?: DSFeeStructure[];
     licenseCategories?: DSLicenseCategory[];
+    votes?: DSVote[];
     defaultCourseDuration?: number; // in days/attendances
     cancellationPolicy?: string;
     workingHours?: any;
