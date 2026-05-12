@@ -50,7 +50,7 @@ const parseExpertise = (expertiseString: string): string[] => {
 };
 
 
-const ROLES_REQUIRING_DEPARTMENT: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher'];
+const ROLES_REQUIRING_DEPARTMENT: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher', 'driving_instructor'];
 
 const REQUIRED_USER_MAPPING_FIELDS: UserMappingField[] = ['name', 'role'];
 const ALL_USER_MAPPING_FIELDS: UserMappingField[] = ['name', 'email', 'phoneNumber', 'staffId', 'role', 'roles', 'departmentName', 'expertise', 'gender'];
@@ -1104,7 +1104,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         };
 
         if (activeTab === 'staff') {
-            userData.departmentId = (isCoop || isRetailAgency || isChurch || isPm || isDS) ? undefined : ((currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto') ? currentUser.departmentId : departmentId);
+            userData.departmentId = (isCoop || isRetailAgency || isChurch || isPm) ? undefined : ((currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto') ? currentUser.departmentId : departmentId);
         }
         else {
             userData.courseId = courseId;
@@ -1335,7 +1335,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                             ))}
                                         </div>
                                     </div>
-                                    {!isRetailAgency && !isCoop && !isChurch && !isPm && !isDS && isEdu && (
+                                    {!isRetailAgency && !isCoop && !isChurch && !isPm && isEdu && (
                                         <div>
                                             <label className="block text-sm font-medium mb-1">Department</label>
                                             <select

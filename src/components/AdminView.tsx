@@ -1628,6 +1628,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         setActivityLogLimit={props.setActivityLogLimit}
                         dsSettings={props.dsSettings || dsContext?.settings || null}
                         onUpdateDSSettings={props.onUpdateDSSettings || dsContext?.updateSettings}
+                        isDS={isDS}
                     />
                 )}
 
@@ -1736,6 +1737,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             activeTab as any
                         }
                         onRefreshData={props.onRefreshData}
+                        departments={props.departments || []}
                     />
                 )}
 

@@ -322,11 +322,12 @@ export const ModernPharmacyManager: React.FC<{
             for (const item of posCart) {
                 await apiService.saveModuleRecord('his_pharmacy_sale_items', {
                     id: `item_${Date.now()}_${item.id}`,
-                    sale_id: saleId,
-                    medication_id: item.id,
+                    institutionId,
+                    saleId: saleId,
+                    medicationId: item.id,
                     quantity: item.quantity,
-                    unit_price: item.unitPrice,
-                    total_price: item.unitPrice * item.quantity,
+                    unitPrice: item.unitPrice,
+                    totalPrice: item.unitPrice * item.quantity,
                     recordedBy: currentUser.id
                 });
 
@@ -520,6 +521,7 @@ export const ModernPharmacyManager: React.FC<{
             for (const item of dispenseData.dispensedItems) {
                 await apiService.saveModuleRecord('his_pharmacy_sale_items', {
                     id: `item_${Date.now()}_${item.medicationId}`,
+                    institutionId,
                     saleId: saleId,
                     medicationId: item.medicationId,
                     quantity: item.quantity,

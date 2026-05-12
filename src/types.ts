@@ -3261,6 +3261,7 @@ export interface PharmacySale {
 
 export interface PharmacySaleItem {
     id: string;
+    institutionId: string;
     saleId: string;
     medicationId?: string;
     batchId?: string;

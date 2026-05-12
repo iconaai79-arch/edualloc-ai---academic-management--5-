@@ -69,7 +69,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const expertiseArray = expertise.split(',').map(item => item.trim()).filter(Boolean);
-    const rolesWithDepartment: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher'];
+    const rolesWithDepartment: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher', 'driving_instructor'];
 
     if (roles.length === 0) {
       alert("Please select at least one role.");
@@ -78,7 +78,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
 
     const needsDepartment = roles.some(r => rolesWithDepartment.includes(r));
 
-    if (!isSchool && !isCoop && !isPm && needsDepartment && !assignedDepartmentId && isEdu) {
+    if (!isSchool && !isCoop && !isPm && needsDepartment && !assignedDepartmentId && (isEdu || isDS)) {
       alert("Please assign a department for one of the selected professional roles.");
       return;
     }
@@ -94,7 +94,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
           expertise: expertiseArray,
           role: uniqueRoles[0], // Keep first as primary
           roles: uniqueRoles,
-          departmentId: (needsDepartment && !isCoop && !isPm && isEdu) ? assignedDepartmentId : undefined,
+          departmentId: (needsDepartment && !isCoop && !isPm && (isEdu || isDS)) ? assignedDepartmentId : undefined,
           gender,
           driverType: roles.includes('driver') ? driverType : undefined
         });
@@ -216,7 +216,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                     </div>
                   </div>
 
-                  {roles.some(r => rolesWithDepartment.includes(r)) && !isRetailAgency && isEdu && !isCoop && !isPm && !isDS && (
+                  {roles.some(r => rolesWithDepartment.includes(r)) && !isRetailAgency && (isEdu || isDS) && !isCoop && !isPm && (
                     <div className="md:col-span-2">
                       <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Assigned Department</label>
                       <select value={assignedDepartmentId} onChange={(e) => setAssignedDepartmentId(e.target.value)} required disabled={!!fixedDepartmentId} className="form-select disabled:opacity-60">

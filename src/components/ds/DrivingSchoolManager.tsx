@@ -48,6 +48,7 @@ interface DrivingSchoolManagerProps {
     currentInstitution: any;
     externalTab?: 'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings' | 'broadcaster';
     onRefreshData?: () => Promise<void>;
+    departments?: any[];
 }
 
 const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data: any[]) => Promise<void> }> = ({ onClose, onImport }) => {
@@ -141,24 +142,43 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
     );
 };
 
-const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => void, students: DSStudent[], instructors: DSInstructor[], vehicles: DSVehicle[], lessons: DSLesson[], invoices: DSInvoice[], onSave: (data: any) => Promise<void>, settings: DSSettings | null, initialData?: any, currentInstitution?: any }> = ({ type, onClose, students, instructors, vehicles, lessons, invoices, onSave, settings, initialData, currentInstitution }) => {
+const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => void, students: DSStudent[], instructors: DSInstructor[], vehicles: DSVehicle[], lessons: DSLesson[], invoices: DSInvoice[], onSave: (data: any) => Promise<void>, settings: DSSettings | null, initialData?: any, currentInstitution?: any, departments?: any[] }> = ({ type, onClose, students, instructors, vehicles, lessons, invoices, onSave, settings, initialData, currentInstitution, departments }) => {
     const { success: toastSuccess, error: toastError } = useToast();
     const [isActionLoading, setIsActionLoading] = useState(false);
+
+    const nextAdmissionNumber = useMemo(() => {
+        const prefix = (settings?.studentIdPrefix || 'ADM-').trim();
+        let maxNum = 0;
+        students.forEach(s => {
+            if (s.admissionNumber && s.admissionNumber.toUpperCase().startsWith(prefix.toUpperCase())) {
+                const remainder = s.admissionNumber.slice(prefix.length).trim();
+                const match = remainder.match(/\d+/);
+                if (match) {
+                    const num = parseInt(match[0], 10);
+                    if (!isNaN(num) && num > maxNum) {
+                        maxNum = num;
+                    }
+                }
+            }
+        });
+        return `${prefix}${String(maxNum + 1).padStart(3, '0')}`;
+    }, [settings?.studentIdPrefix, students]);
+
     useEffect(() => {
         if (settings && !initialData) {
             setFormData((prev: any) => ({
                 ...prev,
-                admissionNumber: type === 'student' ? `${settings.studentIdPrefix || 'ADM-'}${Date.now().toString().slice(-4)}` : prev.admissionNumber,
+                admissionNumber: type === 'student' ? nextAdmissionNumber : prev.admissionNumber,
                 invoiceNumber: type === 'invoice' ? `${settings.invoicePrefix || 'INV-'}${Date.now().toString().slice(-4)}` : prev.invoiceNumber,
                 receiptNumber: type === 'payment' ? `${settings.receiptPrefix || 'REC-'}${Date.now().toString().slice(-4)}` : prev.receiptNumber
             }));
         }
-    }, [settings, type, initialData]);
+    }, [settings, type, initialData, nextAdmissionNumber]);
 
     const [formData, setFormData] = useState<any>(() => {
         const base = initialData || {
             status: type === 'student' ? 'Enrolled' : type === 'instructor' ? 'Active' : type === 'vehicle' ? 'Operational' : 'Scheduled',
-            admissionNumber: type === 'student' ? `${settings?.studentIdPrefix || 'ADM-'}${Date.now().toString().slice(-4)}` : undefined,
+            admissionNumber: type === 'student' ? nextAdmissionNumber : undefined,
             invoiceNumber: type === 'invoice' ? `${settings?.invoicePrefix || 'INV-'}${Date.now().toString().slice(-4)}` : undefined,
             receiptNumber: type === 'payment' ? `${settings?.receiptPrefix || 'REC-'}${Date.now().toString().slice(-4)}` : undefined
         };
@@ -326,6 +346,13 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         </select>
                                     </div>
                                 )}
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Department</label>
+                                    <select required value={formData.departmentId || ''} onChange={e => setFormData({...formData, departmentId: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="">Select Department</option>
+                                        {(departments || []).map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                    </select>
+                                </div>
                             </>
                         )}
 
@@ -797,7 +824,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     currentUser,
     currentInstitution,
     externalTab,
-    onRefreshData: onRefreshDataProp
+    onRefreshData: onRefreshDataProp,
+    departments
 }) => {
     const { success, error: toastError } = useToast();
     const {
@@ -2168,6 +2196,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         lessons={lessons}
                         settings={settings}
                         initialData={actionModal.initialData}
+                        departments={departments}
                     />
                 )}
 

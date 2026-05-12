@@ -164,13 +164,30 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
     const addStudent = useCallback(async (data: any) => {
         if (!institutionId) return;
         
-        // 0. Validate Admission Number Uniqueness
-        if (data.admissionNumber) {
+        let admNumber = data.admissionNumber;
+        if (!admNumber) {
+            const prefix = (settings?.studentIdPrefix || 'ADM-').trim();
+            let maxNum = 0;
+            students.forEach(s => {
+                if (s.admissionNumber && s.admissionNumber.toUpperCase().startsWith(prefix.toUpperCase())) {
+                    const remainder = s.admissionNumber.slice(prefix.length).trim();
+                    const match = remainder.match(/\d+/);
+                    if (match) {
+                        const num = parseInt(match[0], 10);
+                        if (!isNaN(num) && num > maxNum) {
+                            maxNum = num;
+                        }
+                    }
+                }
+            });
+            admNumber = `${prefix}${String(maxNum + 1).padStart(3, '0')}`;
+        } else {
+            // 0. Validate Admission Number Uniqueness
             const isDuplicate = students.some(s => 
-                s.admissionNumber?.toLowerCase().trim() === data.admissionNumber.toLowerCase().trim()
+                s.admissionNumber?.toLowerCase().trim() === admNumber.toLowerCase().trim()
             );
             if (isDuplicate) {
-                error(`Admission number "${data.admissionNumber}" is already assigned to another student.`);
+                error(`Admission number "${admNumber}" is already assigned to another student.`);
                 throw new Error("Duplicate admission number");
             }
         }
@@ -198,6 +215,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const duration = data.courseDurationDays || settings?.schedulingRules?.requiredDaysToComplete || settings?.defaultCourseDuration || 0;
             const newStudent = { 
                 ...data, 
+                admissionNumber: admNumber,
                 id: newId, 
                 userId,
                 institutionId,

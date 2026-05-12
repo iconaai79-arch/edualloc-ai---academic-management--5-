@@ -3605,6 +3605,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 activeTab === 'staff' && (
                     <UserManager
                         {...props}
+                        isDS={isDS}
                         user={props.currentUser}
                         showOnly="staff"
                         currentInstitution={props.currentInstitution}
