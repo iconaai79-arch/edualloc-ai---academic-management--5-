@@ -3848,6 +3848,8 @@ export interface DSLesson {
     topic?: string;
     status: 'Scheduled' | 'Completed' | 'Cancelled' | 'No Show';
     confirmationStatus?: 'Pending' | 'Confirmed' | 'Reschedule Requested';
+    roomId?: string;
+    roomName?: string;
     instructorNotes?: string;
     routeTrackedData?: any;
     createdAt: string;

@@ -30,11 +30,7 @@ export const formatPhoneNumber = (phone: string): string => {
     // Remove any spaces or non-numeric characters for check (except +)
     const sanitized = phone.replace(/\s/g, '');
 
-    if (sanitized.startsWith('07')) {
-        return '254' + sanitized.substring(1);
-    }
-
-    if (sanitized.startsWith('011')) {
+    if (sanitized.startsWith('07') || sanitized.startsWith('01')) {
         return '254' + sanitized.substring(1);
     }
 

@@ -51,6 +51,7 @@ interface DrivingSchoolManagerProps {
     externalTab?: 'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings' | 'broadcaster';
     onRefreshData?: () => Promise<void>;
     departments?: any[];
+    rooms?: any[];
     letterheadConfig?: LetterheadConfig;
 }
 
@@ -145,7 +146,7 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
     );
 };
 
-const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => void, students: DSStudent[], instructors: DSInstructor[], vehicles: DSVehicle[], lessons: DSLesson[], invoices: DSInvoice[], payments: DSPayment[], onSave: (data: any) => Promise<void>, settings: DSSettings | null, initialData?: any, currentInstitution?: any, departments?: any[] }> = ({ type, onClose, students, instructors, vehicles, lessons, invoices, payments, onSave, settings, initialData, currentInstitution, departments }) => {
+const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => void, students: DSStudent[], instructors: DSInstructor[], vehicles: DSVehicle[], lessons: DSLesson[], invoices: DSInvoice[], payments: DSPayment[], onSave: (data: any) => Promise<void>, settings: DSSettings | null, initialData?: any, currentInstitution?: any, departments?: any[], rooms?: any[] }> = ({ type, onClose, students, instructors, vehicles, lessons, invoices, payments, onSave, settings, initialData, currentInstitution, departments, rooms }) => {
     const { success: toastSuccess, error: toastError } = useToast();
     const [isActionLoading, setIsActionLoading] = useState(false);
 
@@ -578,25 +579,48 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Date</label>
                                     <input required type="date" value={formData.lessonDate || ''} onChange={e => setFormData({...formData, lessonDate: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Vehicle</label>
-                                    <select value={formData.vehicleId || ''} onChange={e => {
-                                        const vhId = e.target.value;
-                                        const vh = vehicles.find(v => v.id === vhId);
-                                        // Priority 1: Vehicle's specific assignedInstructorId
-                                        // Priority 2: Look for an instructor that points to this vehicle
-                                        const linkedInstructor = instructors.find(i => i.id === (vh as any).assignedInstructorId) || instructors.find(i => i.assignedVehicleId === vhId);
-
-                                        setFormData({
-                                            ...formData, 
-                                            vehicleId: vhId,
-                                            instructorId: linkedInstructor?.id || formData.instructorId
-                                        });
-                                    }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
-                                        <option value="">Select Vehicle</option>
-                                        {vehicles.map(v => <option key={v.id} value={v.id}>{v.make} {v.model} ({v.plateNumber})</option>)}
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Lesson Type</label>
+                                    <select value={formData.lessonType || 'Practical'} onChange={e => setFormData({...formData, lessonType: e.target.value, vehicleId: e.target.value === 'Theory' ? undefined : formData.vehicleId, roomId: e.target.value === 'Practical' ? undefined : formData.roomId, roomName: e.target.value === 'Practical' ? undefined : formData.roomName})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="Practical">Practical (Driving)</option>
+                                        <option value="Theory">Theory (Classroom)</option>
                                     </select>
                                 </div>
+                                {(!formData.lessonType || formData.lessonType === 'Practical') ? (
+                                    <div className="space-y-2 animate-fade-in">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Vehicle</label>
+                                        <select value={formData.vehicleId || ''} onChange={e => {
+                                            const vhId = e.target.value;
+                                            const vh = vehicles.find(v => v.id === vhId);
+                                            const linkedInstructor = instructors.find(i => i.id === (vh as any).assignedInstructorId) || instructors.find(i => i.assignedVehicleId === vhId);
+
+                                            setFormData({
+                                                ...formData, 
+                                                vehicleId: vhId,
+                                                instructorId: linkedInstructor?.id || formData.instructorId
+                                            });
+                                        }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                            <option value="">Select Vehicle</option>
+                                            {vehicles.map(v => <option key={v.id} value={v.id}>{v.make} {v.model} ({v.plateNumber})</option>)}
+                                        </select>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2 animate-fade-in">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Assigned Room (Theory Class)</label>
+                                        <select value={formData.roomId || ''} onChange={e => {
+                                            const rmId = e.target.value;
+                                            const rm = (rooms || []).find(r => r.id === rmId);
+                                            setFormData({
+                                                ...formData,
+                                                roomId: rmId,
+                                                roomName: rm ? rm.name : ''
+                                            });
+                                        }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                            <option value="">Select Assigned Room</option>
+                                            {(rooms || []).map(r => <option key={r.id} value={r.id}>{r.name} {r.capacity ? `(Capacity: ${r.capacity})` : ''}</option>)}
+                                        </select>
+                                    </div>
+                                )}
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Time</label>
                                     <input required type="time" value={formData.startTime || '08:00'} onChange={e => setFormData({...formData, startTime: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
@@ -604,13 +628,6 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">End Time</label>
                                     <input required type="time" value={formData.endTime || '09:00'} onChange={e => setFormData({...formData, endTime: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
-                                </div>
-                                <div className="md:col-span-2 space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Lesson Type</label>
-                                    <select value={formData.lessonType || 'Practical'} onChange={e => setFormData({...formData, lessonType: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
-                                        <option value="Practical">Practical (Driving)</option>
-                                        <option value="Theory">Theory (Classroom)</option>
-                                    </select>
                                 </div>
                             </>
                         )}
@@ -911,6 +928,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     externalTab,
     onRefreshData: onRefreshDataProp,
     departments,
+    rooms,
     letterheadConfig
 }) => {
     const { success, error: toastError } = useToast();
@@ -948,7 +966,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             const migrations = [
                 "ALTER TABLE ds_students ADD COLUMN IF NOT EXISTS preferred_lesson_hours text;",
                 "ALTER TABLE ds_vehicles ADD COLUMN IF NOT EXISTS assigned_instructor_id text;",
-                "ALTER TABLE ds_lessons ADD COLUMN IF NOT EXISTS confirmation_status text;"
+                "ALTER TABLE ds_lessons ADD COLUMN IF NOT EXISTS confirmation_status text;",
+                "ALTER TABLE ds_lessons ADD COLUMN IF NOT EXISTS room_id text;",
+                "ALTER TABLE ds_lessons ADD COLUMN IF NOT EXISTS room_name text;"
             ];
 
             migrations.forEach(sql => {
@@ -1050,10 +1070,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         }
                     }
 
+                    const defaultRoom = type === 'Theory' ? (rooms || [])[0] : undefined;
+
                     await onAddLesson({
                         studentId: student.id,
                         instructorId: instructor?.id,
                         vehicleId: vehicle?.id,
+                        roomId: defaultRoom?.id,
+                        roomName: defaultRoom?.name,
                         lessonDate: dateStr,
                         startTime: currentTime,
                         endTime: endTime,
@@ -1145,10 +1169,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         ? (vehicles.find(v => v.id === instructor?.assignedVehicleId) || vehicles.find(v => v.status === 'Operational'))
                         : undefined;
 
+                    const defaultRoom = type === 'Theory' ? (rooms || [])[0] : undefined;
+
                     await onAddLesson({
                         studentId: student.id,
                         instructorId: instructor?.id,
                         vehicleId: vehicle?.id,
+                        roomId: defaultRoom?.id,
+                        roomName: defaultRoom?.name,
                         lessonDate: dateStr,
                         startTime: currentTime,
                         endTime: endTime,
@@ -1670,7 +1698,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                 <th className="px-10 py-6 print:px-4 print:py-3">Type</th>
                                                 <th className="px-10 py-6 print:px-4 print:py-3">Student</th>
                                                 <th className="px-10 py-6 print:px-4 print:py-3">Instructor</th>
-                                                <th className="px-10 py-6 print:px-4 print:py-3">Vehicle</th>
+                                                <th className="px-10 py-6 print:px-4 print:py-3">Vehicle / Room</th>
                                                 <th className="px-10 py-6 print:px-4 print:py-3">Status</th>
                                                 <th className="px-10 py-6 text-right print:hidden">Actions</th>
                                             </tr>
@@ -1696,7 +1724,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                         {normalizedInstructors.find(i => i.id === lesson.instructorId)?.name || 'Unassigned'}
                                                     </td>
                                                     <td className="px-10 py-6 text-sm print:px-4 print:py-3 print:text-xs">
-                                                        {vehicles.find(v => v.id === lesson.vehicleId)?.plateNumber || 'N/A'}
+                                                        {lesson.lessonType === 'Theory' 
+                                                            ? (lesson.roomName || (rooms || []).find(r => r.id === lesson.roomId)?.name || 'Classroom (Unassigned)')
+                                                            : (vehicles.find(v => v.id === lesson.vehicleId)?.plateNumber || 'N/A')
+                                                        }
                                                     </td>
                                                     <td className="px-10 py-6 print:px-4 print:py-3">
                                                         <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest print:px-0 print:bg-transparent print:border-none ${
@@ -2488,6 +2519,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         settings={settings}
                         initialData={actionModal.initialData}
                         departments={departments}
+                        rooms={rooms || []}
                     />
                 )}
 

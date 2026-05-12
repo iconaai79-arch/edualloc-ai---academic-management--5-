@@ -99,7 +99,7 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
     }
 
     // Driving School
-    if (type === 'Driving School' || subType.includes('driving school') || (institution?.category?.toLowerCase().includes('driving school'))) {
+    if (isDSInstitution(institution)) {
         return ['director', 'admin', 'driving_instructor', 'staff', 'student', 'security', 'driver'];
     }
 
@@ -167,7 +167,8 @@ export const isDSInstitution = (institution: Partial<Institution> | null | undef
     const type = institution.institutionType;
     const category = institution.category;
     const subType = institution.businessSubType?.toLowerCase() || '';
-    return type === 'Driving School' || subType.includes('driving school') || category === 'Driving School';
+    const hasModule = institution.moduleStates?.some(m => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'));
+    return type === 'Driving School' || subType.includes('driving school') || category === 'Driving School' || !!hasModule;
 };
 
 /**

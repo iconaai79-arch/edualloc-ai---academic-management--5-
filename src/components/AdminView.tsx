@@ -1376,7 +1376,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 <SubjectManager
                                     {...props}
                                     subjects={props.subjects || []}
+                                    courses={props.courses || []}
                                     departments={props.departments || []}
+                                    timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                                     onAddSubject={props.onAddSubject}
                                     onUpdateSubject={props.onUpdateSubject}
                                     onDeleteSubject={props.onDeleteSubject}
@@ -1598,6 +1600,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     <SettingsManager
                         {...props}
                         departments={props.departments || []}
+                        buildings={props.buildings || []}
+                        rooms={props.rooms || []}
+                        courses={props.courses || []}
                         subjects={props.subjects || []}
                         allocations={(props.requests || []).filter(r => r && r.status === 'approved')}
                         initialTab={requestedSettingsTab}
@@ -1739,6 +1744,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         }
                         onRefreshData={props.onRefreshData}
                         departments={props.departments || []}
+                        rooms={props.rooms || []}
                         letterheadConfig={props.letterheadConfig}
                     />
                 )}
@@ -1901,6 +1907,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             <ReportsDashboard
                                 {...props}
                                 subjects={props.subjects || []}
+                                rooms={props.rooms || []}
+                                buildings={props.buildings || []}
+                                letterheadConfig={props.letterheadConfig || { headerImageUrl: null, stampImageUrl: null, footerImageUrl: null, footerText: '', showStamp: false }}
                                 departments={props.departments || []}
                                 lecturers={props.users || []}
                                 allTimetableEntries={props.allTimetableEntries || []}

@@ -462,10 +462,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const effectiveRole = user.role === 'system' ? (user.originalRole || 'system') : user.role;
             let smsConfig = { ...(settings.sms_config || {}) };
 
-            // If a custom config was provided in the body (mostly for Super Admin tests), use it
-            if (bodyConfig && effectiveRole === 'super_admin') {
-                Object.assign(smsConfig, bodyConfig);
-                console.log(`[SMS Gateway] Using provided body configuration (Super Admin override)`);
+            // If a custom config was provided in the body, use it directly to honor active module context configurations
+            if (bodyConfig && (bodyConfig.apiKey || bodyConfig.api_key || bodyConfig.username || bodyConfig.userId || bodyConfig.apikey)) {
+                smsConfig = { ...bodyConfig };
+                console.log(`[SMS Gateway] Using provided body configuration payload override`);
             }
 
             // Extract recipients and calculate total units early for balance check
@@ -480,33 +480,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const recipientCount = normalizedRecipients.length;
             const totalUnitsToDeduct = unitsToDeduct * recipientCount;
 
-            // Load institution-specific config if available
-            // We allow this even for 'system' user (unauthenticated OTPs) if institutionId is set
+            // Load institution-specific config if available and not overridden by explicit body config
             if (institutionId !== 'SYSTEM') {
                 const { data: institution, error: configError } = await supabase
                     .from('institutions')
-                    .select('sms_balance, sms_config')
+                    .select('sms_balance, smsBalance, sms_config, smsConfig')
                     .eq('id', institutionId)
                     .maybeSingle();
 
-                if (!configError && institution && institution.sms_config) {
+                if (!configError && institution) {
+                    const instBalance = institution.sms_balance ?? institution.smsBalance ?? 0;
+                    const instConfig = institution.sms_config || institution.smsConfig;
+
                     // Check balance for non-system messages
-                    if (user.id !== 'system' && !isSystemMessage && (institution.sms_balance || 0) < totalUnitsToDeduct) {
+                    if (user.id !== 'system' && !isSystemMessage && instBalance < totalUnitsToDeduct) {
                         return res.status(402).json({
                             success: false,
-                            message: `Insufficient SMS balance. This request requires ${totalUnitsToDeduct} units, but your current balance is ${institution?.sms_balance || 0}.`,
-                            balance: institution?.sms_balance || 0,
+                            message: `Insufficient SMS balance. This request requires ${totalUnitsToDeduct} units, but your current balance is ${instBalance}.`,
+                            balance: instBalance,
                             required: totalUnitsToDeduct,
                             buy_url: '/settings?tab=billing'
                         });
                     }
 
-                    // Prefer institution-specific SMS gateway if configured
-                    if (institution.sms_config.apiKey || institution.sms_config.api_key || institution.sms_config.username || institution.sms_config.userId) {
+                    // Prefer institution-specific SMS gateway if configured and no valid body payload was supplied
+                    if (instConfig && (!bodyConfig || !(bodyConfig.apiKey || bodyConfig.api_key || bodyConfig.username || bodyConfig.userId)) && (instConfig.apiKey || instConfig.api_key || instConfig.username || instConfig.userId)) {
                         console.log(`[SMS Gateway] Using institution-specific configuration for ${institutionId}`);
-                        // Priority Fix: Start fresh with institution config to avoid collisions 
-                        // with differently named keys in system settings (e.g. apiKey vs api_key)
-                        smsConfig = { ...institution.sms_config };
+                        smsConfig = { ...instConfig };
                     }
                 }
             }
