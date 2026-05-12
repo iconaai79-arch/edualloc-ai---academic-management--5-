@@ -1305,7 +1305,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             { id: 'instructors', label: 'Instructors', icon: AcademicCapIcon },
                             { id: 'finance', label: 'Finance', icon: CurrencyIcon },
                             { id: 'broadcaster', label: 'Broadcaster', icon: SparklesIcon },
-                            { id: 'settings', label: 'Settings', icon: SettingsIcon }
+                            { id: 'settings', label: 'Config', icon: SettingsIcon }
                         ].map(tab => (
                             <button
                                 key={tab.id}
@@ -1954,7 +1954,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                                             <div className="space-y-3">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Training Cycle (Days)</label>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Required Days to Complete</label>
                                                 <input 
                                                     type="number" 
                                                     value={settings?.schedulingRules?.requiredDaysToComplete || ''} 

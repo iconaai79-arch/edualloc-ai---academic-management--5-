@@ -1923,6 +1923,116 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         </div>
                                     </div>
                                 </div>
+
+                                <div className="mt-8 space-y-8">
+                                    <div className="p-6 bg-indigo-50/30 dark:bg-indigo-900/10 rounded-[2rem] border border-indigo-100/50 dark:border-indigo-900/20">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">Daily Lesson Sequence (Automation)</span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {[
+                                                { value: ['Theory', 'Practical'], label: 'Theory → Practical' },
+                                                { value: ['Practical', 'Theory'], label: 'Practical → Theory' },
+                                                { value: ['Theory'], label: 'Theory Only' },
+                                                { value: ['Practical'], label: 'Practical Only' }
+                                            ].map((seq, i) => {
+                                                const isSelected = JSON.stringify(localDsSettings?.schedulingRules?.dailySequence) === JSON.stringify(seq.value);
+                                                return (
+                                                    <button
+                                                        key={i}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const current = localDsSettings || props.dsSettings;
+                                                            const next = {
+                                                                ...current,
+                                                                schedulingRules: {
+                                                                    ...(current?.schedulingRules || {}),
+                                                                    dailySequence: seq.value as any
+                                                                }
+                                                            } as DSSettings;
+                                                            setLocalDsSettings(next);
+                                                        }}
+                                                        className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                            isSelected ? 'bg-indigo-600 text-white shadow-md scale-105' : 'bg-white dark:bg-slate-800 text-slate-400 border border-slate-100 dark:border-slate-700'
+                                                        }`}
+                                                    >
+                                                        {seq.label}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Required Days to Complete</label>
+                                            <input 
+                                                type="number" 
+                                                value={localDsSettings?.schedulingRules?.requiredDaysToComplete || ''} 
+                                                onChange={e => {
+                                                    const current = localDsSettings || props.dsSettings;
+                                                    const next = { 
+                                                        ...current, 
+                                                        schedulingRules: { ...(current?.schedulingRules || {}), requiredDaysToComplete: parseInt(e.target.value) || 0 }
+                                                    } as DSSettings;
+                                                    setLocalDsSettings(next);
+                                                }}
+                                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                                placeholder="e.g. 21"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Daily Theory Duration (Mins)</label>
+                                            <input 
+                                                type="number" 
+                                                value={localDsSettings?.schedulingRules?.theoryDurationMinutes || ''} 
+                                                onChange={e => {
+                                                    const current = localDsSettings || props.dsSettings;
+                                                    const next = { 
+                                                        ...current, 
+                                                        schedulingRules: { ...(current?.schedulingRules || {}), theoryDurationMinutes: parseInt(e.target.value) || 0 }
+                                                    } as DSSettings;
+                                                    setLocalDsSettings(next);
+                                                }}
+                                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                                placeholder="e.g. 60"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Daily Practical Duration (Mins)</label>
+                                            <input 
+                                                type="number" 
+                                                value={localDsSettings?.schedulingRules?.practicalDurationMinutes || ''} 
+                                                onChange={e => {
+                                                    const current = localDsSettings || props.dsSettings;
+                                                    const next = { 
+                                                        ...current, 
+                                                        schedulingRules: { ...(current?.schedulingRules || {}), practicalDurationMinutes: parseInt(e.target.value) || 0 }
+                                                    } as DSSettings;
+                                                    setLocalDsSettings(next);
+                                                }}
+                                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                                placeholder="e.g. 60"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Auto-Generation Time</label>
+                                            <input 
+                                                type="time" 
+                                                value={localDsSettings?.schedulingRules?.nextDayAutoGenerationTime || ''} 
+                                                onChange={e => {
+                                                    const current = localDsSettings || props.dsSettings;
+                                                    const next = { 
+                                                        ...current, 
+                                                        schedulingRules: { ...(current?.schedulingRules || {}), nextDayAutoGenerationTime: e.target.value }
+                                                    } as DSSettings;
+                                                    setLocalDsSettings(next);
+                                                }}
+                                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="pt-12 border-t border-slate-50 dark:border-slate-800">
