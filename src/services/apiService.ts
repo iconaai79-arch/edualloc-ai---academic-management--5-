@@ -684,6 +684,15 @@ export const apiService = {
                 delete item.instructor_id;
                 delete item.vehicle_id;
             }
+            if (module === 'ds_lessons') {
+                delete item.confirmation_status;
+            }
+            if (module === 'ds_students') {
+                delete item.preferred_lesson_hours;
+            }
+            if (module === 'ds_vehicles') {
+                delete item.assigned_instructor_id;
+            }
             
             return item;
         };
@@ -726,7 +735,42 @@ export const apiService = {
                 } else {
                     errData = { error: await response.text().catch(() => `Status ${response.status}`) };
                 }
-                throw new Error(errData.error || `Failed to update ${module}`);
+                
+                const errorCode = errData.code || 'UNKNOWN';
+                const errorDetail = errData.details || errData.detail || '';
+                const errorHint = errData.hint ? ` Hint: ${errData.hint}` : '';
+                const reasonStr = errData.reason ? ` Reason: ${errData.reason}` : '';
+                const debugStr = errData.debug?.token ? ` Debug: ${errData.debug.token}` : '';
+                
+                const fullErrorMessage = `${errData.error || `Failed to update ${module}`} [Code: ${errorCode}] ${errorDetail}${errorHint}${reasonStr}${debugStr}`;
+                
+                const colMatch = fullErrorMessage.match(/Could not find the '([^']+)' column/i);
+                if (colMatch && colMatch[1]) {
+                    const offendingCol = colMatch[1];
+                    console.warn(`[apiService] Schema cache stale: automatically stripping un-cached column '${offendingCol}' and retrying update for [${module}]`);
+                    const retryPayload = { ...payload };
+                    delete retryPayload[offendingCol];
+                    
+                    const retryResponse = await fetch(`/api/records?module=${module}&id=${id}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Authorization': token ? `Bearer ${token}` : '',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ data: retryPayload })
+                    });
+                    
+                    if (retryResponse.ok) {
+                        const contentTypeRetry = retryResponse.headers.get('content-type');
+                        if (contentTypeRetry && contentTypeRetry.includes('application/json')) {
+                            const updatedData = await retryResponse.json().catch(() => null);
+                            return Array.isArray(updatedData) ? toCamelCase(updatedData[0]) : toCamelCase(updatedData);
+                        }
+                        return toCamelCase(retryPayload);
+                    }
+                }
+                
+                throw new Error(fullErrorMessage);
             }
 
             const contentTypePatch = response.headers.get('content-type');
@@ -806,6 +850,33 @@ export const apiService = {
                 const debugStr = errData.debug?.token ? ` Debug: ${errData.debug.token}` : '';
                 
                 const fullErrorMessage = `${errData.error || `Failed to save ${module}`} [Code: ${errorCode}] ${errorDetail}${errorHint}${reasonStr}${debugStr}`;
+                
+                const colMatch = fullErrorMessage.match(/Could not find the '([^']+)' column/i);
+                if (colMatch && colMatch[1]) {
+                    const offendingCol = colMatch[1];
+                    console.warn(`[apiService] Schema cache stale: automatically stripping un-cached column '${offendingCol}' and retrying save for [${module}]`);
+                    const retryPayload = { ...payload };
+                    delete retryPayload[offendingCol];
+                    
+                    const retryResponse = await fetch('/api/records?module=' + module, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': token ? `Bearer ${token}` : '',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ data: retryPayload })
+                    });
+                    
+                    if (retryResponse.ok) {
+                        const contentTypeRetry = retryResponse.headers.get('content-type');
+                        if (contentTypeRetry && contentTypeRetry.includes('application/json')) {
+                            const savedData = await retryResponse.json().catch(() => null);
+                            return savedData ? toCamelCase(savedData) : null;
+                        }
+                        return null;
+                    }
+                }
+                
                 throw new Error(fullErrorMessage);
             }
 
@@ -878,6 +949,36 @@ export const apiService = {
                 const debugStr = errData.debug?.token ? ` Debug: ${errData.debug.token}` : '';
                 
                 const fullErrorMessage = `${errData.error || `Failed to bulk save ${module}`} [Code: ${errorCode}] ${errorDetail}${errorHint}${reasonStr}${debugStr}`;
+                
+                const colMatch = fullErrorMessage.match(/Could not find the '([^']+)' column/i);
+                if (colMatch && colMatch[1]) {
+                    const offendingCol = colMatch[1];
+                    console.warn(`[apiService] Schema cache stale: automatically stripping un-cached column '${offendingCol}' and retrying bulk save for [${module}]`);
+                    const retryPayload = payload.map((p: any) => {
+                        const copy = { ...p };
+                        delete copy[offendingCol];
+                        return copy;
+                    });
+                    
+                    const retryResponse = await fetch('/api/records?module=' + module, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': token ? `Bearer ${token}` : '',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ data: retryPayload })
+                    });
+                    
+                    if (retryResponse.ok) {
+                        const contentTypeRetry = retryResponse.headers.get('content-type');
+                        if (contentTypeRetry && contentTypeRetry.includes('application/json')) {
+                            const savedData = await retryResponse.json().catch(() => null);
+                            return Array.isArray(savedData) ? savedData.map(toCamelCase) : (savedData ? [toCamelCase(savedData)] : []) as any;
+                        }
+                        return [];
+                    }
+                }
+                
                 throw new Error(fullErrorMessage);
             }
 
