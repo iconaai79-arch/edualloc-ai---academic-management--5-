@@ -1340,6 +1340,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [isSendingReminders, setIsSendingReminders] = useState(false);
     const [newCategoryInput, setNewCategoryInput] = useState({ code: '', name: '', description: '', baseFee: 0, isActive: true });
     const [newVoteInput, setNewVoteInput] = useState({ voteName: '', defaultAmount: 0, isMandatory: false });
+    const [bulkVotesEntries, setBulkVotesEntries] = useState<Array<{ voteName: string; defaultAmount: number; isMandatory: boolean }>>([
+        { voteName: '', defaultAmount: 0, isMandatory: false }
+    ]);
 
     const handleSendBulkReminders = async () => {
         // Filter out pending invoices with balance > 0
@@ -3016,7 +3019,36 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                                         {/* Presets Block */}
                                         <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">Standard Institutional Fee Heads</p>
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Standard Institutional Fee Heads</p>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const presets = [
+                                                            { voteName: 'Tuition Fee', defaultAmount: 12000, isMandatory: true },
+                                                            { voteName: 'Registration Fee', defaultAmount: 1500, isMandatory: true },
+                                                            { voteName: 'NTSA Test Booking Fee', defaultAmount: 3500, isMandatory: true },
+                                                            { voteName: 'Driving Assessment Fee', defaultAmount: 2000, isMandatory: false },
+                                                            { voteName: 'First Aid Training Fee', defaultAmount: 1000, isMandatory: false },
+                                                            { voteName: 'Student ID & Logbook', defaultAmount: 800, isMandatory: false }
+                                                        ];
+                                                        setBulkVotesEntries(prev => {
+                                                            const filtered = prev.filter(p => p.voteName.trim() !== '');
+                                                            const newStaged = [...filtered];
+                                                            presets.forEach(pr => {
+                                                                if (!newStaged.some(s => s.voteName.toLowerCase() === pr.voteName.toLowerCase())) {
+                                                                    newStaged.push({ ...pr });
+                                                                }
+                                                            });
+                                                            return newStaged.length > 0 ? newStaged : [{ voteName: '', defaultAmount: 0, isMandatory: false }];
+                                                        });
+                                                        success("All institutional presets appended to staging manager.");
+                                                    }}
+                                                    className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 font-black text-[10px] rounded-xl uppercase tracking-wider hover:bg-indigo-100 transition-all self-start sm:self-auto"
+                                                >
+                                                    ⚡ Stage All Presets
+                                                </button>
+                                            </div>
                                             <div className="flex flex-wrap gap-2.5">
                                                 {[
                                                     { voteName: 'Tuition Fee', defaultAmount: 12000, isMandatory: true },
@@ -3029,7 +3061,16 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                     <button
                                                         key={idx}
                                                         type="button"
-                                                        onClick={() => setNewVoteInput(preset)}
+                                                        onClick={() => {
+                                                            setBulkVotesEntries(prev => {
+                                                                const filtered = prev.filter(p => p.voteName.trim() !== '');
+                                                                if (filtered.some(s => s.voteName.toLowerCase() === preset.voteName.toLowerCase())) {
+                                                                    return prev;
+                                                                }
+                                                                return [...filtered, { ...preset }];
+                                                            });
+                                                            success(`Staged "${preset.voteName}".`);
+                                                        }}
                                                         className="px-5 py-3 bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-[11px] font-bold border border-slate-200 dark:border-slate-700/60 shadow-xs hover:border-indigo-200 transition-all flex items-center gap-2"
                                                     >
                                                         {preset.isMandatory && <span className="w-2 h-2 rounded-full bg-indigo-600"></span>}
@@ -3039,84 +3080,136 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                             </div>
                                         </div>
 
-                                        {/* Add Vote Form */}
+                                        {/* Dynamic Bulk Registration Interface */}
                                         <div className="p-8 bg-indigo-50/30 dark:bg-indigo-900/10 rounded-[2.5rem] border border-indigo-100/50 dark:border-indigo-900/20 space-y-6">
-                                            <div className="flex items-center gap-2">
-                                                <PlusIcon className="w-4 h-4 text-indigo-600" />
-                                                <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest">Register Fee Vote</h5>
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                <div className="flex items-center gap-2">
+                                                    <PlusIcon className="w-4 h-4 text-indigo-600" />
+                                                    <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest">Dynamic Multiple Votes Entry Staging</h5>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setBulkVotesEntries(prev => [...prev, { voteName: '', defaultAmount: 0, isMandatory: false }]);
+                                                    }}
+                                                    className="px-4 py-2 bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all"
+                                                >
+                                                    + Add Row
+                                                </button>
                                             </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Fee Head Name *</label>
-                                                    <input 
-                                                        type="text" 
-                                                        value={newVoteInput.voteName}
-                                                        onChange={e => setNewVoteInput({ ...newVoteInput, voteName: e.target.value })}
-                                                        placeholder="e.g. Tuition Fee"
-                                                        className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xs"
-                                                    />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Default Amount (KES)</label>
-                                                    <input 
-                                                        type="number" 
-                                                        value={newVoteInput.defaultAmount || ''}
-                                                        onChange={e => setNewVoteInput({ ...newVoteInput, defaultAmount: parseFloat(e.target.value) || 0 })}
-                                                        placeholder="e.g. 1500"
-                                                        className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xs"
-                                                    />
-                                                </div>
-                                                <div className="flex items-center h-full pb-3">
-                                                    <label className="flex items-center gap-3 cursor-pointer">
-                                                        <input 
-                                                            type="checkbox" 
-                                                            checked={newVoteInput.isMandatory}
-                                                            onChange={e => setNewVoteInput({ ...newVoteInput, isMandatory: e.target.checked })}
-                                                            className="w-5 h-5 rounded-lg text-indigo-600 focus:ring-indigo-500"
-                                                        />
-                                                        <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-tight">Mandatory on Enrolment</span>
-                                                    </label>
-                                                </div>
+                                            <div className="space-y-4">
+                                                {bulkVotesEntries.map((row, index) => (
+                                                    <div key={index} className="flex flex-col md:flex-row items-center gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-xs">
+                                                        <div className="w-full md:w-5/12 space-y-1">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block md:hidden">Fee Head Name</label>
+                                                            <input 
+                                                                type="text" 
+                                                                value={row.voteName}
+                                                                onChange={e => {
+                                                                    const val = e.target.value;
+                                                                    setBulkVotesEntries(prev => prev.map((r, i) => i === index ? { ...r, voteName: val } : r));
+                                                                }}
+                                                                placeholder="Fee Head Name (e.g. Tuition Fee)"
+                                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs"
+                                                            />
+                                                        </div>
+                                                        <div className="w-full md:w-4/12 space-y-1">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block md:hidden">Default Amount</label>
+                                                            <input 
+                                                                type="number" 
+                                                                value={row.defaultAmount || ''}
+                                                                onChange={e => {
+                                                                    const val = parseFloat(e.target.value) || 0;
+                                                                    setBulkVotesEntries(prev => prev.map((r, i) => i === index ? { ...r, defaultAmount: val } : r));
+                                                                }}
+                                                                placeholder="Amount (KES)"
+                                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs"
+                                                            />
+                                                        </div>
+                                                        <div className="w-full md:w-2/12 flex items-center justify-between md:justify-center pt-2 md:pt-0">
+                                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                                <input 
+                                                                    type="checkbox" 
+                                                                    checked={row.isMandatory}
+                                                                    onChange={e => {
+                                                                        const checked = e.target.checked;
+                                                                        setBulkVotesEntries(prev => prev.map((r, i) => i === index ? { ...r, isMandatory: checked } : r));
+                                                                    }}
+                                                                    className="w-4 h-4 rounded text-indigo-600"
+                                                                />
+                                                                <span className="text-[11px] font-black text-slate-600 dark:text-slate-400 uppercase">Mandatory</span>
+                                                            </label>
+                                                        </div>
+                                                        <div className="w-full md:w-1/12 flex justify-end">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setBulkVotesEntries(prev => prev.length > 1 ? prev.filter((_, i) => i !== index) : [{ voteName: '', defaultAmount: 0, isMandatory: false }]);
+                                                                }}
+                                                                className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                                                            >
+                                                                <TrashIcon className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
 
-                                            <button
-                                                type="button"
-                                                onClick={async () => {
-                                                    if (!newVoteInput.voteName.trim()) {
-                                                        toastError("Fee vote name is mandatory.");
-                                                        return;
-                                                    }
-                                                    try {
-                                                        const existingVotes = settings?.votes || [];
-                                                        const filtered = existingVotes.filter(v => v.voteName.toLowerCase() !== newVoteInput.voteName.trim().toLowerCase());
-                                                        const newVoteObj = {
-                                                            id: `vt_${Date.now()}`,
-                                                            institutionId: currentInstitution?.id || 'inst',
-                                                            voteName: newVoteInput.voteName.trim(),
-                                                            defaultAmount: newVoteInput.defaultAmount,
-                                                            isMandatory: newVoteInput.isMandatory
-                                                        };
-                                                        const updated = [...filtered, newVoteObj];
-                                                        const payload = { ...settings, id: settings?.id || `ds_settings_${currentInstitution?.id}`, institutionId: currentInstitution?.id || 'inst', votes: updated };
-                                                        
-                                                        console.log("[DS Manager] Initiating 'Save Vote Head' persistence flow. Payload structure:", payload);
-                                                        
-                                                        await onUpdateSettings(payload);
-                                                        setNewVoteInput({ voteName: '', defaultAmount: 0, isMandatory: false });
-                                                        success("Fee vote appended and persisted successfully.");
-                                                        if (onRefreshDataProp) {
-                                                            await onRefreshDataProp();
+                                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setBulkVotesEntries([{ voteName: '', defaultAmount: 0, isMandatory: false }]);
+                                                    }}
+                                                    className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-all"
+                                                >
+                                                    Clear Staging Form
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        const validEntries = bulkVotesEntries.filter(b => b.voteName.trim() !== '');
+                                                        if (validEntries.length === 0) {
+                                                            toastError("Please enter at least one valid fee vote name.");
+                                                            return;
                                                         }
-                                                    } catch (err) {
-                                                        console.error("[DS Manager] Persistence failure: Could not save Vote Head. Error:", err);
-                                                        toastError("Database rejection: Could not save Vote Head. Please verify network connection and payload schema.");
-                                                    }
-                                                }}
-                                                className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:scale-105 transition-all"
-                                            >
-                                                Add / Update Vote
-                                            </button>
+                                                        try {
+                                                            const existingVotes = settings?.votes || [];
+                                                            const existingMap = new Map();
+                                                            existingVotes.forEach(ev => {
+                                                                const n = ev.voteName || (ev as any).vote_name;
+                                                                if (n) existingMap.set(n.toLowerCase().trim(), ev);
+                                                            });
+                                                            validEntries.forEach((ve, vIdx) => {
+                                                                existingMap.set(ve.voteName.toLowerCase().trim(), {
+                                                                    id: `vt_${Date.now()}_${vIdx}_${Math.random().toString(36).substring(2, 6)}`,
+                                                                    institutionId: currentInstitution?.id || 'inst',
+                                                                    voteName: ve.voteName.trim(),
+                                                                    defaultAmount: ve.defaultAmount,
+                                                                    isMandatory: ve.isMandatory
+                                                                });
+                                                            });
+                                                            const updated = Array.from(existingMap.values());
+                                                            const payload = { ...settings, id: settings?.id || `ds_settings_${currentInstitution?.id}`, institutionId: currentInstitution?.id || 'inst', votes: updated };
+                                                            
+                                                            console.log("[DS Manager] Bulk Save Votes initiated. Payload:", payload);
+                                                            await onUpdateSettings(payload);
+                                                            setBulkVotesEntries([{ voteName: '', defaultAmount: 0, isMandatory: false }]);
+                                                            success(`Successfully persisted ${validEntries.length} fee heads.`);
+                                                            if (onRefreshDataProp) {
+                                                                await onRefreshDataProp();
+                                                            }
+                                                        } catch (err) {
+                                                            console.error("[DS Manager] Bulk save error:", err);
+                                                            toastError("Database rejection during bulk multiple entry commit.");
+                                                        }
+                                                    }}
+                                                    className="w-full sm:w-auto px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:scale-105 transition-all"
+                                                >
+                                                    🚀 Bulk Register Staged Votes ({bulkVotesEntries.filter(b => b.voteName.trim() !== '').length})
+                                                </button>
+                                            </div>
                                         </div>
 
                                         {/* Votes List View */}
