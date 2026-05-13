@@ -1333,6 +1333,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [financeTab, setFinanceTab] = useState<'records' | 'feeds'>('records');
     const [settingsSubTab, setSettingsSubTab] = useState<'categories' | 'votes' | 'rules' | 'numbering' | 'fees' | 'slots'>('categories');
     const [reportSubTab, setReportSubTab] = useState<'instructor_timetable' | 'sessions'>('instructor_timetable');
+    const [leadStatusFilter, setLeadStatusFilter] = useState<string>('All');
     const [selectedReportInstructorId, setSelectedReportInstructorId] = useState<string>('all');
     const [users, setUsers] = useState<User[]>([]);
     const [isActionLoading, setIsActionLoading] = useState(false);
@@ -1706,12 +1707,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     [payments, normalizedStudents, searchTerm]);
 
     const filteredLeads = useMemo(() => 
-        leads.filter(l => 
-            (l.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (l.phone || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (l.licenseTypeInterested || '').toLowerCase().includes(searchTerm.toLowerCase())
-        ),
-    [leads, searchTerm]);
+        leads.filter(l => {
+            const matchesSearch = (l.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                  (l.phone || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                  (l.licenseTypeInterested || '').toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesStatus = leadStatusFilter === 'All' || (l.status || 'New Enquiry').toLowerCase() === leadStatusFilter.toLowerCase();
+            return matchesSearch && matchesStatus;
+        }),
+    [leads, searchTerm, leadStatusFilter]);
 
     const stats = useMemo(() => ({
         totalStudents: students.length,
@@ -2049,8 +2052,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         {['All', 'New Enquiry', 'Quotation Sent', 'Converted'].map((st) => (
                                             <button 
                                                 key={st} 
-                                                onClick={() => setSearchTerm(st === 'All' ? '' : st)}
-                                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${searchTerm === st || (st === 'All' && !searchTerm) ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-900'}`}
+                                                onClick={() => setLeadStatusFilter(st)}
+                                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${leadStatusFilter === st ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-900'}`}
                                             >
                                                 {st}
                                             </button>

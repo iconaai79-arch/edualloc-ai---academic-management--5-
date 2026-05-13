@@ -5683,7 +5683,7 @@ export const generateDetailedPharmacySalesReportPdf = async (
     const aggregated = new Map<string, { sku: string, name: string, qty: number, total: number }>();
     saleItems.forEach(item => {
         const inv = inventory.find(i => i.id === item.medicationId);
-        const key = item.medicationId;
+        const key = item.medicationId || 'unknown';
         const existing = aggregated.get(key) || { sku: inv?.sku || 'N/A', name: inv?.name || 'Unknown', qty: 0, total: 0 };
         existing.qty += Number(item.quantity);
         existing.total += Number(item.totalPrice);
