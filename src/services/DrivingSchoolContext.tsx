@@ -117,41 +117,40 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
                 // Smart consolidation of standalone SQL rows and embedded blob arrays for Fee Votes
                 const votesMap = new Map();
-                if (prev?.votes && Array.isArray(prev.votes)) {
-                    prev.votes.forEach(v => {
-                        if (v?.voteName) votesMap.set(v.voteName.toLowerCase().trim(), v);
-                    });
-                }
-                if (baseSettings?.votes && Array.isArray(baseSettings.votes)) {
-                    baseSettings.votes.forEach((v: any) => {
-                        if (v?.voteName) votesMap.set(v.voteName.toLowerCase().trim(), v);
-                    });
-                }
-                if (dsVotesStandalone && Array.isArray(dsVotesStandalone)) {
-                    dsVotesStandalone.forEach(v => {
-                        // Standalone table takes supreme precedence to reflect DB mutations accurately
-                        if (v?.voteName) votesMap.set(v.voteName.toLowerCase().trim(), v);
-                    });
-                }
+                const addVoteToMap = (v: any) => {
+                    const vName = v?.voteName || v?.vote_name;
+                    if (vName) {
+                        votesMap.set(vName.toLowerCase().trim(), {
+                            ...v,
+                            voteName: vName,
+                            defaultAmount: v?.defaultAmount ?? v?.default_amount ?? 0,
+                            isMandatory: v?.isMandatory ?? v?.is_mandatory ?? false
+                        });
+                    }
+                };
+                if (prev?.votes && Array.isArray(prev.votes)) prev.votes.forEach(addVoteToMap);
+                if (baseSettings?.votes && Array.isArray(baseSettings.votes)) baseSettings.votes.forEach(addVoteToMap);
+                if (dsVotesStandalone && Array.isArray(dsVotesStandalone)) dsVotesStandalone.forEach(addVoteToMap);
                 const finalVotes = Array.from(votesMap.values());
 
                 // Smart consolidation for License Categories
                 const catsMap = new Map();
-                if (prev?.licenseCategories && Array.isArray(prev.licenseCategories)) {
-                    prev.licenseCategories.forEach(c => {
-                        if (c?.code) catsMap.set(c.code.toLowerCase().trim(), c);
-                    });
-                }
-                if (baseSettings?.licenseCategories && Array.isArray(baseSettings.licenseCategories)) {
-                    baseSettings.licenseCategories.forEach((c: any) => {
-                        if (c?.code) catsMap.set(c.code.toLowerCase().trim(), c);
-                    });
-                }
-                if (dsCatsStandalone && Array.isArray(dsCatsStandalone)) {
-                    dsCatsStandalone.forEach(c => {
-                        if (c?.code) catsMap.set(c.code.toLowerCase().trim(), c);
-                    });
-                }
+                const addCatToMap = (c: any) => {
+                    const cCode = c?.code;
+                    if (cCode) {
+                        catsMap.set(cCode.toLowerCase().trim(), {
+                            ...c,
+                            code: cCode,
+                            name: c?.name || '',
+                            description: c?.description || '',
+                            baseFee: c?.baseFee ?? c?.base_fee ?? 0,
+                            isActive: c?.isActive ?? c?.is_active ?? true
+                        });
+                    }
+                };
+                if (prev?.licenseCategories && Array.isArray(prev.licenseCategories)) prev.licenseCategories.forEach(addCatToMap);
+                if (baseSettings?.licenseCategories && Array.isArray(baseSettings.licenseCategories)) baseSettings.licenseCategories.forEach(addCatToMap);
+                if (dsCatsStandalone && Array.isArray(dsCatsStandalone)) dsCatsStandalone.forEach(addCatToMap);
                 const finalCats = Array.from(catsMap.values());
 
                 if (baseSettings) {

@@ -2987,7 +2987,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                     <h6 className="font-bold text-sm text-slate-900 dark:text-white">{cat.name}</h6>
                                                                 </div>
                                                                 {cat.description && <p className="text-xs text-slate-500">{cat.description}</p>}
-                                                                <p className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-2">KES {(cat.baseFee || 0).toLocaleString()}</p>
+                                                                <p className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-2">KES {(cat.baseFee ?? (cat as any).base_fee ?? 0).toLocaleString()}</p>
                                                             </div>
                                                             <button
                                                                 type="button"
@@ -3130,10 +3130,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                         <div key={vt.id} className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xs flex items-start justify-between gap-4">
                                                             <div className="space-y-1">
                                                                 <div className="flex items-center gap-2">
-                                                                    <h6 className="font-bold text-sm text-slate-900 dark:text-white">{vt.voteName}</h6>
-                                                                    {vt.isMandatory && <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-600 rounded text-[9px] font-black uppercase">Mandatory</span>}
+                                                                    <h6 className="font-bold text-sm text-slate-900 dark:text-white">{vt.voteName || (vt as any).vote_name}</h6>
+                                                                    {(vt.isMandatory || (vt as any).is_mandatory) && <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-600 rounded text-[9px] font-black uppercase">Mandatory</span>}
                                                                 </div>
-                                                                <p className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-2">KES {(vt.defaultAmount || 0).toLocaleString()}</p>
+                                                                <p className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-2">KES {(vt.defaultAmount ?? (vt as any).default_amount ?? 0).toLocaleString()}</p>
                                                             </div>
                                                             <button
                                                                 type="button"
