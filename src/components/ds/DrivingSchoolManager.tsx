@@ -274,8 +274,31 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
             if (type === 'instructor') return { ...base, rating: 5, instructorType: 'Driving Instructor' };
             if (type === 'invoice') return { ...base, items: [], totalAmount: 0, paidAmount: 0, balance: 0, status: 'Pending', createdAt: new Date().toISOString() };
             if (type === 'payment') return { ...base, paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'M-Pesa' };
-            if (type === 'fee_structure') return { className: 'CLASS C1', tuition: 15000, tuitionPriority: 1, pdl: 1500, pdlPriority: 2, assessment: 2000, assessmentPriority: 3 };
+            if (type === 'fee_structure') {
+                return { 
+                    className: 'CLASS C1', 
+                    description: 'Standard License Course',
+                    items: [
+                        { name: 'Tuition Fee', amount: 15000, priority: 1 },
+                        { name: 'PDL', amount: 1500, priority: 2 },
+                        { name: 'Assessment', amount: 2000, priority: 3 }
+                    ]
+                };
+            }
             if (type === 'broadcast') return { title: '', message: '', target: 'All', priority: 'Medium', channels: ['Portal'] };
+        }
+        if (initialData && type === 'fee_structure') {
+            const loadedItems = Array.isArray(initialData.items) && initialData.items.length > 0 
+                ? initialData.items 
+                : [
+                    { name: 'Tuition Fee', amount: initialData.tuition || 0, priority: initialData.tuitionPriority || 1 },
+                    { name: 'PDL', amount: initialData.pdl || 0, priority: initialData.pdlPriority || 2 },
+                    { name: 'Assessment', amount: initialData.assessment || 0, priority: initialData.assessmentPriority || 3 }
+                ].filter(it => it.amount > 0);
+            return {
+                ...base,
+                items: loadedItems.length > 0 ? loadedItems : [{ name: 'Standard Course Fee', amount: initialData.totalAmount || 0, priority: 1 }]
+            };
         }
         return base;
     });
@@ -909,33 +932,138 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                         ) || null}
 
                         {type === 'fee_structure' && (
-                            <>
-                                <div className="md:col-span-2 space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Class Name</label>
-                                    <input required type="text" value={formData.className || ''} onChange={e => setFormData({...formData, className: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. CLASS C1" />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tuition Fee</label>
-                                    <div className="flex gap-2">
-                                        <input required type="number" value={formData.tuition || ''} onChange={e => setFormData({...formData, tuition: Number(e.target.value)})} className="flex-[3] px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
-                                        <input title="Priority" type="number" value={formData.tuitionPriority || 1} onChange={e => setFormData({...formData, tuitionPriority: Number(e.target.value)})} className="flex-1 px-3 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-center" />
+                            <div className="md:col-span-2 space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Class Name</label>
+                                        <input required type="text" value={formData.className || ''} onChange={e => setFormData({...formData, className: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. CLASS C1" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Description</label>
+                                        <input type="text" value={formData.description || ''} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. Standard License Course" />
                                     </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">PDL Fee</label>
-                                    <div className="flex gap-2">
-                                        <input required type="number" value={formData.pdl || ''} onChange={e => setFormData({...formData, pdl: Number(e.target.value)})} className="flex-[3] px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
-                                        <input title="Priority" type="number" value={formData.pdlPriority || 2} onChange={e => setFormData({...formData, pdlPriority: Number(e.target.value)})} className="flex-1 px-3 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-center" />
+
+                                <div className="p-6 bg-slate-50/50 dark:bg-slate-900/30 rounded-[2rem] border border-slate-100 dark:border-slate-800/80 space-y-4">
+                                    <div className="flex items-center justify-between flex-wrap gap-2">
+                                        <div>
+                                            <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">Fee Structure Items (Votes)</h5>
+                                            <p className="text-[10px] text-slate-400">Configure customized granular fee items embedded in this package.</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const current = Array.isArray(formData.items) ? formData.items : [];
+                                                setFormData({ ...formData, items: [...current, { name: '', amount: 0, priority: current.length + 1 }] });
+                                            }}
+                                            className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-sm"
+                                        >
+                                            + Add Custom Row
+                                        </button>
+                                    </div>
+
+                                    {settings?.votes && Array.isArray(settings.votes) && settings.votes.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5 pt-1 items-center">
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mr-1">Quick Add Vote:</span>
+                                            {settings.votes.map((vt: any) => (
+                                                <button
+                                                    key={vt.id || vt.voteName}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const current = Array.isArray(formData.items) ? formData.items : [];
+                                                        setFormData({ 
+                                                            ...formData, 
+                                                            items: [...current, { 
+                                                                name: vt.voteName || vt.vote_name || '', 
+                                                                amount: vt.defaultAmount ?? vt.default_amount ?? 0, 
+                                                                priority: current.length + 1 
+                                                            }] 
+                                                        });
+                                                    }}
+                                                    className="px-3 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-indigo-600 rounded-lg text-[9px] font-bold border border-slate-200 dark:border-slate-700 hover:border-indigo-500 transition-all flex items-center gap-1"
+                                                >
+                                                    <PlusIcon className="w-2.5 h-2.5 text-indigo-500" />
+                                                    {vt.voteName || vt.vote_name}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-2 pt-2">
+                                        {(Array.isArray(formData.items) ? formData.items : []).map((it: any, idx: number) => (
+                                            <div key={idx} className="flex items-center gap-2 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700/60 animate-fade-in">
+                                                <div className="flex-[2]">
+                                                    <input
+                                                        type="text"
+                                                        required
+                                                        value={it.name || ''}
+                                                        onChange={e => {
+                                                            const nextItems = [...formData.items];
+                                                            nextItems[idx] = { ...it, name: e.target.value };
+                                                            setFormData({ ...formData, items: nextItems });
+                                                        }}
+                                                        placeholder="Fee Item Name (e.g. Tuition Fee)"
+                                                        className="w-full bg-transparent border-none text-xs font-bold px-2 py-1 focus:ring-0"
+                                                    />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900 px-2 py-1 rounded-xl">
+                                                        <span className="text-[9px] font-black text-slate-400">KES</span>
+                                                        <input
+                                                            type="number"
+                                                            required
+                                                            value={it.amount === 0 ? '' : it.amount}
+                                                            onChange={e => {
+                                                                const nextItems = [...formData.items];
+                                                                nextItems[idx] = { ...it, amount: Number(e.target.value) };
+                                                                setFormData({ ...formData, items: nextItems });
+                                                            }}
+                                                            placeholder="0"
+                                                            className="w-full bg-transparent border-none text-xs font-bold p-0 focus:ring-0 text-right"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="w-16">
+                                                    <input
+                                                        type="number"
+                                                        title="Priority Order"
+                                                        value={it.priority || idx + 1}
+                                                        onChange={e => {
+                                                            const nextItems = [...formData.items];
+                                                            nextItems[idx] = { ...it, priority: Number(e.target.value) };
+                                                            setFormData({ ...formData, items: nextItems });
+                                                        }}
+                                                        className="w-full bg-slate-50 dark:bg-slate-900 border-none text-xs font-bold px-2 py-1 rounded-xl text-center"
+                                                    />
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const nextItems = formData.items.filter((_: any, i: number) => i !== idx);
+                                                        setFormData({ ...formData, items: nextItems });
+                                                    }}
+                                                    className="p-2 text-slate-300 hover:text-red-500 rounded-xl transition-colors"
+                                                    title="Remove Item"
+                                                >
+                                                    <TrashIcon className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {(Array.isArray(formData.items) ? formData.items : []).length === 0 && (
+                                            <p className="text-center text-xs text-slate-400 py-4 font-medium italic">No fee items assigned yet. Click Quick Add or Add Custom Row above.</p>
+                                        )}
+                                    </div>
+
+                                    <div className="flex justify-end pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                                        <div className="flex items-center gap-3 bg-indigo-50 dark:bg-indigo-900/20 px-4 py-2 rounded-xl">
+                                            <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Calculated Total:</span>
+                                            <span className="text-sm font-black text-slate-900 dark:text-white">
+                                                KES {(Array.isArray(formData.items) ? formData.items : []).reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0).toLocaleString()}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="md:col-span-2 space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Assessment Fee</label>
-                                    <div className="flex gap-2">
-                                        <input required type="number" value={formData.assessment || ''} onChange={e => setFormData({...formData, assessment: Number(e.target.value)})} className="flex-[3] px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
-                                        <input title="Priority" type="number" value={formData.assessmentPriority || 3} onChange={e => setFormData({...formData, assessmentPriority: Number(e.target.value)})} className="flex-1 px-3 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-center" />
-                                    </div>
-                                </div>
-                            </>
+                            </div>
                         )}
 
                         {type === 'broadcast' && (
@@ -3644,16 +3772,20 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             else if (type === 'invoice') await onAddInvoice(data);
                             else if (type === 'payment') await onAddPayment(data);
                             else if (type === 'fee_structure') {
+                                const dynamicItems = Array.isArray(data.items) ? data.items : [
+                                    { name: 'Tuition Fee', amount: data.tuition || 0, priority: data.tuitionPriority || 1 },
+                                    { name: 'PDL', amount: data.pdl || 0, priority: data.pdlPriority || 2 },
+                                    { name: 'Assessment', amount: data.assessment || 0, priority: data.assessmentPriority || 3 }
+                                ];
+                                const calculatedTotal = dynamicItems.reduce((sum: number, it: any) => sum + (Number(it.amount) || 0), 0);
+                                
                                 const feeData = {
                                     id: data.id || `fee_${Date.now()}`,
                                     institutionId: currentInstitution?.id || '',
                                     className: data.className,
-                                    items: [
-                                        { name: 'Tuition Fee', amount: data.tuition || 0, priority: data.tuitionPriority || 1 },
-                                        { name: 'PDL', amount: data.pdl || 0, priority: data.pdlPriority || 2 },
-                                        { name: 'Assessment', amount: data.assessment || 0, priority: data.assessmentPriority || 3 }
-                                    ],
-                                    totalAmount: (data.tuition || 0) + (data.pdl || 0) + (data.assessment || 0),
+                                    description: data.description || `${data.className} Premium Package`,
+                                    items: dynamicItems,
+                                    totalAmount: calculatedTotal,
                                     updatedAt: new Date().toISOString()
                                 };
 
