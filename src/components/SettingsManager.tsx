@@ -2444,7 +2444,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     <div className="flex gap-3">
                                         <button onClick={() => { setIsAddingVoteHead(false); setEditingVoteHeadId(null); }} className="flex-1 py-4 bg-white dark:bg-slate-800 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button>
                                         <button 
-                                            onClick={() => {
+                                            onClick={async () => {
                                                 if (!newVoteHeadForm.name) {
                                                     alert("Please provide a Vote Head Name.");
                                                     return;
@@ -2464,7 +2464,37 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 } else {
                                                     nextList.push(vData);
                                                 }
+                                                
+                                                console.log("[SettingsManager] Initiating Vote Head update persistence flow. Payload:", nextList);
                                                 props.onUpdateVoteHeads?.(nextList);
+
+                                                if (props.isDS && props.onUpdateDSSettings) {
+                                                    const dsVoteObj = {
+                                                        id: vData.id,
+                                                        institutionId: vData.institutionId || 'inst',
+                                                        voteName: vData.name,
+                                                        defaultAmount: vData.allocatedAmount,
+                                                        isMandatory: false
+                                                    };
+                                                    const existingDsVotes = props.dsSettings?.votes || [];
+                                                    let nextDsVotes = [...existingDsVotes];
+                                                    if (editingVoteHeadId) {
+                                                        nextDsVotes = nextDsVotes.map(v => v.id === editingVoteHeadId ? { ...v, ...dsVoteObj } : v);
+                                                    } else {
+                                                        nextDsVotes.push(dsVoteObj);
+                                                    }
+                                                    const dsPayload = {
+                                                        ...props.dsSettings,
+                                                        id: props.dsSettings?.id || `ds_settings_${props.currentInstitution?.id}`,
+                                                        institutionId: props.currentInstitution?.id || 'inst',
+                                                        votes: nextDsVotes
+                                                    };
+                                                    console.log("[SettingsManager] Synchronizing vote head to Driving School sub-collection. Payload structure:", dsPayload);
+                                                    await props.onUpdateDSSettings(dsPayload).catch(err => {
+                                                        console.error("[SettingsManager] DS Settings sub-collection persistence error:", err);
+                                                    });
+                                                }
+
                                                 setIsAddingVoteHead(false);
                                                 setEditingVoteHeadId(null);
                                                 setNewVoteHeadForm({ name: '', allocatedAmount: 0, priority: 1 });
@@ -2505,10 +2535,23 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 Edit
                                             </button>
                                             <button 
-                                                onClick={() => {
+                                                onClick={async () => {
                                                     if (confirm(`Are you sure you want to remove ${vote.name}?`)) {
                                                         const nextList = (props.voteHeads || []).filter(v => v.id !== vote.id);
+                                                        console.log(`[SettingsManager] Deleting Vote Head ID ${vote.id}. Remaining payload structure:`, nextList);
                                                         props.onUpdateVoteHeads?.(nextList);
+
+                                                        if (props.isDS && props.onUpdateDSSettings) {
+                                                            const nextDsVotes = (props.dsSettings?.votes || []).filter(v => v.id !== vote.id);
+                                                            const dsPayload = {
+                                                                ...props.dsSettings,
+                                                                id: props.dsSettings?.id || `ds_settings_${props.currentInstitution?.id}`,
+                                                                institutionId: props.currentInstitution?.id || 'inst',
+                                                                votes: nextDsVotes
+                                                            };
+                                                            console.log("[SettingsManager] Deleting vote head from Driving School sub-collection. Payload:", dsPayload);
+                                                            await props.onUpdateDSSettings(dsPayload).catch(err => console.error(err));
+                                                        }
                                                     }
                                                 }}
                                                 className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline"

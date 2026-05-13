@@ -3816,6 +3816,22 @@ export interface DSVehicle {
     createdAt: string;
 }
 
+export interface DSLead {
+    id: string;
+    institutionId: string;
+    fullName: string;
+    phone: string;
+    email?: string;
+    licenseTypeInterested?: string;
+    source: 'Walk-in' | 'Phone' | 'Online' | 'Referral';
+    status: 'New Enquiry' | 'Quotation Sent' | 'Follow-up' | 'Converted' | 'Lost';
+    quotedAmount?: number;
+    feeStructureId?: string;
+    notes?: string;
+    createdAt: string;
+    updatedAt?: string;
+}
+
 export interface DSStudent {
     id: string;
     institutionId: string;

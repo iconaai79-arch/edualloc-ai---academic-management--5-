@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode, useMemo } from 'react';
-import { DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, MpesaTransaction, BankTransaction } from '../types';
+import { DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, MpesaTransaction, BankTransaction, DSLead } from '../types';
 import { apiService } from './apiService';
 import { useToast } from './ToastContext';
 import { generateDSPDF } from '../utils/dsPdfGenerator';
@@ -15,6 +15,7 @@ interface DrivingSchoolContextType {
     payments: DSPayment[];
     mpesaTransactions: MpesaTransaction[];
     bankTransactions: BankTransaction[];
+    leads: DSLead[];
     
     // Setters (used for hydration from main loadData)
     setInstructors: React.Dispatch<React.SetStateAction<DSInstructor[]>>;
@@ -25,6 +26,7 @@ interface DrivingSchoolContextType {
     setSettings: React.Dispatch<React.SetStateAction<DSSettings | null>>;
     setInvoices: React.Dispatch<React.SetStateAction<DSInvoice[]>>;
     setPayments: React.Dispatch<React.SetStateAction<DSPayment[]>>;
+    setLeads: React.Dispatch<React.SetStateAction<DSLead[]>>;
 
     // Operations
     addInstructor: (data: any) => Promise<void>;
@@ -41,6 +43,9 @@ interface DrivingSchoolContextType {
     addPayment: (data: any) => Promise<void>;
     updateLesson: (data: any) => Promise<void>;
     deleteLesson: (id: string) => Promise<void>;
+    addLead: (data: Partial<DSLead>) => Promise<void>;
+    updateLead: (data: Partial<DSLead>) => Promise<void>;
+    deleteLead: (id: string) => Promise<void>;
     refreshData: () => Promise<void>;
     stats: {
         totalStudents: number;
@@ -71,6 +76,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
     const [payments, setPayments] = useState<DSPayment[]>([]);
     const [mpesaTransactions, setMpesaTransactions] = useState<MpesaTransaction[]>([]);
     const [bankTransactions, setBankTransactions] = useState<BankTransaction[]>([]);
+    const [leads, setLeads] = useState<DSLead[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     const loadDSData = useCallback(async () => {
@@ -81,7 +87,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         setIsLoading(true);
         console.log(`[DSContext] loadDSData: Starting fetch for institutionId=${institutionId}`);
         try {
-            const [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay, dsMpe, dsBnk, dsVotesStandalone, dsCatsStandalone] = await Promise.all([
+            const [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay, dsMpe, dsBnk, dsVotesStandalone, dsCatsStandalone, dsLeadsStandalone] = await Promise.all([
                 apiService.fetchModuleRecords<DSInstructor>('ds_instructors', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<DSVehicle>('ds_vehicles', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<DSStudent>('ds_students', institutionId).catch(() => []),
@@ -94,9 +100,10 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 apiService.fetchModuleRecords<BankTransaction>('bank_transactions', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<any>('ds_votes', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<any>('ds_license_categories', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<DSLead>('ds_leads', institutionId).catch(() => []),
             ]);
 
-            console.log(`[DSContext] loadDSData: Fetched ${dsInst.length} instructors, ${dsVeh.length} vehicles, ${dsStud.length} students, ${dsLess.length} lessons`);
+            console.log(`[DSContext] loadDSData: Fetched ${dsInst.length} instructors, ${dsVeh.length} vehicles, ${dsStud.length} students, ${dsLess.length} lessons, ${dsLeadsStandalone.length} leads`);
 
             setInstructors(dsInst || []);
             setVehicles(dsVeh || []);
@@ -129,6 +136,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             setPayments(dsPay || []);
             setMpesaTransactions(dsMpe || []);
             setBankTransactions(dsBnk || []);
+            setLeads(dsLeadsStandalone || []);
         } catch (err) {
             console.error("[DSContext] loadDSData: Failed to load DS data:", err);
         } finally {
@@ -589,6 +597,68 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         }
     }, [institutionId, onRefresh, error]);
 
+    const addLead = useCallback(async (data: Partial<DSLead>) => {
+        if (!institutionId) return;
+        try {
+            const payload: DSLead = {
+                id: `lead_${Date.now()}`,
+                institutionId,
+                fullName: data.fullName || 'Walk-in Client',
+                phone: data.phone || '',
+                email: data.email || '',
+                licenseTypeInterested: data.licenseTypeInterested || '',
+                source: data.source || 'Walk-in',
+                status: data.status || 'New Enquiry',
+                quotedAmount: data.quotedAmount || 0,
+                feeStructureId: data.feeStructureId || '',
+                notes: data.notes || '',
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('ds_leads', payload);
+            setLeads(prev => [...prev, payload]);
+            success("Enquiry lead recorded successfully.");
+            await onRefresh();
+        } catch (err) {
+            console.error("[DSContext] Failed to add lead:", err);
+            error("Failed to record walk-in enquiry lead.");
+            throw err;
+        }
+    }, [institutionId, onRefresh, success, error]);
+
+    const updateLead = useCallback(async (data: Partial<DSLead>) => {
+        if (!institutionId || !data.id) return;
+        try {
+            const payload = {
+                ...data,
+                institutionId,
+                updatedAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('ds_leads', payload);
+            setLeads(prev => prev.map(l => l.id === data.id ? { ...l, ...payload } as DSLead : l));
+            success("Enquiry lead updated successfully.");
+            await onRefresh();
+        } catch (err) {
+            console.error("[DSContext] Failed to update lead:", err);
+            error("Failed to update walk-in enquiry lead.");
+            throw err;
+        }
+    }, [institutionId, onRefresh, success, error]);
+
+    const deleteLead = useCallback(async (id: string) => {
+        if (!institutionId) return;
+        if (!window.confirm("Are you sure you want to remove this enquiry lead?")) return;
+        try {
+            await apiService.deleteModuleRecord('ds_leads', id);
+            setLeads(prev => prev.filter(l => l.id !== id));
+            success("Enquiry lead removed successfully.");
+            await onRefresh();
+        } catch (err) {
+            console.error("[DSContext] Failed to delete lead:", err);
+            error("Failed to delete walk-in enquiry lead.");
+            throw err;
+        }
+    }, [institutionId, onRefresh, success, error]);
+
     const updateSettings = useCallback(async (data: any) => {
         if (!institutionId) return;
         try {
@@ -609,9 +679,9 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 updatedAt: new Date().toISOString()
             };
             
-            console.log("[DS Context] Save triggered - Final ID:", payload.id);
+            console.log("[DS Context] updateSettings persistence flow triggered. Payload structure:", payload);
             const result = await apiService.saveModuleRecord('ds_settings', payload);
-            console.log("[DS Context] Save Success - Response:", result);
+            console.log("[DS Context] Primary ds_settings blob saved successfully. Response:", result);
             
             // Instantly update local React state to guarantee stability even if backend schema caches lag behind
             setSettings(prev => ({
@@ -623,40 +693,47 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             
             // Mirror fee structures to the standalone ds_fee_structures table if they exist
             if (data.feeStructures && Array.isArray(data.feeStructures)) {
-                console.log(`[DS Context] Syncing ${data.feeStructures.length} structures to ds_fee_structures table...`);
+                console.log(`[DS Context] Mirroring ${data.feeStructures.length} structures to ds_fee_structures table...`);
                 for (const fee of data.feeStructures) {
-                    await apiService.saveModuleRecord('ds_fee_structures', {
-                        ...fee,
-                        institutionId
-                    }).catch(err => console.error("[DS Context] Failed to sync fee structure:", fee.id, err));
+                    const feePayload = { ...fee, institutionId };
+                    console.log("[DS Context] Syncing fee structure payload:", feePayload);
+                    await apiService.saveModuleRecord('ds_fee_structures', feePayload).catch(err => {
+                        console.error("[DS Context] Failed to sync fee structure:", fee.id, err);
+                        error(`Failed to mirror fee structure ${fee.className || fee.id} to SQL table.`);
+                    });
                 }
             }
 
             // Mirror votes to ds_votes table
             if (data.votes && Array.isArray(data.votes)) {
+                console.log(`[DS Context] Mirroring ${data.votes.length} votes to ds_votes table...`);
                 for (const vt of data.votes) {
-                    await apiService.saveModuleRecord('ds_votes', {
-                        ...vt,
-                        institutionId
-                    }).catch(err => console.error("[DS Context] Failed to sync vote:", vt.id, err));
+                    const votePayload = { ...vt, institutionId };
+                    console.log("[DS Context] Syncing standalone vote payload:", votePayload);
+                    await apiService.saveModuleRecord('ds_votes', votePayload).catch(err => {
+                        console.error("[DS Context] Failed to sync vote:", vt.id, err);
+                        error(`Failed to mirror vote head "${vt.voteName || vt.id}" to standalone ds_votes table.`);
+                    });
                 }
             }
 
             // Mirror license categories to ds_license_categories table
             if (data.licenseCategories && Array.isArray(data.licenseCategories)) {
+                console.log(`[DS Context] Mirroring ${data.licenseCategories.length} categories to ds_license_categories table...`);
                 for (const cat of data.licenseCategories) {
-                    await apiService.saveModuleRecord('ds_license_categories', {
-                        ...cat,
-                        institutionId
-                    }).catch(err => console.error("[DS Context] Failed to sync category:", cat.id, err));
+                    const catPayload = { ...cat, institutionId };
+                    console.log("[DS Context] Syncing standalone category payload:", catPayload);
+                    await apiService.saveModuleRecord('ds_license_categories', catPayload).catch(err => {
+                        console.error("[DS Context] Failed to sync category:", cat.id, err);
+                        error(`Failed to mirror license category "${cat.name || cat.code}" to standalone SQL table.`);
+                    });
                 }
             }
 
-            const count = data.feeStructures?.length || 0;
-            success(`Settings saved successfully.`);
+            success(`Driving School settings and sub-collections synchronized successfully.`);
             await onRefresh();
         } catch (err) {
-            console.error("[DS Context] Save Error:", err);
+            console.error("[DS Context] Save Error during settings persistence flow:", err);
             error("Persistence Failure: Settings could not be saved to database.");
             throw err;
         }
@@ -928,9 +1005,9 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
     const value = {
         instructors, vehicles, students, lessons, mastery, settings, invoices, payments,
-        mpesaTransactions, bankTransactions,
-        setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments,
-        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, updateStudent, deleteStudent, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, addPayment,
+        mpesaTransactions, bankTransactions, leads,
+        setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments, setLeads,
+        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, updateStudent, deleteStudent, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, addPayment, addLead, updateLead, deleteLead,
         refreshData, stats
     };
 

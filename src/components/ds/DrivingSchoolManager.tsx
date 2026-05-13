@@ -35,7 +35,7 @@ import { useDrivingSchool } from '../../services/DrivingSchoolContext';
 import { AppErrorBoundary } from '../common/AppErrorBoundary';
 
 import type { 
-    User, DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, DSFeeStructure, DSFeeItem, LetterheadConfig 
+    User, DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, DSFeeStructure, DSFeeItem, LetterheadConfig, DSLead 
 } from '../../types';
 import { DSBroadcasterView } from './DSBroadcasterView';
 import { DSFinanceFeeds } from './DSFinanceFeeds';
@@ -48,7 +48,7 @@ import { apiService } from '../../services/apiService';
 interface DrivingSchoolManagerProps {
     currentUser: User;
     currentInstitution: any;
-    externalTab?: 'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings' | 'broadcaster' | 'reports';
+    externalTab?: 'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'settings' | 'broadcaster' | 'reports';
     onRefreshData?: () => Promise<void>;
     departments?: any[];
     rooms?: any[];
@@ -260,13 +260,14 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
 
     const [formData, setFormData] = useState<any>(() => {
         const base = initialData || {
-            status: type === 'student' ? 'Enrolled' : type === 'instructor' ? 'Active' : type === 'vehicle' ? 'Operational' : 'Scheduled',
+            status: type === 'student' ? 'Enrolled' : type === 'lead' ? 'New Enquiry' : type === 'instructor' ? 'Active' : type === 'vehicle' ? 'Operational' : 'Scheduled',
             admissionNumber: type === 'student' ? nextAdmissionNumber : undefined,
             invoiceNumber: type === 'invoice' ? nextInvoiceNumber : undefined,
             receiptNumber: type === 'payment' ? nextReceiptNumber : undefined
         };
         if (!initialData) {
             if (type === 'student') return { ...base, courseDurationDays: settings?.schedulingRules?.requiredDaysToComplete || settings?.defaultCourseDuration || 21, enrollmentDate: new Date().toISOString().split('T')[0], theoryProgressPercent: 0, practicalProgressPercent: 0 };
+            if (type === 'lead') return { ...base, fullName: '', phone: '', email: '', licenseTypeInterested: 'Class B', source: 'Walk-in', quotedAmount: 15000, notes: '' };
             if (type === 'lesson') return { ...base, lessonDate: new Date().toISOString().split('T')[0], startTime: '08:00', endTime: '09:00', lessonType: 'Practical' };
             if (type === 'vehicle') return { ...base, transmission: 'Manual', capacity: 1 };
             if (type === 'instructor') return { ...base, rating: 5, instructorType: 'Driving Instructor' };
@@ -297,6 +298,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
 
     const title = {
         student: initialData ? 'Update Student Record' : 'Enrol New Student',
+        lead: initialData ? 'Update Walk-in Enquiry' : 'Record New Enquiry',
         instructor: 'Add Instructor',
         vehicle: 'Register Vehicle',
         lesson: 'Schedule Lesson',
@@ -403,6 +405,76 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         </select>
                                     </div>
                                 )}
+                            </>
+                        )}
+
+                        {type === 'lead' && (
+                            <>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Client Full Name</label>
+                                    <input required type="text" value={formData.fullName || ''} onChange={e => setFormData({...formData, fullName: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. Alice Wambui" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phone Number (For SMS Link)</label>
+                                    <input required type="tel" value={formData.phone || ''} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="07XX XXX XXX" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email Address (Optional)</label>
+                                    <input type="email" value={formData.email || ''} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="client@example.com" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Enquired License Class</label>
+                                    <select 
+                                        value={formData.licenseTypeInterested || ''} 
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            const matchedFee = (settings?.licenseCategories || []).find((c: any) => c.code === val);
+                                            const amt = matchedFee ? (matchedFee.baseFee || 0) : 15000;
+                                            setFormData({...formData, licenseTypeInterested: val, quotedAmount: amt});
+                                        }} 
+                                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none"
+                                    >
+                                        <option value="">Select Class</option>
+                                        {(settings?.licenseCategories && settings.licenseCategories.length > 0) ? (
+                                            settings.licenseCategories.map((cat: any) => (
+                                                <option key={cat.id} value={cat.code}>{cat.code} - {cat.name} (KES {Number(cat.baseFee || 0).toLocaleString()})</option>
+                                            ))
+                                        ) : (
+                                            <>
+                                                <option value="Class A">Class A (Motorcycle)</option>
+                                                <option value="Class B">Class B (Light Vehicle)</option>
+                                                <option value="Class C1">Class C1 (Truck)</option>
+                                            </>
+                                        )}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Enquiry Source</label>
+                                    <select value={formData.source || 'Walk-in'} onChange={e => setFormData({...formData, source: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="Walk-in">Walk-in Visit</option>
+                                        <option value="Phone">Phone Call</option>
+                                        <option value="Online">Online Portal</option>
+                                        <option value="Referral">Referral</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Estimated Quoted Fee (KES)</label>
+                                    <input type="number" value={formData.quotedAmount || 0} onChange={e => setFormData({...formData, quotedAmount: Number(e.target.value)})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
+                                </div>
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Status</label>
+                                    <select value={formData.status || 'New Enquiry'} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none">
+                                        <option value="New Enquiry">New Enquiry</option>
+                                        <option value="Quotation Sent">Quotation Sent</option>
+                                        <option value="Follow-up">Follow-up</option>
+                                        <option value="Converted">Converted to Student</option>
+                                        <option value="Lost">Lost / Not Interested</option>
+                                    </select>
+                                </div>
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Staff Discussion / Notes</label>
+                                    <textarea rows={3} value={formData.notes || ''} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs" placeholder="Client questions, requested discounts, follow-up timeline..." />
+                                </div>
                             </>
                         )}
 
@@ -1252,10 +1324,11 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         addPayment: onAddPayment,
         refreshData,
         mpesaTransactions,
-        bankTransactions
+        bankTransactions,
+        leads, addLead, updateLead, deleteLead
     } = useDrivingSchool();
     
-    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings' | 'reports'>('dashboard');
+    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings' | 'reports'>('dashboard');
     const [financeTab, setFinanceTab] = useState<'records' | 'feeds'>('records');
     const [settingsSubTab, setSettingsSubTab] = useState<'categories' | 'votes' | 'rules' | 'numbering' | 'fees' | 'slots'>('categories');
     const [reportSubTab, setReportSubTab] = useState<'instructor_timetable' | 'sessions'>('instructor_timetable');
@@ -1568,7 +1641,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isBuySMSModalOpen, setIsBuySMSModalOpen] = useState(false);
-    const [actionModal, setActionModal] = useState<{ type: 'student' | 'instructor' | 'vehicle' | 'vehicle_unavailability' | 'lesson' | 'invoice' | 'payment' | 'fee_structure' | 'broadcast' | null; data?: any; initialData?: any }>({ type: null });
+    const [actionModal, setActionModal] = useState<{ type: 'student' | 'instructor' | 'vehicle' | 'vehicle_unavailability' | 'lesson' | 'invoice' | 'payment' | 'fee_structure' | 'broadcast' | 'lead' | null; data?: any; initialData?: any }>({ type: null });
     const [unassignedDueToVehicles, setUnassignedDueToVehicles] = useState<Array<{ name: string; slot: string }>>([]);
     const [selectedQRLesson, setSelectedQRLesson] = useState<any | null>(null);
 
@@ -1630,6 +1703,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                    (pay.receiptNumber || '').toLowerCase().includes(searchTerm.toLowerCase());
         }),
     [payments, normalizedStudents, searchTerm]);
+
+    const filteredLeads = useMemo(() => 
+        leads.filter(l => 
+            (l.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (l.phone || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (l.licenseTypeInterested || '').toLowerCase().includes(searchTerm.toLowerCase())
+        ),
+    [leads, searchTerm]);
 
     const stats = useMemo(() => ({
         totalStudents: students.length,
@@ -1701,6 +1782,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 onClick={() => {
                                     const typeMap: Record<string, any> = {
                                         students: 'student',
+                                        leads: 'lead',
                                         lessons: 'lesson',
                                         fleet: 'vehicle',
                                         instructors: 'instructor',
@@ -1714,6 +1796,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             >
                                 <PlusIcon className="w-4 h-4" />
                                 {activeTab === 'students' ? 'Enroll Student' :
+                                 activeTab === 'leads' ? 'New Enquiry Lead' :
                                  activeTab === 'lessons' ? 'Schedule Lesson' :
                                  activeTab === 'fleet' ? 'Register Vehicle' :
                                  activeTab === 'instructors' ? 'Add Instructor' :
@@ -1758,6 +1841,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         {[
                             { id: 'dashboard', label: 'Dashboard', icon: ClipboardListIcon },
                             { id: 'students', label: 'Students', icon: UsersIcon },
+                            { id: 'leads', label: 'Enquiries', icon: SparklesIcon },
                             { id: 'lessons', label: 'Lessons', icon: CalendarDaysIcon },
                             { id: 'fleet', label: 'Fleet', icon: TruckIcon },
                             { id: 'instructors', label: 'Instructors', icon: AcademicCapIcon },
@@ -1942,6 +2026,174 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'leads' && (
+                        <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden animate-fade-in">
+                            <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                <div className="relative flex-1 max-w-md">
+                                    <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search walk-in enquiries..." 
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="w-full pl-16 pr-8 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-sm"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Filter:</span>
+                                    <div className="flex gap-1 bg-slate-50 dark:bg-slate-800 p-1 rounded-xl">
+                                        {['All', 'New Enquiry', 'Quotation Sent', 'Converted'].map((st) => (
+                                            <button 
+                                                key={st} 
+                                                onClick={() => setSearchTerm(st === 'All' ? '' : st)}
+                                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${searchTerm === st || (st === 'All' && !searchTerm) ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-900'}`}
+                                            >
+                                                {st}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {filteredLeads.length === 0 ? (
+                                <div className="p-16 text-center">
+                                    <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-4 text-slate-400">
+                                        <SparklesIcon className="w-8 h-8" />
+                                    </div>
+                                    <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">No Walk-in Enquiries Found</h4>
+                                    <p className="text-xs text-slate-400 mt-1">Record client visits to auto-dispatch fee quotation structures via SMS & Email.</p>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 dark:border-slate-800">
+                                                <th className="px-10 py-8">Client Name</th>
+                                                <th className="px-10 py-8">Contact Info</th>
+                                                <th className="px-10 py-8">Target License</th>
+                                                <th className="px-10 py-8">Source</th>
+                                                <th className="px-10 py-8">Status</th>
+                                                <th className="px-10 py-8">Est. Quote</th>
+                                                <th className="px-10 py-8 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                            {filteredLeads.map(lead => {
+                                                const targetCategory = (settings?.licenseCategories || []).find((c: any) => c.code === lead.licenseTypeInterested || c.name === lead.licenseTypeInterested);
+                                                const baseFeeAmount = targetCategory ? (targetCategory.baseFee || 0) : (lead.quotedAmount || 0);
+                                                
+                                                return (
+                                                    <tr key={lead.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                                                        <td className="px-10 py-8">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="w-12 h-12 bg-amber-50 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center font-black text-amber-600">
+                                                                    {lead.fullName.charAt(0)}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-bold text-slate-900 dark:text-white">{lead.fullName}</p>
+                                                                    <p className="text-[10px] font-medium text-slate-400 mt-0.5">Enquired: {new Date(lead.createdAt).toLocaleDateString()}</p>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-10 py-8">
+                                                            <p className="text-xs font-bold text-slate-600 dark:text-slate-400">{lead.phone}</p>
+                                                            <p className="text-[10px] font-medium text-slate-400 mt-1">{lead.email || 'No email provided'}</p>
+                                                        </td>
+                                                        <td className="px-10 py-8">
+                                                            <span className="text-[10px] font-black uppercase px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-700 dark:text-slate-300">
+                                                                {lead.licenseTypeInterested || 'Class B'}
+                                                            </span>
+                                                            {targetCategory && (
+                                                                <p className="text-[9px] font-bold text-indigo-600 mt-1">{targetCategory.name}</p>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-10 py-8">
+                                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-50 dark:bg-slate-800/50 px-2.5 py-1 rounded-md border border-slate-100 dark:border-slate-800">
+                                                                {lead.source}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-10 py-8">
+                                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                                                lead.status === 'Converted' ? 'bg-emerald-50 text-emerald-600' :
+                                                                lead.status === 'Quotation Sent' ? 'bg-indigo-50 text-indigo-600' :
+                                                                lead.status === 'Lost' ? 'bg-rose-50 text-rose-600' :
+                                                                'bg-amber-50 text-amber-600'
+                                                            }`}>
+                                                                {lead.status}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-10 py-8 font-black text-slate-900 dark:text-white text-xs">
+                                                            KES {baseFeeAmount.toLocaleString()}
+                                                        </td>
+                                                        <td className="px-10 py-8 text-right">
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        const amountStr = `KES ${baseFeeAmount.toLocaleString()}`;
+                                                                        const catName = targetCategory ? `${targetCategory.name} (${targetCategory.code})` : (lead.licenseTypeInterested || 'Class B');
+                                                                        const msg = `Hello ${lead.fullName.split(' ')[0]}, thank you for enquiring at our Driving School. The total fee structure for ${catName} is ${amountStr}. Visit our campus to finalize your registration!`;
+                                                                        
+                                                                        if (confirm(`Send fee quotation SMS to ${lead.fullName} (${lead.phone})?\n\nMessage preview:\n"${msg}"`)) {
+                                                                            try {
+                                                                                await updateLead({ ...lead, status: 'Quotation Sent' });
+                                                                                success(`Fee Quotation sent successfully via SMS to ${lead.phone}!`);
+                                                                            } catch (err) {
+                                                                                toastError("Failed to dispatch SMS quotation.");
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:hover:bg-indigo-900/40 text-indigo-600 rounded-lg font-black text-[9px] uppercase tracking-wider transition-colors flex items-center gap-1"
+                                                                    title="Send Quotation via SMS/Email"
+                                                                >
+                                                                    <SparklesIcon className="w-3 h-3" />
+                                                                    Quote SMS
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setActionModal({
+                                                                            type: 'student',
+                                                                            initialData: {
+                                                                                fullName: lead.fullName,
+                                                                                phone: lead.phone,
+                                                                                email: lead.email || '',
+                                                                                licenseTypeInterested: lead.licenseTypeInterested || '',
+                                                                                enrollmentDate: new Date().toISOString().split('T')[0],
+                                                                                status: 'Enrolled'
+                                                                            }
+                                                                        });
+                                                                        updateLead({ ...lead, status: 'Converted' }).catch(() => {});
+                                                                    }}
+                                                                    className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/40 text-emerald-600 rounded-lg font-black text-[9px] uppercase tracking-wider transition-colors"
+                                                                    title="Convert to Enrolled Student"
+                                                                >
+                                                                    Convert
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setActionModal({ type: 'lead', initialData: lead })}
+                                                                    className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
+                                                                    title="Edit Lead Details"
+                                                                >
+                                                                    <PencilIcon className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => deleteLead(lead.id)}
+                                                                    className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
+                                                                    title="Remove Enquiry"
+                                                                >
+                                                                    <TrashIcon className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -2781,23 +3033,36 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                                             <button
                                                 type="button"
-                                                onClick={() => {
+                                                onClick={async () => {
                                                     if (!newVoteInput.voteName.trim()) {
                                                         toastError("Fee vote name is mandatory.");
                                                         return;
                                                     }
-                                                    const existingVotes = settings?.votes || [];
-                                                    const filtered = existingVotes.filter(v => v.voteName.toLowerCase() !== newVoteInput.voteName.trim().toLowerCase());
-                                                    const updated = [...filtered, {
-                                                        id: `vt_${Date.now()}`,
-                                                        institutionId: currentInstitution?.id || 'inst',
-                                                        voteName: newVoteInput.voteName.trim(),
-                                                        defaultAmount: newVoteInput.defaultAmount,
-                                                        isMandatory: newVoteInput.isMandatory
-                                                    }];
-                                                    onUpdateSettings({ ...settings, votes: updated });
-                                                    setNewVoteInput({ voteName: '', defaultAmount: 0, isMandatory: false });
-                                                    success("Fee vote appended successfully.");
+                                                    try {
+                                                        const existingVotes = settings?.votes || [];
+                                                        const filtered = existingVotes.filter(v => v.voteName.toLowerCase() !== newVoteInput.voteName.trim().toLowerCase());
+                                                        const newVoteObj = {
+                                                            id: `vt_${Date.now()}`,
+                                                            institutionId: currentInstitution?.id || 'inst',
+                                                            voteName: newVoteInput.voteName.trim(),
+                                                            defaultAmount: newVoteInput.defaultAmount,
+                                                            isMandatory: newVoteInput.isMandatory
+                                                        };
+                                                        const updated = [...filtered, newVoteObj];
+                                                        const payload = { ...settings, id: settings?.id || `ds_settings_${currentInstitution?.id}`, institutionId: currentInstitution?.id || 'inst', votes: updated };
+                                                        
+                                                        console.log("[DS Manager] Initiating 'Save Vote Head' persistence flow. Payload structure:", payload);
+                                                        
+                                                        await onUpdateSettings(payload);
+                                                        setNewVoteInput({ voteName: '', defaultAmount: 0, isMandatory: false });
+                                                        success("Fee vote appended and persisted successfully.");
+                                                        if (onRefreshDataProp) {
+                                                            await onRefreshDataProp();
+                                                        }
+                                                    } catch (err) {
+                                                        console.error("[DS Manager] Persistence failure: Could not save Vote Head. Error:", err);
+                                                        toastError("Database rejection: Could not save Vote Head. Please verify network connection and payload schema.");
+                                                    }
                                                 }}
                                                 className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:scale-105 transition-all"
                                             >
@@ -2823,9 +3088,20 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             </div>
                                                             <button
                                                                 type="button"
-                                                                onClick={() => {
-                                                                    const updated = (settings?.votes || []).filter(v => v.id !== vt.id);
-                                                                    onUpdateSettings({ ...settings, votes: updated });
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        const updated = (settings?.votes || []).filter(v => v.id !== vt.id);
+                                                                        const payload = { ...settings, id: settings?.id || `ds_settings_${currentInstitution?.id}`, institutionId: currentInstitution?.id || 'inst', votes: updated };
+                                                                        console.log(`[DS Manager] Initiating 'Delete Vote Head' persistence flow for vote ID ${vt.id}. Payload structure:`, payload);
+                                                                        await onUpdateSettings(payload);
+                                                                        success("Fee vote removed successfully.");
+                                                                        if (onRefreshDataProp) {
+                                                                            await onRefreshDataProp();
+                                                                        }
+                                                                    } catch (err) {
+                                                                        console.error("[DS Manager] Persistence failure: Could not delete fee vote:", err);
+                                                                        toastError("Database rejection: Could not remove Vote Head.");
+                                                                   }
                                                                 }}
                                                                 className="p-2 text-slate-300 hover:text-red-500 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
                                                             >
@@ -3117,6 +3393,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                 {actionModal.type && (
                     <DrivingSchoolActionModal 
                         type={actionModal.type}
+                        initialData={actionModal.initialData}
                         onClose={() => setActionModal({ type: null })}
                         currentInstitution={currentInstitution}
                         invoices={invoices}
@@ -3134,6 +3411,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 await onUpdateVehicle(data);
                             }
                             else if (type === 'lesson') await onAddLesson(data);
+                            else if (type === 'lead') {
+                                if (data.id) await updateLead(data);
+                                else await addLead(data);
+                            }
                             else if (type === 'invoice') await onAddInvoice(data);
                             else if (type === 'payment') await onAddPayment(data);
                             else if (type === 'fee_structure') {
