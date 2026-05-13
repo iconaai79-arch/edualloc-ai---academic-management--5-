@@ -728,44 +728,34 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 licenseCategories: payload.licenseCategories || prev?.licenseCategories || []
             }));
             
-            // Mirror fee structures to the standalone ds_fee_structures table if they exist
-            if (data.feeStructures && Array.isArray(data.feeStructures)) {
-                console.log(`[DS Context] Mirroring ${data.feeStructures.length} structures to ds_fee_structures table...`);
-                for (const fee of data.feeStructures) {
-                    const feePayload = { ...fee, institutionId };
-                    console.log("[DS Context] Syncing fee structure payload:", feePayload);
-                    await apiService.saveModuleRecord('ds_fee_structures', feePayload).catch(err => {
-                        console.error("[DS Context] Failed to sync fee structure:", fee.id, err);
-                        error(`Failed to mirror fee structure ${fee.className || fee.id} to SQL table.`);
-                    });
+            // Helper for smart upsert mirroring to bypass duplicate key conflicts gracefully
+            const mirrorSubCollection = async (moduleName: string, items: any[]) => {
+                if (!items || !Array.isArray(items)) return;
+                console.log(`[DS Context] Mirroring ${items.length} records to ${moduleName} table...`);
+                for (const item of items) {
+                    if (!item || !item.id) continue;
+                    const payload = { ...item, institutionId };
+                    try {
+                        await apiService.saveModuleRecord(moduleName, payload);
+                    } catch (err: any) {
+                        const errMsg = err?.message || '';
+                        // If duplicate key conflict occurs, automatically attempt graceful PATCH update
+                        if (errMsg.includes('23505') || errMsg.toLowerCase().includes('conflict') || errMsg.toLowerCase().includes('already registered')) {
+                            try {
+                                await apiService.updateModuleRecord(moduleName, item.id, payload);
+                            } catch (patchErr) {
+                                console.warn(`[DS Context] Graceful PATCH update for pre-existing ${moduleName} record ${item.id} skipped/failed.`);
+                            }
+                        } else {
+                            console.error(`[DS Context] Failed to sync ${moduleName} record:`, item.id, err);
+                        }
+                    }
                 }
-            }
+            };
 
-            // Mirror votes to ds_votes table
-            if (data.votes && Array.isArray(data.votes)) {
-                console.log(`[DS Context] Mirroring ${data.votes.length} votes to ds_votes table...`);
-                for (const vt of data.votes) {
-                    const votePayload = { ...vt, institutionId };
-                    console.log("[DS Context] Syncing standalone vote payload:", votePayload);
-                    await apiService.saveModuleRecord('ds_votes', votePayload).catch(err => {
-                        console.error("[DS Context] Failed to sync vote:", vt.id, err);
-                        error(`Failed to mirror vote head "${vt.voteName || vt.id}" to standalone ds_votes table.`);
-                    });
-                }
-            }
-
-            // Mirror license categories to ds_license_categories table
-            if (data.licenseCategories && Array.isArray(data.licenseCategories)) {
-                console.log(`[DS Context] Mirroring ${data.licenseCategories.length} categories to ds_license_categories table...`);
-                for (const cat of data.licenseCategories) {
-                    const catPayload = { ...cat, institutionId };
-                    console.log("[DS Context] Syncing standalone category payload:", catPayload);
-                    await apiService.saveModuleRecord('ds_license_categories', catPayload).catch(err => {
-                        console.error("[DS Context] Failed to sync category:", cat.id, err);
-                        error(`Failed to mirror license category "${cat.name || cat.code}" to standalone SQL table.`);
-                    });
-                }
-            }
+            await mirrorSubCollection('ds_fee_structures', data.feeStructures);
+            await mirrorSubCollection('ds_votes', data.votes);
+            await mirrorSubCollection('ds_license_categories', data.licenseCategories);
 
             success(`Driving School settings and sub-collections synchronized successfully.`);
             await onRefresh();
