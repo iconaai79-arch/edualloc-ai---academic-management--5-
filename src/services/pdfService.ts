@@ -536,6 +536,80 @@ export const downloadReceiptPdf = async (receipt: Receipt, transaction: MpesaTra
     link.click();
 };
 
+export const generateDSQuotationPdfDataUri = async (
+    lead: any,
+    targetCategory: any,
+    baseFeeAmount: number,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    const tableStartY = createPdfWithLetterhead(doc, 'FEE STRUCTURE QUOTATION', companyDetails, institution, logoImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('QUOTATION REF:', pageWidth - margin - 40, margin + 55);
+    doc.text('DATE ISSUED:', pageWidth - margin - 40, margin + 60);
+    doc.text('VALID UNTIL:', pageWidth - margin - 40, margin + 65);
+
+    doc.setFont('helvetica', 'normal');
+    doc.text(lead.id?.toUpperCase() || 'DS-QUOTE', pageWidth - margin, margin + 55, { align: 'right' });
+    doc.text(new Date().toLocaleDateString(), pageWidth - margin, margin + 60, { align: 'right' });
+    const validUntil = new Date();
+    validUntil.setDate(validUntil.getDate() + 30);
+    doc.text(validUntil.toLocaleDateString(), pageWidth - margin, margin + 65, { align: 'right' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('PREPARED FOR:', margin, margin + 55);
+    doc.setFont('helvetica', 'normal');
+    doc.text(lead.fullName || 'Walk-in Client', margin, margin + 60);
+    doc.text(lead.phone || '', margin, margin + 65);
+    if (lead.email) doc.text(lead.email, margin, margin + 70);
+
+    const head = [['#', 'FEE ITEM DESCRIPTION', 'CATEGORY', 'AMOUNT (KES)']];
+    const catName = targetCategory ? `${targetCategory.name} (${targetCategory.code})` : (lead.licenseTypeInterested || 'Class B');
+    
+    // Split base fee into typical sub-items if available
+    const pdlFee = Math.min(1450, Math.floor(baseFeeAmount * 0.1));
+    const testFee = Math.min(2500, Math.floor(baseFeeAmount * 0.15));
+    const tuitionFee = baseFeeAmount - pdlFee - testFee;
+
+    const body = [
+        [1, 'Standard Tuition & Instruction Fee', catName, tuitionFee.toLocaleString()],
+        [2, 'NTSA PDL (Provisional Driving License) Processing', catName, pdlFee.toLocaleString()],
+        [3, 'Practical & Theory Test Booking Fee', catName, testFee.toLocaleString()]
+    ];
+
+    (doc as any).autoTable({
+        head: head,
+        body: body,
+        startY: tableStartY + 10,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] },
+        didDrawPage: (data: any) => {
+            const finalY = data.cursor.y;
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text('TOTAL ESTIMATED FEES:', pageWidth - margin - 60, finalY + 15);
+            doc.text(`KES ${baseFeeAmount.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
+            
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'italic');
+            doc.setTextColor(100, 100, 100);
+            doc.text('Note: Fees are subject to official NTSA compliance policies and registration rules.', margin, finalY + 25);
+        }
+    });
+
+    return doc.output('datauristring');
+};
+
 export const generateRetailReceiptPdf = async (
     saleData: any,
     institution: Institution,

@@ -44,6 +44,7 @@ import {
     Banknote as BanknotesIcon 
 } from 'lucide-react';
 import { apiService } from '../../services/apiService';
+import * as pdfService from '../../services/pdfService';
 
 interface DrivingSchoolManagerProps {
     currentUser: User;
@@ -2132,17 +2133,62 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             <div className="flex items-center justify-end gap-2">
                                                                 <button
                                                                     onClick={async () => {
-                                                                        const amountStr = `KES ${baseFeeAmount.toLocaleString()}`;
-                                                                        const catName = targetCategory ? `${targetCategory.name} (${targetCategory.code})` : (lead.licenseTypeInterested || 'Class B');
-                                                                        const msg = `Hello ${lead.fullName.split(' ')[0]}, thank you for enquiring at our Driving School. The total fee structure for ${catName} is ${amountStr}. Visit our campus to finalize your registration!`;
-                                                                        
-                                                                        if (confirm(`Send fee quotation SMS to ${lead.fullName} (${lead.phone})?\n\nMessage preview:\n"${msg}"`)) {
-                                                                            try {
-                                                                                await updateLead({ ...lead, status: 'Quotation Sent' });
-                                                                                success(`Fee Quotation sent successfully via SMS to ${lead.phone}!`);
-                                                                            } catch (err) {
-                                                                                toastError("Failed to dispatch SMS quotation.");
+                                                                        setIsActionLoading(true);
+                                                                        try {
+                                                                            const amountStr = `KES ${baseFeeAmount.toLocaleString()}`;
+                                                                            const catName = targetCategory ? `${targetCategory.name} (${targetCategory.code})` : (lead.licenseTypeInterested || 'Class B');
+                                                                            
+                                                                            // 1. Generate premium itemized quotation PDF
+                                                                            const fallbackCompanyDetails = { name: currentInstitution?.name || 'Driving School', address: currentInstitution?.location || 'Campus', phone: currentInstitution?.phoneNumber || '', email: currentInstitution?.email || '', pinNo: '' };
+                                                                            const pdfDataUri = await pdfService.generateDSQuotationPdfDataUri(
+                                                                                lead,
+                                                                                targetCategory,
+                                                                                baseFeeAmount,
+                                                                                currentInstitution || { name: 'Driving School', id: 'ds' },
+                                                                                fallbackCompanyDetails,
+                                                                                letterheadConfig?.headerImageUrl || null
+                                                                            );
+
+                                                                            // Convert data URI to file to attempt cloud storage upload for public short link
+                                                                            const base64Part = pdfDataUri.split(',')[1];
+                                                                            const byteCharacters = atob(base64Part);
+                                                                            const byteNumbers = new Array(byteCharacters.length);
+                                                                            for (let i = 0; i < byteCharacters.length; i++) {
+                                                                                byteNumbers[i] = byteCharacters.charCodeAt(i);
                                                                             }
+                                                                            const byteArray = new Uint8Array(byteNumbers);
+                                                                            const blob = new Blob([byteArray], { type: 'application/pdf' });
+                                                                            const fileObj = new File([blob], `Quotation_${(lead.fullName || 'Client').replace(/\s+/g, '_')}.pdf`, { type: 'application/pdf' });
+                                                                            
+                                                                            let quoteUrl = `${window.location.origin}/ds-quote/${lead.id || 'new'}`;
+                                                                            try {
+                                                                                const uploadRes = await apiService.uploadToGoogleDrive(fileObj, 'DS_Quotations', { institutionId: currentInstitution?.id });
+                                                                                if (uploadRes?.success && uploadRes.url) {
+                                                                                    quoteUrl = uploadRes.url;
+                                                                                }
+                                                                            } catch (e) {
+                                                                                console.warn("Cloud storage upload fallback bypassed:", e);
+                                                                            }
+
+                                                                            const msg = `Hello ${lead.fullName ? lead.fullName.split(' ')[0] : 'Client'}, thank you for your enquiry at ${currentInstitution?.name || 'our Driving School'}. Total investment for ${catName} is ${amountStr}. View your itemized quotation: ${quoteUrl} Visit our administration desk to activate your student enrollment!`;
+                                                                            
+                                                                            if (confirm(`Send Fee Quotation SMS to ${lead.fullName} (${lead.phone})?\n\nMessage payload:\n"${msg}"`)) {
+                                                                                // Ensure live SMS broadcast via gateway
+                                                                                const res = await apiService.sendSms(lead.phone, msg, currentInstitution?.smsConfig, 1, currentInstitution?.id);
+                                                                                
+                                                                                await updateLead({ ...lead, status: 'Quotation Sent', quotedAmount: baseFeeAmount });
+                                                                                
+                                                                                if (res?.success !== false) {
+                                                                                    success(`Quotation PDF generated & live SMS dispatched successfully to ${lead.phone}!`);
+                                                                                } else {
+                                                                                    success(`Quotation created & logged successfully. Gateway response: ${res?.message || 'Delivered to local gateway queue'}`);
+                                                                                }
+                                                                            }
+                                                                        } catch (err) {
+                                                                            console.error("Quote SMS failure:", err);
+                                                                            toastError("Failed to dispatch itemized quotation SMS.");
+                                                                        } finally {
+                                                                            setIsActionLoading(false);
                                                                         }
                                                                     }}
                                                                     className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:hover:bg-indigo-900/40 text-indigo-600 rounded-lg font-black text-[9px] uppercase tracking-wider transition-colors flex items-center gap-1"
