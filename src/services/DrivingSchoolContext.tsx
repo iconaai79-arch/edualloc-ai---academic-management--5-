@@ -128,7 +128,17 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                         });
                     }
                 };
+                let backupVotes: any[] = [];
+                let backupCats: any[] = [];
+                try {
+                    const bv = localStorage.getItem(`ds_votes_backup_${institutionId}`);
+                    if (bv) backupVotes = JSON.parse(bv);
+                    const bc = localStorage.getItem(`ds_cats_backup_${institutionId}`);
+                    if (bc) backupCats = JSON.parse(bc);
+                } catch (storageErr) {}
+
                 if (prev?.votes && Array.isArray(prev.votes)) prev.votes.forEach(addVoteToMap);
+                if (backupVotes && Array.isArray(backupVotes)) backupVotes.forEach(addVoteToMap);
                 if (baseSettings?.votes && Array.isArray(baseSettings.votes)) baseSettings.votes.forEach(addVoteToMap);
                 if (dsVotesStandalone && Array.isArray(dsVotesStandalone)) dsVotesStandalone.forEach(addVoteToMap);
                 const finalVotes = Array.from(votesMap.values());
@@ -149,6 +159,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     }
                 };
                 if (prev?.licenseCategories && Array.isArray(prev.licenseCategories)) prev.licenseCategories.forEach(addCatToMap);
+                if (backupCats && Array.isArray(backupCats)) backupCats.forEach(addCatToMap);
                 if (baseSettings?.licenseCategories && Array.isArray(baseSettings.licenseCategories)) baseSettings.licenseCategories.forEach(addCatToMap);
                 if (dsCatsStandalone && Array.isArray(dsCatsStandalone)) dsCatsStandalone.forEach(addCatToMap);
                 const finalCats = Array.from(catsMap.values());
@@ -721,11 +732,21 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             console.log("[DS Context] Primary ds_settings blob saved successfully. Response:", result);
             
             // Instantly update local React state to guarantee stability even if backend schema caches lag behind
+            const finalVotesArray = payload.votes || prev?.votes || [];
+            const finalCatsArray = payload.licenseCategories || prev?.licenseCategories || [];
+            
+            try {
+                localStorage.setItem(`ds_votes_backup_${institutionId}`, JSON.stringify(finalVotesArray));
+                localStorage.setItem(`ds_cats_backup_${institutionId}`, JSON.stringify(finalCatsArray));
+            } catch (storageErr) {
+                console.warn("[DS Context] Local backup cache unavailable:", storageErr);
+            }
+
             setSettings(prev => ({
                 ...prev,
                 ...payload,
-                votes: payload.votes || prev?.votes || [],
-                licenseCategories: payload.licenseCategories || prev?.licenseCategories || []
+                votes: finalVotesArray,
+                licenseCategories: finalCatsArray
             }));
             
             // Helper for smart upsert mirroring to bypass duplicate key conflicts gracefully
