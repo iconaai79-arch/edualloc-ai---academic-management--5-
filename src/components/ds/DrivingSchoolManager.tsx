@@ -3508,7 +3508,6 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         lessons={lessons}
                         payments={payments}
                         settings={settings}
-                        initialData={actionModal.initialData}
                         departments={departments}
                         rooms={rooms || []}
                     />
