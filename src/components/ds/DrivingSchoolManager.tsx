@@ -2104,14 +2104,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                             {lesson.status !== 'Completed' && (
                                                                 <div className="flex gap-1 mt-0.5 print:hidden">
                                                                     <button 
-                                                                        onClick={() => onUpdateLesson({ ...lesson, status: 'Completed' })}
+                                                                        onClick={() => onUpdateLesson?.({ ...lesson, status: 'Completed' })}
                                                                         className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 rounded text-[8px] font-black uppercase tracking-wider transition-all"
                                                                         title="One-Click Validate Attendance"
                                                                     >
                                                                         ✔ Confirm
                                                                     </button>
                                                                     <button 
-                                                                        onClick={() => onUpdateLesson({ ...lesson, status: 'Cancelled' })}
+                                                                        onClick={() => onUpdateLesson?.({ ...lesson, status: 'Cancelled' })}
                                                                         className="px-2 py-0.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-900/50 rounded text-[8px] font-black uppercase tracking-wider transition-all"
                                                                         title="Mark No-Show / Cancelled"
                                                                     >
@@ -3310,7 +3310,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 onClick={async () => {
                                     const lessonToComplete = selectedQRLesson;
                                     setSelectedQRLesson(null);
-                                    await onUpdateLesson({ ...lessonToComplete, status: 'Completed' });
+                                    await onUpdateLesson?.({ ...lessonToComplete, status: 'Completed' });
                                     success?.("QR Check-In Verified! Attendance marked automatically.");
                                 }}
                                 className="w-full mt-6 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:scale-105 transition-all flex items-center justify-center gap-2"
