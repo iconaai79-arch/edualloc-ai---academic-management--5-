@@ -114,21 +114,59 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             // Safely consolidate embedded cache columns with standalone DB rows and preserve local state if backend strips newly added columns
             setSettings(prev => {
                 let baseSettings: any = dsSet && dsSet.length > 0 ? dsSet[0] : null;
+
+                // Smart consolidation of standalone SQL rows and embedded blob arrays for Fee Votes
+                const votesMap = new Map();
+                if (prev?.votes && Array.isArray(prev.votes)) {
+                    prev.votes.forEach(v => {
+                        if (v?.voteName) votesMap.set(v.voteName.toLowerCase().trim(), v);
+                    });
+                }
+                if (baseSettings?.votes && Array.isArray(baseSettings.votes)) {
+                    baseSettings.votes.forEach((v: any) => {
+                        if (v?.voteName) votesMap.set(v.voteName.toLowerCase().trim(), v);
+                    });
+                }
+                if (dsVotesStandalone && Array.isArray(dsVotesStandalone)) {
+                    dsVotesStandalone.forEach(v => {
+                        // Standalone table takes supreme precedence to reflect DB mutations accurately
+                        if (v?.voteName) votesMap.set(v.voteName.toLowerCase().trim(), v);
+                    });
+                }
+                const finalVotes = Array.from(votesMap.values());
+
+                // Smart consolidation for License Categories
+                const catsMap = new Map();
+                if (prev?.licenseCategories && Array.isArray(prev.licenseCategories)) {
+                    prev.licenseCategories.forEach(c => {
+                        if (c?.code) catsMap.set(c.code.toLowerCase().trim(), c);
+                    });
+                }
+                if (baseSettings?.licenseCategories && Array.isArray(baseSettings.licenseCategories)) {
+                    baseSettings.licenseCategories.forEach((c: any) => {
+                        if (c?.code) catsMap.set(c.code.toLowerCase().trim(), c);
+                    });
+                }
+                if (dsCatsStandalone && Array.isArray(dsCatsStandalone)) {
+                    dsCatsStandalone.forEach(c => {
+                        if (c?.code) catsMap.set(c.code.toLowerCase().trim(), c);
+                    });
+                }
+                const finalCats = Array.from(catsMap.values());
+
                 if (baseSettings) {
-                    const mergedVotes = baseSettings.votes?.length ? baseSettings.votes : (dsVotesStandalone?.length ? dsVotesStandalone : (prev?.votes || []));
-                    const mergedCats = baseSettings.licenseCategories?.length ? baseSettings.licenseCategories : (dsCatsStandalone?.length ? dsCatsStandalone : (prev?.licenseCategories || []));
                     return {
                         ...baseSettings,
-                        votes: mergedVotes,
-                        licenseCategories: mergedCats
+                        votes: finalVotes,
+                        licenseCategories: finalCats
                     };
                 } else {
                     return {
                         id: `ds_settings_${institutionId}`,
                         institutionId,
                         ...prev,
-                        votes: dsVotesStandalone?.length ? dsVotesStandalone : (prev?.votes || []),
-                        licenseCategories: dsCatsStandalone?.length ? dsCatsStandalone : (prev?.licenseCategories || [])
+                        votes: finalVotes,
+                        licenseCategories: finalCats
                     };
                 }
             });
