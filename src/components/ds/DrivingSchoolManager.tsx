@@ -2148,7 +2148,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                                                 targetCategory,
                                                                                 baseFeeAmount,
                                                                                 currentInstitution || { name: 'Driving School', id: 'ds' },
-                                                                                fallbackCompanyDetails,
+                                                                                fallbackCompanyDetails as any,
                                                                                 letterheadConfig?.headerImageUrl || null
                                                                             );
 

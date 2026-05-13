@@ -292,7 +292,7 @@ export const generateCarInvoicePdfDataUri = async (
 
     doc.setFont('helvetica', 'normal');
     doc.text(invoice.invoiceNumber, pageWidth - margin, margin + 55, { align: 'right' });
-    doc.text(new Date(invoice.createdAt).toLocaleDateString(), pageWidth - margin, margin + 60, { align: 'right' });
+    doc.text(new Date(invoice.createdAt || Date.now()).toLocaleDateString(), pageWidth - margin, margin + 60, { align: 'right' });
 
     const head = [['#', 'VEHICLE DESCRIPTION', 'REGISTRATION', 'TOTAL PRICE (KES)']];
     const body = [
@@ -412,8 +412,8 @@ export const generateCarSaleAgreementPdfDataUri = async (
     doc.setFontSize(10);
     doc.text(`Make/Model: ${listing.year} ${listing.make} ${listing.model}`, margin, tableStartY + 53);
     doc.text(`Registration: ${listing.registrationNumber}`, margin, tableStartY + 59);
-    doc.text(`Chassis No: ${listing.chassisNumber || 'N/A'}`, margin, tableStartY + 65);
-    doc.text(`Engine No: ${listing.engineNumber || 'N/A'}`, margin, tableStartY + 71);
+    doc.text(`Chassis No: ${(listing as any).chassisNumber || 'N/A'}`, margin, tableStartY + 65);
+    doc.text(`Engine No: ${(listing as any).engineNumber || 'N/A'}`, margin, tableStartY + 71);
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
@@ -1087,7 +1087,7 @@ export const generateContractPdf = async (
         doc.addImage(sigImg, 'PNG', margin, yPos, sigWidth, sigHeight);
         yPos += sigHeight + 10;
         doc.setFont('helvetica', 'normal');
-        doc.text(`Authenticated on: ${new Date(contract.acceptanceTimestamp || '').toLocaleString()}`, margin, yPos);
+        doc.text(`Authenticated on: ${new Date((contract as any).acceptanceTimestamp || Date.now()).toLocaleString()}`, margin, yPos);
     }
 
     setupPdfFooter(doc, footerImg);
@@ -4672,8 +4672,8 @@ export const generateInventoryAnalyticsPdfDataUri = async (
 
     // 1. Executive Summary Cards
     const totalValuation = inventory.reduce((sum, i) => sum + (i.quantity * (i.price || 0)), 0);
-    const criticalSkus = inventory.filter(i => i.quantity <= i.reorderLevel).length;
-    const optimizationLevel = ((inventory.filter(i => i.quantity > i.reorderLevel).length / Math.max(1, inventory.length)) * 100).toFixed(0);
+    const criticalSkus = inventory.filter(i => i.quantity <= (i.reorderLevel || 0)).length;
+    const optimizationLevel = ((inventory.filter(i => i.quantity > (i.reorderLevel || 0)).length / Math.max(1, inventory.length)) * 100).toFixed(0);
 
     doc.setFillColor(79, 70, 229); // Indigo-600
     doc.roundedRect(margin, yPos, 55, 25, 3, 3, 'F');
@@ -4809,8 +4809,8 @@ export const generateInventorySummaryPdfDataUri = async (
     yPos += 15;
 
     // 1. Executive Summary Cards
-    const healthyItems = inventory.filter(i => i.quantity > i.reorderLevel).length;
-    const criticalItems = inventory.filter(i => i.quantity <= i.reorderLevel).length;
+    const healthyItems = inventory.filter(i => i.quantity > (i.reorderLevel || 0)).length;
+    const criticalItems = inventory.filter(i => i.quantity <= (i.reorderLevel || 0)).length;
     const totalTransactions = issuanceHistory.length;
 
     doc.setFillColor(79, 70, 229); // Indigo-600

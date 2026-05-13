@@ -1912,6 +1912,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             <ReportsDashboard
                                 {...props}
                                 currentUser={props.currentUser!}
+                                activeSemester={props.activeSemester || null}
                                 academicYears={props.academicYears || []}
                                 courses={props.courses || []}
                                 subjects={props.subjects || []}
