@@ -1050,22 +1050,55 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <div className="space-y-2 pt-2">
                                         {(Array.isArray(formData.items) ? formData.items : []).map((it: any, idx: number) => (
                                             <div key={idx} className="flex items-center gap-2 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700/60 animate-fade-in">
-                                                <div className="flex-[2]">
-                                                    <input
-                                                        type="text"
-                                                        required
-                                                        value={it.name || ''}
+                                                <div className="flex-[2] flex flex-col gap-1">
+                                                    <select
+                                                        value={
+                                                            ((settings?.votes || []).some((v: any) => (v.voteName || v.vote_name)?.toLowerCase().trim() === (it.name || '').toLowerCase().trim()))
+                                                                ? ((settings?.votes || []).find((v: any) => (v.voteName || v.vote_name)?.toLowerCase().trim() === (it.name || '').toLowerCase().trim())?.voteName || it.name)
+                                                                : (((it.name || '').trim() === '') ? '' : 'custom_other_name')
+                                                        }
                                                         onChange={e => {
+                                                            const val = e.target.value;
                                                             const nextItems = [...formData.items];
-                                                            nextItems[idx] = { ...it, name: e.target.value };
+                                                            if (val === 'custom_other_name') {
+                                                                nextItems[idx] = { ...it, name: 'Custom Vote' };
+                                                            } else {
+                                                                const matchedVote = (settings?.votes || []).find((v: any) => (v.voteName || v.vote_name) === val);
+                                                                nextItems[idx] = { 
+                                                                    ...it, 
+                                                                    name: val, 
+                                                                    amount: matchedVote ? (matchedVote.defaultAmount ?? matchedVote.default_amount ?? it.amount) : it.amount 
+                                                                };
+                                                            }
                                                             setFormData({ ...formData, items: nextItems });
                                                         }}
-                                                        placeholder="Fee Item Name (e.g. Tuition Fee)"
-                                                        className="w-full bg-transparent border-none text-xs font-bold px-2 py-1 focus:ring-0"
-                                                    />
+                                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-2.5 py-1.5 text-slate-800 dark:text-white focus:ring-1 focus:ring-indigo-500"
+                                                    >
+                                                        <option value="" disabled>Select Vote Head...</option>
+                                                        {(settings?.votes || []).map((vt: any) => {
+                                                            const n = vt.voteName || vt.vote_name;
+                                                            return n ? <option key={vt.id || n} value={n}>{n}</option> : null;
+                                                        })}
+                                                        <option value="custom_other_name">✏️ Custom / Other Name</option>
+                                                    </select>
+                                                    
+                                                    {(!((settings?.votes || []).some((v: any) => (v.voteName || v.vote_name)?.toLowerCase().trim() === (it.name || '').toLowerCase().trim())) && (it.name || '').trim() !== '') && (
+                                                        <input
+                                                            type="text"
+                                                            required
+                                                            value={it.name || ''}
+                                                            onChange={e => {
+                                                                const nextItems = [...formData.items];
+                                                                nextItems[idx] = { ...it, name: e.target.value };
+                                                                setFormData({ ...formData, items: nextItems });
+                                                            }}
+                                                            placeholder="Type Custom Name"
+                                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-indigo-300 dark:border-indigo-700 rounded-xl text-xs font-bold px-2.5 py-1 text-slate-800 dark:text-white focus:ring-1 focus:ring-indigo-500"
+                                                        />
+                                                    )}
                                                 </div>
                                                 <div className="flex-1">
-                                                    <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900 px-2 py-1 rounded-xl">
+                                                    <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900 px-2 py-1.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
                                                         <span className="text-[9px] font-black text-slate-400">KES</span>
                                                         <input
                                                             type="number"
@@ -1077,7 +1110,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                                 setFormData({ ...formData, items: nextItems });
                                                             }}
                                                             placeholder="0"
-                                                            className="w-full bg-transparent border-none text-xs font-bold p-0 focus:ring-0 text-right"
+                                                            className="w-full bg-transparent border-none text-xs font-bold p-0 focus:ring-0 text-right text-slate-800 dark:text-white"
                                                         />
                                                     </div>
                                                 </div>
@@ -1091,7 +1124,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                             nextItems[idx] = { ...it, priority: Number(e.target.value) };
                                                             setFormData({ ...formData, items: nextItems });
                                                         }}
-                                                        className="w-full bg-slate-50 dark:bg-slate-900 border-none text-xs font-bold px-2 py-1 rounded-xl text-center"
+                                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-700/60 text-xs font-bold px-2 py-1.5 rounded-xl text-center text-slate-600 dark:text-slate-300 focus:ring-0"
                                                     />
                                                 </div>
                                                 <button
