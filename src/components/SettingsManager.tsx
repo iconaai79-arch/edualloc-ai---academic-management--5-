@@ -362,14 +362,18 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [isAddingFee, setIsAddingFee] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [editingFeeId, setEditingFeeId] = useState<string | null>(null);
-    const [newFeeForm, setNewFeeForm] = useState({
+    const [newFeeForm, setNewFeeForm] = useState<{
+        className: string;
+        description?: string;
+        items: Array<{ name: string; amount: number; priority: number }>;
+    }>({
         className: '',
-        tuition: 0,
-        tuitionPriority: 1,
-        pdl: 0,
-        pdlPriority: 2,
-        assessment: 0,
-        assessmentPriority: 3
+        description: '',
+        items: [
+            { name: 'Tuition Fee', amount: 15000, priority: 1 },
+            { name: 'PDL', amount: 1500, priority: 2 },
+            { name: 'Assessment', amount: 2000, priority: 3 }
+        ]
     });
     const [isAddingLicenseCategory, setIsAddingLicenseCategory] = useState(false);
     const [editingLicenseCategoryId, setEditingLicenseCategoryId] = useState<string | null>(null);
@@ -2142,47 +2146,110 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 </div>
                                 {isAddingFee ? (
                                     <div className="bg-indigo-50/50 dark:bg-indigo-900/10 p-8 rounded-[2.5rem] border border-indigo-100 dark:border-indigo-900/30 animate-fade-in-up">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                                            <div className="md:col-span-2 space-y-2">
+                                        <div className="grid grid-cols-1 gap-6 mb-8">
+                                            <div className="space-y-2">
                                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Class Name</label>
-                                                <input required type="text" value={newFeeForm.className} onChange={e => setNewFeeForm({...newFeeForm, className: e.target.value})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. CLASS C1" />
+                                                <input required type="text" value={newFeeForm.className} onChange={e => setNewFeeForm({...newFeeForm, className: e.target.value})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs" placeholder="e.g. CLASS C1" />
                                             </div>
                                             <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tuition Fee</label>
-                                                <div className="flex gap-2">
-                                                    <input required type="number" value={newFeeForm.tuition} onChange={e => setNewFeeForm({...newFeeForm, tuition: Number(e.target.value)})} className="flex-[3] px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
-                                                    <input title="Payment Priority" type="number" placeholder="Pri" value={newFeeForm.tuitionPriority} onChange={e => setNewFeeForm({...newFeeForm, tuitionPriority: Number(e.target.value)})} className="flex-1 px-3 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-center" />
-                                                </div>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Package Description (Optional)</label>
+                                                <input type="text" value={newFeeForm.description || ''} onChange={e => setNewFeeForm({...newFeeForm, description: e.target.value})} className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs" placeholder="e.g. Full standard driving curriculum" />
                                             </div>
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">PDL Fee</label>
-                                                <div className="flex gap-2">
-                                                    <input required type="number" value={newFeeForm.pdl} onChange={e => setNewFeeForm({...newFeeForm, pdl: Number(e.target.value)})} className="flex-[3] px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
-                                                    <input title="Payment Priority" type="number" placeholder="Pri" value={newFeeForm.pdlPriority} onChange={e => setNewFeeForm({...newFeeForm, pdlPriority: Number(e.target.value)})} className="flex-1 px-3 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-center" />
+
+                                            <div className="space-y-3 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">Fee Vote Items (Heads)</label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setNewFeeForm({
+                                                                ...newFeeForm,
+                                                                items: [...newFeeForm.items, { name: 'Custom Fee', amount: 0, priority: newFeeForm.items.length + 1 }]
+                                                            });
+                                                        }}
+                                                        className="flex items-center gap-1 text-[9px] font-black text-indigo-600 uppercase tracking-widest bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-indigo-100 dark:border-indigo-900/40 hover:bg-indigo-50 transition-all"
+                                                    >
+                                                        <PlusIcon className="w-3 h-3" /> Add Item
+                                                    </button>
                                                 </div>
-                                            </div>
-                                            <div className="md:col-span-2 space-y-2">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Assessment Fee</label>
-                                                <div className="flex gap-2">
-                                                    <input required type="number" value={newFeeForm.assessment} onChange={e => setNewFeeForm({...newFeeForm, assessment: Number(e.target.value)})} className="flex-[3] px-6 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
-                                                    <input title="Payment Priority" type="number" placeholder="Pri" value={newFeeForm.assessmentPriority} onChange={e => setNewFeeForm({...newFeeForm, assessmentPriority: Number(e.target.value)})} className="flex-1 px-3 py-4 bg-white dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-center" />
+
+                                                <div className="space-y-2">
+                                                    {newFeeForm.items.map((it, idx) => (
+                                                        <div key={idx} className="flex items-center gap-2 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700/60">
+                                                            <div className="flex-[2]">
+                                                                <input
+                                                                    type="text"
+                                                                    required
+                                                                    value={it.name || ''}
+                                                                    onChange={e => {
+                                                                        const nextItems = [...newFeeForm.items];
+                                                                        nextItems[idx] = { ...it, name: e.target.value };
+                                                                        setNewFeeForm({ ...newFeeForm, items: nextItems });
+                                                                    }}
+                                                                    placeholder="Item Name (e.g. PDL)"
+                                                                    className="w-full bg-transparent border-none text-xs font-bold px-2 py-1 focus:ring-0 text-slate-800 dark:text-slate-100"
+                                                                />
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900 px-2 py-1 rounded-xl">
+                                                                    <span className="text-[9px] font-black text-slate-400">KES</span>
+                                                                    <input
+                                                                        type="number"
+                                                                        required
+                                                                        value={it.amount === 0 ? '' : it.amount}
+                                                                        onChange={e => {
+                                                                            const nextItems = [...newFeeForm.items];
+                                                                            nextItems[idx] = { ...it, amount: Number(e.target.value) };
+                                                                            setNewFeeForm({ ...newFeeForm, items: nextItems });
+                                                                        }}
+                                                                        placeholder="0"
+                                                                        className="w-full bg-transparent border-none text-xs font-bold p-0 focus:ring-0 text-right text-slate-800 dark:text-slate-100"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <div className="w-16">
+                                                                <input
+                                                                    type="number"
+                                                                    title="Priority"
+                                                                    value={it.priority || 1}
+                                                                    onChange={e => {
+                                                                        const nextItems = [...newFeeForm.items];
+                                                                        nextItems[idx] = { ...it, priority: Number(e.target.value) };
+                                                                        setNewFeeForm({ ...newFeeForm, items: nextItems });
+                                                                    }}
+                                                                    placeholder="Pri"
+                                                                    className="w-full bg-slate-50 dark:bg-slate-900 border-none text-xs font-bold p-1 rounded-xl text-center focus:ring-0 text-slate-500"
+                                                                />
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setNewFeeForm({
+                                                                        ...newFeeForm,
+                                                                        items: newFeeForm.items.filter((_, i) => i !== idx)
+                                                                    });
+                                                                }}
+                                                                className="p-2 text-slate-300 hover:text-red-500 transition-colors"
+                                                            >
+                                                                <XIcon className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
                                         </div>
                                         <div className="flex gap-3">
-                                            <button onClick={() => { setIsAddingFee(false); setEditingFeeId(null); setNewFeeForm({ className: '', tuition: 0, tuitionPriority: 1, pdl: 0, pdlPriority: 2, assessment: 0, assessmentPriority: 3 }); }} className="flex-1 py-4 bg-white dark:bg-slate-800 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button>
+                                            <button onClick={() => { setIsAddingFee(false); setEditingFeeId(null); setNewFeeForm({ className: '', description: '', items: [{ name: 'Tuition Fee', amount: 15000, priority: 1 }, { name: 'PDL', amount: 1500, priority: 2 }, { name: 'Assessment', amount: 2000, priority: 3 }] }); }} className="flex-1 py-4 bg-white dark:bg-slate-800 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button>
                                             <button 
                                                 onClick={() => {
+                                                    const calculatedTotal = newFeeForm.items.reduce((sum, it) => sum + (Number(it.amount) || 0), 0);
                                                     const feeData = {
                                                         id: editingFeeId || Math.random().toString(36).substr(2, 9),
                                                         institutionId: props.currentInstitution?.id || '',
                                                         className: newFeeForm.className,
-                                                        items: [
-                                                            { name: 'Tuition Fee', amount: newFeeForm.tuition, priority: newFeeForm.tuitionPriority },
-                                                            { name: 'PDL', amount: newFeeForm.pdl, priority: newFeeForm.pdlPriority },
-                                                            { name: 'Assessment', amount: newFeeForm.assessment, priority: newFeeForm.assessmentPriority }
-                                                        ],
-                                                        totalAmount: newFeeForm.tuition + newFeeForm.pdl + newFeeForm.assessment,
+                                                        description: newFeeForm.description || `${newFeeForm.className} Premium Package`,
+                                                        items: newFeeForm.items,
+                                                        totalAmount: calculatedTotal,
                                                         updatedAt: new Date().toISOString()
                                                     };
                                                     let nextStructures = [...(localDsSettings?.feeStructures || [])];
@@ -2200,7 +2267,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     setLocalDsSettings(next);
                                                     setIsAddingFee(false);
                                                     setEditingFeeId(null);
-                                                    setNewFeeForm({ className: '', tuition: 0, tuitionPriority: 1, pdl: 0, pdlPriority: 2, assessment: 0, assessmentPriority: 3 });
+                                                    setNewFeeForm({ className: '', description: '', items: [{ name: 'Tuition Fee', amount: 15000, priority: 1 }, { name: 'PDL', amount: 1500, priority: 2 }, { name: 'Assessment', amount: 2000, priority: 3 }] });
                                                 }}
                                                 className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
                                             >
@@ -2238,14 +2305,17 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <button 
                                                 onClick={() => {
                                                     setEditingFeeId(fee.id);
+                                                    const loadedItems = Array.isArray(fee.items) && fee.items.length > 0 
+                                                        ? fee.items 
+                                                        : [
+                                                            { name: 'Tuition Fee', amount: (fee as any).tuition || 0, priority: (fee as any).tuitionPriority || 1 },
+                                                            { name: 'PDL', amount: (fee as any).pdl || 0, priority: (fee as any).pdlPriority || 2 },
+                                                            { name: 'Assessment', amount: (fee as any).assessment || 0, priority: (fee as any).assessmentPriority || 3 }
+                                                        ].filter(it => it.amount > 0);
                                                     setNewFeeForm({
                                                         className: fee.className,
-                                                        tuition: fee.items.find(i => i.name === 'Tuition Fee')?.amount || 0,
-                                                        tuitionPriority: fee.items.find(i => i.name === 'Tuition Fee')?.priority || 1,
-                                                        pdl: fee.items.find(i => i.name === 'PDL')?.amount || 0,
-                                                        pdlPriority: fee.items.find(i => i.name === 'PDL')?.priority || 2,
-                                                        assessment: fee.items.find(i => i.name === 'Assessment')?.amount || 0,
-                                                        assessmentPriority: fee.items.find(i => i.name === 'Assessment')?.priority || 3
+                                                        description: fee.description || '',
+                                                        items: loadedItems.length > 0 ? loadedItems : [{ name: 'Standard Course Fee', amount: fee.totalAmount || 0, priority: 1 }]
                                                     });
                                                     setIsAddingFee(true);
                                                 }}
