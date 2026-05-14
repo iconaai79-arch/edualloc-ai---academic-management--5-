@@ -4229,9 +4229,33 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     nextStructures.push({ ...feeData, createdAt: new Date().toISOString() } as any);
                                 }
 
+                                // Simultaneously sync these items back into global Vote Heads configuration
+                                const existingVotes = settings?.votes || [];
+                                const votesMap = new Map();
+                                existingVotes.forEach((ev: any) => {
+                                    const n = ev.voteName || ev.vote_name;
+                                    if (n) votesMap.set(n.toLowerCase().trim(), ev);
+                                });
+
+                                dynamicItems.forEach((it: any, vIdx: number) => {
+                                    if (it.name && it.name.trim()) {
+                                        const key = it.name.toLowerCase().trim();
+                                        const existing = votesMap.get(key);
+                                        votesMap.set(key, {
+                                            id: existing?.id || `vt_${Date.now()}_${vIdx}_${Math.random().toString(36).substring(2, 6)}`,
+                                            institutionId: currentInstitution?.id || 'inst',
+                                            voteName: it.name.trim(),
+                                            defaultAmount: Number(it.amount) || existing?.defaultAmount || existing?.default_amount || 0,
+                                            isMandatory: existing?.isMandatory ?? existing?.is_mandatory ?? true
+                                        });
+                                    }
+                                });
+                                const updatedVotes = Array.from(votesMap.values());
+
                                 const next = {
                                     ...(settings || {}),
-                                    feeStructures: nextStructures
+                                    feeStructures: nextStructures,
+                                    votes: updatedVotes
                                 };
                                 await onUpdateSettings(next);
                             } else if (type === 'broadcast') {
