@@ -732,8 +732,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             console.log("[DS Context] Primary ds_settings blob saved successfully. Response:", result);
             
             // Instantly update local React state to guarantee stability even if backend schema caches lag behind
-            const finalVotesArray = payload.votes || prev?.votes || [];
-            const finalCatsArray = payload.licenseCategories || prev?.licenseCategories || [];
+            const finalVotesArray = payload.votes || settings?.votes || [];
+            const finalCatsArray = payload.licenseCategories || settings?.licenseCategories || [];
             
             try {
                 localStorage.setItem(`ds_votes_backup_${institutionId}`, JSON.stringify(finalVotesArray));

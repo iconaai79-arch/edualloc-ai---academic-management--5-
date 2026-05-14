@@ -3843,6 +3843,8 @@ export interface DSStudent {
     passportNumber?: string;
     phone?: string;
     licenseTypeInterested?: string;
+    licenseCategory?: string;
+    preferredInstructorId?: string;
     theoryProgressPercent: number;
     practicalProgressPercent: number;
     status: 'Enrolled' | 'Graduated' | 'Dropped';

@@ -29,7 +29,7 @@ import {
     PrinterIcon,
     DownloadIcon
 } from '../icons';
-import { generateDSPDF, generateDSThermalReceipt, generateDSSchedulePDF } from '../../utils/dsPdfGenerator';
+import { generateDSPDF, generateDSThermalReceipt, generateDSSchedulePDF, generateDSStudentLogbookPDF } from '../../utils/dsPdfGenerator';
 import { useToast } from '../../services/ToastContext';
 import { useDrivingSchool } from '../../services/DrivingSchoolContext';
 import { AppErrorBoundary } from '../common/AppErrorBoundary';
@@ -733,6 +733,64 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">End Time</label>
                                     <input required type="time" value={formData.endTime || '09:00'} onChange={e => setFormData({...formData, endTime: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" />
                                 </div>
+
+                                {(() => {
+                                    if (!formData.lessonDate || !formData.startTime || !formData.endTime) return null;
+                                    
+                                    // Overlap helper logic
+                                    const isOverlapping = (start1: string, end1: string, start2: string, end2: string) => {
+                                        return start1 < end2 && start2 < end1;
+                                    };
+
+                                    const sameDayLessons = lessons.filter(l => l.lessonDate === formData.lessonDate && l.id !== formData.id && l.status !== 'Cancelled');
+                                    
+                                    const instructorConflict = formData.instructorId ? sameDayLessons.find(l => l.instructorId === formData.instructorId && isOverlapping(formData.startTime, formData.endTime, l.startTime, l.endTime)) : null;
+                                    
+                                    const vehicleConflict = formData.vehicleId && formData.lessonType !== 'Theory' ? sameDayLessons.find(l => l.vehicleId === formData.vehicleId && isOverlapping(formData.startTime, formData.endTime, l.startTime, l.endTime)) : null;
+
+                                    const studentInvoices = invoices.filter(inv => inv.studentId === formData.studentId && inv.balance > 0 && inv.status !== 'Fully Paid');
+                                    const totalOwed = studentInvoices.reduce((sum, i) => sum + i.balance, 0);
+                                    
+                                    return (
+                                        <div className="md:col-span-2 space-y-3 pt-2">
+                                            {instructorConflict && (
+                                                <div className="p-4 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800/80 rounded-2xl flex items-start gap-3 animate-fade-in">
+                                                    <ExclamationTriangleIcon className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                                                    <div>
+                                                        <p className="text-xs font-black text-rose-900 dark:text-rose-200 uppercase tracking-tight">Instructor Double-Booking Detected</p>
+                                                        <p className="text-[10px] text-rose-700 dark:text-rose-300 mt-0.5">
+                                                            This instructor is already teaching another student ({students.find(s => s.id === instructorConflict.studentId)?.fullName || 'Assigned'}) from <strong className="underline">{instructorConflict.startTime} to {instructorConflict.endTime}</strong>.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {vehicleConflict && (
+                                                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/80 rounded-2xl flex items-start gap-3 animate-fade-in">
+                                                    <ExclamationTriangleIcon className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                                                    <div>
+                                                        <p className="text-xs font-black text-amber-900 dark:text-amber-200 uppercase tracking-tight">Fleet Vehicle Collision Warning</p>
+                                                        <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">
+                                                            The selected vehicle is already reserved for a lesson from <strong className="underline">{vehicleConflict.startTime} to {vehicleConflict.endTime}</strong>.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {totalOwed > 0 && (
+                                                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/80 rounded-2xl flex items-start gap-3 animate-fade-in">
+                                                    <span className="text-base font-black text-blue-600 shrink-0">ℹ️</span>
+                                                    <div>
+                                                        <p className="text-xs font-black text-blue-900 dark:text-blue-200 uppercase tracking-tight">Milestone Installment Lockout Check</p>
+                                                        <p className="text-[10px] text-blue-700 dark:text-blue-300 mt-0.5">
+                                                            Student has an outstanding fee balance of <strong>KES {totalOwed.toLocaleString()}</strong>. Ensure compliance with your minimum deposit policies prior to highway deployment.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </>
                         )}
 
@@ -1457,7 +1515,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         leads, addLead, updateLead, deleteLead
     } = useDrivingSchool();
     
-    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings' | 'reports'>('dashboard');
+    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings' | 'reports' | 'portal'>('dashboard');
     const [financeTab, setFinanceTab] = useState<'records' | 'feeds'>('records');
     const [settingsSubTab, setSettingsSubTab] = useState<'categories' | 'votes' | 'rules' | 'numbering' | 'fees' | 'slots'>('categories');
     const [reportSubTab, setReportSubTab] = useState<'instructor_timetable' | 'sessions'>('instructor_timetable');
@@ -1465,6 +1523,15 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [selectedReportInstructorId, setSelectedReportInstructorId] = useState<string>('all');
     const [users, setUsers] = useState<User[]>([]);
     const [isActionLoading, setIsActionLoading] = useState(false);
+    
+    // Portal states
+    const [portalStudentId, setPortalStudentId] = useState<string>('');
+    const [portalInstructorId, setPortalInstructorId] = useState<string>('');
+    const [portalVehicleId, setPortalVehicleId] = useState<string>('');
+    const [portalLessonDate, setPortalLessonDate] = useState<string>(new Date().toISOString().split('T')[0]);
+    const [portalStartTime, setPortalStartTime] = useState<string>('09:00');
+    const [portalEndTime, setPortalEndTime] = useState<string>('10:00');
+    const [portalLessonType, setPortalLessonType] = useState<string>('Practical');
     const [isSendingReminders, setIsSendingReminders] = useState(false);
     const [newCategoryInput, setNewCategoryInput] = useState({ code: '', name: '', description: '', baseFee: 0, isActive: true });
     const [newVoteInput, setNewVoteInput] = useState({ voteName: '', defaultAmount: 0, isMandatory: false });
@@ -1525,6 +1592,89 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             setIsSendingReminders(false);
         }
     };
+
+    const handleSendPdlExpiryAlerts = async () => {
+        const thresholdDate = new Date();
+        thresholdDate.setDate(thresholdDate.getDate() - 75); // 75 days ago
+        
+        const eligibleStudents = students.filter(s => {
+            if (s.status !== 'Enrolled' || !s.enrollmentDate) return false;
+            return new Date(s.enrollmentDate) <= thresholdDate;
+        });
+
+        const targets: { phone: string; message: string }[] = [];
+        eligibleStudents.forEach(s => {
+            const phone = s.phone || (s as any).phoneNumber;
+            if (phone) {
+                targets.push({
+                    phone,
+                    message: `Hello ${s.fullName.split(' ')[0]}, your NTSA PDL assigned to ${s.admissionNumber || 'your course'} is nearing its 90-day regulatory expiry. Please contact the front desk to arrange test assessment booking.`
+                });
+            }
+        });
+
+        if (targets.length === 0) {
+            success("No active students currently have expiring PDLs within the warning window.");
+            return;
+        }
+
+        const currentBalance = currentInstitution?.smsBalance || 0;
+        if (currentBalance < targets.length) {
+            toastError(`Insufficient SMS Units! Required: ${targets.length}, Available: ${currentBalance}.`);
+            return;
+        }
+
+        if (!confirm(`Broadcast PDL expiry warnings to ${targets.length} candidates?`)) return;
+
+        setIsSendingReminders(true);
+        try {
+            await Promise.all(targets.map(t => apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, 1, currentInstitution?.id)));
+            success(`Successfully dispatched PDL expiry alerts to ${targets.length} candidates!`);
+        } catch (err) {
+            toastError("Failed to dispatch some PDL alerts.");
+        } finally {
+            setIsSendingReminders(false);
+        }
+    };
+
+    const handleSendTestDayReminders = async () => {
+        const eligibleStudents = students.filter(s => s.status === 'Enrolled' && (s.practicalProgressPercent || 0) >= 80);
+
+        const targets: { phone: string; message: string }[] = [];
+        eligibleStudents.forEach(s => {
+            const phone = s.phone || (s as any).phoneNumber;
+            if (phone) {
+                targets.push({
+                    phone,
+                    message: `Hello ${s.fullName.split(' ')[0]}, congratulations on reaching ${s.practicalProgressPercent}% practical mastery! Please submit your passport photos and original ID for final NTSA Test booking routing.`
+                });
+            }
+        });
+
+        if (targets.length === 0) {
+            success("No candidate meets the 80% practical progress milestone currently.");
+            return;
+        }
+
+        const currentBalance = currentInstitution?.smsBalance || 0;
+        if (currentBalance < targets.length) {
+            toastError(`Insufficient SMS Units! Required: ${targets.length}, Available: ${currentBalance}.`);
+            return;
+        }
+
+        if (!confirm(`Broadcast Assessment Test preparation notices to ${targets.length} candidates?`)) return;
+
+        setIsSendingReminders(true);
+        try {
+            await Promise.all(targets.map(t => apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, 1, currentInstitution?.id)));
+            success(`Successfully dispatched Test prep notifications to ${targets.length} candidates!`);
+        } catch (err) {
+            toastError("Failed to dispatch some test notifications.");
+        } finally {
+            setIsSendingReminders(false);
+        }
+    };
+
 
     useEffect(() => {
         if (currentInstitution?.id) {
@@ -1980,6 +2130,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             { id: 'students', label: 'Students', icon: UsersIcon },
                             { id: 'leads', label: 'Enquiries', icon: SparklesIcon },
                             { id: 'lessons', label: 'Lessons', icon: CalendarDaysIcon },
+                            { id: 'portal', label: 'Student Portal', icon: SparklesIcon },
                             { id: 'fleet', label: 'Fleet', icon: TruckIcon },
                             { id: 'instructors', label: 'Instructors', icon: AcademicCapIcon },
                             { id: 'finance', label: 'Finance', icon: CurrencyIcon },
@@ -2135,6 +2286,25 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                                 </td>
                                                 <td className="px-10 py-8 text-right">
                                                     <div className="flex justify-end gap-2">
+                                                        <button 
+                                                            onClick={async () => {
+                                                                setIsActionLoading(true);
+                                                                try {
+                                                                    const doc = await generateDSStudentLogbookPDF(student, lessons, instructors, currentInstitution, letterheadConfig);
+                                                                    doc.save(`Logbook_${student.admissionNumber || student.fullName.replace(/\s+/g, '_')}.pdf`);
+                                                                    success("Logbook PDF downloaded successfully!");
+                                                                } catch (err) {
+                                                                    console.error(err);
+                                                                    toastError("Failed to generate student logbook PDF.");
+                                                                } finally {
+                                                                    setIsActionLoading(false);
+                                                                }
+                                                            }}
+                                                            className="p-2 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg text-slate-400 hover:text-emerald-600 transition-colors"
+                                                            title="Print NTSA Training Logbook"
+                                                        >
+                                                            <PrinterIcon className="w-4 h-4" />
+                                                        </button>
                                                         <button 
                                                             onClick={() => handleAutoScheduleSingleStudent(student.id)}
                                                             className="p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
@@ -2747,17 +2917,25 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                         <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Recent Invoices</h3>
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Manage billing and student receivables</p>
                                     </div>
-                                    <div className="flex gap-3">
-                                        <button onClick={handleSendBulkReminders} disabled={isSendingReminders} className="px-5 py-3 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-amber-100 transition-all flex items-center gap-2 border border-amber-200 dark:border-amber-800/40 disabled:opacity-50">
-                                            <PhoneIcon className="w-4 h-4" />
+                                    <div className="flex flex-wrap gap-2 items-center justify-end">
+                                        <button onClick={handleSendPdlExpiryAlerts} disabled={isSendingReminders} className="px-4 py-2.5 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-rose-100 transition-all flex items-center gap-1.5 border border-rose-200 dark:border-rose-800/40 disabled:opacity-50" title="Auto detect PDLs nearing 90-day expiry">
+                                            <SparklesIcon className="w-3.5 h-3.5" />
+                                            Expiring PDL Alerts
+                                        </button>
+                                        <button onClick={handleSendTestDayReminders} disabled={isSendingReminders} className="px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-blue-100 transition-all flex items-center gap-1.5 border border-blue-200 dark:border-blue-800/40 disabled:opacity-50" title="Alert candidates exceeding 80% practical mastery">
+                                            <SparklesIcon className="w-3.5 h-3.5" />
+                                            Test Day Alerts
+                                        </button>
+                                        <button onClick={handleSendBulkReminders} disabled={isSendingReminders} className="px-4 py-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-amber-100 transition-all flex items-center gap-1.5 border border-amber-200 dark:border-amber-800/40 disabled:opacity-50">
+                                            <PhoneIcon className="w-3.5 h-3.5" />
                                             {isSendingReminders ? 'Sending...' : 'Remind Balances'}
                                         </button>
-                                        <button onClick={() => setActionModal({ type: 'payment' })} className="px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-2">
-                                            <CurrencyIcon className="w-4 h-4" />
+                                        <button onClick={() => setActionModal({ type: 'payment' })} className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-1.5">
+                                            <CurrencyIcon className="w-3.5 h-3.5" />
                                             Record Payment
                                         </button>
-                                        <button onClick={() => setActionModal({ type: 'invoice' })} className="px-5 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-105 transition-all flex items-center gap-2">
-                                            <PlusIcon className="w-4 h-4" />
+                                        <button onClick={() => setActionModal({ type: 'invoice' })} className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-105 transition-all flex items-center gap-1.5">
+                                            <PlusIcon className="w-3.5 h-3.5" />
                                             Generate Invoice
                                         </button>
                                     </div>
@@ -2935,6 +3113,258 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                     institution={currentInstitution as any}
                                 />
                             )}
+                        </div>
+                    )}
+
+                    {activeTab === 'portal' && (
+                        <div className="space-y-8 animate-fade-in max-w-4xl mx-auto">
+                            <div className="bg-gradient-to-r from-indigo-600 to-blue-600 rounded-[2.5rem] p-8 text-white shadow-xl relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20"></div>
+                                <div className="relative z-10">
+                                    <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-widest text-indigo-100">Self-Service Kiosk</span>
+                                    <h3 className="text-2xl font-black tracking-tight mt-3">Candidate Booking Portal</h3>
+                                    <p className="text-xs text-indigo-100 mt-1 max-w-xl">
+                                        Empower active candidates to view scheduling capacity, review live balance statuses, and seamlessly book individual theory or practical instructional slots.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 p-8 md:p-10 shadow-sm space-y-8">
+                                {/* Step 1: Select Candidate */}
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">1. Identify Candidate Profile *</label>
+                                    <select
+                                        value={portalStudentId}
+                                        onChange={(e) => {
+                                            const sid = e.target.value;
+                                            setPortalStudentId(sid);
+                                            // Pre-select preferred instructor or default values if available
+                                            const stud = students.find(s => s.id === sid);
+                                            if (stud && stud.preferredInstructorId) {
+                                                setPortalInstructorId(stud.preferredInstructorId);
+                                            }
+                                        }}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl py-4 px-5 text-xs font-bold focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <option value="">-- Choose Candidate Account --</option>
+                                        {normalizedStudents.map(s => (
+                                            <option key={s.id} value={s.id}>
+                                                {s.fullName} ({s.admissionNumber || 'N/A'}) - {s.status}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {portalStudentId ? (() => {
+                                    const selectedStudent = normalizedStudents.find(s => s.id === portalStudentId);
+                                    // Calculate financials
+                                    const studentInvoices = invoices.filter(inv => inv.studentId === portalStudentId && inv.status !== 'Fully Paid');
+                                    const totalOwed = studentInvoices.reduce((sum, inv) => sum + (Number(inv.balance) || 0), 0);
+                                    const hasFinancialLockout = totalOwed > 0;
+
+                                    // Detect Overlaps
+                                    const activeLessonsOnDate = lessons.filter(l => 
+                                        l.lessonDate && 
+                                        l.status !== 'Cancelled' && 
+                                        new Date(l.lessonDate).toISOString().split('T')[0] === portalLessonDate
+                                    );
+
+                                    const isOverlapping = (start1: string, end1: string, start2: string, end2: string) => {
+                                        if (!start1 || !end1 || !start2 || !end2) return false;
+                                        return start1 < end2 && start2 < end1;
+                                    };
+
+                                    const instructorConflict = portalInstructorId ? activeLessonsOnDate.find(l => 
+                                        l.instructorId === portalInstructorId && 
+                                        isOverlapping(portalStartTime, portalEndTime, l.startTime, l.endTime)
+                                    ) : null;
+
+                                    const vehicleConflict = (portalLessonType !== 'Theory' && portalVehicleId) ? activeLessonsOnDate.find(l => 
+                                        l.vehicleId === portalVehicleId && 
+                                        isOverlapping(portalStartTime, portalEndTime, l.startTime, l.endTime)
+                                    ) : null;
+
+                                    return (
+                                        <div className="space-y-8 animate-fade-in">
+                                            {/* Candidate Fast Overview */}
+                                            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 rounded-xl flex items-center justify-center font-black text-xs uppercase">
+                                                        {selectedStudent?.fullName.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <h5 className="text-xs font-bold text-slate-900 dark:text-white">{selectedStudent?.fullName}</h5>
+                                                        <p className="text-[10px] text-slate-400 font-medium">Category: <span className="text-indigo-600 font-bold">{selectedStudent?.licenseCategory || 'Standard'}</span></p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block">Fee Balance</span>
+                                                    <span className={`text-xs font-black ${totalOwed > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                                        KES {totalOwed.toLocaleString()}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Financial Lockout Alert Banner */}
+                                            {hasFinancialLockout && (
+                                                <div className="p-5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 rounded-2xl flex items-start gap-3">
+                                                    <SparklesIcon className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                                                    <div className="space-y-1">
+                                                        <h6 className="text-xs font-black text-blue-900 dark:text-blue-200 uppercase tracking-tight">Financial Milestone Guidance Active</h6>
+                                                        <p className="text-[11px] text-blue-700 dark:text-blue-300">
+                                                            Your account carries an outstanding cumulative balance of <b>KES {totalOwed.toLocaleString()}</b>. Institutional protocols encourage prompt deposits before scheduling subsequent continuous advanced coaching blocks.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Reservation Fields Grid */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div className="space-y-2">
+                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Session Target Type</label>
+                                                    <select
+                                                        value={portalLessonType}
+                                                        onChange={(e) => setPortalLessonType(e.target.value)}
+                                                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-xs font-bold"
+                                                    >
+                                                        <option value="Practical">Practical Driver Coaching</option>
+                                                        <option value="Theory">Theory & Signage Mastery</option>
+                                                    </select>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Preferred Date</label>
+                                                    <input
+                                                        type="date"
+                                                        value={portalLessonDate}
+                                                        min={new Date().toISOString().split('T')[0]}
+                                                        onChange={(e) => setPortalLessonDate(e.target.value)}
+                                                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-xs font-bold"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Time Interval</label>
+                                                    <input
+                                                        type="time"
+                                                        value={portalStartTime}
+                                                        onChange={(e) => setPortalStartTime(e.target.value)}
+                                                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-xs font-bold"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">End Time Interval</label>
+                                                    <input
+                                                        type="time"
+                                                        value={portalEndTime}
+                                                        onChange={(e) => setPortalEndTime(e.target.value)}
+                                                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-xs font-bold"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Assign Coach / Instructor *</label>
+                                                    <select
+                                                        value={portalInstructorId}
+                                                        onChange={(e) => setPortalInstructorId(e.target.value)}
+                                                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-xs font-bold"
+                                                    >
+                                                        <option value="">-- Select Available Instructor --</option>
+                                                        {normalizedInstructors.filter(i => i.status === 'Active').map(i => (
+                                                            <option key={i.id} value={i.id}>{i.name} ({i.specialization || 'Master'})</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                {portalLessonType !== 'Theory' ? (
+                                                    <div className="space-y-2">
+                                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Allocate Operational Vehicle *</label>
+                                                        <select
+                                                            value={portalVehicleId}
+                                                            onChange={(e) => setPortalVehicleId(e.target.value)}
+                                                            className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-3 px-4 text-xs font-bold"
+                                                        >
+                                                            <option value="">-- Select Active Fleet --</option>
+                                                            {vehicles.filter(v => v.status === 'Operational').map(v => (
+                                                                <option key={v.id} value={v.id}>{v.make} {v.model} ({v.plateNumber})</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-2">
+                                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Designated Room / Location</label>
+                                                        <input
+                                                            type="text"
+                                                            readOnly
+                                                            value="Main Theory Center Class"
+                                                            className="w-full bg-slate-100 dark:bg-slate-800/40 text-slate-400 border-none rounded-xl py-3 px-4 text-xs font-bold cursor-not-allowed"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Instant Overlap Warning State Display */}
+                                            {instructorConflict && (
+                                                <div className="p-4 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 rounded-xl flex items-center gap-3 text-rose-600 animate-shake">
+                                                    <span className="font-black text-xs">⚠️</span>
+                                                    <p className="text-[11px] font-medium">
+                                                        <b>Instructor Collision Detected:</b> The selected coach is already leading a session from {instructorConflict.startTime} to {instructorConflict.endTime}.
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {vehicleConflict && (
+                                                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 rounded-xl flex items-center gap-3 text-amber-700 animate-shake">
+                                                    <span className="font-black text-xs">🚗</span>
+                                                    <p className="text-[11px] font-medium">
+                                                        <b>Vehicle Collision Detected:</b> This fleet vehicle is checked out for practical coaching from {vehicleConflict.startTime} to {vehicleConflict.endTime}.
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {/* Submit Request Button */}
+                                            <div className="pt-4 border-t border-slate-50 dark:border-slate-800 flex justify-end">
+                                                <button
+                                                    type="button"
+                                                    disabled={!portalInstructorId || (portalLessonType !== 'Theory' && !portalVehicleId) || !!instructorConflict || !!vehicleConflict}
+                                                    onClick={async () => {
+                                                        try {
+                                                            const payload = {
+                                                                id: `lsn_${Date.now()}`,
+                                                                institutionId: currentInstitution?.id || 'inst',
+                                                                studentId: portalStudentId,
+                                                                instructorId: portalInstructorId,
+                                                                vehicleId: portalLessonType !== 'Theory' ? portalVehicleId : undefined,
+                                                                lessonDate: portalLessonDate,
+                                                                startTime: portalStartTime,
+                                                                endTime: portalEndTime,
+                                                                status: 'Scheduled',
+                                                                lessonType: portalLessonType,
+                                                                notes: 'Self-Service Direct Reservation'
+                                                            };
+                                                            await onAddLesson(payload);
+                                                            success?.("Successfully secured reservation slot!");
+                                                            // Clear state parameters slightly to show confirmation refresh
+                                                            setPortalStudentId('');
+                                                        } catch (err) {
+                                                            toastError?.("System error during self-service confirmation allocation.");
+                                                        }
+                                                    }}
+                                                    className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-600/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none disabled:scale-100 flex items-center gap-2"
+                                                >
+                                                    <span>Confirm & Secure Reservation</span>
+                                                    <CheckCircleIcon className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })() : (
+                                    <div className="py-12 text-center">
+                                        <p className="text-xs font-bold text-slate-400">Please choose a candidate identity from the roster above to initiate resource verification controls.</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
 
@@ -3764,7 +4194,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             } else if (type === 'vehicle_unavailability') {
                                 await onUpdateVehicle(data);
                             }
-                            else if (type === 'lesson') await onAddLesson(data);
+                            else if (type === 'lesson') {
+                                if (data.id) await onUpdateLesson(data);
+                                else await onAddLesson(data);
+                            }
                             else if (type === 'lead') {
                                 if (data.id) await updateLead(data);
                                 else await addLead(data);

@@ -477,3 +477,132 @@ export const generateDSSchedulePDF = async (
 
     return doc;
 };
+
+export const generateDSStudentLogbookPDF = async (
+    student: DSStudent,
+    lessons: DSLesson[],
+    instructors: DSInstructor[],
+    institution: any,
+    letterheadConfig?: any
+) => {
+    const doc = new jsPDF() as any;
+    const margin = 20;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    const companyDetails = await apiService.fetchCompanySettings().catch(() => null);
+    const letterheadUrl = letterheadConfig?.headerImageUrl || institution?.letterheadConfig?.headerImageUrl || institution?.letterheadUrl || companyDetails?.letterheadConfig?.headerImageUrl || (companyDetails as any)?.letterheadUrl || (companyDetails as any)?.logoUrl;
+    const headerImg = await loadImage(letterheadUrl);
+
+    let currentY = 30;
+
+    if (headerImg) {
+        const imgWidth = pageWidth - (margin * 2);
+        const imgHeight = (headerImg.height * imgWidth) / headerImg.width;
+        const maxHeight = 45;
+
+        if (imgHeight > maxHeight) {
+            const finalHeight = maxHeight;
+            const finalWidth = (headerImg.width * finalHeight) / headerImg.height;
+            const xPos = (pageWidth - finalWidth) / 2;
+            doc.addImage(headerImg, 'JPEG', xPos, 15, finalWidth, finalHeight);
+            currentY = finalHeight + 25;
+        } else {
+            doc.addImage(headerImg, 'JPEG', margin, 15, imgWidth, imgHeight);
+            currentY = imgHeight + 25;
+        }
+    } else {
+        doc.setFontSize(22);
+        doc.setTextColor(79, 70, 229);
+        doc.text(institution?.name || 'Driving School Academy', margin, currentY);
+
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(institution?.address || 'Official Training Logbook', margin, currentY + 8);
+        doc.text(`Tel: ${institution?.phone || 'N/A'}`, margin, currentY + 13);
+        currentY += 25;
+    }
+
+    doc.setFontSize(18);
+    doc.setTextColor(30, 41, 59);
+    doc.text('OFFICIAL STUDENT TRAINING LOGBOOK', margin, currentY);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text('REGULATORY COMPLIANCE CHECKLIST', pageWidth - margin, currentY, { align: 'right' });
+    currentY += 12;
+
+    // Student identity grid
+    doc.setFontSize(11);
+    doc.setTextColor(30, 41, 59);
+    doc.text(`Student Name: ${student.fullName}`, margin, currentY);
+    doc.text(`Admission #: ${student.admissionNumber || 'N/A'}`, pageWidth / 2, currentY);
+    currentY += 7;
+    doc.text(`Enrolled Class: ${(student as any).licenseCategory || student.licenseTypeInterested || 'CLASS B'}`, margin, currentY);
+    doc.text(`Phone: ${student.phone || 'N/A'}`, pageWidth / 2, currentY);
+    currentY += 12;
+
+    // Mandatory Curriculum Counters Summary
+    const studentLessons = lessons.filter(l => l.studentId === student.id);
+    const theoryCount = studentLessons.filter(l => l.lessonType === 'Theory' && l.status === 'Completed').length;
+    const practicalCount = studentLessons.filter(l => l.lessonType === 'Practical' && l.status === 'Completed').length;
+
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(margin, currentY, pageWidth - (margin * 2), 22, 'FD');
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Theory Sessions Logged: ${theoryCount} / 20 Hours`, margin + 5, currentY + 8);
+    doc.text(`Practical Highway Drives: ${practicalCount} / 15 Sessions`, pageWidth / 2, currentY + 8);
+    
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(100);
+    doc.text(`Overall Progress Rating: ${Math.max(student.practicalProgressPercent || 0, student.theoryProgressPercent || 0)}% Completed`, margin + 5, currentY + 16);
+    currentY += 32;
+
+    // Logbook detail matrix
+    const tableHead = ['Date', 'Session Type', 'Time Slot', 'Instructor', 'Status', 'Official Sign-off'];
+    const tableData = studentLessons.map(l => {
+        const inst = instructors.find(i => i.id === l.instructorId);
+        return [
+            l.lessonDate ? new Date(l.lessonDate).toLocaleDateString() : 'N/A',
+            l.lessonType || 'Practical',
+            `${l.startTime || ''} - ${l.endTime || ''}`,
+            inst?.name || 'Unassigned',
+            l.status || 'Scheduled',
+            l.status === 'Completed' ? '[ Verified OK ]' : '[ _________ ]'
+        ];
+    });
+
+    if (tableData.length === 0) {
+        tableData.push(['No lessons scheduled yet', '-', '-', '-', '-', '-']);
+    }
+
+    autoTable(doc, {
+        startY: currentY,
+        head: [tableHead],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [71, 85, 105], textColor: 255, fontStyle: 'bold' },
+        styles: { fontSize: 9, cellPadding: 4 },
+        margin: { left: margin, right: margin }
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY || currentY + 50;
+
+    // Authority declaration block
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.text("DECLARATION: I certify that the above lessons were successfully instructed according to the approved national syllabus.", margin, finalY + 15);
+    
+    doc.setDrawColor(150);
+    doc.line(margin, finalY + 30, margin + 60, finalY + 30);
+    doc.text("Chief Instructor Signature & Stamp", margin, finalY + 35);
+
+    doc.line(pageWidth - margin - 60, finalY + 30, pageWidth - margin, finalY + 30);
+    doc.text("Student Signature", pageWidth - margin - 60, finalY + 35);
+
+    return doc;
+};
