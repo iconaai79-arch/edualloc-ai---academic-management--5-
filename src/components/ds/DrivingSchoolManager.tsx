@@ -259,6 +259,38 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
         }
     }, [settings, type, initialData, nextAdmissionNumber, nextInvoiceNumber, nextReceiptNumber]);
 
+    useEffect(() => {
+        if (initialData) {
+            if (type === 'fee_structure') {
+                let itemsArr: any[] = [];
+                if (typeof initialData.items === 'string') {
+                    try { itemsArr = JSON.parse(initialData.items); } catch(e){}
+                } else if (Array.isArray(initialData.items)) {
+                    itemsArr = initialData.items;
+                }
+                const loadedItems = itemsArr.length > 0 
+                    ? itemsArr.map((it: any, idx: number) => ({
+                        name: it.name || it.voteName || it.vote_name || 'Fee Item',
+                        amount: Number(it.amount ?? it.defaultAmount ?? it.default_amount ?? 0),
+                        priority: Number(it.priority ?? idx + 1)
+                    }))
+                    : [
+                        { name: 'Tuition Fee', amount: Number(initialData.tuition || 0), priority: Number(initialData.tuitionPriority || 1) },
+                        { name: 'PDL', amount: Number(initialData.pdl || 0), priority: Number(initialData.pdlPriority || 2) },
+                        { name: 'Assessment', amount: Number(initialData.assessment || 0), priority: Number(initialData.assessmentPriority || 3) }
+                    ].filter(it => it.amount > 0);
+
+                setFormData({
+                    ...initialData,
+                    description: initialData.description || 'Standard License Course',
+                    items: loadedItems.length > 0 ? loadedItems : [{ name: 'Standard Course Fee', amount: Number(initialData.totalAmount || 0), priority: 1 }]
+                });
+            } else {
+                setFormData({ ...initialData });
+            }
+        }
+    }, [initialData, type]);
+
     const [formData, setFormData] = useState<any>(() => {
         const base = initialData || {
             status: type === 'student' ? 'Enrolled' : type === 'lead' ? 'New Enquiry' : type === 'instructor' ? 'Active' : type === 'vehicle' ? 'Operational' : 'Scheduled',
@@ -288,16 +320,27 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
             if (type === 'broadcast') return { title: '', message: '', target: 'All', priority: 'Medium', channels: ['Portal'] };
         }
         if (initialData && type === 'fee_structure') {
-            const loadedItems = Array.isArray(initialData.items) && initialData.items.length > 0 
-                ? initialData.items 
+            let itemsArr: any[] = [];
+            if (typeof initialData.items === 'string') {
+                try { itemsArr = JSON.parse(initialData.items); } catch(e){}
+            } else if (Array.isArray(initialData.items)) {
+                itemsArr = initialData.items;
+            }
+            const loadedItems = itemsArr.length > 0 
+                ? itemsArr.map((it: any, idx: number) => ({
+                    name: it.name || it.voteName || it.vote_name || 'Fee Item',
+                    amount: Number(it.amount ?? it.defaultAmount ?? it.default_amount ?? 0),
+                    priority: Number(it.priority ?? idx + 1)
+                }))
                 : [
-                    { name: 'Tuition Fee', amount: initialData.tuition || 0, priority: initialData.tuitionPriority || 1 },
-                    { name: 'PDL', amount: initialData.pdl || 0, priority: initialData.pdlPriority || 2 },
-                    { name: 'Assessment', amount: initialData.assessment || 0, priority: initialData.assessmentPriority || 3 }
+                    { name: 'Tuition Fee', amount: Number(initialData.tuition || 0), priority: Number(initialData.tuitionPriority || 1) },
+                    { name: 'PDL', amount: Number(initialData.pdl || 0), priority: Number(initialData.pdlPriority || 2) },
+                    { name: 'Assessment', amount: Number(initialData.assessment || 0), priority: Number(initialData.assessmentPriority || 3) }
                 ].filter(it => it.amount > 0);
             return {
                 ...base,
-                items: loadedItems.length > 0 ? loadedItems : [{ name: 'Standard Course Fee', amount: initialData.totalAmount || 0, priority: 1 }]
+                description: initialData.description || 'Standard License Course',
+                items: loadedItems.length > 0 ? loadedItems : [{ name: 'Standard Course Fee', amount: Number(initialData.totalAmount || 0), priority: 1 }]
             };
         }
         return base;
@@ -997,8 +1040,11 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         <input required type="text" value={formData.className || ''} onChange={e => setFormData({...formData, className: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. CLASS C1" />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Description</label>
-                                        <input type="text" value={formData.description || ''} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="e.g. Standard License Course" />
+                                        <label className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+                                            <span>Package Description</span>
+                                            <span className="text-[8px] bg-indigo-50 dark:bg-indigo-900/40 text-indigo-500 px-1.5 py-0.5 rounded">Optional</span>
+                                        </label>
+                                        <input type="text" value={formData.description || ''} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-xs" placeholder="e.g. Standard License Course" />
                                     </div>
                                 </div>
 
