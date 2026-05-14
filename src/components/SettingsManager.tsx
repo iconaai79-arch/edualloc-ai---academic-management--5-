@@ -2306,7 +2306,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 onClick={() => {
                                                     setEditingFeeId(fee.id);
                                                     const loadedItems = Array.isArray(fee.items) && fee.items.length > 0 
-                                                        ? fee.items 
+                                                        ? fee.items.map(it => ({ name: it.name, amount: it.amount, priority: it.priority ?? 1 })) 
                                                         : [
                                                             { name: 'Tuition Fee', amount: (fee as any).tuition || 0, priority: (fee as any).tuitionPriority || 1 },
                                                             { name: 'PDL', amount: (fee as any).pdl || 0, priority: (fee as any).pdlPriority || 2 },
@@ -2314,7 +2314,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         ].filter(it => it.amount > 0);
                                                     setNewFeeForm({
                                                         className: fee.className,
-                                                        description: fee.description || '',
+                                                        description: (fee as any).description || '',
                                                         items: loadedItems.length > 0 ? loadedItems : [{ name: 'Standard Course Fee', amount: fee.totalAmount || 0, priority: 1 }]
                                                     });
                                                     setIsAddingFee(true);

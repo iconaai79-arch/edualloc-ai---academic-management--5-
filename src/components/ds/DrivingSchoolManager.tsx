@@ -1067,7 +1067,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                                                 nextItems[idx] = { 
                                                                     ...it, 
                                                                     name: val, 
-                                                                    amount: matchedVote ? (matchedVote.defaultAmount ?? matchedVote.default_amount ?? it.amount) : it.amount 
+                                                                    amount: matchedVote ? (matchedVote.defaultAmount ?? (matchedVote as any).default_amount ?? it.amount) : it.amount 
                                                                 };
                                                             }
                                                             setFormData({ ...formData, items: nextItems });

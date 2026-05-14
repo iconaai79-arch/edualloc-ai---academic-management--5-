@@ -3946,7 +3946,7 @@ export interface DSSettings {
 export interface DSFeeItem {
     name: string;
     amount: number;
-    priority?: number; // Lower number = higher priority
+    priority: number; // Lower number = higher priority
 }
 
 export interface DSInvoiceItem extends DSFeeItem {
@@ -3957,6 +3957,7 @@ export interface DSFeeStructure {
     id: string;
     institutionId: string;
     className: string;
+    description?: string;
     items: DSFeeItem[];
     totalAmount: number;
     createdAt: string;
