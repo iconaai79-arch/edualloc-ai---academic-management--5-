@@ -100,13 +100,13 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                             onClick={() => setActiveTab('invoices')}
                             className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'invoices' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
                         >
-                            Sales Invoices
+                            Invoices
                         </button>
                         <button 
                             onClick={() => setActiveTab('payments')}
                             className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'payments' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
                         >
-                            Payment History
+                            Sales & Revenue
                         </button>
                     </div>
 
