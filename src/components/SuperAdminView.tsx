@@ -943,12 +943,33 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             });
             if (result.success || result.ResponseCode === '0') {
                 alert("KCB STK Push initiated successfully. Check your phone.");
+                if (props.onRefreshData) props.onRefreshData();
             } else {
                 alert(`KCB STK Push failed: ${result.message || 'Unknown error'}`);
             }
         } catch (e: any) {
             console.error("KCB Test Error:", e);
             alert(`KCB Gateway test failed: ${e.message}`);
+        } finally {
+            setIsTesting(false);
+        }
+    };
+
+    const handleQueryKcbStatus = async (checkoutRequestId: string) => {
+        setIsTesting(true);
+        try {
+            const result = await apiService.post('/api/payments/kcb-query', {
+                checkoutRequestId,
+                config: localKcbConfig
+            });
+            if (result.success) {
+                alert(`Transaction Status: ${result.status}\nDetails: ${result.message}`);
+                if (props.onRefreshData) props.onRefreshData();
+            } else {
+                alert(`Query failed: ${result.message || 'Unknown error'}`);
+            }
+        } catch (e: any) {
+            alert(`KCB Query Error: ${e.message}`);
         } finally {
             setIsTesting(false);
         }
@@ -4033,6 +4054,74 @@ Please change it after login.`;
                                             </div>
 
                                             <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
+                                                <div className="flex items-center justify-between mb-6">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl">
+                                                            <ChartBarIcon className="w-6 h-6 text-emerald-600" />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-sm font-black uppercase tracking-widest">KCB Transaction Logs</h4>
+                                                            <p className="text-[10px] font-bold text-slate-400">Recent KCB STK Push and IPN activities</p>
+                                                        </div>
+                                                    </div>
+                                                    <button onClick={() => props.onRefreshData?.()} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-all">
+                                                        <ArrowPathIcon className={`w-5 h-5 text-slate-500 ${isTesting ? 'animate-spin' : ''}`} />
+                                                    </button>
+                                                </div>
+
+                                                <div className="overflow-x-auto">
+                                                    <table className="min-w-full">
+                                                        <thead>
+                                                            <tr className="border-b border-slate-200 dark:border-slate-700">
+                                                                <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                                                                <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Phone</th>
+                                                                <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                                                                <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                                                <th className="px-4 py-3 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Action</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                            {(props.transactions || [])
+                                                                .filter(t => t.checkoutRequestId?.startsWith('KCB_'))
+                                                                .slice(0, 10)
+                                                                .map((txn: MpesaTransaction) => (
+                                                                    <tr key={txn.id} className="hover:bg-white/50 dark:hover:bg-white/5 transition-colors">
+                                                                        <td className="px-4 py-4 whitespace-nowrap text-[10px] font-bold text-slate-500">{new Date(txn.transactionDate).toLocaleDateString()}</td>
+                                                                        <td className="px-4 py-4 whitespace-nowrap text-xs font-black">{txn.phoneNumber}</td>
+                                                                        <td className="px-4 py-4 whitespace-nowrap text-xs font-black">KES {txn.amount.toLocaleString()}</td>
+                                                                        <td className="px-4 py-4 whitespace-nowrap">
+                                                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter ${
+                                                                                txn.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                                                                txn.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
+                                                                            }`}>
+                                                                                {txn.status}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="px-4 py-4 whitespace-nowrap text-right">
+                                                                            {txn.status === 'pending' && txn.checkoutRequestId && (
+                                                                                <button
+                                                                                    onClick={() => handleQueryKcbStatus(txn.checkoutRequestId!)}
+                                                                                    className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-800 tracking-widest"
+                                                                                >
+                                                                                    Query Status
+                                                                                </button>
+                                                                            )}
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            {(props.transactions || []).filter(t => t.checkoutRequestId?.startsWith('KCB_')).length === 0 && (
+                                                                <tr>
+                                                                    <td colSpan={5} className="px-4 py-10 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest opacity-50">
+                                                                        No KCB transactions found.
+                                                                    </td>
+                                                                </tr>
+                                                            )}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
                                                 <div className="flex items-center gap-4 mb-6">
                                                     <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl">
                                                         <KcbIcon className="w-6 h-6 text-indigo-600" />
@@ -5270,6 +5359,7 @@ Please change it after login.`;
                                                 });
                                                 if (result.success || result.ResponseCode === '0') {
                                                     alert("KCB STK Push initiated successfully for this tenant. Check your phone.");
+                                                    if (props.onRefreshData) props.onRefreshData();
                                                 } else {
                                                     alert(`KCB STK Push failed: ${result.message || 'Unknown error'}`);
                                                 }
@@ -5284,6 +5374,52 @@ Please change it after login.`;
                                     >
                                         {isTesting ? 'Sending...' : 'Test'}
                                     </button>
+                                </div>
+                            </div>
+
+                            {/* Tenant Transaction Logs */}
+                            <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <p className="text-[10px] font-black uppercase text-slate-500">Tenant KCB Logs</p>
+                                    <button onClick={() => props.onRefreshData?.()} className="p-1 hover:bg-slate-100 rounded-lg">
+                                        <ArrowPathIcon className={`w-3 h-3 text-slate-400 ${isTesting ? 'animate-spin' : ''}`} />
+                                    </button>
+                                </div>
+                                <div className="max-h-48 overflow-y-auto space-y-2">
+                                    {(props.transactions || [])
+                                        .filter(t => t.checkoutRequestId?.startsWith('KCB_') && t.institutionId === managingKcbFor.id)
+                                        .map((txn: MpesaTransaction) => (
+                                            <div key={txn.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
+                                                <div>
+                                                    <div className="text-[10px] font-black text-slate-900 dark:text-white">{txn.phoneNumber}</div>
+                                                    <div className="text-[8px] font-bold text-slate-400 uppercase">{new Date(txn.transactionDate).toLocaleString()}</div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-[10px] font-black text-indigo-600">KES {txn.amount}</div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`text-[8px] font-black uppercase ${
+                                                            txn.status === 'completed' ? 'text-green-600' :
+                                                            txn.status === 'pending' ? 'text-amber-600' : 'text-red-600'
+                                                        }`}>
+                                                            {txn.status}
+                                                        </span>
+                                                        {txn.status === 'pending' && txn.checkoutRequestId && (
+                                                            <button 
+                                                                onClick={() => handleQueryKcbStatus(txn.checkoutRequestId!)}
+                                                                className="text-[8px] font-black uppercase text-slate-400 hover:text-indigo-600 underline"
+                                                            >
+                                                                Query
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    {(props.transactions || []).filter(t => t.checkoutRequestId?.startsWith('KCB_') && t.institutionId === managingKcbFor.id).length === 0 && (
+                                        <div className="text-center py-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest opacity-50 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                                            No logs for this tenant
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
