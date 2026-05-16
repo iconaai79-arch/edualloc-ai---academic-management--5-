@@ -591,6 +591,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [managingSmsUnitsFor, setManagingSmsUnitsFor] = useState<Institution | null>(null);
     const [tenantSmsConfig, setTenantSmsConfig] = useState<SmsConfig>({ provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
     const [tenantMpesaConfig, setTenantMpesaConfig] = useState<MpesaConfig>({ paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' });
+    const [managingKcbFor, setManagingKcbFor] = useState<Institution | null>(null);
+    const [tenantKcbConfig, setTenantKcbConfig] = useState<KcbConfig>({ appKey: '', appSecret: '', environment: 'sandbox' });
     const [tenantModulePricing, setTenantModulePricing] = useState<Record<string, { monthly?: number; yearly?: number }>>({});
     const [tenantSmsAdjustment, setTenantSmsAdjustment] = useState<{ amount: number; reason: string }>({ amount: 0, reason: '' });
     const [isSavingTenantConfig, setIsSavingTenantConfig] = useState(false);
@@ -2255,6 +2257,16 @@ Please change it after login.`;
                                                             >
                                                                 <CurrencyIcon className="w-3 h-3" />
                                                                 M-Pesa
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setManagingKcbFor(inst);
+                                                                    setTenantKcbConfig(inst.kcbConfig || { appKey: '', appSecret: '', environment: 'sandbox' });
+                                                                }}
+                                                                className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 font-black text-[10px] uppercase tracking-tighter bg-indigo-50 px-2 py-1 rounded-lg"
+                                                            >
+                                                                <KcbIcon className="w-3 h-3" />
+                                                                KCB
                                                             </button>
                                                             <button
                                                                 onClick={() => {
@@ -5168,6 +5180,75 @@ Please change it after login.`;
                                 className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-10 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-100/50 dark:shadow-none transition-all active:scale-95"
                             >
                                 {isSavingTenantConfig ? 'Saving…' : 'Save M-Pesa Config'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── KCB Integration Modal ── */}
+            {managingKcbFor && (
+                <div className="fixed inset-0 bg-slate-900/60 z-[300] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setManagingKcbFor(null)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-indigo-50/50 dark:bg-indigo-900/10">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+                                    <KcbIcon className="w-5 h-5 text-indigo-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black uppercase tracking-tight text-indigo-900 dark:text-indigo-200">KCB Integration</h3>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{managingKcbFor.name}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setManagingKcbFor(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-5 h-5" /></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">App Key</label>
+                                    <input type="text" value={tenantKcbConfig.appKey} onChange={e => setTenantKcbConfig(prev => ({ ...prev, appKey: e.target.value }))} className="form-input" placeholder="KCB App Key" />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">App Secret</label>
+                                    <input type="password" value={tenantKcbConfig.appSecret} onChange={e => setTenantKcbConfig(prev => ({ ...prev, appSecret: e.target.value }))} className="form-input" placeholder="KCB App Secret" />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Environment</label>
+                                    <select value={tenantKcbConfig.environment || 'sandbox'} onChange={e => setTenantKcbConfig(prev => ({ ...prev, environment: e.target.value as any }))} className="form-select font-bold text-xs">
+                                        <option value="sandbox">Sandbox (Testing)</option>
+                                        <option value="production">Production (Live)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Short Code (Till/Paybill)</label>
+                                    <input type="text" value={tenantKcbConfig.shortCode || ''} onChange={e => setTenantKcbConfig(prev => ({ ...prev, shortCode: e.target.value }))} className="form-input" placeholder="e.g. 123456" />
+                                </div>
+                            </div>
+
+                            <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                <p className="text-[10px] font-black uppercase text-slate-500 mb-2">Tenant IPN Endpoint</p>
+                                <code className="block text-[10px] font-mono text-indigo-600 dark:text-indigo-400 break-all select-all">
+                                    {typeof window !== 'undefined' ? `${window.location.origin}/api/kcb-ipn?institutionId=${managingKcbFor.id}` : `https://yourdomain.com/api/kcb-ipn?institutionId=${managingKcbFor.id}`}
+                                </code>
+                            </div>
+                        </div>
+                        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
+                            <button onClick={() => setManagingKcbFor(null)} className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700 transition-colors">Cancel</button>
+                            <button
+                                disabled={isSavingTenantConfig}
+                                onClick={async () => {
+                                    if (!managingKcbFor || !props.onUpdateInstitution) return;
+                                    setIsSavingTenantConfig(true);
+                                    try {
+                                        await props.onUpdateInstitution(managingKcbFor.id, { kcbConfig: tenantKcbConfig });
+                                        setManagingKcbFor(null);
+                                    } finally {
+                                        setIsSavingTenantConfig(false);
+                                    }
+                                }}
+                                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-10 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100/50 dark:shadow-none transition-all active:scale-95"
+                            >
+                                {isSavingTenantConfig ? 'Saving…' : 'Save KCB Config'}
                             </button>
                         </div>
                     </div>
