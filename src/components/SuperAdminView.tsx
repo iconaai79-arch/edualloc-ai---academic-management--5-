@@ -1367,7 +1367,51 @@ Please change it after login.`;
     if (activeRole === 'student') {
         return (
             <React.Suspense fallback={<div className="flex h-screen items-center justify-center bg-white dark:bg-slate-900"><div className="w-12 h-12 border-4 border-indigo-50 border-t-transparent rounded-full animate-spin"></div></div>}>
-                <StudentView user={currentUser} users={users} courses={courses} subjects={subjects} rooms={rooms} enrollmentRequests={enrollmentRequests} generatedTimetable={generatedTimetable} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id: string) => undefined)} getRoomById={props.getRoomById || ((id: string) => undefined)} getLecturerById={props.getLecturerById || ((id: string) => undefined)} timetableSettings={timetableSettings || INITIAL_TIMETABLE_SETTINGS} studentCheckIns={props.studentCheckIns || {}} onStudentLessonCheckIn={props.onAddTransaction as any} letterheadConfig={letterheadConfig || { headerImageUrl: null, stampImageUrl: null }} footerImageUrl={footerImageUrl || null} logoUrl={logoUrl || null} buildings={buildings} onAddParent={props.onAddParent as any} onDeleteParent={props.onDeleteParent as any} departments={departments} onSubmitEnrollmentRequest={async (sids: string[], sig: string | null) => { }} assignments={assignments} submissions={submissions} onAddSubmission={async (d: any) => { await apiService.saveModuleRecord('submissions', { ...d, id: `subm_${Date.now()}`, institutionId: currentUser.institutionId }); }} lessonRatings={lessonRatings} onAddLessonRating={() => { }} onRateLesson={() => { }} onAddFeedback={() => { }} feedbackSubmissions={feedbackSubmissions} studentAbsenceRequests={studentAbsenceRequests} onSubmitStudentAbsenceRequest={() => { }} finalTimetableUrl={finalTimetableUrl} taAssignments={props.onUpdateFeeStructures as any} userTasks={userTasks} onAddTask={() => { }} onUpdateTask={() => { }} onDeleteTask={() => { }} currentInstitution={currentInstitution || institutions[0]} assessments={assessments} assessmentMarks={assessmentMarks} studentAttendances={studentAttendances || []} />
+                <StudentView 
+                    user={currentUser} 
+                    users={users} 
+                    courses={courses} 
+                    subjects={subjects} 
+                    rooms={rooms} 
+                    enrollmentRequests={enrollmentRequests} 
+                    generatedTimetable={generatedTimetable} 
+                    examTimetable={examTimetable} 
+                    getSubjectById={props.getSubjectById || ((id: string) => undefined)} 
+                    getRoomById={props.getRoomById || ((id: string) => undefined)} 
+                    getLecturerById={props.getLecturerById || ((id: string) => undefined)} 
+                    timetableSettings={timetableSettings || INITIAL_TIMETABLE_SETTINGS} 
+                    studentCheckIns={props.studentCheckIns || {}} 
+                    onStudentLessonCheckIn={props.onAddTransaction as any} 
+                    letterheadConfig={letterheadConfig || { headerImageUrl: null, stampImageUrl: null }} 
+                    footerImageUrl={footerImageUrl || null} 
+                    logoUrl={logoUrl || null} 
+                    buildings={buildings} 
+                    onAddParent={props.onAddParent as any} 
+                    onDeleteParent={props.onDeleteParent as any} 
+                    departments={departments} 
+                    onSubmitEnrollmentRequest={async (sids: string[], sig: string | null) => { }} 
+                    assignments={assignments} 
+                    submissions={submissions} 
+                    onAddSubmission={async (d: any) => { await apiService.saveModuleRecord('submissions', { ...d, id: `subm_${Date.now()}`, institutionId: currentUser.institutionId }); }} 
+                    lessonRatings={lessonRatings} 
+                    onAddLessonRating={() => { }} 
+                    onRateLesson={() => { }} 
+                    onAddFeedback={() => { }} 
+                    feedbackSubmissions={feedbackSubmissions} 
+                    studentAbsenceRequests={studentAbsenceRequests} 
+                    onSubmitStudentAbsenceRequest={() => { }} 
+                    finalTimetableUrl={finalTimetableUrl || null} 
+                    taAssignments={props.onUpdateFeeStructures as any} 
+                    userTasks={userTasks} 
+                    onAddTask={() => { }} 
+                    onUpdateTask={() => { }} 
+                    onDeleteTask={() => { }} 
+                    currentInstitution={currentInstitution || institutions[0]} 
+                    assessments={assessments} 
+                    assessmentMarks={assessmentMarks} 
+                    studentAttendances={studentAttendances || []} 
+                    books={[]}
+                />
             </React.Suspense>
         );
     }
@@ -2899,10 +2943,11 @@ Please change it after login.`;
                         {academicsSubTab === 'insights' && (
                             <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
                                 <ExamInsights
-                                    assessment={assessments}
+                                    assessment={assessments[0]}
                                     marks={assessmentMarks}
                                     subjects={subjects}
                                     students={users.filter(u => u.role === 'student')}
+                                    teachers={users.filter(u => u.role === 'lecturer' || u.role === 'teacher')}
                                 />
                             </Suspense>
                         )}
