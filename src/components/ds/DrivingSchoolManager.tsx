@@ -1777,10 +1777,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     }, [currentInstitution?.id]);
 
     const handleAutoGenerateTomorrow = async () => {
-        if (!settings?.schedulingRules?.dailySequence?.length) {
-            toastError("Please configure Lesson Sequence in Settings first.");
-            return;
-        }
+        const sequence = settings?.schedulingRules?.dailySequence?.length 
+            ? settings.schedulingRules.dailySequence 
+            : ['Theory', 'Practical'];
 
         setIsActionLoading(true);
         setUnassignedDueToVehicles([]); // Reset previous tracking list
@@ -1816,17 +1815,17 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                 // Get student's preferred slot or default to Morning
                 const preferredSlotType = student.preferredLessonHours || 'Morning';
-                const slot = (settings.lessonSlots || []).find(s => s.type === preferredSlotType) || { startTime: '08:00', endTime: '10:00' };
+                const slot = (settings?.lessonSlots || []).find(s => s.type === preferredSlotType) || { startTime: '08:00', endTime: '10:00' };
                 
                 let currentTime = slot.startTime;
                 let missingVehicleConstraint = false;
                 let targetSlotTime = slot.startTime;
                 
                 // For each type in the sequence (e.g., Theory, Practical)
-                for (const type of settings.schedulingRules.dailySequence) {
+                for (const type of sequence) {
                     const duration = type === 'Theory' 
-                        ? (settings.schedulingRules.theoryDurationMinutes || 60)
-                        : (settings.schedulingRules.practicalDurationMinutes || 60);
+                        ? (settings?.schedulingRules?.theoryDurationMinutes || 60)
+                        : (settings?.schedulingRules?.practicalDurationMinutes || 60);
                     
                     // Simple end time calculation
                     const [h, m] = currentTime.split(':').map(Number);
@@ -1878,7 +1877,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         lessonDate: dateStr,
                         startTime: currentTime,
                         endTime: endTime,
-                        lessonType: type,
+                        lessonType: type as any,
                         status: 'Scheduled',
                         confirmationStatus: 'Pending',
                         institutionId: currentInstitution?.id
@@ -1920,10 +1919,9 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         const student = normalizedStudents.find(s => s.id === studentId);
         if (!student) return;
 
-        if (!settings?.schedulingRules?.dailySequence?.length) {
-            toastError("Please configure Lesson Sequence in Settings first.");
-            return;
-        }
+        const sequence = settings?.schedulingRules?.dailySequence?.length 
+            ? settings.schedulingRules.dailySequence 
+            : ['Theory', 'Practical'];
 
         setIsActionLoading(true);
         try {
@@ -1944,14 +1942,14 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                 if (existingOnDate.length > 0) continue;
 
                 const preferredSlotType = student.preferredLessonHours || 'Morning';
-                const slot = (settings.lessonSlots || []).find(s => s.type === preferredSlotType) || { startTime: '08:00', endTime: '10:00' };
+                const slot = (settings?.lessonSlots || []).find(s => s.type === preferredSlotType) || { startTime: '08:00', endTime: '10:00' };
                 
                 let currentTime = slot.startTime;
                 
-                for (const type of settings.schedulingRules.dailySequence) {
+                for (const type of sequence) {
                     const duration = type === 'Theory' 
-                        ? (settings.schedulingRules.theoryDurationMinutes || 60)
-                        : (settings.schedulingRules.practicalDurationMinutes || 60);
+                        ? (settings?.schedulingRules?.theoryDurationMinutes || 60)
+                        : (settings?.schedulingRules?.practicalDurationMinutes || 60);
                     
                     const [h, m] = currentTime.split(':').map(Number);
                     const end = new Date();
@@ -1977,7 +1975,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         lessonDate: dateStr,
                         startTime: currentTime,
                         endTime: endTime,
-                        lessonType: type,
+                        lessonType: type as any,
                         status: 'Scheduled',
                         confirmationStatus: 'Pending',
                         institutionId: currentInstitution?.id

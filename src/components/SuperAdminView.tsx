@@ -4015,6 +4015,33 @@ Please change it after login.`;
                                                     </div>
                                                 </div>
                                             </div>
+
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
+                                                <div className="flex items-center gap-4 mb-6">
+                                                    <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl">
+                                                        <KcbIcon className="w-6 h-6 text-indigo-600" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-sm font-black uppercase tracking-widest">KCB Callback Endpoints</h4>
+                                                        <p className="text-[10px] font-bold text-slate-400">Provide these URLs to KCB for IPN and STK Push integrations</p>
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                    <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors" title="Click to select">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">IPN Endpoint (B2C/C2B)</p>
+                                                        <code className="text-xs font-mono text-indigo-600 dark:text-indigo-400 break-all">
+                                                            {typeof window !== 'undefined' ? `${window.location.origin}/api/kcb-ipn` : 'https://yourdomain.com/api/kcb-ipn'}
+                                                        </code>
+                                                    </div>
+                                                    <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors" title="Click to select">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">STK Push Callback Endpoint</p>
+                                                        <code className="text-xs font-mono text-indigo-600 dark:text-indigo-400 break-all">
+                                                            {typeof window !== 'undefined' ? `${window.location.origin}/api/kcb-stk-callback` : 'https://yourdomain.com/api/kcb-stk-callback'}
+                                                        </code>
+                                                    </div>
+                                                </div>
+                                            </div>
+
                                             <div className="flex justify-end pt-4">
                                                 <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-14 shadow-indigo-200 uppercase tracking-widest text-xs w-full sm:w-auto">Confirm KCB Configuration</button>
                                             </div>

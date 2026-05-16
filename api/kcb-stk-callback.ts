@@ -1,0 +1,61 @@
+import { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
+
+// Self-contained Supabase service client factory to avoid external lib crashes
+const getSupabase = () => {
+    const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) return null;
+    return createClient(url, key, {
+        auth: { persistSession: false, autoRefreshToken: false }
+    });
+};
+
+/**
+ * KCB STK Push Callback Handler
+ * 
+ * Used for receiving STK push callback responses from KCB Buni API.
+ */
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
+
+    console.log('--- KCB STK Push Callback Received ---');
+    console.log('Query:', JSON.stringify(req.query));
+    console.log('Body:', JSON.stringify(req.body));
+    
+    const body = req.body;
+    const supabase = getSupabase();
+
+    if (!supabase) return res.status(503).json({ error: 'Database context missing' });
+
+    try {
+        // Log the raw Callback
+        const { error: logError } = await supabase.from('integration_logs').insert({
+            provider: 'kcb_stk_callback',
+            payload: body,
+            status: 'received',
+            created_at: new Date().toISOString()
+        });
+
+        if (logError) console.warn('[KCB STK] Failed to log STK Callback:', logError);
+
+        // Here you would normally update the transaction status
+        // e.g. checking body.ResultCode and body.CheckoutRequestID
+
+        // Acknowledge receipt to KCB immediately
+        return res.status(200).json({
+            message: "STK Callback received successfully",
+            status: "Success"
+        });
+
+    } catch (err: any) {
+        console.error('[KCB STK Fatal]', err);
+        return res.status(500).json({ message: 'Internal processing error' });
+    }
+}
