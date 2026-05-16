@@ -15,7 +15,7 @@ import type {
     LawAgreement, LawAgreementTemplate, LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction,
     DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
     CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry, MarketingProspect,
-    PoliticalParty, Constituency, Ward, FtpConfig, GoogleDriveConfig, ICDCode
+    PoliticalParty, Constituency, Ward, FtpConfig, GoogleDriveConfig, ICDCode, KcbConfig
 } from '../types';
 import { TransactionsManager } from './TransactionsManager';
 import { DatabaseSettings } from './DatabaseSettings';
@@ -5206,22 +5206,22 @@ Please change it after login.`;
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">App Key</label>
-                                    <input type="text" value={tenantKcbConfig.appKey} onChange={e => setTenantKcbConfig(prev => ({ ...prev, appKey: e.target.value }))} className="form-input" placeholder="KCB App Key" />
+                                    <input type="text" value={tenantKcbConfig.appKey} onChange={e => setTenantKcbConfig((prev: KcbConfig) => ({ ...prev, appKey: e.target.value }))} className="form-input" placeholder="KCB App Key" />
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">App Secret</label>
-                                    <input type="password" value={tenantKcbConfig.appSecret} onChange={e => setTenantKcbConfig(prev => ({ ...prev, appSecret: e.target.value }))} className="form-input" placeholder="KCB App Secret" />
+                                    <input type="password" value={tenantKcbConfig.appSecret} onChange={e => setTenantKcbConfig((prev: KcbConfig) => ({ ...prev, appSecret: e.target.value }))} className="form-input" placeholder="KCB App Secret" />
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Environment</label>
-                                    <select value={tenantKcbConfig.environment || 'sandbox'} onChange={e => setTenantKcbConfig(prev => ({ ...prev, environment: e.target.value as any }))} className="form-select font-bold text-xs">
+                                    <select value={tenantKcbConfig.environment || 'sandbox'} onChange={e => setTenantKcbConfig((prev: KcbConfig) => ({ ...prev, environment: e.target.value as any }))} className="form-select font-bold text-xs">
                                         <option value="sandbox">Sandbox (Testing)</option>
                                         <option value="production">Production (Live)</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Short Code (Till/Paybill)</label>
-                                    <input type="text" value={tenantKcbConfig.shortCode || ''} onChange={e => setTenantKcbConfig(prev => ({ ...prev, shortCode: e.target.value }))} className="form-input" placeholder="e.g. 123456" />
+                                    <input type="text" value={tenantKcbConfig.shortCode || ''} onChange={e => setTenantKcbConfig((prev: KcbConfig) => ({ ...prev, shortCode: e.target.value }))} className="form-input" placeholder="e.g. 123456" />
                                 </div>
                             </div>
 
