@@ -550,7 +550,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         onLogAction
     } = props;
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'portal_links' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout' | 'campaigns' | 'financials' | 'integrations'>(() => {
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'portal_links' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout' | 'campaigns' | 'financials' | 'integrations' | 'marketing'>(() => {
         const params = new URLSearchParams(window.location.search);
         const view = params.get('view');
         if (view === 'showroom' || params.get('showroom')) return 'auto_marketplace';
@@ -1237,6 +1237,7 @@ Please change it after login.`;
     const tabs = [
         { key: 'dashboard', label: 'Dashboard', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
         { key: 'institutions', label: 'Institutions', icon: <BuildingOfficeIcon className="w-5 h-5 mr-2" /> },
+        { key: 'marketing', label: 'Marketing', icon: <MegaphoneIcon className="w-5 h-5 mr-2" /> },
         { key: 'academics', label: 'Academics', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
         { key: 'hospitality', label: 'Hospitality Hub', icon: <Palmtree className="w-5 h-5 mr-2" /> },
         { key: 'auto_marketplace', label: 'Auto Marketplace', icon: <CarIcon className="w-5 h-5 mr-2" /> },
