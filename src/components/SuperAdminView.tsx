@@ -2991,7 +2991,7 @@ Please change it after login.`;
                                     id: 'ds_v2', 
                                     title: 'Driving School V2 - Future is Here', 
                                     description: 'Premium advert for the automated driving school module with 3D isometric renders.', 
-                                    image: 'file:///c:/Users/hp/Downloads/edualloc-ai---academic-management (5)/docs/marketing/driving_school_hero_3d_1778920419924.png',
+                                    image: '/marketing/driving_school_hero_3d_1778920419924.png',
                                     stats: { shares: 124, clicks: 850 },
                                     category: 'Driving School'
                                 },
@@ -2999,7 +2999,7 @@ Please change it after login.`;
                                     id: 'auto_mkt', 
                                     title: 'Automotive Marketplace Hub', 
                                     description: 'Promotional content for the vehicle inventory and sales ledger system.', 
-                                    image: 'file:///c:/Users/hp/Downloads/edualloc-ai---academic-management (5)/docs/marketing/driving_school_scheduling_3d_1778920509602.png',
+                                    image: '/marketing/driving_school_scheduling_3d_1778920509602.png',
                                     stats: { shares: 89, clicks: 420 },
                                     category: 'Automotive'
                                 }
@@ -4833,9 +4833,9 @@ Please change it after login.`;
                                                 <button 
                                                     onClick={() => {
                                                         const dsItems: ShowcaseItem[] = [
-                                                            { id: `ds_${Date.now()}_1`, title: 'Driving School V2', description: 'Silicon-valley grade automation for fleet and students.', imageUrl: 'file:///c:/Users/hp/Downloads/edualloc-ai---academic-management (5)/docs/marketing/driving_school_hero_3d_1778920419924.png', category: 'Premium Modules' },
-                                                            { id: `ds_${Date.now()}_2`, title: 'Intelligent Scheduling', description: 'Digital clockwork mechanism for lesson mapping.', imageUrl: 'file:///c:/Users/hp/Downloads/edualloc-ai---academic-management (5)/docs/marketing/driving_school_scheduling_3d_1778920509602.png', category: 'Automation' },
-                                                            { id: `ds_${Date.now()}_3`, title: 'Student Mastery', description: '3D visualization of driving progress.', imageUrl: 'file:///c:/Users/hp/Downloads/edualloc-ai---academic-management (5)/docs/marketing/driving_school_mastery_3d_1778920618450.png', category: 'Analytics' }
+                                                            { id: `ds_${Date.now()}_1`, title: 'Driving School V2', description: 'Silicon-valley grade automation for fleet and students.', imageUrl: '/marketing/driving_school_hero_3d_1778920419924.png', category: 'Premium Modules' },
+                                                            { id: `ds_${Date.now()}_2`, title: 'Intelligent Scheduling', description: 'Digital clockwork mechanism for lesson mapping.', imageUrl: '/marketing/driving_school_scheduling_3d_1778920509602.png', category: 'Automation' },
+                                                            { id: `ds_${Date.now()}_3`, title: 'Student Mastery', description: '3D visualization of driving progress.', imageUrl: '/marketing/driving_school_mastery_3d_1778920618450.png', category: 'Analytics' }
                                                         ];
                                                         const currentItems = localCompanyInfo.showcaseConfig?.items || [];
                                                         setLocalCompanyInfo({

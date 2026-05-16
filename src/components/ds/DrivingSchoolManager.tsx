@@ -4523,7 +4523,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 <div className="relative group">
                                     <div className="absolute -inset-4 bg-indigo-500/20 rounded-[3rem] blur-3xl group-hover:scale-110 transition-transform"></div>
                                     <div className="relative aspect-video bg-slate-800 rounded-[3rem] overflow-hidden border border-white/10 shadow-2xl">
-                                        <img src="file:///c:/Users/hp/Downloads/edualloc-ai---academic-management (5)/docs/marketing/driving_school_hero_3d_1778920419924.png" className="w-full h-full object-cover" alt="Driving School V2" />
+                                        <img src="/marketing/driving_school_hero_3d_1778920419924.png" className="w-full h-full object-cover" alt="Driving School V2" />
                                         <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent"></div>
                                         <div className="absolute bottom-8 left-8">
                                             <p className="text-white font-black uppercase tracking-widest text-xs">Fleet Management V2</p>
@@ -4537,7 +4537,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                             <div className="bg-white dark:bg-slate-900 p-10 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-xl space-y-8">
                                 <div className="h-64 rounded-3xl overflow-hidden relative">
-                                    <img src="file:///c:/Users/hp/Downloads/edualloc-ai---academic-management (5)/docs/marketing/driving_school_scheduling_3d_1778920509602.png" className="w-full h-full object-cover" alt="Scheduling" />
+                                    <img src="/marketing/driving_school_scheduling_3d_1778920509602.png" className="w-full h-full object-cover" alt="Scheduling" />
                                     <div className="absolute inset-0 bg-indigo-600/10 mix-blend-overlay"></div>
                                 </div>
                                 <div className="space-y-4">
@@ -4549,7 +4549,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             </div>
                             <div className="bg-white dark:bg-slate-900 p-10 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-xl space-y-8">
                                 <div className="h-64 rounded-3xl overflow-hidden relative">
-                                    <img src="file:///c:/Users/hp/Downloads/edualloc-ai---academic-management (5)/docs/marketing/driving_school_mastery_3d_1778920618450.png" className="w-full h-full object-cover" alt="Mastery" />
+                                    <img src="/marketing/driving_school_mastery_3d_1778920618450.png" className="w-full h-full object-cover" alt="Mastery" />
                                     <div className="absolute inset-0 bg-purple-600/10 mix-blend-overlay"></div>
                                 </div>
                                 <div className="space-y-4">
