@@ -1367,7 +1367,7 @@ Please change it after login.`;
     if (activeRole === 'student') {
         return (
             <React.Suspense fallback={<div className="flex h-screen items-center justify-center bg-white dark:bg-slate-900"><div className="w-12 h-12 border-4 border-indigo-50 border-t-transparent rounded-full animate-spin"></div></div>}>
-                <StudentView user={currentUser} users={users} courses={courses} subjects={subjects} rooms={rooms} enrollmentRequests={enrollmentRequests} generatedTimetable={generatedTimetable} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id: string) => undefined)} getRoomById={props.getRoomById || ((id: string) => undefined)} getLecturerById={props.getLecturerById || ((id: string) => undefined)} timetableSettings={timetableSettings!} studentCheckIns={props.studentCheckIns!} onStudentLessonCheckIn={props.onAddTransaction as any} letterheadConfig={letterheadConfig!} footerImageUrl={footerImageUrl} logoUrl={logoUrl} buildings={buildings} onAddParent={props.onAddParent as any} onDeleteParent={props.onDeleteParent as any} departments={departments} onSubmitEnrollmentRequest={async (sids: string[], sig: string | null) => { }} assignments={assignments} submissions={submissions} onAddSubmission={async (d: any) => { await apiService.saveModuleRecord('submissions', { ...d, id: `subm_${Date.now()}`, institutionId: currentUser.institutionId }); }} lessonRatings={lessonRatings} onAddLessonRating={() => { }} onRateLesson={() => { }} onAddFeedback={() => { }} feedbackSubmissions={feedbackSubmissions} studentAbsenceRequests={studentAbsenceRequests} onSubmitStudentAbsenceRequest={() => { }} finalTimetableUrl={finalTimetableUrl} taAssignments={props.onUpdateFeeStructures as any} userTasks={userTasks} onAddTask={() => { }} onUpdateTask={() => { }} onDeleteTask={() => { }} currentInstitution={currentInstitution!} assessments={assessments} assessmentMarks={assessmentMarks} studentAttendances={studentAttendances || []} />
+                <StudentView user={currentUser} users={users} courses={courses} subjects={subjects} rooms={rooms} enrollmentRequests={enrollmentRequests} generatedTimetable={generatedTimetable} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id: string) => undefined)} getRoomById={props.getRoomById || ((id: string) => undefined)} getLecturerById={props.getLecturerById || ((id: string) => undefined)} timetableSettings={timetableSettings || INITIAL_TIMETABLE_SETTINGS} studentCheckIns={props.studentCheckIns || {}} onStudentLessonCheckIn={props.onAddTransaction as any} letterheadConfig={letterheadConfig || { headerImageUrl: null, stampImageUrl: null }} footerImageUrl={footerImageUrl || null} logoUrl={logoUrl || null} buildings={buildings} onAddParent={props.onAddParent as any} onDeleteParent={props.onDeleteParent as any} departments={departments} onSubmitEnrollmentRequest={async (sids: string[], sig: string | null) => { }} assignments={assignments} submissions={submissions} onAddSubmission={async (d: any) => { await apiService.saveModuleRecord('submissions', { ...d, id: `subm_${Date.now()}`, institutionId: currentUser.institutionId }); }} lessonRatings={lessonRatings} onAddLessonRating={() => { }} onRateLesson={() => { }} onAddFeedback={() => { }} feedbackSubmissions={feedbackSubmissions} studentAbsenceRequests={studentAbsenceRequests} onSubmitStudentAbsenceRequest={() => { }} finalTimetableUrl={finalTimetableUrl} taAssignments={props.onUpdateFeeStructures as any} userTasks={userTasks} onAddTask={() => { }} onUpdateTask={() => { }} onDeleteTask={() => { }} currentInstitution={currentInstitution || institutions[0]} assessments={assessments} assessmentMarks={assessmentMarks} studentAttendances={studentAttendances || []} />
             </React.Suspense>
         );
     }
@@ -2606,9 +2606,9 @@ Please change it after login.`;
                                     institutions={institutions || []}
                                     receipts={receipts || []}
                                     companyDetails={companyDetails}
-                                    onGenerateReceipt={onGenerateReceipt}
+                                    onGenerateReceipt={onGenerateReceipt || (() => {})}
                                     onVerifyTransaction={handleVerifyTransaction}
-                                    logoUrl={logoUrl}
+                                    logoUrl={logoUrl || null}
                                     transactionLimit={props.transactionLimit}
                                     setTransactionLimit={props.setTransactionLimit}
                                 />
@@ -2856,8 +2856,8 @@ Please change it after login.`;
                                 letterheadConfig={
                                     letterheadConfig || { headerImageUrl: null, stampImageUrl: null }
                                 }
-                                logoUrl={logoUrl}
-                                footerImageUrl={footerImageUrl}
+                                logoUrl={logoUrl || null}
+                                footerImageUrl={footerImageUrl || null}
                                 onAddCourse={props.onAddCourse}
                                 onUpdateCourse={props.onUpdateCourse}
                                 onDeleteCourse={props.onDeleteCourse}
@@ -2899,7 +2899,7 @@ Please change it after login.`;
                         {academicsSubTab === 'insights' && (
                             <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
                                 <ExamInsights
-                                    assessments={assessments}
+                                    assessment={assessments}
                                     marks={assessmentMarks}
                                     subjects={subjects}
                                     students={users.filter(u => u.role === 'student')}
@@ -2915,7 +2915,7 @@ Please change it after login.`;
                                     marks={assessmentMarks}
                                     subjects={subjects}
                                     institution={currentInstitution || institutions[0]}
-                                    gradingSystem={currentInstitution?.academicConfig?.gradingSystem || null}
+                                    gradingSystem={currentInstitution?.gradingSystem || null}
                                 />
                             </Suspense>
                         )}
@@ -2991,10 +2991,10 @@ Please change it after login.`;
                                         invoices={props.carInvoices || []}
                                         payments={props.carPayments || []}
                                         listings={carListings || []}
-                                        institution={currentInstitution || institutions[0]}
                                         onAddInvoice={() => props.onAddCarInvoice?.({})}
                                         onAddPayment={() => props.onAddCarPayment?.({})}
-                                        onGenerateReceipt={() => {}}
+                                        onPrintInvoice={() => {}}
+                                        onPrintReceipt={() => {}}
                                     />
                                 </Suspense>
                             )}
@@ -3251,10 +3251,10 @@ Please change it after login.`;
                             subjects={props.subjects}
                             departments={props.departments}
                             courses={props.courses}
-                            generatedTimetable={props.generatedTimetable}
+                            generatedTimetable={props.generatedTimetable || []}
                             getLecturerById={() => undefined}
-                            letterheadConfig={props.letterheadConfig}
-                            footerImageUrl={props.footerImageUrl}
+                            letterheadConfig={props.letterheadConfig || { headerImageUrl: null, stampImageUrl: null }}
+                            footerImageUrl={props.footerImageUrl || null}
                             onOpenDirectAssign={() => {}}
                         />
                     </div>
@@ -4086,7 +4086,7 @@ Please change it after login.`;
                                                                 .slice(0, 10)
                                                                 .map((txn: MpesaTransaction) => (
                                                                     <tr key={txn.id} className="hover:bg-white/50 dark:hover:bg-white/5 transition-colors">
-                                                                        <td className="px-4 py-4 whitespace-nowrap text-[10px] font-bold text-slate-500">{new Date(txn.transactionDate).toLocaleDateString()}</td>
+                                                                        <td className="px-4 py-4 whitespace-nowrap text-[10px] font-bold text-slate-500">{new Date(txn.timestamp).toLocaleDateString()}</td>
                                                                         <td className="px-4 py-4 whitespace-nowrap text-xs font-black">{txn.phoneNumber}</td>
                                                                         <td className="px-4 py-4 whitespace-nowrap text-xs font-black">KES {txn.amount.toLocaleString()}</td>
                                                                         <td className="px-4 py-4 whitespace-nowrap">
@@ -5392,7 +5392,7 @@ Please change it after login.`;
                                             <div key={txn.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
                                                 <div>
                                                     <div className="text-[10px] font-black text-slate-900 dark:text-white">{txn.phoneNumber}</div>
-                                                    <div className="text-[8px] font-bold text-slate-400 uppercase">{new Date(txn.transactionDate).toLocaleString()}</div>
+                                                    <div className="text-[8px] font-bold text-slate-400 uppercase">{new Date(txn.timestamp).toLocaleString()}</div>
                                                 </div>
                                                 <div className="text-right">
                                                     <div className="text-[10px] font-black text-indigo-600">KES {txn.amount}</div>
