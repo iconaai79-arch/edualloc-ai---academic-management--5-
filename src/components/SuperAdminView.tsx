@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useCallback, lazy, Suspense } from 'react';
 import type {
     Institution, User, Subject, Department, CompanyDetails, MpesaTransaction,
-    Receipt, InvoiceItem, ActivityLog, Course, ExtensionRequest, Semester,
+    Receipt, InvoiceItem, ActivityLog, Course, ExtensionRequest, Semester, DisciplineIncident,
     SmsConfig, AllocationRequest, LetterheadConfig, Priority, Unavailability,
     UserUpdateData, MpesaConfig, SubscriptionConfig, EmailConfig, TransactionStatus,
     Room, Building, AcademicLevel, TimetableSettings, ExamTimetableSettings, RequestStatus, AcademicYear, TimetableEntry, Conflict, TimeOffRequest, TimeOffRequestStatus, EnrollmentRequest, AbsenceRequest, LecturerContract, FeedbackSubmission, LessonRating, LeaveOutRequest,
@@ -184,7 +184,7 @@ export interface SuperAdminViewProps {
     emailConfig?: EmailConfig;
     timetableConflicts?: Conflict[];
     currentInstitution?: Institution | null;
-    onRefreshData?: () => void;
+    onRefreshData?: () => Promise<void>;
     currentUser: User;
     activityLogLimit?: number;
     setActivityLogLimit?: React.Dispatch<React.SetStateAction<number>>;
@@ -530,6 +530,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         onAddLawAgreementTemplate,
         onGenerateLawAgreement,
         onApproveLawAgreement,
+        onRunAlumniMigration,
         dsInstructors = [],
         dsVehicles = [],
         dsStudents = [],
@@ -1182,24 +1183,26 @@ Please change it after login.`;
             try {
                 // Basic validation
                 const isReseller = newInstData.institutionType === 'Reseller';
-                await props.onAddInstitution({
-                    name: newInstData.name,
-                    email: newInstData.email,
-                    phoneNumber: newInstData.phoneNumber,
-                    institutionType: newInstData.institutionType,
-                    category: newInstData.category,
-                    businessSubType: newInstData.category, // Mirror for legacy support
-                    countyId: newInstData.countyId || undefined,
-                    status: isReseller ? 'active' : 'trial',
-                    trialEndsAt: isReseller ? undefined : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-                    institutionCode: `INST-${Date.now().toString().slice(-4)}`,
-                    themeColor: '#4f46e5',
-                    logoUrl: null,
-                    useAllocationRequests: true,
-                    smsConfig: props.smsConfig
-                });
+                if (props.onAddInstitution) {
+                    await props.onAddInstitution({
+                        name: newInstData.name,
+                        email: newInstData.email,
+                        phoneNumber: newInstData.phoneNumber,
+                        institutionType: newInstData.institutionType,
+                        category: newInstData.category,
+                        businessSubType: newInstData.category, // Mirror for legacy support
+                        countyId: newInstData.countyId || undefined,
+                        status: isReseller ? 'active' : 'trial',
+                        trialEndsAt: isReseller ? undefined : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+                        institutionCode: `INST-${Date.now().toString().slice(-4)}`,
+                        themeColor: '#4f46e5',
+                        logoUrl: null,
+                        useAllocationRequests: true,
+                        smsConfig: props.smsConfig
+                    });
+                }
                 setIsAddingInstitution(false);
-                setNewInstData({ name: '', email: '', phoneNumber: '', institutionType: 'Education', category: 'University', countyId: '' });
+                setNewInstData({ name: '', email: '', phoneNumber: '', institutionType: 'Education', category: 'University', businessSubType: 'University', countyId: '' });
                 alert("New institution tenant created successfully.");
             } catch (err: any) {
                 console.error("Failed to add institution:", err);
@@ -1351,7 +1354,7 @@ Please change it after login.`;
     if (activeRole === 'academics_officer') {
         return (
             <React.Suspense fallback={<div className="flex h-screen items-center justify-center bg-white dark:bg-slate-900"><div className="w-12 h-12 border-4 border-indigo-50 border-t-transparent rounded-full animate-spin"></div></div>}>
-                <AcademicsOfficerView currentUser={currentUser} subjects={subjects} onUpdateSubject={props.onUpdateSubject as any} courses={courses} onUpdateCourse={props.onUpdateCourse} users={users} rooms={rooms} onUpdateRoom={props.onUpdateRoom} onDeleteRoom={props.onDeleteRoom} onAddRoom={props.onAddRoom} departments={departments} onAddDepartment={props.onAddDepartment} onUpdateDepartment={props.onUpdateDepartment} onDeleteDepartment={props.onDeleteDepartment} onImportDepartments={props.onImportDepartments} activeAcademicYear={activeAcademicYear} activeSemester={activeSemester} onExamTimetableGenerated={async (entries: any, ay: any, sem: any) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id: string) => undefined)} getLecturerById={props.getLecturerById || ((id: string) => undefined)} getRoomById={props.getRoomById || ((id: string) => undefined)} courseSizes={courseSizes} academicYears={academicYears} semesters={semesters} timetableSettings={timetableSettings!} buildings={buildings} onUpdateBuilding={props.onUpdateBuilding} onDeleteBuilding={props.onDeleteBuilding} onAddBuilding={props.onAddBuilding} academicLevels={academicLevels} letterheadConfig={letterheadConfig} logoUrl={logoUrl} footerImageUrl={footerImageUrl} emailConfig={emailConfig} onSaveEmailConfig={props.onSaveEmailConfig as any} onSendTestEmail={props.onSendTestEmail as any} currentInstitution={currentInstitution} examTimetableSettings={examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS} onSaveExamTimetableSettings={props.onSaveExamTimetableSettings as any} onAddAcademicYear={props.onAddAcademicYear} onUpdateAcademicYear={props.onUpdateAcademicYear} onDeleteAcademicYear={props.onDeleteAcademicYear} onAddSemester={props.onAddSemester} onUpdateSemester={props.onUpdateSemester} onDeleteSemester={props.onDeleteSemester} onSaveTimetableSettings={props.onSaveTimetableSettings} onImportRooms={props.onImportRooms} smsConfig={smsConfig} themeColor={themeColor} allocations={allocations} timeOffRequests={timeOffRequests} lessonRatings={lessonRatings} assessments={props.assessments} marks={props.marks} activityLog={props.activityLog} incidents={props.incidents} onAddIncident={props.onAddIncident} />
+                <AcademicsOfficerView currentUser={currentUser} subjects={subjects} onUpdateSubject={props.onUpdateSubject as any} courses={courses} onUpdateCourse={props.onUpdateCourse} users={users} rooms={rooms} onUpdateRoom={props.onUpdateRoom} onDeleteRoom={props.onDeleteRoom} onAddRoom={props.onAddRoom} departments={departments} onAddDepartment={props.onAddDepartment} onUpdateDepartment={props.onUpdateDepartment} onDeleteDepartment={props.onDeleteDepartment} onImportDepartments={props.onImportDepartments} activeAcademicYear={activeAcademicYear} activeSemester={activeSemester} onExamTimetableGenerated={async (entries: any, ay: any, sem: any) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id: string) => undefined)} getLecturerById={props.getLecturerById || ((id: string) => undefined)} getRoomById={props.getRoomById || ((id: string) => undefined)} courseSizes={courseSizes} academicYears={academicYears} semesters={semesters} timetableSettings={timetableSettings!} buildings={buildings} onUpdateBuilding={props.onUpdateBuilding} onDeleteBuilding={props.onDeleteBuilding} onAddBuilding={props.onAddBuilding} academicLevels={academicLevels} letterheadConfig={letterheadConfig} logoUrl={logoUrl} footerImageUrl={footerImageUrl} emailConfig={emailConfig} onSaveEmailConfig={props.onSaveEmailConfig as any} onSendTestEmail={props.onSendTestEmail as any} currentInstitution={currentInstitution} examTimetableSettings={examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS} onSaveExamTimetableSettings={props.onSaveExamTimetableSettings as any} onAddAcademicYear={props.onAddAcademicYear} onUpdateAcademicYear={props.onUpdateAcademicYear} onDeleteAcademicYear={props.onDeleteAcademicYear} onAddSemester={props.onAddSemester} onUpdateSemester={props.onUpdateSemester} onDeleteSemester={props.onDeleteSemester} onSaveTimetableSettings={props.onSaveTimetableSettings} onImportRooms={props.onImportRooms} smsConfig={smsConfig as any} themeColor={themeColor} allocations={allocations} timeOffRequests={timeOffRequests} lessonRatings={lessonRatings} assessments={props.assessments} marks={props.assessmentMarks as any} activityLog={props.activityLog} incidents={props.incidents} onAddIncident={props.onAddIncident} />
             </React.Suspense>
         );
     }
@@ -1621,9 +1624,9 @@ Please change it after login.`;
                                     onClick={() => {
                                         const systemInst = (institutions || []).find(i => i.id === 'SYSTEM' || i.name.toLowerCase().includes('system') || i.name.toLowerCase().includes('eduai'));
                                         if (systemInst) {
-                                            onLoginAsAdmin(systemInst.id);
+                                            onLoginAsAdmin?.(systemInst.id);
                                         } else if (institutions.length > 0) {
-                                            onLoginAsAdmin(institutions[0].id);
+                                            onLoginAsAdmin?.(institutions[0].id);
                                         }
                                     }}
                                     className="flex flex-col items-start p-8 bg-slate-900/80 rounded-[2.5rem] border border-white/5 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all group text-left shadow-xl"
@@ -2230,7 +2233,7 @@ Please change it after login.`;
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                         <div className="flex justify-end gap-2 flex-wrap transition-all">
-                                                            <button onClick={() => onLoginAsAdmin(inst.id)} className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 font-black text-[10px] uppercase tracking-tighter bg-indigo-50 px-2 py-1 rounded-lg">
+                                                            <button onClick={() => onLoginAsAdmin?.(inst.id)} className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 font-black text-[10px] uppercase tracking-tighter bg-indigo-50 px-2 py-1 rounded-lg">
                                                                 <ArrowRightOnRectangleIcon className="w-3 h-3" />
                                                                 Portal
                                                             </button>
@@ -2307,7 +2310,7 @@ Please change it after login.`;
                                                                 <LockClosedIcon className="w-3 h-3" />
                                                                 Reset Pass
                                                             </button>
-                                                            <button onClick={() => onToggleInstitutionStatus(inst.id)} className="text-yellow-600 hover:text-yellow-900 font-bold text-[10px] uppercase tracking-tighter">
+                                                            <button onClick={() => onToggleInstitutionStatus?.(inst.id)} className="text-yellow-600 hover:text-yellow-900 font-bold text-[10px] uppercase tracking-tighter">
 
                                                                 {inst.status === 'suspended' ? 'Resume' : 'Suspend'}
                                                             </button>
@@ -2382,7 +2385,7 @@ Please change it after login.`;
                                                         </td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                             <div className="flex justify-end gap-2">
-                                                                <button onClick={() => onLoginAsAdmin(inst.id)} className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 font-black text-[10px] uppercase tracking-tighter bg-indigo-50 px-2 py-1 rounded-lg">
+                                                                <button onClick={() => onLoginAsAdmin?.(inst.id)} className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 font-black text-[10px] uppercase tracking-tighter bg-indigo-50 px-2 py-1 rounded-lg">
                                                                     <ArrowRightOnRectangleIcon className="w-3 h-3" />
                                                                     Portal
                                                                 </button>
@@ -2471,14 +2474,14 @@ Please change it after login.`;
                                                                 <EyeIcon className="w-3 h-3" />
                                                                 View
                                                             </button>
-                                                            <button onClick={() => onLoginAsAdmin(inst.id)} className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 font-black text-[10px] uppercase tracking-tighter bg-indigo-50 px-2 py-1 rounded-lg">
+                                                            <button onClick={() => onLoginAsAdmin?.(inst.id)} className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 font-black text-[10px] uppercase tracking-tighter bg-indigo-50 px-2 py-1 rounded-lg">
                                                                 <ArrowRightOnRectangleIcon className="w-3 h-3" />
                                                                 Portal
                                                             </button>
                                                             <button onClick={() => setEditingInstitution(inst)} className="flex items-center gap-1 text-slate-600 hover:text-slate-900 font-black text-[10px] uppercase tracking-tighter bg-slate-100 px-2 py-1 rounded-lg">
                                                                 Edit
                                                             </button>
-                                                            <button onClick={() => onToggleInstitutionStatus(inst.id)} className="text-yellow-600 hover:text-yellow-900 font-bold text-[10px] uppercase tracking-tighter">
+                                                            <button onClick={() => onToggleInstitutionStatus?.(inst.id)} className="text-yellow-600 hover:text-yellow-900 font-bold text-[10px] uppercase tracking-tighter">
                                                                 {inst.status === 'suspended' ? 'Resume' : 'Suspend'}
                                                             </button>
                                                         </div>
@@ -2715,6 +2718,7 @@ Please change it after login.`;
                     <div className="animate-fade-in-up">
                         <UserManager
                             {...props}
+                            smsConfig={smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' }}
                             users={users || []}
                             departments={departments || []}
                             courses={courses || []}
@@ -3152,7 +3156,7 @@ Please change it after login.`;
                                                 <td className="px-10 py-8 text-right">
                                                     <div className="flex justify-end gap-3">
                                                         <button 
-                                                            onClick={() => onLoginAsAdmin(inst.id)}
+                                                            onClick={() => onLoginAsAdmin?.(inst.id)}
                                                             className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 transition-all shadow-lg shadow-indigo-100"
                                                         >
                                                             Portal
@@ -5587,7 +5591,7 @@ Please change it after login.`;
                                 <button
                                     key={opt.role}
                                     onClick={() => {
-                                        onLoginAsAdmin(selectedTenantForPerspective.id, opt.role as Role);
+                                        onLoginAsAdmin?.(selectedTenantForPerspective.id, opt.role as Role);
                                         setIsPerspectiveModalOpen(false);
                                     }}
                                     className={`flex flex-col items-center text-center gap-3 p-4 rounded-2xl border-2 border-transparent transition-all group hover:border-indigo-500 hover:shadow-lg ${opt.color}`}
