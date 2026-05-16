@@ -2967,6 +2967,121 @@ Please change it after login.`;
                         )}
                     </div>
                 )}
+                
+                {activeTab === 'marketing' && (
+                    <div className="space-y-10 animate-fade-in pb-20">
+                        <div className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                                <div>
+                                    <h2 className="text-3xl font-black uppercase tracking-tighter text-slate-900 dark:text-white flex items-center gap-4">
+                                        Marketing <span className="text-amber-500">Center</span>
+                                    </h2>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Manage Generated Adverts & Social Distribution</p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button className="px-6 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">Archive</button>
+                                    <button className="px-6 py-3 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-amber-200/50">New Campaign</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            {[
+                                { 
+                                    id: 'ds_v2', 
+                                    title: 'Driving School V2 - Future is Here', 
+                                    description: 'Premium advert for the automated driving school module with 3D isometric renders.', 
+                                    image: 'file:///c:/Users/hp/Downloads/edualloc-ai---academic-management (5)/docs/marketing/driving_school_hero_3d_1778920419924.png',
+                                    stats: { shares: 124, clicks: 850 },
+                                    category: 'Driving School'
+                                },
+                                { 
+                                    id: 'auto_mkt', 
+                                    title: 'Automotive Marketplace Hub', 
+                                    description: 'Promotional content for the vehicle inventory and sales ledger system.', 
+                                    image: 'file:///c:/Users/hp/Downloads/edualloc-ai---academic-management (5)/docs/marketing/driving_school_scheduling_3d_1778920509602.png',
+                                    stats: { shares: 89, clicks: 420 },
+                                    category: 'Automotive'
+                                }
+                            ].map((ad) => (
+                                <div key={ad.id} className="group bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 overflow-hidden hover:shadow-2xl transition-all duration-500 flex flex-col">
+                                    <div className="h-64 relative overflow-hidden">
+                                        <img src={ad.image} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt={ad.title} />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-transparent to-transparent"></div>
+                                        <div className="absolute top-6 left-6">
+                                            <span className="bg-white/20 backdrop-blur-md px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-white border border-white/20">
+                                                {ad.category}
+                                            </span>
+                                        </div>
+                                        <div className="absolute bottom-6 left-8 right-8">
+                                            <h3 className="text-xl font-black text-white uppercase italic tracking-tight">{ad.title}</h3>
+                                        </div>
+                                    </div>
+                                    <div className="p-8 flex-1 flex flex-col justify-between">
+                                        <p className="text-slate-500 text-sm font-medium leading-relaxed mb-8">
+                                            {ad.description}
+                                        </p>
+                                        
+                                        <div className="space-y-6">
+                                            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                                <div className="flex items-center gap-6">
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Shares</p>
+                                                        <p className="text-sm font-black text-slate-900 dark:text-white">{ad.stats.shares}</p>
+                                                    </div>
+                                                    <div className="w-px h-8 bg-slate-200 dark:bg-slate-700"></div>
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Engagement</p>
+                                                        <p className="text-sm font-black text-slate-900 dark:text-white">{ad.stats.clicks}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button 
+                                                        onClick={() => window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(`Check out our new ${ad.title}! ${ad.description}`)}`, '_blank')}
+                                                        className="p-2.5 bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:scale-110 transition-transform"
+                                                        title="Share on WhatsApp"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.539 2.016 2.069-.543c.944.513 1.999.784 3.074.786 3.181 0 5.767-2.586 5.768-5.766 0-3.18-2.587-5.766-5.768-5.766z" /></svg>
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`🚀 Launching ${ad.title}! #Education #Innovation`)}`, '_blank')}
+                                                        className="p-2.5 bg-slate-900 text-white rounded-xl shadow-lg shadow-slate-900/20 hover:scale-110 transition-transform"
+                                                        title="Post on X"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(`${ad.title}: ${ad.description}`);
+                                                            success('Copy shared to clipboard!');
+                                                        }}
+                                                        className="p-2.5 bg-indigo-500 text-white rounded-xl shadow-lg shadow-indigo-500/20 hover:scale-110 transition-transform"
+                                                        title="Copy Assets"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="bg-slate-50 dark:bg-slate-800/50 p-12 rounded-[3.5rem] border border-slate-100 dark:border-slate-700 text-center space-y-6">
+                            <div className="w-20 h-20 bg-white dark:bg-slate-900 rounded-3xl flex items-center justify-center mx-auto shadow-xl">
+                                <SparklesIcon className="w-10 h-10 text-amber-500" />
+                            </div>
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase italic tracking-tighter">AI Advert Generator</h3>
+                            <p className="text-slate-500 max-w-xl mx-auto font-medium">
+                                Generate fresh 3D marketing assets for your modules. Our AI engine creates stunning visuals and copy tailored for your institutional brand.
+                            </p>
+                            <button className="px-12 py-5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-transform shadow-2xl">
+                                Start AI Generation
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {activeTab === 'auto_marketplace' && (
                     <div className="space-y-10 animate-fade-in-up">
