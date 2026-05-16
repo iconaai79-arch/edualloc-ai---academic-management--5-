@@ -5239,6 +5239,49 @@ Please change it after login.`;
                                     </code>
                                 </div>
                             </div>
+
+
+                            <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Simulate Tenant STK Push</p>
+                                <div className="flex items-center gap-3">
+                                    <input 
+                                        type="text" 
+                                        placeholder="2547XXXXXXXX"
+                                        value={testRecipient}
+                                        onChange={e => setTestRecipient(e.target.value)}
+                                        className="flex-1 h-10 px-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                    <button 
+                                        onClick={async () => {
+                                            if (!testRecipient) return alert("Enter a phone number to test.");
+                                            setIsTesting(true);
+                                            try {
+                                                const result = await apiService.post('/api/payments/kcb-stk-push', {
+                                                    phoneNumber: testRecipient,
+                                                    amount: 1,
+                                                    accountReference: 'EduAI-KCB-Tenant',
+                                                    transactionDesc: 'KCB Tenant Connectivity Test',
+                                                    config: tenantKcbConfig,
+                                                    institutionId: managingKcbFor.id
+                                                });
+                                                if (result.success || result.ResponseCode === '0') {
+                                                    alert("KCB STK Push initiated successfully for this tenant. Check your phone.");
+                                                } else {
+                                                    alert(`KCB STK Push failed: ${result.message || 'Unknown error'}`);
+                                                }
+                                            } catch (e: any) {
+                                                alert(`KCB Gateway test failed: ${e.message}`);
+                                            } finally {
+                                                setIsTesting(false);
+                                            }
+                                        }}
+                                        disabled={isTesting}
+                                        className="h-10 px-5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-md shadow-indigo-100 dark:shadow-none"
+                                    >
+                                        {isTesting ? 'Sending...' : 'Test'}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
                             <button onClick={() => setManagingKcbFor(null)} className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700 transition-colors">Cancel</button>
