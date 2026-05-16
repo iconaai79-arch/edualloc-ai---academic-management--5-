@@ -5225,11 +5225,19 @@ Please change it after login.`;
                                 </div>
                             </div>
 
-                            <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                                <p className="text-[10px] font-black uppercase text-slate-500 mb-2">Tenant IPN Endpoint</p>
-                                <code className="block text-[10px] font-mono text-indigo-600 dark:text-indigo-400 break-all select-all">
-                                    {typeof window !== 'undefined' ? `${window.location.origin}/api/kcb-ipn?institutionId=${managingKcbFor.id}` : `https://yourdomain.com/api/kcb-ipn?institutionId=${managingKcbFor.id}`}
-                                </code>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Click to select">
+                                    <p className="text-[10px] font-black uppercase text-slate-500 mb-2">Tenant IPN Endpoint</p>
+                                    <code className="block text-[10px] font-mono text-indigo-600 dark:text-indigo-400 break-all">
+                                        {typeof window !== 'undefined' ? `${window.location.origin}/api/kcb-ipn?institutionId=${managingKcbFor.id}` : `https://yourdomain.com/api/kcb-ipn?institutionId=${managingKcbFor.id}`}
+                                    </code>
+                                </div>
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Click to select">
+                                    <p className="text-[10px] font-black uppercase text-slate-500 mb-2">STK Push Callback</p>
+                                    <code className="block text-[10px] font-mono text-indigo-600 dark:text-indigo-400 break-all">
+                                        {typeof window !== 'undefined' ? `${window.location.origin}/api/kcb-stk-callback?institutionId=${managingKcbFor.id}` : `https://yourdomain.com/api/kcb-stk-callback?institutionId=${managingKcbFor.id}`}
+                                    </code>
+                                </div>
                             </div>
                         </div>
                         <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
