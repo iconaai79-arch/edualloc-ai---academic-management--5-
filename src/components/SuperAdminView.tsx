@@ -4713,13 +4713,34 @@ Please change it after login.`;
                                                 </div>
                                                 <h4 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-tight font-black">Showcase Item Manager</h4>
                                             </div>
-                                            <button 
-                                                onClick={handleAddShowcaseItem}
-                                                className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-200/50 dark:shadow-none"
-                                            >
-                                                <PlusIcon className="w-4 h-4" />
-                                                Add Item
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                <button 
+                                                    onClick={() => {
+                                                        const dsItems: ShowcaseItem[] = [
+                                                            { id: `ds_${Date.now()}_1`, title: 'Driving School V2', description: 'Silicon-valley grade automation for fleet and students.', imageUrl: 'file:///c:/Users/hp/Downloads/edualloc-ai---academic-management (5)/docs/marketing/driving_school_hero_3d_1778920419924.png', category: 'Premium Modules' },
+                                                            { id: `ds_${Date.now()}_2`, title: 'Intelligent Scheduling', description: 'Digital clockwork mechanism for lesson mapping.', imageUrl: 'file:///c:/Users/hp/Downloads/edualloc-ai---academic-management (5)/docs/marketing/driving_school_scheduling_3d_1778920509602.png', category: 'Automation' },
+                                                            { id: `ds_${Date.now()}_3`, title: 'Student Mastery', description: '3D visualization of driving progress.', imageUrl: 'file:///c:/Users/hp/Downloads/edualloc-ai---academic-management (5)/docs/marketing/driving_school_mastery_3d_1778920618450.png', category: 'Analytics' }
+                                                        ];
+                                                        const currentItems = localCompanyInfo.showcaseConfig?.items || [];
+                                                        setLocalCompanyInfo({
+                                                            ...localCompanyInfo,
+                                                            showcaseConfig: { ...localCompanyInfo.showcaseConfig, items: [...currentItems, ...dsItems] } as any
+                                                        });
+                                                        success('Driving School Showcase Preset added successfully!');
+                                                    }}
+                                                    className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 px-4 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                                >
+                                                    <SparklesIcon className="w-4 h-4" />
+                                                    Add DS Preset
+                                                </button>
+                                                <button 
+                                                    onClick={handleAddShowcaseItem}
+                                                    className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-200/50 dark:shadow-none"
+                                                >
+                                                    <PlusIcon className="w-4 h-4" />
+                                                    Add Item
+                                                </button>
+                                            </div>
                                         </div>
 
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

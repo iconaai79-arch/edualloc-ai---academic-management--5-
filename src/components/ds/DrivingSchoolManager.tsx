@@ -1594,7 +1594,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         leads, addLead, updateLead, deleteLead
     } = useDrivingSchool();
     
-    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings' | 'reports' | 'portal'>('dashboard');
+    const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings' | 'reports' | 'portal' | 'showcase'>('dashboard');
     const [financeTab, setFinanceTab] = useState<'records' | 'feeds'>('records');
     const [settingsSubTab, setSettingsSubTab] = useState<'categories' | 'votes' | 'rules' | 'numbering' | 'fees' | 'slots'>('categories');
     const [reportSubTab, setReportSubTab] = useState<'instructor_timetable' | 'sessions'>('instructor_timetable');
@@ -2213,6 +2213,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                             { id: 'finance', label: 'Finance', icon: CurrencyIcon },
                             { id: 'broadcaster', label: 'Broadcaster', icon: SparklesIcon },
                             { id: 'reports', label: 'Reports', icon: ClipboardListIcon },
+                            { id: 'showcase', label: 'Showcase', icon: SparklesIcon },
                             { id: 'settings', label: 'Config', icon: SettingsIcon }
                         ].map(tab => (
                             <button
@@ -4490,6 +4491,91 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 13l4 4L19 7"/></svg>
                                 Simulate Student Scan Check-In
                             </button>
+                        </div>
+                    </div>
+                )}
+                {activeTab === 'showcase' && (
+                    <div className="space-y-12 animate-fade-in pb-20">
+                        <div className="bg-slate-900 rounded-[4rem] p-12 md:p-20 relative overflow-hidden border border-white/5 shadow-2xl">
+                            <div className="absolute inset-0 animate-mesh opacity-20 pointer-events-none"></div>
+                            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                                <div className="space-y-8">
+                                    <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-2xl px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.4em] text-indigo-300 border border-white/10">
+                                        <svg className="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                                        Specialized Module Showcase
+                                    </div>
+                                    <h2 className="text-5xl md:text-7xl font-black text-white uppercase tracking-tighter leading-none italic">
+                                        Drive Into The <br />
+                                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-blue-400">Future.</span>
+                                    </h2>
+                                    <p className="text-slate-400 font-medium text-lg leading-relaxed">
+                                        Transform your driving school from a traditional business into a high-tech, automated powerhouse. Our latest module brings silicon-valley grade automation to your fleet, instructors, and students.
+                                    </p>
+                                    <div className="flex items-center gap-6">
+                                        <button className="px-10 py-5 bg-white text-slate-900 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-transform shadow-2xl">
+                                            Activate V2 Features
+                                        </button>
+                                        <button className="px-10 py-5 bg-white/5 text-white border border-white/10 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white/10 transition-colors">
+                                            Download Assets
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="relative group">
+                                    <div className="absolute -inset-4 bg-indigo-500/20 rounded-[3rem] blur-3xl group-hover:scale-110 transition-transform"></div>
+                                    <div className="relative aspect-video bg-slate-800 rounded-[3rem] overflow-hidden border border-white/10 shadow-2xl">
+                                        <img src="file:///c:/Users/hp/Downloads/edualloc-ai---academic-management (5)/docs/marketing/driving_school_hero_3d_1778920419924.png" className="w-full h-full object-cover" alt="Driving School V2" />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent"></div>
+                                        <div className="absolute bottom-8 left-8">
+                                            <p className="text-white font-black uppercase tracking-widest text-xs">Fleet Management V2</p>
+                                            <p className="text-white/60 text-[10px] font-bold uppercase mt-1">Intelligent 3D Monitoring</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                            <div className="bg-white dark:bg-slate-900 p-10 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-xl space-y-8">
+                                <div className="h-64 rounded-3xl overflow-hidden relative">
+                                    <img src="file:///c:/Users/hp/Downloads/edualloc-ai---academic-management (5)/docs/marketing/driving_school_scheduling_3d_1778920509602.png" className="w-full h-full object-cover" alt="Scheduling" />
+                                    <div className="absolute inset-0 bg-indigo-600/10 mix-blend-overlay"></div>
+                                </div>
+                                <div className="space-y-4">
+                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight italic">Intelligent Scheduling</h3>
+                                    <p className="text-slate-500 text-sm font-medium leading-relaxed">
+                                        Stop manual planning. Start Auto-Scheduling. Our digital clockwork mechanism aligns lessons with car availability and instructor calendars in milliseconds.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="bg-white dark:bg-slate-900 p-10 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-xl space-y-8">
+                                <div className="h-64 rounded-3xl overflow-hidden relative">
+                                    <img src="file:///c:/Users/hp/Downloads/edualloc-ai---academic-management (5)/docs/marketing/driving_school_mastery_3d_1778920618450.png" className="w-full h-full object-cover" alt="Mastery" />
+                                    <div className="absolute inset-0 bg-purple-600/10 mix-blend-overlay"></div>
+                                </div>
+                                <div className="space-y-4">
+                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight italic">Data-Driven Mastery</h3>
+                                    <p className="text-slate-500 text-sm font-medium leading-relaxed">
+                                        Track every turn, every signal, and every maneuver. Provide students with a 3D visualization of their driving progress and skill development.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-indigo-600 rounded-[3rem] p-12 text-center text-white space-y-6">
+                            <h3 className="text-3xl font-black uppercase italic tracking-tighter">Ready to Accelerate?</h3>
+                            <p className="text-indigo-100 max-w-2xl mx-auto font-medium">
+                                The Driving School V2 module is a premium add-on designed for high-growth institutions. Enable it today to unlock advanced automation and analytics.
+                            </p>
+                            <div className="flex items-center justify-center gap-4">
+                                <div className="flex -space-x-4">
+                                    {[1,2,3,4].map(i => (
+                                        <div key={i} className="w-12 h-12 rounded-full border-4 border-indigo-600 bg-slate-200 overflow-hidden">
+                                            <img src={`https://i.pravatar.cc/100?img=${i+10}`} alt="User" />
+                                        </div>
+                                    ))}
+                                </div>
+                                <p className="text-xs font-black uppercase tracking-widest text-indigo-200">Joined by 45+ Driving Schools this month</p>
+                            </div>
                         </div>
                     </div>
                 )}
