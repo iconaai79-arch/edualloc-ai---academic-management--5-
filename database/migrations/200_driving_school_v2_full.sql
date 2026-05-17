@@ -165,19 +165,67 @@ ALTER TABLE ds_fee_structures ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ds_invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ds_payments ENABLE ROW LEVEL SECURITY;
 
--- Dynamic Policies for all tables
-DO $$
-DECLARE
-    t text;
-BEGIN
-    FOR t IN SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'ds_%' AND table_schema = 'public'
-    LOOP
-        EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %I" ON %I', t, t);
-        EXECUTE format('CREATE POLICY "Institutional tenancy select: %I" ON %I FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
-        
-        EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy manage: %I" ON %I', t, t);
-        EXECUTE format('CREATE POLICY "Institutional tenancy manage: %I" ON %I FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
-        
-        EXECUTE format('GRANT ALL ON public.%I TO anon, authenticated, service_role', t);
-    END LOOP;
-END $$;
+-- Explicit Tenancy & Access Policies for all Driving School tables
+-- 1. ds_instructors
+DROP POLICY IF EXISTS "Institutional tenancy select: ds_instructors" ON ds_instructors;
+CREATE POLICY "Institutional tenancy select: ds_instructors" ON ds_instructors FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+DROP POLICY IF EXISTS "Institutional tenancy manage: ds_instructors" ON ds_instructors;
+CREATE POLICY "Institutional tenancy manage: ds_instructors" ON ds_instructors FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+GRANT ALL ON public.ds_instructors TO anon, authenticated, service_role;
+
+-- 2. ds_vehicles
+DROP POLICY IF EXISTS "Institutional tenancy select: ds_vehicles" ON ds_vehicles;
+CREATE POLICY "Institutional tenancy select: ds_vehicles" ON ds_vehicles FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+DROP POLICY IF EXISTS "Institutional tenancy manage: ds_vehicles" ON ds_vehicles;
+CREATE POLICY "Institutional tenancy manage: ds_vehicles" ON ds_vehicles FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+GRANT ALL ON public.ds_vehicles TO anon, authenticated, service_role;
+
+-- 3. ds_students
+DROP POLICY IF EXISTS "Institutional tenancy select: ds_students" ON ds_students;
+CREATE POLICY "Institutional tenancy select: ds_students" ON ds_students FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+DROP POLICY IF EXISTS "Institutional tenancy manage: ds_students" ON ds_students;
+CREATE POLICY "Institutional tenancy manage: ds_students" ON ds_students FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+GRANT ALL ON public.ds_students TO anon, authenticated, service_role;
+
+-- 4. ds_lessons
+DROP POLICY IF EXISTS "Institutional tenancy select: ds_lessons" ON ds_lessons;
+CREATE POLICY "Institutional tenancy select: ds_lessons" ON ds_lessons FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+DROP POLICY IF EXISTS "Institutional tenancy manage: ds_lessons" ON ds_lessons;
+CREATE POLICY "Institutional tenancy manage: ds_lessons" ON ds_lessons FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+GRANT ALL ON public.ds_lessons TO anon, authenticated, service_role;
+
+-- 5. ds_skill_mastery
+DROP POLICY IF EXISTS "Institutional tenancy select: ds_skill_mastery" ON ds_skill_mastery;
+CREATE POLICY "Institutional tenancy select: ds_skill_mastery" ON ds_skill_mastery FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+DROP POLICY IF EXISTS "Institutional tenancy manage: ds_skill_mastery" ON ds_skill_mastery;
+CREATE POLICY "Institutional tenancy manage: ds_skill_mastery" ON ds_skill_mastery FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+GRANT ALL ON public.ds_skill_mastery TO anon, authenticated, service_role;
+
+-- 6. ds_settings
+DROP POLICY IF EXISTS "Institutional tenancy select: ds_settings" ON ds_settings;
+CREATE POLICY "Institutional tenancy select: ds_settings" ON ds_settings FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+DROP POLICY IF EXISTS "Institutional tenancy manage: ds_settings" ON ds_settings;
+CREATE POLICY "Institutional tenancy manage: ds_settings" ON ds_settings FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+GRANT ALL ON public.ds_settings TO anon, authenticated, service_role;
+
+-- 7. ds_fee_structures
+DROP POLICY IF EXISTS "Institutional tenancy select: ds_fee_structures" ON ds_fee_structures;
+CREATE POLICY "Institutional tenancy select: ds_fee_structures" ON ds_fee_structures FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+DROP POLICY IF EXISTS "Institutional tenancy manage: ds_fee_structures" ON ds_fee_structures;
+CREATE POLICY "Institutional tenancy manage: ds_fee_structures" ON ds_fee_structures FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+GRANT ALL ON public.ds_fee_structures TO anon, authenticated, service_role;
+
+-- 8. ds_invoices
+DROP POLICY IF EXISTS "Institutional tenancy select: ds_invoices" ON ds_invoices;
+CREATE POLICY "Institutional tenancy select: ds_invoices" ON ds_invoices FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+DROP POLICY IF EXISTS "Institutional tenancy manage: ds_invoices" ON ds_invoices;
+CREATE POLICY "Institutional tenancy manage: ds_invoices" ON ds_invoices FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+GRANT ALL ON public.ds_invoices TO anon, authenticated, service_role;
+
+-- 9. ds_payments
+DROP POLICY IF EXISTS "Institutional tenancy select: ds_payments" ON ds_payments;
+CREATE POLICY "Institutional tenancy select: ds_payments" ON ds_payments FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+DROP POLICY IF EXISTS "Institutional tenancy manage: ds_payments" ON ds_payments;
+CREATE POLICY "Institutional tenancy manage: ds_payments" ON ds_payments FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+GRANT ALL ON public.ds_payments TO anon, authenticated, service_role;
+
