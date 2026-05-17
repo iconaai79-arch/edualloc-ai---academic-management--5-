@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS ds_vehicles (
     model TEXT NOT NULL,
     transmission TEXT NOT NULL DEFAULT 'Manual', -- Manual, Automatic
     vehicle_type TEXT, -- Car, Truck, Motorcycle
+    assigned_instructor_id TEXT REFERENCES ds_instructors(id) ON DELETE SET NULL,
     last_service_date DATE,
     next_service_date DATE,
     status TEXT DEFAULT 'Operational', -- Operational, Maintenance, Out of Service
@@ -42,6 +43,7 @@ CREATE TABLE IF NOT EXISTS ds_students (
     passport_number TEXT,
     phone TEXT,
     license_type_interested TEXT, -- Class B, Class C, etc.
+    preferred_lesson_hours TEXT,
     theory_progress_percent INTEGER DEFAULT 0,
     practical_progress_percent INTEGER DEFAULT 0,
     status TEXT DEFAULT 'Enrolled', -- Enrolled, Graduated, Dropped
@@ -65,6 +67,9 @@ CREATE TABLE IF NOT EXISTS ds_lessons (
     lesson_type TEXT NOT NULL DEFAULT 'Practical', -- Practical, Theory
     topic TEXT,
     status TEXT DEFAULT 'Scheduled', -- Scheduled, Completed, Cancelled, No Show
+    confirmation_status TEXT,
+    room_id TEXT,
+    room_name TEXT,
     instructor_notes TEXT,
     route_tracked_data JSONB, -- GPS points if available
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
