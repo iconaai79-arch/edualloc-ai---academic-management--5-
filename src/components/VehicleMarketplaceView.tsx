@@ -26,6 +26,7 @@ import {
     Printer
 } from 'lucide-react';
 import type { CarListing } from '../types';
+import { getGoogleDriveDirectUrl } from '../utils/googleDriveUtils';
 
 interface VehicleMarketplaceViewProps {
     listings: CarListing[];
@@ -74,7 +75,7 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
         >
             <div className="aspect-[4/3] relative overflow-hidden">
                 <img loading="lazy" 
-                    src={listing.mainImageUrl || 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&q=80'} 
+                    src={getGoogleDriveDirectUrl(listing.mainImageUrl) || 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&q=80'} 
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                     alt={listing.model}
                 />
@@ -156,7 +157,7 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                 {/* Visual Section */}
                 <div className="space-y-8">
                     <div className="relative rounded-[4rem] overflow-hidden shadow-2xl aspect-[4/3] group">
-                        <img loading="lazy" src={vehicle.mainImageUrl} className="w-full h-full object-cover" />
+                        <img loading="lazy" src={getGoogleDriveDirectUrl(vehicle.mainImageUrl)} className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-12">
                             <div className="flex gap-4">
                                 {vehicle.tour360Url && (
@@ -182,7 +183,7 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                     <div className="grid grid-cols-4 gap-4">
                         {vehicle.galleryUrls?.slice(0, 4).map((url, i) => (
                             <div key={i} className="aspect-square rounded-3xl overflow-hidden border-2 border-slate-100 hover:border-indigo-600 transition-all cursor-pointer">
-                                <img loading="lazy" src={url} className="w-full h-full object-cover" />
+                                <img loading="lazy" src={getGoogleDriveDirectUrl(url)} className="w-full h-full object-cover" />
                             </div>
                         ))}
                     </div>
@@ -419,7 +420,7 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                             <div className="flex gap-3">
                                 {compareList.map(item => (
                                     <div key={item.id} className="relative w-16 h-16 rounded-2xl overflow-hidden border-2 border-indigo-100">
-                                        <img src={item.mainImageUrl} className="w-full h-full object-cover" />
+                                        <img src={getGoogleDriveDirectUrl(item.mainImageUrl)} className="w-full h-full object-cover" />
                                         <button 
                                             onClick={() => setCompareList(prev => prev.filter(c => c.id !== item.id))}
                                             className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-[10px]"
@@ -467,7 +468,7 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                                         {compareList.map(item => (
                                             <th key={item.id} className="py-6 px-4 min-w-[200px]">
                                                 <div className="aspect-video rounded-2xl overflow-hidden mb-4 shadow-lg">
-                                                    <img src={item.mainImageUrl} className="w-full h-full object-cover" />
+                                                    <img src={getGoogleDriveDirectUrl(item.mainImageUrl)} className="w-full h-full object-cover" />
                                                 </div>
                                                 <p className="text-lg font-black uppercase tracking-tighter">{item.make} {item.model}</p>
                                                 <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">KES {item.price.toLocaleString()}</p>
@@ -524,7 +525,7 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
                         <div className="p-10 space-y-8">
                             <div className="flex items-center gap-6 p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl">
                                 <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-white shadow-md">
-                                    <img src={quoteData.vehicle.mainImageUrl} className="w-full h-full object-cover" />
+                                    <img src={getGoogleDriveDirectUrl(quoteData.vehicle.mainImageUrl)} className="w-full h-full object-cover" />
                                 </div>
                                 <div>
                                     <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Selected Vehicle</p>
@@ -577,7 +578,7 @@ export const VehicleMarketplaceView: React.FC<VehicleMarketplaceViewProps> = ({
 
                     <div className="border-4 border-slate-900 p-10 rounded-[2rem] mb-12 flex gap-10 items-center">
                         <div className="w-40 h-40 rounded-2xl overflow-hidden border-2 border-slate-100">
-                            <img src={quoteData.vehicle.mainImageUrl} className="w-full h-full object-cover" />
+                            <img src={getGoogleDriveDirectUrl(quoteData.vehicle.mainImageUrl)} className="w-full h-full object-cover" />
                         </div>
                         <div className="flex-1">
                             <p className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-1">Vehicle Specifications</p>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Institution, SchoolGallery, SchoolAd, User } from '../types';
 import { apiService } from '../services/apiService';
+import { useToast } from '../services/ToastContext';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { PlusIcon } from './icons/PlusIcon';
@@ -16,6 +17,24 @@ interface SchoolShowcaseManagerProps {
 }
 
 export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ school, onUpdate }) => {
+    const { success } = useToast();
+
+    const handleShareAd = async (platform: 'whatsapp' | 'twitter' | 'copy', ad: SchoolAd) => {
+        const schoolName = school.name || 'our academy';
+        const titleText = ad.title ? `"${ad.title}"` : 'a special banner';
+        const adLink = ad.linkUrl || `${window.location.origin}/?view=storefront&institution=${school.id}`;
+        const shareText = `Check out this update from ${schoolName}: ${titleText}. View here: ${adLink}`;
+
+        if (platform === 'whatsapp') {
+            window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`, '_blank');
+        } else if (platform === 'twitter') {
+            window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`, '_blank');
+        } else if (platform === 'copy') {
+            navigator.clipboard.writeText(shareText);
+            success('Campaign details copied to clipboard!');
+        }
+    };
+
     const [activeTab, setActiveTab] = useState<'content' | 'gallery' | 'ads' | 'config'>('content');
     const [isSaving, setIsSaving] = useState(false);
     const [gallery, setGallery] = useState<SchoolGallery[]>([]);
@@ -284,6 +303,41 @@ export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ sc
                                             <span className="text-slate-400">Position: {ad.displayLocation}</span>
                                             <span className={ad.isActive ? 'text-emerald-500' : 'text-red-500'}>{ad.isActive ? 'Online' : 'Offline'}</span>
                                         </div>
+                                        
+                                        {/* Distribution / Sharing utilities */}
+                                        <div className="flex items-center justify-between p-3 bg-slate-100 dark:bg-slate-700/50 rounded-2xl border border-slate-200/50 dark:border-slate-600/50">
+                                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Distribution</span>
+                                            <div className="flex gap-1.5">
+                                                <button 
+                                                    onClick={() => handleShareAd('whatsapp', ad)}
+                                                    className="p-2 bg-emerald-500 text-white rounded-lg hover:scale-110 active:scale-95 transition-transform"
+                                                    title="Share on WhatsApp"
+                                                >
+                                                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                                                        <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.539 2.016 2.069-.543c.944.513 1.999.784 3.074.786 3.181 0 5.767-2.586 5.768-5.766 0-3.18-2.587-5.766-5.768-5.766z" />
+                                                    </svg>
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleShareAd('twitter', ad)}
+                                                    className="p-2 bg-slate-900 dark:bg-slate-950 text-white rounded-lg hover:scale-110 active:scale-95 transition-transform"
+                                                    title="Post on X"
+                                                >
+                                                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                                                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                                                    </svg>
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleShareAd('copy', ad)}
+                                                    className="p-2 bg-indigo-500 text-white rounded-lg hover:scale-110 active:scale-95 transition-transform"
+                                                    title="Copy Campaign Link"
+                                                >
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </div>
+
                                         <div className="flex gap-2">
                                             <button 
                                                 onClick={() => handleDeleteRecord(ad.id, 'school_ads')}

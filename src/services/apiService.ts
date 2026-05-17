@@ -2652,6 +2652,52 @@ export const apiService = {
     },
     async saveCarPayment(data: Partial<CarPayment>): Promise<void> {
         await apiService.saveModuleRecord('car_sales_payments', data);
+    },
+    async generateMarketingAsset(params: { prompt: string; type: 'image' | 'video' }): Promise<any> {
+        await new Promise(resolve => setTimeout(resolve, 2500));
+        const mockAssets = [
+            { 
+                id: Date.now().toString(), 
+                title: "AI Generated Concept", 
+                image: '/marketing/marketing_hero_render_1776312304333.png', 
+                images: [
+                    '/marketing/marketing_hero_render_1776312304333.png',
+                    '/marketing/marketing_edu_1776367280172.png',
+                    '/marketing/marketing_community.png',
+                    '/marketing/marketing_alumni.png'
+                ],
+                category: 'General' 
+            },
+            { 
+                id: (Date.now() + 1).toString(), 
+                title: "Module Showcase", 
+                image: '/marketing/marketing_showroom.png', 
+                images: [
+                    '/marketing/marketing_showroom.png',
+                    '/marketing/marketing_autoservice_1776367264534.png',
+                    '/marketing/marketing_property_1776367197098.png',
+                    '/marketing/marketing_campaign_1776367315708.png'
+                ],
+                category: 'Showcase' 
+            },
+            { 
+                id: (Date.now() + 2).toString(), 
+                title: "Future Vision", 
+                image: '/marketing/marketing_retail_1776367249575.png', 
+                images: [
+                    '/marketing/marketing_retail_1776367249575.png',
+                    '/marketing/marketing_coop_1776367214566.png',
+                    '/marketing/marketing_his_1776367229035.png',
+                    '/marketing/marketing_tourism.png'
+                ],
+                category: 'Retail' 
+            }
+        ];
+        return mockAssets[Math.floor(Math.random() * mockAssets.length)];
+    },
+    async shareMarketingAsset(platform: string, asset: any): Promise<boolean> {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return true;
     }
 };
 

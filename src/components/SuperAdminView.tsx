@@ -85,6 +85,7 @@ import { ZapIcon } from './icons/ZapIcon';
 import { CommunicationsManager } from './CommunicationsManager';
 import { EditInstitutionModal } from './EditInstitutionModal';
 import { apiService } from '../services/apiService';
+import { useToast } from '../services/ToastContext';
 import { generateFullSqlScript } from '../utils/sqlGenerator';
 import { BrandedPaper } from './BrandedPaper';
 import { AcademicYearManager } from './AcademicYearManager';
@@ -550,6 +551,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         onLogAction
     } = props;
 
+    const { success, error: toastError } = useToast();
+
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'portal_links' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout' | 'campaigns' | 'financials' | 'integrations' | 'marketing'>(() => {
         const params = new URLSearchParams(window.location.search);
         const view = params.get('view');
@@ -598,6 +601,70 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [tenantSmsAdjustment, setTenantSmsAdjustment] = useState<{ amount: number; reason: string }>({ amount: 0, reason: '' });
     const [isSavingTenantConfig, setIsSavingTenantConfig] = useState(false);
     const [isTestingFtp, setIsTestingFtp] = useState(false);
+    const [generatedAdverts, setGeneratedAdverts] = useState<any[]>([
+        { 
+            id: 'ds_v2', 
+            title: 'Driving School V2 - Future is Here', 
+            description: 'Premium advert for the automated driving school module with 3D isometric renders.', 
+            image: '/marketing/driving_school_hero_3d_1778920419924.png',
+            images: [
+                '/marketing/driving_school_hero_3d_1778920419924.png',
+                '/marketing/driving_school_scheduling_3d_1778920509602.png',
+                '/marketing/driving_school_mastery_3d_1778920618450.png',
+                '/marketing/marketing_ds_1776367354223.png'
+            ],
+            stats: { shares: 124, clicks: 850 },
+            category: 'Driving School'
+        },
+        { 
+            id: 'auto_mkt', 
+            title: 'Automotive Marketplace Hub', 
+            description: 'Promotional content for the vehicle inventory and sales ledger system.', 
+            image: '/marketing/driving_school_scheduling_3d_1778920509602.png',
+            images: [
+                '/marketing/driving_school_scheduling_3d_1778920509602.png',
+                '/marketing/marketing_showroom.png',
+                '/marketing/marketing_autoservice_1776367264534.png',
+                '/marketing/marketing_campaign_1776367315708.png'
+            ],
+            stats: { shares: 89, clicks: 420 },
+            category: 'Automotive'
+        }
+    ]);
+    const [selectedAdForGallery, setSelectedAdForGallery] = useState<any | null>(null);
+    const [activeGalleryImageIndex, setActiveGalleryImageIndex] = useState<number>(0);
+    const [isGeneratingAdvert, setIsGeneratingAdvert] = useState(false);
+    const [advertPrompt, setAdvertPrompt] = useState('');
+
+    const handleGenerateAdvert = async () => {
+        if (!advertPrompt.trim()) return;
+        setIsGeneratingAdvert(true);
+        try {
+            const newAd = await apiService.generateMarketingAsset({ prompt: advertPrompt, type: 'image' });
+            setGeneratedAdverts(prev => [newAd, ...prev]);
+            setAdvertPrompt('');
+            success('New marketing asset generated successfully!');
+        } catch (e: any) {
+            toastError(e.message || 'Failed to generate advert');
+        } finally {
+            setIsGeneratingAdvert(false);
+        }
+    };
+
+    const handleShareAdvert = async (platform: 'whatsapp' | 'twitter' | 'copy', ad: any) => {
+        const text = `${ad.title}: ${ad.description}`;
+        if (platform === 'whatsapp') {
+            window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+        } else if (platform === 'twitter') {
+            window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank');
+        } else if (platform === 'copy') {
+            navigator.clipboard.writeText(text);
+            success('Copied to clipboard!');
+        }
+        
+        // Update local stats for visual feedback
+        setGeneratedAdverts(prev => prev.map(a => a.id === ad.id ? { ...a, stats: { ...a.stats, shares: a.stats.shares + 1 } } : a));
+    };
     const scrollRef = React.useRef<HTMLDivElement>(null);
 
     const handleScroll = (direction: 'left' | 'right') => {
@@ -2986,40 +3053,55 @@ Please change it after login.`;
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            {[
-                                { 
-                                    id: 'ds_v2', 
-                                    title: 'Driving School V2 - Future is Here', 
-                                    description: 'Premium advert for the automated driving school module with 3D isometric renders.', 
-                                    image: '/marketing/driving_school_hero_3d_1778920419924.png',
-                                    stats: { shares: 124, clicks: 850 },
-                                    category: 'Driving School'
-                                },
-                                { 
-                                    id: 'auto_mkt', 
-                                    title: 'Automotive Marketplace Hub', 
-                                    description: 'Promotional content for the vehicle inventory and sales ledger system.', 
-                                    image: '/marketing/driving_school_scheduling_3d_1778920509602.png',
-                                    stats: { shares: 89, clicks: 420 },
-                                    category: 'Automotive'
-                                }
-                            ].map((ad) => (
+                            {generatedAdverts.map((ad) => (
                                 <div key={ad.id} className="group bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-100 dark:border-slate-800 overflow-hidden hover:shadow-2xl transition-all duration-500 flex flex-col">
                                     <div className="h-64 relative overflow-hidden">
                                         <img src={ad.image} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt={ad.title} />
                                         <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-transparent to-transparent"></div>
+                                        
+                                        {/* Hover Premium View 3D Gallery overlay */}
+                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-slate-950/40 backdrop-blur-[2px]">
+                                            <button 
+                                                onClick={() => {
+                                                    setSelectedAdForGallery(ad);
+                                                    const idx = (ad.images || [ad.image]).indexOf(ad.image);
+                                                    setActiveGalleryImageIndex(idx >= 0 ? idx : 0);
+                                                }}
+                                                className="px-6 py-3 bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-white rounded-full text-[9px] font-black uppercase tracking-widest hover:bg-amber-500 hover:text-white transition-all shadow-xl hover:scale-105 duration-300 flex items-center gap-2 border border-white/10"
+                                            >
+                                                <EyeIcon className="w-4 h-4" /> View 3D Gallery
+                                            </button>
+                                        </div>
+
                                         <div className="absolute top-6 left-6">
                                             <span className="bg-white/20 backdrop-blur-md px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-white border border-white/20">
-                                                {ad.category}
+                                                {ad.category || 'General'}
                                             </span>
                                         </div>
                                         <div className="absolute bottom-6 left-8 right-8">
                                             <h3 className="text-xl font-black text-white uppercase italic tracking-tight">{ad.title}</h3>
                                         </div>
                                     </div>
+
+                                    {/* Scrollable Thumbnails Bar displaying ALL generated options */}
+                                    <div className="flex gap-2.5 px-8 pt-6 pb-2 overflow-x-auto bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800/80 scrollbar-none">
+                                        {(ad.images || [ad.image]).map((imgUrl: string, idx: number) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => {
+                                                    setGeneratedAdverts(prev => prev.map(item => item.id === ad.id ? { ...item, image: imgUrl } : item));
+                                                }}
+                                                className={`w-14 h-14 rounded-2xl overflow-hidden border-2 flex-shrink-0 transition-all duration-300 hover:scale-105 ${ad.image === imgUrl ? 'border-amber-500 ring-4 ring-amber-500/10 scale-105' : 'border-transparent opacity-50 hover:opacity-100'}`}
+                                                title={`Switch to 3D Render ${idx + 1}`}
+                                            >
+                                                <img src={imgUrl} className="w-full h-full object-cover" alt={`Preview ${idx + 1}`} />
+                                            </button>
+                                        ))}
+                                    </div>
+
                                     <div className="p-8 flex-1 flex flex-col justify-between">
                                         <p className="text-slate-500 text-sm font-medium leading-relaxed mb-8">
-                                            {ad.description}
+                                            {ad.description || 'Stunning AI-generated marketing content for your module.'}
                                         </p>
                                         
                                         <div className="space-y-6">
@@ -3027,34 +3109,31 @@ Please change it after login.`;
                                                 <div className="flex items-center gap-6">
                                                     <div>
                                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Shares</p>
-                                                        <p className="text-sm font-black text-slate-900 dark:text-white">{ad.stats.shares}</p>
+                                                        <p className="text-sm font-black text-slate-900 dark:text-white">{ad.stats?.shares || 0}</p>
                                                     </div>
                                                     <div className="w-px h-8 bg-slate-200 dark:bg-slate-700"></div>
                                                     <div>
                                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Engagement</p>
-                                                        <p className="text-sm font-black text-slate-900 dark:text-white">{ad.stats.clicks}</p>
+                                                        <p className="text-sm font-black text-slate-900 dark:text-white">{ad.stats?.clicks || 0}</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-2">
                                                     <button 
-                                                        onClick={() => window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(`Check out our new ${ad.title}! ${ad.description}`)}`, '_blank')}
+                                                        onClick={() => handleShareAdvert('whatsapp', ad)}
                                                         className="p-2.5 bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:scale-110 transition-transform"
                                                         title="Share on WhatsApp"
                                                     >
                                                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.539 2.016 2.069-.543c.944.513 1.999.784 3.074.786 3.181 0 5.767-2.586 5.768-5.766 0-3.18-2.587-5.766-5.768-5.766z" /></svg>
                                                     </button>
                                                     <button 
-                                                        onClick={() => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`🚀 Launching ${ad.title}! #Education #Innovation`)}`, '_blank')}
+                                                        onClick={() => handleShareAdvert('twitter', ad)}
                                                         className="p-2.5 bg-slate-900 text-white rounded-xl shadow-lg shadow-slate-900/20 hover:scale-110 transition-transform"
                                                         title="Post on X"
                                                     >
                                                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
                                                     </button>
                                                     <button 
-                                                        onClick={() => {
-                                                            navigator.clipboard.writeText(`${ad.title}: ${ad.description}`);
-                                                            success('Copy shared to clipboard!');
-                                                        }}
+                                                        onClick={() => handleShareAdvert('copy', ad)}
                                                         className="p-2.5 bg-indigo-500 text-white rounded-xl shadow-lg shadow-indigo-500/20 hover:scale-110 transition-transform"
                                                         title="Copy Assets"
                                                     >
@@ -3076,10 +3155,173 @@ Please change it after login.`;
                             <p className="text-slate-500 max-w-xl mx-auto font-medium">
                                 Generate fresh 3D marketing assets for your modules. Our AI engine creates stunning visuals and copy tailored for your institutional brand.
                             </p>
-                            <button className="px-12 py-5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-transform shadow-2xl">
-                                Start AI Generation
-                            </button>
+                            
+                            <div className="max-w-md mx-auto relative group">
+                                <input 
+                                    type="text" 
+                                    value={advertPrompt}
+                                    onChange={(e) => setAdvertPrompt(e.target.value)}
+                                    placeholder="Describe your vision (e.g. 3D car in futuristic showroom)..."
+                                    className="w-full h-16 pl-8 pr-32 bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 rounded-2xl text-xs font-bold focus:border-amber-500 transition-all outline-none"
+                                />
+                                <button 
+                                    onClick={handleGenerateAdvert}
+                                    disabled={isGeneratingAdvert || !advertPrompt.trim()}
+                                    className="absolute right-2 top-2 bottom-2 px-6 bg-slate-900 dark:bg-amber-500 text-white rounded-xl font-black uppercase text-[9px] tracking-widest hover:scale-105 transition-transform disabled:opacity-50 disabled:grayscale"
+                                >
+                                    {isGeneratingAdvert ? 'Generating...' : 'Generate'}
+                                </button>
+                            </div>
                         </div>
+
+                        {/* Interactive 3D Gallery Modal */}
+                        {selectedAdForGallery && (
+                            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/95 backdrop-blur-xl animate-fade-in p-4 overflow-y-auto">
+                                <div className="absolute top-6 right-6 flex gap-4">
+                                    <button 
+                                        onClick={() => {
+                                            const imgUrl = (selectedAdForGallery.images || [selectedAdForGallery.image])[activeGalleryImageIndex];
+                                            const link = document.createElement('a');
+                                            link.href = imgUrl;
+                                            link.download = `${selectedAdForGallery.title.toLowerCase().replace(/\s+/g, '_')}_3d.png`;
+                                            document.body.appendChild(link);
+                                            link.click();
+                                            document.body.removeChild(link);
+                                        }}
+                                        className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all border border-white/10 hover:scale-110 flex items-center justify-center shadow-lg"
+                                        title="Download Image"
+                                    >
+                                        <DocumentArrowDownIcon className="w-5 h-5" />
+                                    </button>
+                                    <button 
+                                        onClick={() => setSelectedAdForGallery(null)}
+                                        className="p-3 bg-white/10 hover:bg-red-500 text-white rounded-full transition-all border border-white/10 hover:scale-110 flex items-center justify-center shadow-lg"
+                                    >
+                                        <XIcon className="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                <div className="w-full max-w-6xl flex flex-col lg:flex-row gap-8 items-center justify-between my-auto py-12">
+                                    {/* Main Display and Controls */}
+                                    <div className="flex-1 flex flex-col items-center gap-6 w-full">
+                                        <div className="relative w-full max-w-4xl aspect-[16/10] bg-slate-900 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl group/modal">
+                                            <img 
+                                                src={(selectedAdForGallery.images || [selectedAdForGallery.image])[activeGalleryImageIndex]} 
+                                                className="w-full h-full object-cover transition-transform duration-700" 
+                                                alt={selectedAdForGallery.title} 
+                                            />
+                                            
+                                            {/* Previous/Next Nav Arrow Controls */}
+                                            {selectedAdForGallery.images && selectedAdForGallery.images.length > 1 && (
+                                                <>
+                                                    <button 
+                                                        onClick={() => {
+                                                            setActiveGalleryImageIndex(prev => 
+                                                                prev === 0 ? selectedAdForGallery.images.length - 1 : prev - 1
+                                                            );
+                                                        }}
+                                                        className="absolute left-6 top-1/2 -translate-y-1/2 p-4 bg-slate-950/60 hover:bg-amber-500 text-white rounded-full transition-all backdrop-blur-md opacity-0 group-hover/modal:opacity-100 border border-white/10 shadow-lg scale-90 hover:scale-100"
+                                                    >
+                                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => {
+                                                            setActiveGalleryImageIndex(prev => 
+                                                                prev === selectedAdForGallery.images.length - 1 ? 0 : prev + 1
+                                                            );
+                                                        }}
+                                                        className="absolute right-6 top-1/2 -translate-y-1/2 p-4 bg-slate-950/60 hover:bg-amber-500 text-white rounded-full transition-all backdrop-blur-md opacity-0 group-hover/modal:opacity-100 border border-white/10 shadow-lg scale-90 hover:scale-100"
+                                                    >
+                                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                                                    </button>
+                                                </>
+                                            )}
+
+                                            <div className="absolute bottom-6 left-8 bg-slate-950/80 backdrop-blur-md px-6 py-2.5 rounded-full border border-white/15">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">
+                                                    Image {activeGalleryImageIndex + 1} of {(selectedAdForGallery.images || [selectedAdForGallery.image]).length}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Alternate Thumbnails in Modal */}
+                                        {selectedAdForGallery.images && selectedAdForGallery.images.length > 1 && (
+                                            <div className="flex gap-3 overflow-x-auto max-w-full pb-2 scrollbar-none justify-center">
+                                                {selectedAdForGallery.images.map((imgUrl: string, idx: number) => (
+                                                    <button
+                                                        key={idx}
+                                                        onClick={() => setActiveGalleryImageIndex(idx)}
+                                                        className={`w-20 h-20 rounded-2xl overflow-hidden border-2 transition-all flex-shrink-0 hover:scale-105 ${activeGalleryImageIndex === idx ? 'border-amber-500 ring-4 ring-amber-500/20 scale-105' : 'border-white/10 opacity-40 hover:opacity-100'}`}
+                                                    >
+                                                        <img src={imgUrl} className="w-full h-full object-cover" alt={`Modal thumbnail ${idx}`} />
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Sidebar Information / Copy / Share */}
+                                    <div className="w-full lg:w-96 text-left space-y-8 bg-slate-900/40 p-8 rounded-[2.5rem] border border-white/15 backdrop-blur-md">
+                                        <div>
+                                            <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest">
+                                                {selectedAdForGallery.category || 'General'}
+                                            </span>
+                                            <h3 className="text-2xl font-black text-white uppercase italic tracking-tight mt-4">{selectedAdForGallery.title}</h3>
+                                            <p className="text-slate-400 text-xs font-medium mt-3 leading-relaxed">{selectedAdForGallery.description}</p>
+                                        </div>
+
+                                        <div className="h-px bg-white/10"></div>
+
+                                        <div className="space-y-4">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Engagement Metrics</p>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="p-4 bg-white/5 border border-white/10 rounded-2xl text-center">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Shares</p>
+                                                    <p className="text-lg font-black text-white mt-1">{selectedAdForGallery.stats?.shares || 0}</p>
+                                                </div>
+                                                <div className="p-4 bg-white/5 border border-white/10 rounded-2xl text-center">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Clicks</p>
+                                                    <p className="text-lg font-black text-white mt-1">{selectedAdForGallery.stats?.clicks || 0}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Distribute Asset</p>
+                                            <div className="flex gap-2">
+                                                <button 
+                                                    onClick={() => {
+                                                        handleShareAdvert('whatsapp', selectedAdForGallery);
+                                                        setGeneratedAdverts(prev => prev.map(a => a.id === selectedAdForGallery.id ? { ...a, stats: { ...a.stats, shares: a.stats.shares + 1 } } : a));
+                                                    }}
+                                                    className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all hover:scale-105 flex items-center justify-center gap-2"
+                                                >
+                                                    WhatsApp
+                                                </button>
+                                                <button 
+                                                    onClick={() => {
+                                                        handleShareAdvert('twitter', selectedAdForGallery);
+                                                        setGeneratedAdverts(prev => prev.map(a => a.id === selectedAdForGallery.id ? { ...a, stats: { ...a.stats, shares: a.stats.shares + 1 } } : a));
+                                                    }}
+                                                    className="flex-1 py-4 bg-white text-slate-950 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all hover:scale-105 flex items-center justify-center gap-2"
+                                                >
+                                                    Post on X
+                                                </button>
+                                            </div>
+                                            <button 
+                                                onClick={() => {
+                                                    handleShareAdvert('copy', selectedAdForGallery);
+                                                    setGeneratedAdverts(prev => prev.map(a => a.id === selectedAdForGallery.id ? { ...a, stats: { ...a.stats, shares: a.stats.shares + 1 } } : a));
+                                                }}
+                                                className="w-full py-4 bg-white/10 hover:bg-white/15 text-white border border-white/15 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all hover:scale-105 flex items-center justify-center gap-2"
+                                            >
+                                                Copy Details Link
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 

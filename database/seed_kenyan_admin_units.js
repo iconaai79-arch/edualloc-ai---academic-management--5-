@@ -3,8 +3,13 @@
  * Run with: node database/seed_kenyan_admin_units.js
  */
 
-const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+dotenv.config();
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_KEY;
@@ -16,8 +21,10 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Import the data
-const adminData = require('./kenyan_admin_data.json');
+// Import the data using ESM-compatible fs reading
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const adminData = JSON.parse(readFileSync(join(__dirname, 'kenyan_admin_data.json'), 'utf8'));
 
 async function seedAdminUnits() {
     console.log('🇰🇪 Starting Kenyan Administrative Units Seeding...\n');

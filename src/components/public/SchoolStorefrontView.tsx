@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Institution, BulletinItem, Course, AcademicLevel, User, SchoolGallery, SchoolAd } from '../../types';
 import { apiService } from '../../services/apiService';
+import { useToast } from '../../services/ToastContext';
 import { AcademicCapIcon } from '../icons/AcademicCapIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { BookOpenIcon } from '../icons/BookOpenIcon';
@@ -20,6 +21,24 @@ interface SchoolStorefrontViewProps {
 }
 
 export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ institutionId, onEnrollmentClick }) => {
+    const { success } = useToast();
+    
+    const handleShareAd = async (platform: 'whatsapp' | 'twitter' | 'copy', ad: SchoolAd) => {
+        const schoolName = school?.name || 'our academy';
+        const titleText = ad.title ? `"${ad.title}"` : 'a special banner';
+        const adLink = ad.linkUrl || `${window.location.origin}/?view=storefront&institution=${school?.id || institutionId}`;
+        const shareText = `Check out this update from ${schoolName}: ${titleText}. View here: ${adLink}`;
+
+        if (platform === 'whatsapp') {
+            window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`, '_blank');
+        } else if (platform === 'twitter') {
+            window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`, '_blank');
+        } else if (platform === 'copy') {
+            navigator.clipboard.writeText(shareText);
+            success('Campaign details copied to clipboard!');
+        }
+    };
+
     const [school, setSchool] = useState<Institution | null>(null);
     const [news, setNews] = useState<BulletinItem[]>([]);
     const [courses, setCourses] = useState<Course[]>([]);
@@ -57,7 +76,7 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
                         apiService.fetchModuleRecords<SchoolAd>('school_ads', resolvedSchool.id)
                     ]);
 
-                    setNews((schoolNews || []).filter(n => n.status === 'Published').sort((a, b) => new Date(b.publishDate).getTime() - new Date(a.publishDate).getTime()));
+                    setNews((schoolNews || []).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
                     setCourses(schoolCourses || []);
                     setLevels(schoolLevels || []);
                     setGallery(schoolGallery || []);
@@ -258,6 +277,87 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
                                 </div>
                             </div>
                         </div>
+
+                        {/* Academy Banners / Active Advertisements */}
+                        {ads.length > 0 && (
+                            <div className="space-y-12 animate-in fade-in duration-700">
+                                <div className="text-center md:text-left space-y-4">
+                                    <div className="inline-flex items-center gap-2 text-indigo-500 font-black text-[10px] uppercase tracking-[0.4em]">
+                                        <div className="w-8 h-[2px] bg-indigo-500"></div>
+                                        Featured Campaigns & Events
+                                    </div>
+                                    <h3 className="text-4xl md:text-6xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Academy Banners</h3>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                                    {ads.map((ad) => (
+                                        <div key={ad.id} className="group relative bg-white dark:bg-slate-900 rounded-[3.5rem] overflow-hidden border border-slate-100 dark:border-slate-800 shadow-xl hover:-translate-y-2 transition-all duration-500 flex flex-col justify-between">
+                                            <div className="h-60 bg-slate-100 dark:bg-slate-800 overflow-hidden relative">
+                                                {ad.imageUrl ? (
+                                                    <img loading="lazy" src={ad.imageUrl} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt={ad.title || 'Academy Banner'} />
+                                                ) : (
+                                                    <div className="w-full h-full bg-gradient-to-br from-indigo-900 to-slate-900 flex items-center justify-center">
+                                                        <SparklesIcon className="w-12 h-12 text-indigo-500/20" />
+                                                    </div>
+                                                )}
+                                                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent"></div>
+                                                <div className="absolute bottom-6 left-8 right-8">
+                                                    <span className="bg-indigo-500/20 backdrop-blur-md px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest text-indigo-400 border border-indigo-500/30 mb-2 inline-block">
+                                                        Position: {ad.displayLocation}
+                                                    </span>
+                                                    <h4 className="text-xl font-black text-white uppercase italic tracking-tight">{ad.title || 'Special Announcement'}</h4>
+                                                </div>
+                                            </div>
+                                            <div className="p-8 space-y-6">
+                                                {ad.linkUrl && (
+                                                    <a 
+                                                        href={ad.linkUrl} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer" 
+                                                        className="flex items-center justify-between py-4 px-6 bg-slate-50 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-slate-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all"
+                                                    >
+                                                        Visit Target Link <ArrowRightIcon className="w-4 h-4" />
+                                                    </a>
+                                                )}
+                                                
+                                                {/* Premium Sharing Interface */}
+                                                <div className="flex items-center justify-between pt-6 border-t border-slate-100 dark:border-slate-800/80">
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Share Campaign</span>
+                                                    <div className="flex gap-2">
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleShareAd('whatsapp', ad); }}
+                                                            className="p-2.5 bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:scale-110 active:scale-95 transition-transform"
+                                                            title="Share on WhatsApp"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                                                <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.539 2.016 2.069-.543c.944.513 1.999.784 3.074.786 3.181 0 5.767-2.586 5.768-5.766 0-3.18-2.587-5.766-5.768-5.766z" />
+                                                            </svg>
+                                                        </button>
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleShareAd('twitter', ad); }}
+                                                            className="p-2.5 bg-slate-900 text-white rounded-xl shadow-lg shadow-slate-900/20 hover:scale-110 active:scale-95 transition-transform"
+                                                            title="Post on X"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                                                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                                                            </svg>
+                                                        </button>
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleShareAd('copy', ad); }}
+                                                            className="p-2.5 bg-indigo-500 text-white rounded-xl shadow-lg shadow-indigo-500/20 hover:scale-110 active:scale-95 transition-transform"
+                                                            title="Copy Campaign Link"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -297,12 +397,25 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                             {news.length > 0 ? news.map((item) => (
                                 <div key={item.id} className="group flex flex-col md:flex-row gap-8 bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-xl hover:shadow-2xl transition-all">
-                                    <div className="md:w-1/3 aspect-square rounded-[2rem] overflow-hidden bg-slate-100 dark:bg-slate-800 relative">
-                                        {item.imageUrl ? (
-                                            <img loading="lazy" src={item.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={item.title} />
+                                    <div className="md:w-1/3 aspect-square rounded-[2rem] overflow-hidden relative">
+                                        {/* Dynamic category-based premium gradient covers */}
+                                        {item.category === 'Emergency' ? (
+                                            <div className="w-full h-full bg-gradient-to-br from-rose-600 to-red-950 flex items-center justify-center">
+                                                <div className="w-12 h-12 rounded-full bg-rose-500/20 flex items-center justify-center animate-pulse">
+                                                    <span className="text-rose-200 text-2xl font-black">!</span>
+                                                </div>
+                                            </div>
+                                        ) : item.category === 'Event' ? (
+                                            <div className="w-full h-full bg-gradient-to-br from-indigo-600 to-indigo-950 flex items-center justify-center">
+                                                <CalendarIcon className="w-12 h-12 text-indigo-200/40" />
+                                            </div>
+                                        ) : item.category === 'Holiday' ? (
+                                            <div className="w-full h-full bg-gradient-to-br from-emerald-600 to-teal-950 flex items-center justify-center">
+                                                <SparklesIcon className="w-12 h-12 text-emerald-200/40" />
+                                            </div>
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-slate-200 dark:text-slate-700">
-                                                <CalendarIcon className="w-16 h-16 opacity-20" />
+                                            <div className="w-full h-full bg-gradient-to-br from-indigo-600 to-slate-950 flex items-center justify-center">
+                                                <BookOpenIcon className="w-12 h-12 text-indigo-200/40" />
                                             </div>
                                         )}
                                         <div className="absolute top-4 left-4">
@@ -313,7 +426,7 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
                                     </div>
                                     <div className="md:w-2/3 flex flex-col justify-center space-y-4">
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                            {new Date(item.publishDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                            {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                                         </p>
                                         <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic truncate">{item.title}</h4>
                                         <p className="text-slate-500 text-sm line-clamp-2 leading-relaxed">{item.content.replace(/<[^>]*>/g, '')}</p>
