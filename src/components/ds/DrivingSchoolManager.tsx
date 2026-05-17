@@ -1591,7 +1591,8 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         refreshData,
         mpesaTransactions,
         bankTransactions,
-        leads, addLead, updateLead, deleteLead
+        leads, addLead, updateLead, deleteLead,
+        sendLessonNotification
     } = useDrivingSchool();
     
     const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings' | 'reports' | 'portal' | 'showcase'>('dashboard');
@@ -1795,15 +1796,17 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             const assignedVehiclesBySlot: Record<string, Set<string>> = {};
             // Pre-populate with pre-existing busy vehicles for tomorrow
             lessons.filter(l => l.lessonDate === dateStr && l.vehicleId).forEach(l => {
-                if (!assignedVehiclesBySlot[l.startTime]) {
-                    assignedVehiclesBySlot[l.startTime] = new Set<string>();
+                const startTimeKey = l.startTime || '08:00';
+                if (!assignedVehiclesBySlot[startTimeKey]) {
+                    assignedVehiclesBySlot[startTimeKey] = new Set<string>();
                 }
-                assignedVehiclesBySlot[l.startTime].add(l.vehicleId!);
+                assignedVehiclesBySlot[startTimeKey].add(l.vehicleId!);
             });
 
             let lessonsAdded = 0;
             let skippedStudents = 0;
             const leftOutCandidates: Array<{ name: string; slot: string }> = [];
+            const lessonsToSave: any[] = [];
 
             for (const student of eligibleStudents) {
                 // Robust duplicate prevention: check if student already has a lesson scheduled for tomorrow
@@ -1817,9 +1820,11 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                 const preferredSlotType = student.preferredLessonHours || 'Morning';
                 const slot = (settings?.lessonSlots || []).find(s => s.type === preferredSlotType) || { startTime: '08:00', endTime: '10:00' };
                 
-                let currentTime = slot.startTime;
+                let currentTime = slot.startTime || '08:00';
+                if (!currentTime.includes(':')) currentTime = '08:00';
+                
                 let missingVehicleConstraint = false;
-                let targetSlotTime = slot.startTime;
+                let targetSlotTime = currentTime;
                 
                 // For each type in the sequence (e.g., Theory, Practical)
                 for (const type of sequence) {
@@ -1828,7 +1833,10 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                         : (settings?.schedulingRules?.practicalDurationMinutes || 60);
                     
                     // Simple end time calculation
-                    const [h, m] = currentTime.split(':').map(Number);
+                    const parts = currentTime.split(':');
+                    const h = Number(parts[0]) || 8;
+                    const m = Number(parts[1]) || 0;
+                    
                     const end = new Date();
                     end.setHours(h, m + duration, 0, 0);
                     const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
@@ -1868,12 +1876,16 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                     const defaultRoom = type === 'Theory' ? (rooms || [])[0] : undefined;
 
-                    await onAddLesson({
+                    // Generate a cryptographically safe unique ID to bypass concurrency collisions
+                    const uniqueLessonId = `less_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+                    lessonsToSave.push({
+                        id: uniqueLessonId,
                         studentId: student.id,
-                        instructorId: instructor?.id,
-                        vehicleId: vehicle?.id,
-                        roomId: defaultRoom?.id,
-                        roomName: defaultRoom?.name,
+                        instructorId: instructor?.id || null,
+                        vehicleId: vehicle?.id || null,
+                        roomId: defaultRoom?.id || null,
+                        roomName: defaultRoom?.name || null,
                         lessonDate: dateStr,
                         startTime: currentTime,
                         endTime: endTime,
@@ -1895,6 +1907,11 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                 }
             }
 
+            // Save all lessons to the database in bulk
+            for (const lesson of lessonsToSave) {
+                await apiService.saveModuleRecord('ds_lessons', lesson);
+            }
+
             if (leftOutCandidates.length > 0) {
                 setUnassignedDueToVehicles(leftOutCandidates);
                 setActiveTab('lessons'); // Redirect to lessons view to prominently showcase the capacity warning list
@@ -1902,6 +1919,15 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
             if (lessonsAdded > 0) {
                 success(`Auto-generated ${lessonsAdded} lessons for tomorrow (${dateStr})`);
+                
+                // Dispatch notifications in the background to not block UI or slow down main flow
+                if (sendLessonNotification) {
+                    lessonsToSave.forEach(lesson => {
+                        sendLessonNotification(lesson, false).catch(e => {
+                            console.error("[DS Automation] Failed to dispatch lesson notifications in background:", e);
+                        });
+                    });
+                }
             } else {
                 success(`Tomorrow's schedule is already complete. Skipped ${skippedStudents} student(s) to avoid duplicates.`);
             }
@@ -1928,6 +1954,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
             // Fill available slots for the next 14 days
             let lessonsAdded = 0;
             const daysToSchedule = 14; 
+            const lessonsToSave: any[] = [];
             
             for (let i = 1; i <= daysToSchedule; i++) {
                 const date = new Date();
@@ -1944,14 +1971,18 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                 const preferredSlotType = student.preferredLessonHours || 'Morning';
                 const slot = (settings?.lessonSlots || []).find(s => s.type === preferredSlotType) || { startTime: '08:00', endTime: '10:00' };
                 
-                let currentTime = slot.startTime;
+                let currentTime = slot.startTime || '08:00';
+                if (!currentTime.includes(':')) currentTime = '08:00';
                 
                 for (const type of sequence) {
                     const duration = type === 'Theory' 
                         ? (settings?.schedulingRules?.theoryDurationMinutes || 60)
                         : (settings?.schedulingRules?.practicalDurationMinutes || 60);
                     
-                    const [h, m] = currentTime.split(':').map(Number);
+                    const parts = currentTime.split(':');
+                    const h = Number(parts[0]) || 8;
+                    const m = Number(parts[1]) || 0;
+                    
                     const end = new Date();
                     end.setHours(h, m + duration, 0, 0);
                     const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
@@ -1966,12 +1997,15 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
 
                     const defaultRoom = type === 'Theory' ? (rooms || [])[0] : undefined;
 
-                    await onAddLesson({
+                    const uniqueLessonId = `less_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+                    lessonsToSave.push({
+                        id: uniqueLessonId,
                         studentId: student.id,
-                        instructorId: instructor?.id,
-                        vehicleId: vehicle?.id,
-                        roomId: defaultRoom?.id,
-                        roomName: defaultRoom?.name,
+                        instructorId: instructor?.id || null,
+                        vehicleId: vehicle?.id || null,
+                        roomId: defaultRoom?.id || null,
+                        roomName: defaultRoom?.name || null,
                         lessonDate: dateStr,
                         startTime: currentTime,
                         endTime: endTime,
@@ -1986,7 +2020,26 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
                 }
             }
 
-            success(`Auto-scheduled ${lessonsAdded} lessons for ${student.fullName} over the next 14 days.`);
+            // Save all lessons to the database
+            for (const lesson of lessonsToSave) {
+                await apiService.saveModuleRecord('ds_lessons', lesson);
+            }
+
+            if (lessonsAdded > 0) {
+                success(`Auto-scheduled ${lessonsAdded} lessons for ${student.fullName} over the next 14 days.`);
+                
+                // Dispatch notifications in the background to not block UI or slow down main flow
+                if (sendLessonNotification) {
+                    lessonsToSave.forEach(lesson => {
+                        sendLessonNotification(lesson, false).catch(e => {
+                            console.error("[DS Automation] Failed to dispatch lesson notifications in background:", e);
+                        });
+                    });
+                }
+            } else {
+                success(`No new lessons needed for ${student.fullName} over the next 14 days.`);
+            }
+
             if (onRefreshDataProp) await onRefreshDataProp();
             refreshData();
         } catch (err) {

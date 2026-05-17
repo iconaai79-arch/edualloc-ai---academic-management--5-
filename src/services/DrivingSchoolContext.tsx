@@ -46,6 +46,7 @@ interface DrivingSchoolContextType {
     addLead: (data: Partial<DSLead>) => Promise<void>;
     updateLead: (data: Partial<DSLead>) => Promise<void>;
     deleteLead: (id: string) => Promise<void>;
+    sendLessonNotification?: (lesson: DSLesson, isReminder?: boolean) => Promise<void>;
     refreshData: () => Promise<void>;
     stats: {
         totalStudents: number;
@@ -542,6 +543,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             
             const lessonDate = l.lessonDate;
             if (lessonDate !== today) return false;
+            if (!l.startTime || typeof l.startTime !== 'string' || !l.startTime.includes(':')) return false;
             
             try {
                 const [hours, minutes] = l.startTime.split(':').map(Number);
@@ -1056,6 +1058,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         mpesaTransactions, bankTransactions, leads,
         setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments, setLeads,
         addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, updateStudent, deleteStudent, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, addPayment, addLead, updateLead, deleteLead,
+        sendLessonNotification,
         refreshData, stats
     };
 
