@@ -822,73 +822,58 @@ export const apiService = {
         try {
             const token = await apiService.getAuthToken();
 
-            const response = await fetch('/api/records?module=' + module, {
-                method: 'POST',
-                headers: {
-                    'Authorization': token ? `Bearer ${token}` : '',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ data: payload })
-            });
+            const attemptSave = async (currentPayload: any, retries: number = 5): Promise<any> => {
+                const response = await fetch('/api/records?module=' + module, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': token ? `Bearer ${token}` : '',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ data: currentPayload })
+                });
 
-            if (!response.ok) {
-                const contentType = response.headers.get('content-type');
-                let errData: any = {};
-                if (contentType && contentType.includes('application/json')) {
-                    errData = await response.json().catch(() => ({}));
-                } else {
-                    errData = { error: await response.text().catch(() => `Status ${response.status}`) };
-                }
-                
-                console.error(`Save API Error [${module}]:`, response.status, errData);
-                
-                // Detailed error extraction for debugging RLS vs Constraints
-                const errorCode = errData.code || 'UNKNOWN';
-                const errorDetail = errData.details || errData.detail || '';
-                const errorHint = errData.hint ? ` Hint: ${errData.hint}` : '';
-                const reasonStr = errData.reason ? ` Reason: ${errData.reason}` : '';
-                const debugStr = errData.debug?.token ? ` Debug: ${errData.debug.token}` : '';
-                
-                const fullErrorMessage = `${errData.error || `Failed to save ${module}`} [Code: ${errorCode}] ${errorDetail}${errorHint}${reasonStr}${debugStr}`;
-                
-                const colMatch = fullErrorMessage.match(/Could not find the '([^']+)' column/i);
-                if (colMatch && colMatch[1]) {
-                    const offendingCol = colMatch[1];
-                    console.warn(`[apiService] Schema cache stale: automatically stripping un-cached column '${offendingCol}' and retrying save for [${module}]`);
-                    const retryPayload = { ...payload };
-                    delete retryPayload[offendingCol];
-                    
-                    const retryResponse = await fetch('/api/records?module=' + module, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': token ? `Bearer ${token}` : '',
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ data: retryPayload })
-                    });
-                    
-                    if (retryResponse.ok) {
-                        const contentTypeRetry = retryResponse.headers.get('content-type');
-                        if (contentTypeRetry && contentTypeRetry.includes('application/json')) {
-                            const savedData = await retryResponse.json().catch(() => null);
-                            return savedData ? toCamelCase(savedData) : null;
-                        }
-                        return null;
+                if (!response.ok) {
+                    const contentType = response.headers.get('content-type');
+                    let errData: any = {};
+                    if (contentType && contentType.includes('application/json')) {
+                        errData = await response.json().catch(() => ({}));
+                    } else {
+                        errData = { error: await response.text().catch(() => `Status ${response.status}`) };
                     }
+                    
+                    const errorCode = errData.code || 'UNKNOWN';
+                    const errorDetail = errData.details || errData.detail || '';
+                    const errorHint = errData.hint ? ` Hint: ${errData.hint}` : '';
+                    const reasonStr = errData.reason ? ` Reason: ${errData.reason}` : '';
+                    const debugStr = errData.debug?.token ? ` Debug: ${errData.debug.token}` : '';
+                    
+                    const fullErrorMessage = `${errData.error || `Failed to save ${module}`} [Code: ${errorCode}] ${errorDetail}${errorHint}${reasonStr}${debugStr}`;
+                    
+                    const colMatch = fullErrorMessage.match(/Could not find the '([^']+)' column/i);
+                    if (colMatch && colMatch[1] && retries > 0) {
+                        const offendingCol = colMatch[1];
+                        console.warn(`[apiService] Schema cache stale: stripping un-cached column '${offendingCol}' and retrying (${retries} left)...`);
+                        const retryPayload = { ...currentPayload };
+                        delete retryPayload[offendingCol];
+                        return attemptSave(retryPayload, retries - 1);
+                    }
+                    
+                    console.error(`Save API Error [${module}]:`, response.status, errData);
+                    throw new Error(fullErrorMessage);
                 }
-                
-                throw new Error(fullErrorMessage);
-            }
 
-            const contentTypePost = response.headers.get('content-type');
-            if (contentTypePost && contentTypePost.includes('application/json')) {
-                const savedData = await response.json().catch(() => null);
-                return savedData ? toCamelCase(savedData) : null;
-            } else {
-                const text = await response.text();
-                console.warn(`[apiService] Save [${module}] returned non-JSON:`, text.substring(0, 200));
-                return null;
-            }
+                const contentTypePost = response.headers.get('content-type');
+                if (contentTypePost && contentTypePost.includes('application/json')) {
+                    return await response.json().catch(() => null);
+                } else {
+                    const text = await response.text();
+                    console.warn(`[apiService] Save [${module}] returned non-JSON:`, text.substring(0, 200));
+                    return null;
+                }
+            };
+
+            const savedData = await attemptSave(payload);
+            return savedData ? toCamelCase(savedData) : null;
         } catch (e: any) {
             console.error(`Save Exception [${module}]:`, e);
             throw e;
@@ -921,76 +906,61 @@ export const apiService = {
         try {
             const token = await apiService.getAuthToken();
 
-            const response = await fetch('/api/records?module=' + module, {
-                method: 'POST',
-                headers: {
-                    'Authorization': token ? `Bearer ${token}` : '',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ data: payload })
-            });
+            const attemptBulkSave = async (currentPayload: any[], retries: number = 5): Promise<any> => {
+                const response = await fetch('/api/records?module=' + module, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': token ? `Bearer ${token}` : '',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ data: currentPayload })
+                });
 
-            if (!response.ok) {
-                const contentType = response.headers.get('content-type');
-                let errData: any = {};
-                if (contentType && contentType.includes('application/json')) {
-                    errData = await response.json().catch(() => ({}));
-                } else {
-                    errData = { error: await response.text().catch(() => `Status ${response.status}`) };
-                }
-                
-                console.error(`Bulk Save API Error [${module}]:`, response.status, errData);
-                
-                // Detailed error extraction
-                const errorCode = errData.code || 'UNKNOWN';
-                const errorDetail = errData.details || errData.detail || '';
-                const errorHint = errData.hint ? ` Hint: ${errData.hint}` : '';
-                const reasonStr = errData.reason ? ` Reason: ${errData.reason}` : '';
-                const debugStr = errData.debug?.token ? ` Debug: ${errData.debug.token}` : '';
-                
-                const fullErrorMessage = `${errData.error || `Failed to bulk save ${module}`} [Code: ${errorCode}] ${errorDetail}${errorHint}${reasonStr}${debugStr}`;
-                
-                const colMatch = fullErrorMessage.match(/Could not find the '([^']+)' column/i);
-                if (colMatch && colMatch[1]) {
-                    const offendingCol = colMatch[1];
-                    console.warn(`[apiService] Schema cache stale: automatically stripping un-cached column '${offendingCol}' and retrying bulk save for [${module}]`);
-                    const retryPayload = payload.map((p: any) => {
-                        const copy = { ...p };
-                        delete copy[offendingCol];
-                        return copy;
-                    });
-                    
-                    const retryResponse = await fetch('/api/records?module=' + module, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': token ? `Bearer ${token}` : '',
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ data: retryPayload })
-                    });
-                    
-                    if (retryResponse.ok) {
-                        const contentTypeRetry = retryResponse.headers.get('content-type');
-                        if (contentTypeRetry && contentTypeRetry.includes('application/json')) {
-                            const savedData = await retryResponse.json().catch(() => null);
-                            return Array.isArray(savedData) ? savedData.map(toCamelCase) : (savedData ? [toCamelCase(savedData)] : []) as any;
-                        }
-                        return [];
+                if (!response.ok) {
+                    const contentType = response.headers.get('content-type');
+                    let errData: any = {};
+                    if (contentType && contentType.includes('application/json')) {
+                        errData = await response.json().catch(() => ({}));
+                    } else {
+                        errData = { error: await response.text().catch(() => `Status ${response.status}`) };
                     }
+                    
+                    const errorCode = errData.code || 'UNKNOWN';
+                    const errorDetail = errData.details || errData.detail || '';
+                    const errorHint = errData.hint ? ` Hint: ${errData.hint}` : '';
+                    const reasonStr = errData.reason ? ` Reason: ${errData.reason}` : '';
+                    const debugStr = errData.debug?.token ? ` Debug: ${errData.debug.token}` : '';
+                    
+                    const fullErrorMessage = `${errData.error || `Failed to bulk save ${module}`} [Code: ${errorCode}] ${errorDetail}${errorHint}${reasonStr}${debugStr}`;
+                    
+                    const colMatch = fullErrorMessage.match(/Could not find the '([^']+)' column/i);
+                    if (colMatch && colMatch[1] && retries > 0) {
+                        const offendingCol = colMatch[1];
+                        console.warn(`[apiService] Schema cache stale: stripping un-cached column '${offendingCol}' and retrying bulk save (${retries} left)...`);
+                        const retryPayload = currentPayload.map((p: any) => {
+                            const copy = { ...p };
+                            delete copy[offendingCol];
+                            return copy;
+                        });
+                        return attemptBulkSave(retryPayload, retries - 1);
+                    }
+                    
+                    console.error(`Bulk Save API Error [${module}]:`, response.status, errData);
+                    throw new Error(fullErrorMessage);
                 }
-                
-                throw new Error(fullErrorMessage);
-            }
 
-            const contentTypeBulk = response.headers.get('content-type');
-            if (contentTypeBulk && contentTypeBulk.includes('application/json')) {
-                const savedData = await response.json().catch(() => null);
-                return Array.isArray(savedData) ? savedData.map(toCamelCase) : (savedData ? [toCamelCase(savedData)] : []) as any;
-            } else {
-                const text = await response.text();
-                console.warn(`[apiService] Bulk Save [${module}] returned non-JSON:`, text.substring(0, 200));
-                return [];
-            }
+                const contentTypeBulk = response.headers.get('content-type');
+                if (contentTypeBulk && contentTypeBulk.includes('application/json')) {
+                    return await response.json().catch(() => null);
+                } else {
+                    const text = await response.text();
+                    console.warn(`[apiService] Bulk Save [${module}] returned non-JSON:`, text.substring(0, 200));
+                    return [];
+                }
+            };
+
+            const savedData = await attemptBulkSave(payload);
+            return Array.isArray(savedData) ? savedData.map(toCamelCase) : (savedData ? [toCamelCase(savedData)] : []) as any;
         } catch (e: any) {
             console.error(`Bulk Save Exception [${module}]:`, e);
             throw e;
