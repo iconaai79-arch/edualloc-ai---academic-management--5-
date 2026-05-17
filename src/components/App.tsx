@@ -115,6 +115,7 @@ import { SchemaInitializationView } from './common/SchemaInitializationView';
 import { AppErrorBoundary } from './common/AppErrorBoundary';
 import { ToastProvider, useToast } from '../services/ToastContext';
 import { DrivingSchoolProvider } from '../services/DrivingSchoolContext';
+import { ModuleOnboardingWizard } from './ModuleOnboardingWizard';
 
 
 
@@ -259,6 +260,7 @@ export const App: React.FC = () => {
     const [vehicleLogs, setVehicleLogs] = useState<VehicleLog[]>([]);
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
     const [institutionModuleStates, setInstitutionModuleStates] = useState<InstitutionModuleState[]>([]);
+    const [showModuleOnboarding, setShowModuleOnboarding] = useState(false);
     const [jobs, setJobs] = useState<CarWashJob[]>([]);
     const [activityLogLimit, setActivityLogLimit] = useState(50);
     const [transactionLimit, setTransactionLimit] = useState(50);
@@ -744,6 +746,18 @@ export const App: React.FC = () => {
             const isPolitical = isSuper || instType === 'Political Campaign';
             const isCommunity = isSuper || instType === 'Community';
             const isCounty = isSuper || (currentUser?.role || '').startsWith('county_');
+
+            // ── Module Onboarding: show wizard for edu admins with no active modules ──
+            const EDU_TYPES = ['Education', 'Primary', 'Secondary', 'College', 'University', 'Institute', 'TVET', 'Polytechnic'];
+            const isEduAdmin = EDU_TYPES.includes(instType) && currentUser && currentUser.role !== 'super_admin' && ['admin', 'head_teacher', 'dos', 'deputy'].includes(currentUser.role);
+            if (isEduAdmin && activeInst) {
+                const activeModules = (imsPhase1 || []).filter((m: any) => m.institutionId === activeInst.id && (m.status === 'active' || m.status === 'trial'));
+                const dismissedKey = `edu_onboarding_dismissed_${activeInst.id}`;
+                const alreadyDismissed = localStorage.getItem(dismissedKey) === 'true';
+                if (activeModules.length === 0 && !alreadyDismissed) {
+                    setShowModuleOnboarding(true);
+                }
+            }
 
             setLoadStatus("Building Workspace...");
 
@@ -5221,6 +5235,32 @@ export const App: React.FC = () => {
                 )}
             </div>
                 </>
+            )}
+            {showModuleOnboarding && activeInstitution && (
+                <ModuleOnboardingWizard
+                    institution={activeInstitution}
+                    onActivateModules={async (moduleIds: string[]) => {
+                        for (const moduleId of moduleIds) {
+                            try {
+                                const newState: Omit<InstitutionModuleState, 'id'> = {
+                                    moduleId,
+                                    institutionId: activeInstitution.id,
+                                    status: 'trial',
+                                    activatedAt: new Date().toISOString(),
+                                    trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+                                };
+                                await apiService.saveModuleRecord('institution_module_states', { ...newState, id: `ims_${moduleId}_${activeInstitution.id}` });
+                            } catch (e) {
+                                console.error(`[Onboarding] Failed to activate module ${moduleId}:`, e);
+                            }
+                        }
+                        await loadData();
+                    }}
+                    onDismiss={() => {
+                        localStorage.setItem(`edu_onboarding_dismissed_${activeInstitution.id}`, 'true');
+                        setShowModuleOnboarding(false);
+                    }}
+                />
             )}
         </AppErrorBoundary>
     );
