@@ -136,6 +136,7 @@ const LoginView = React.lazy(() => import('./LoginView').then(m => ({ default: m
 const HospitalityMarketplace = React.lazy(() => import('./hospitality/HospitalityMarketplace').then(m => ({ default: m.HospitalityMarketplace })));
 const CarShowroomDashboard = React.lazy(() => import('./automotive/CarShowroomDashboard').then(m => ({ default: m.CarShowroomDashboard })));
 const CarSalesLedger = React.lazy(() => import('./automotive/CarSalesLedger').then(m => ({ default: m.CarSalesLedger })));
+const BankFeedsManager = React.lazy(() => import('./automotive/BankFeedsManager').then(m => ({ default: m.BankFeedsManager })));
 
 import { 
     Compass, 
@@ -297,11 +298,14 @@ export interface SuperAdminViewProps {
     carAppraisals?: CarAppraisal[];
     carInvoices?: CarInvoice[];
     carPayments?: CarPayment[];
+    carBankTransactions?: BankTransaction[];
     onAddCarListing?: (data: Partial<CarListing>) => Promise<void>;
     onUpdateCarTestDriveStatus?: (id: string, status: any) => Promise<void>;
     onAddCarAppraisal?: (data: Partial<CarAppraisal>) => Promise<void>;
     onAddCarInvoice?: (data: Partial<CarInvoice>) => Promise<void>;
     onAddCarPayment?: (data: Partial<CarPayment>) => Promise<void>;
+    onReconcileBankTransaction?: (transactionId: string, invoiceId: string) => Promise<void>;
+    onFetchBankFeeds?: () => Promise<void>;
 
     onUpdateEnrollmentRequest?: (id: string, status: 'approved' | 'rejected') => void;
     onUpdateAbsenceRequest?: (id: string, status: 'approved' | 'rejected') => void;
@@ -3357,7 +3361,8 @@ Please change it after login.`;
                         <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-2xl w-fit border border-slate-200 dark:border-slate-700">
                             <button onClick={() => setAutoSubTab('dashboard')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'dashboard' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Operations Hub</button>
                             <button onClick={() => setAutoSubTab('inventory')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'inventory' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Inventory Preview</button>
-                            <button onClick={() => setAutoSubTab('financials')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'financials' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Invoices & Sales</button>
+                            <button onClick={() => setAutoSubTab('financials')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'financials' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Invoices</button>
+                            <button onClick={() => setAutoSubTab('bank_feeds')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'bank_feeds' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Transactions</button>
                         </div>
 
                         <div className="animate-fade-in">
@@ -3398,6 +3403,27 @@ Please change it after login.`;
                                         onAddPayment={() => props.onAddCarPayment?.({})}
                                         onPrintInvoice={() => {}}
                                         onPrintReceipt={() => {}}
+                                    />
+                                </Suspense>
+                            )}
+
+                            {autoSubTab === 'bank_feeds' && (
+                                <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
+                                    <BankFeedsManager
+                                        transactions={props.carBankTransactions || []}
+                                        invoices={props.carInvoices || []}
+                                        onReconcile={async (tid, invId) => {
+                                            if (props.onReconcileBankTransaction) {
+                                                await props.onReconcileBankTransaction(tid, invId);
+                                            }
+                                        }}
+                                        onFetchFeeds={async () => {
+                                            if (props.onFetchBankFeeds) {
+                                                await props.onFetchBankFeeds();
+                                            }
+                                        }}
+                                        currentUser={currentUser}
+                                        institution={currentInstitution || institutions[0]}
                                     />
                                 </Suspense>
                             )}

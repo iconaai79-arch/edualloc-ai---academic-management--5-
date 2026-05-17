@@ -540,6 +540,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     const institutionType = props.currentInstitution?.institutionType;
     const businessSubType = props.currentInstitution?.businessSubType;
     const isBusiness = institutionType === 'Business';
+    const roleToUse = props.activeRole || props.currentUser?.role;
 
     const isEdu = useMemo(() => {
         return isEduInstitution(props.currentInstitution);
@@ -1792,7 +1793,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit">
                             <button onClick={() => setAutoSubTab('dashboard')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'dashboard' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Dashboard Hub</button>
                             <button onClick={() => setAutoSubTab('inventory')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'inventory' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Vehicle Inventory</button>
-                            {['director', 'finance', 'super_admin', 'admin'].includes(props.currentUser?.role || '') && (
+                            {['director', 'finance', 'super_admin', 'admin'].includes(roleToUse || '') && (
                                 <>
                                     <button onClick={() => setAutoSubTab('financials')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'financials' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Sales & Invoices</button>
                                     <button onClick={() => setAutoSubTab('bank_feeds')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'bank_feeds' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Bank Feeds</button>

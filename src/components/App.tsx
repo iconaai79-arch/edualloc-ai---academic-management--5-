@@ -3701,6 +3701,35 @@ export const App: React.FC = () => {
         carAppraisals,
         carInvoices,
         carPayments,
+        carBankTransactions,
+        onReconcileBankTransaction: async (transactionId: string, invoiceId: string) => {
+            const transaction = carBankTransactions.find(t => t.id === transactionId);
+            if (transaction) {
+                try {
+                    const instId = activeInstitution?.id || currentUser?.institutionId;
+                    await apiService.saveCarPayment({
+                        id: `pay_${Date.now()}`,
+                        invoiceId: invoiceId,
+                        amount: transaction.amount,
+                        paymentMethod: 'Bank Transfer',
+                        transactionReference: (transaction as any).reference || (transaction as any).transactionId || '',
+                        paymentDate: (transaction as any).transactionDate || new Date().toISOString(),
+                        institutionId: instId || ''
+                    });
+
+                    await apiService.updateModuleRecord('bank_transactions', transactionId, {
+                        status: 'reconciled'
+                    } as any);
+
+                    await loadData();
+                } catch (err) {
+                    console.error("Reconciliation failed:", err);
+                }
+            }
+        },
+        onFetchBankFeeds: async () => {
+            await loadData();
+        },
         onAddCarInvoice: async (data: Partial<CarInvoice>) => {
             const instId = activeInstitution?.id || currentUser?.institutionId;
             await apiService.saveCarInvoice({ ...data, id: `inv_${Date.now()}`, institutionId: instId || '' });
@@ -3728,7 +3757,7 @@ export const App: React.FC = () => {
             await apiService.saveCarAppraisal({ ...data, id: `appr_${Date.now()}`, institutionId: instId || '' });
             await loadData();
         }
-    }), [currentUser, activeInstitution, notifications, institutions, counties, users, subjects, departments, courses, companyDetails, transactions, demoRequests, receipts, activityLog, allocations, requests, semesters, activeLetterheadConfig, activeBranding, activeFooterImageUrl, rooms, buildings, academicLevels, academicYears, activeAcademicYear, activeSemester, timetableSettings, assessments, assessmentMarks, incidents, schoolRegistry, leaveOutRequests, invoices, extensionRequests, voteHeads, feeStructures, financialPeriods, userTasks, generatedTimetable, timetableConflicts, timeOffRequests, enrollmentRequests, absenceRequests, studentAbsenceRequests, securityAlerts, visitors, requisitions, studentAttendances, studentCheckIns, lessonRatings, feedbackSubmissions, courseSizes, isGeneratingDemoData, demoDataGenerationProgress, demoDataGenerationMessage, vehicles, transportOnboarding, coopFarmers, coopCollections, coopRiders, coopAgrovetSales, saccoAccounts, coopPayouts, coopExpenses, coopIncome, lawClients, lawMatters, lawDocuments, lawTimeEntries, lawInvoices, lawTrustTransactions, lawAgreementTemplates, lawAgreements, carListings, carTestDrives, carAppraisals, carInvoices, carPayments, handleAccessAlumnaPortal, handleUpdateCompanyDetails, onImportStudents, onEditUser, onDeleteUser, onUpdateInstitution, handleUpdateRequest, handleWithdrawRequest, handleAddTimeOffRequest, handleAddTask, handleUpdateTask, handleDeleteTask, handleSaveAttendance, handleProcessPayroll, handleUpdateLeaveStatus, handleLogGateAction, handleTeacherLessonCheckIn, handleOnboardStudent, handleOffboardStudent, handleAddAssessment, handleDeleteAssessment, handleSaveAssessmentMarks, handleAddSubject, handleUpdateSubject, handleDeleteSubject, handleAddCourse, handleUpdateCourse, handleDeleteCourse, handleImportCourses, handleAddDepartment, handleUpdateDepartment, handleDeleteDepartment, handleImportDepartments, handleAddRoom, handleUpdateRoom, handleDeleteRoom, handleImportRooms, loadData]);
+    }), [currentUser, activeInstitution, notifications, institutions, counties, users, subjects, departments, courses, companyDetails, transactions, demoRequests, receipts, activityLog, allocations, requests, semesters, activeLetterheadConfig, activeBranding, activeFooterImageUrl, rooms, buildings, academicLevels, academicYears, activeAcademicYear, activeSemester, timetableSettings, assessments, assessmentMarks, incidents, schoolRegistry, leaveOutRequests, invoices, extensionRequests, voteHeads, feeStructures, financialPeriods, userTasks, generatedTimetable, timetableConflicts, timeOffRequests, enrollmentRequests, absenceRequests, studentAbsenceRequests, securityAlerts, visitors, requisitions, studentAttendances, studentCheckIns, lessonRatings, feedbackSubmissions, courseSizes, isGeneratingDemoData, demoDataGenerationProgress, demoDataGenerationMessage, vehicles, transportOnboarding, coopFarmers, coopCollections, coopRiders, coopAgrovetSales, saccoAccounts, coopPayouts, coopExpenses, coopIncome, lawClients, lawMatters, lawDocuments, lawTimeEntries, lawInvoices, lawTrustTransactions, lawAgreementTemplates, lawAgreements, carListings, carTestDrives, carAppraisals, carInvoices, carPayments, carBankTransactions, handleAccessAlumnaPortal, handleUpdateCompanyDetails, onImportStudents, onEditUser, onDeleteUser, onUpdateInstitution, handleUpdateRequest, handleWithdrawRequest, handleAddTimeOffRequest, handleAddTask, handleUpdateTask, handleDeleteTask, handleSaveAttendance, handleProcessPayroll, handleUpdateLeaveStatus, handleLogGateAction, handleTeacherLessonCheckIn, handleOnboardStudent, handleOffboardStudent, handleAddAssessment, handleDeleteAssessment, handleSaveAssessmentMarks, handleAddSubject, handleUpdateSubject, handleDeleteSubject, handleAddCourse, handleUpdateCourse, handleDeleteCourse, handleImportCourses, handleAddDepartment, handleUpdateDepartment, handleDeleteDepartment, handleImportDepartments, handleAddRoom, handleUpdateRoom, handleDeleteRoom, handleImportRooms, loadData]);
 
 
     const countyAdminProps = useMemo<Partial<CountyAdminProps>>(() => ({
