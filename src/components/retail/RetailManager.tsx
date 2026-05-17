@@ -41,6 +41,7 @@ interface RetailManagerProps {
     onAddRequisition?: (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => Promise<void>;
     onUpdateRequisition?: (reqId: string, data: Partial<Requisition>) => Promise<void>;
     businessSubType?: string;
+    isEducation?: boolean;
 }
 
 export function RetailManager(props: RetailManagerProps) {
@@ -105,7 +106,19 @@ export function RetailManager(props: RetailManagerProps) {
         businessSubType?.toLowerCase().includes('restaurant') ||
         businessSubType?.toLowerCase().includes('eatery');
 
-    const navItems = [
+    const { isEducation } = props;
+
+    const navItems = isEducation ? [
+        { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
+        { id: 'inventory', label: 'Inventory', icon: Package },
+        { id: 'pos', label: 'Issue Desk', icon: Smartphone },
+        { id: 'logistics', label: 'Logistics', icon: TruckIcon },
+        { id: 'stores', label: 'Departments', icon: Store },
+        { id: 'expenses', label: 'Expenses', icon: Receipt },
+        { id: 'requisitions', label: 'Requests', icon: FileText },
+        { id: 'vendors', label: 'Suppliers', icon: BuildingIcon },
+        { id: 'transfers', label: 'Transfers', icon: Truck }
+    ] : [
         { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
         { id: 'inventory', label: 'Catalog', icon: Package },
         { id: 'pos', label: 'POS', icon: Smartphone },
@@ -182,9 +195,9 @@ export function RetailManager(props: RetailManagerProps) {
             </div>
 
             <div className="animate-fade-in-up mt-4">
-                {activeView === 'dashboard' && <RetailDashboard institutionId={institutionId} onNavigate={(v) => setActiveView(v as any)} />}
+                {activeView === 'dashboard' && <RetailDashboard institutionId={institutionId} onNavigate={(v) => setActiveView(v as any)} isEducation={isEducation} />}
                 {activeView === 'pos' && <DualModePOS institutionId={institutionId} currentUser={currentUser} />}
-                {activeView === 'stores' && <RetailStoresManager institutionId={institutionId} />}
+                {activeView === 'stores' && <RetailStoresManager institutionId={institutionId} isEducation={isEducation} />}
                 {activeView === 'wishlist' && <WishlistManager institutionId={institutionId} />}
 
                 {activeView === 'expenses' && (

@@ -21,9 +21,10 @@ import { GlobeAltIcon as Globe } from '../icons/GlobeAltIcon';
 interface RetailDashboardProps {
     institutionId: string;
     onNavigate: (view: 'stores' | 'inventory' | 'transfers' | 'wishlist' | 'commissions' | 'pos') => void;
+    isEducation?: boolean;
 }
 
-export function RetailDashboard({ institutionId, onNavigate }: RetailDashboardProps) {
+export function RetailDashboard({ institutionId, onNavigate, isEducation }: RetailDashboardProps) {
     const [stats, setStats] = useState({
         totalStores: 0,
         totalVanStock: 0,
@@ -109,9 +110,15 @@ export function RetailDashboard({ institutionId, onNavigate }: RetailDashboardPr
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div>
                     <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                        Retail <span className="text-indigo-600 dark:text-indigo-400">&</span> Agency
+                        {isEducation ? (
+                            <>School <span className="text-indigo-600 dark:text-indigo-400">Inventory</span></>
+                        ) : (
+                            <>Retail <span className="text-indigo-600 dark:text-indigo-400">&</span> Agency</>
+                        )}
                     </h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 font-medium italic">Empowering your field agents & multi-store inventory.</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 font-medium italic">
+                        {isEducation ? 'Track and manage school supply inventory, uniform/stationery stock, and requests.' : 'Empowering your field agents & multi-store inventory.'}
+                    </p>
                 </div>
 
                 <div className="flex gap-4 w-full md:w-auto">
@@ -162,14 +169,14 @@ export function RetailDashboard({ institutionId, onNavigate }: RetailDashboardPr
                             <Truck className="w-6 h-6" />
                         </div>
                         <div>
-                            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Field Agents</p>
+                            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{isEducation ? 'Departments' : 'Field Agents'}</p>
                             <div className="flex items-baseline gap-2">
                                 <h3 className="text-4xl font-black text-slate-900 dark:text-white">{stats.totalVanStock}</h3>
-                                <span className="text-sm font-bold text-slate-500">Active Vans</span>
+                                <span className="text-sm font-bold text-slate-500">{isEducation ? 'Active Departments' : 'Active Vans'}</span>
                             </div>
                             <div className="mt-4 pt-4 border-t border-slate-50 dark:border-slate-700 flex items-center gap-2 text-[10px] font-black uppercase tracking-tight text-emerald-600 dark:text-emerald-400">
                                 <MapPin className="w-4 h-4" />
-                                <span>Real-time Tracking</span>
+                                <span>{isEducation ? 'Internal Tracking' : 'Real-time Tracking'}</span>
                             </div>
                         </div>
                     </div>
@@ -326,8 +333,18 @@ export function RetailDashboard({ institutionId, onNavigate }: RetailDashboardPr
                                     <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
                                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70">AI Business Insight</p>
                                 </div>
-                                <h4 className="text-xl font-black text-white leading-tight">Your field agents are {stats.totalVanStock > 0 ? 'outperforming' : 'waiting for'} physical outlets this week.</h4>
-                                <p className="text-sm font-medium text-white/80 max-w-lg">Consider re-allocating buffer stock from Main Store to active Van Agents to capitalize on peak mobility hours.</p>
+                                <h4 className="text-xl font-black text-white leading-tight">
+                                    {isEducation 
+                                        ? `Your departments are ${stats.totalVanStock > 0 ? 'actively requesting' : 'waiting for'} supplies this week.`
+                                        : `Your field agents are ${stats.totalVanStock > 0 ? 'outperforming' : 'waiting for'} physical outlets this week.`
+                                    }
+                                </h4>
+                                <p className="text-sm font-medium text-white/80 max-w-lg">
+                                    {isEducation 
+                                        ? 'Consider re-allocating buffer stock from Main Store to active departments to ensure smooth operations.'
+                                        : 'Consider re-allocating buffer stock from Main Store to active Van Agents to capitalize on peak mobility hours.'
+                                    }
+                                </p>
                             </div>
                         </div>
                     </div>

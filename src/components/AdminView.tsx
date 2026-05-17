@@ -1499,6 +1499,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             requisitions={props.requisitions}
                             onAddRequisition={props.onAddRequisition}
                             onUpdateRequisition={props.onUpdateRequisition}
+                            isEducation={isEducation}
                         />
                     ) : (
                         <ModuleAccessGuard
@@ -1519,6 +1520,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 requisitions={props.requisitions}
                                 onAddRequisition={props.onAddRequisition}
                                 onUpdateRequisition={props.onUpdateRequisition}
+                                isEducation={isEducation}
                             />
                         </ModuleAccessGuard>
                     )

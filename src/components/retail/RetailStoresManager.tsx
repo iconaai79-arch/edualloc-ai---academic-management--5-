@@ -15,9 +15,10 @@ import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 
 interface RetailStoresManagerProps {
     institutionId: string;
+    isEducation?: boolean;
 }
 
-export function RetailStoresManager({ institutionId }: RetailStoresManagerProps) {
+export function RetailStoresManager({ institutionId, isEducation }: RetailStoresManagerProps) {
     const [stores, setStores] = useState<RetailStore[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const user = apiService.getSession();
@@ -196,8 +197,8 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-xl font-bold text-slate-800 tracking-tight">Stores & Agent Locations</h2>
-                    <p className="text-slate-500 text-sm mt-1">Manage physical branches and van stock for field agents.</p>
+                    <h2 className="text-xl font-bold text-slate-800 tracking-tight">{isEducation ? 'Departments & Locations' : 'Stores & Agent Locations'}</h2>
+                    <p className="text-slate-500 text-sm mt-1">{isEducation ? 'Manage physical school departments and internal resource centers.' : 'Manage physical branches and van stock for field agents.'}</p>
                 </div>
 
                 <button
@@ -218,7 +219,7 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
                     <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                     <input
                         type="text"
-                        placeholder="Search stores or agents..."
+                        placeholder={isEducation ? "Search departments or locations..." : "Search stores or agents..."}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
@@ -232,9 +233,9 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
                         className="w-full sm:w-auto px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm bg-slate-50"
                     >
                         <option value="all">All Locations</option>
-                        <option value="main_store">Main Stores</option>
-                        <option value="branch_store">Branch Stores</option>
-                        <option value="van_stock">Van Stock (Agents)</option>
+                        <option value="main_store">{isEducation ? 'Main Campus' : 'Main Stores'}</option>
+                        <option value="branch_store">{isEducation ? 'Department / Resource Center' : 'Branch Stores'}</option>
+                        <option value="van_stock">{isEducation ? 'Mobile Unit / Cart' : 'Van Stock (Agents)'}</option>
                         <option value="warehouse">Warehouses</option>
                     </select>
                 </div>
@@ -444,9 +445,9 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
                                     onChange={e => setCurrentLocation({ ...currentLocation, storeType: e.target.value as any })}
                                     className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                                 >
-                                    <option value="branch_store">Branch Store</option>
-                                    <option value="main_store">Main Store / HQ</option>
-                                    <option value="van_stock">Field Agent (Van Stock)</option>
+                                    <option value="branch_store">{isEducation ? 'Department / Resource Center' : 'Branch Store'}</option>
+                                    <option value="main_store">{isEducation ? 'Main Campus / Central Store' : 'Main Store / HQ'}</option>
+                                    <option value="van_stock">{isEducation ? 'Mobile Unit / Cart' : 'Field Agent (Van Stock)'}</option>
                                     <option value="warehouse">Warehouse</option>
                                 </select>
                             </div>
