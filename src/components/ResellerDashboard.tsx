@@ -991,7 +991,15 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                             </button>
                         </div>
                         <div className="p-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {perspectiveOptions.map(opt => (
+                            {perspectiveOptions.filter(opt => {
+                                const instType = selectedTenantForPerspective?.institutionType;
+                                const isEdu = instType === 'Education' || ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(instType || '');
+                                if (isEdu) {
+                                    const eduAllowed = ['admin', 'security', 'store', 'transport_assistant', 'boarding_master', 'info_desk', 'librarian', 'parent', 'student', 'lecturer'];
+                                    return eduAllowed.includes(opt.role);
+                                }
+                                return true;
+                            }).map(opt => (
                                 <button
                                     key={opt.role}
                                     onClick={() => {

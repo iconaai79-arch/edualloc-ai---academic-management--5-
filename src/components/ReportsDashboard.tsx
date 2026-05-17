@@ -1050,7 +1050,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                 studentCheckIns={studentCheckIns}
                                 users={lecturers}
                                 subjects={subjects}
-                                institutionId={currentUser.institutionId}
+                                institutionId={currentUser?.institutionId || ''}
                             />
                         </div>
                     )}

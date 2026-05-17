@@ -246,7 +246,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 vehicleModel: walkInForm.vehicleModel,
                 visitDate: new Date().toISOString().split('T')[0],
                 timeIn: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                institutionId: props.user.institutionId
+                institutionId: user?.institutionId || ''
             });
             await props.onLogAction?.(`Registered visitor: ${walkInForm.name} for ${walkInForm.purpose}`);
             setIsRegistering(false);
@@ -1172,8 +1172,8 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                         inventory={inventory}
                         users={users}
                         departments={departments}
-                        institutionId={props.user.institutionId}
-                        currentUserId={props.user.id}
+                        institutionId={user?.institutionId || ''}
+                        currentUserId={user?.id || ''}
                         onLogAction={props.onLogAction || (async () => {})}
                         onDataChange={() => {
                             onRefreshData?.();
@@ -1947,7 +1947,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                 <SmartInventoryImporterModal
                     onClose={() => setIsImportModalOpen(false)}
                     onImport={async (items) => {
-                        onAddItems?.(items.map(i => ({ ...i, institutionId: props.user.institutionId })));
+                        onAddItems?.(items.map(i => ({ ...i, institutionId: user?.institutionId || '' })));
                         setIsImportModalOpen(false);
                     }}
                     countyId="INSTITUTIONAL"

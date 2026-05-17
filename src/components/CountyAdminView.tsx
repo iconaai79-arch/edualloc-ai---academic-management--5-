@@ -1060,6 +1060,8 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                 </div>
                             </>
                         )}
+                    </div>
+                )}
                         {activeTab === 'bursaries' && (
                             <div className="space-y-6 animate-fade-in-up">
                                 <div className="flex justify-between items-end mb-8">
@@ -1108,7 +1110,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                                         <tr key={app.id} className="hover:bg-slate-50/50 transition-colors">
                                                             <td className="px-6 py-4">
                                                                 <div className="text-sm font-black text-slate-900 uppercase tracking-tight">{app.studentName}</div>
-                                                                <div className="text-[10px] font-bold text-slate-400">{app.studentEmail}</div>
+                                                                <div className="text-[10px] font-bold text-slate-400">{users.find(u => u.id === app.studentId)?.email || 'No Email'}</div>
                                                             </td>
                                                             <td className="px-6 py-4 text-xs font-medium text-slate-600">
                                                                 {app.institutionName}
@@ -1163,7 +1165,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                         <DisciplineManager 
                                             institutionId={perspectiveInstitution.id}
                                             incidents={incidents.filter(i => i.institutionId === perspectiveInstitution.id)}
-                                            onAddIncident={onAddIncident}
+                                            onAddIncident={async (incident) => { onAddIncident?.(incident); }}
                                             students={users.filter(u => u.institutionId === perspectiveInstitution.id && u.role === 'student')}
                                         />
                                     </div>
@@ -1180,8 +1182,6 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = (props) => {
                                 </div>
                             </div>
                         )}
-                    </div>
-                )}
 
                 {/* ... modals and other sections will be added back from chunks */}
             </main>

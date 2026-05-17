@@ -14,7 +14,7 @@ import type {
     TransportOnboarding, VehicleLog, AppNotification,
     LawAgreement, LawAgreementTemplate, LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction,
     DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
-    CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry, MarketingProspect,
+    CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry, MarketingProspect, BankTransaction,
     PoliticalParty, Constituency, Ward, FtpConfig, GoogleDriveConfig, ICDCode, KcbConfig
 } from '../types';
 import { TransactionsManager } from './TransactionsManager';
@@ -582,7 +582,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isAddingInstitution, setIsAddingInstitution] = useState(false);
-    const [autoSubTab, setAutoSubTab] = useState<'dashboard' | 'inventory' | 'financials'>(() => {
+    const [autoSubTab, setAutoSubTab] = useState<'dashboard' | 'inventory' | 'financials' | 'bank_feeds'>(() => {
         const params = new URLSearchParams(window.location.search);
         if (params.get('sub') === 'financials' || params.get('tab') === 'sales') return 'financials';
         return 'dashboard';
@@ -1420,8 +1420,8 @@ Please change it after login.`;
         }
 
         if (isEdu) {
-            // Super Admins should always see the Church System for simulation
-            return !['agrovet_admin', 'property_admin', 'carwash_admin', 'cooperative_manager', 'coop_chairman', 'farmer', 'rider'].includes(opt.role);
+            const eduAllowed = ['admin', 'academics_officer', 'security', 'store', 'transport_admin', 'transport_assistant', 'boarding_master', 'info_desk', 'librarian', 'parent', 'student', 'lecturer'];
+            return eduAllowed.includes(opt.role);
         }
 
         if (instType === 'Cooperative') {
