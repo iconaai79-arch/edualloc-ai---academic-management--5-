@@ -700,7 +700,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             { id: 'boarding', label: 'Boarding System', icon: <BedIcon className="w-5 h-5 mr-2" /> },
             { id: 'leaveout', label: 'Leave Out', icon: <ArchiveBoxIcon className="w-5 h-5 mr-2" /> },
             { id: 'comms', label: isHeritage ? 'Announcements' : isCommunity ? 'Community Updates' : isRetailAgency ? 'Communications' : 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
-            { id: 'retail', label: isEdu ? 'School Store' : 'Retail & Agency', icon: <StoreIcon className="w-5 h-5 mr-2" /> },
+            { id: 'retail', label: isEdu ? 'School Inventory' : 'Retail & Agency', icon: isEdu ? <ArchiveBoxIcon className="w-5 h-5 mr-2" /> : <StoreIcon className="w-5 h-5 mr-2" /> },
             { id: 'procurement', label: 'Procurement', icon: <ShoppingBagIcon className="w-5 h-5 mr-2" /> },
             { id: 'coop', label: 'Cooperative', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
             { id: 'car_service', label: 'Car Service', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
@@ -1503,8 +1503,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     ) : (
                         <ModuleAccessGuard
                             moduleId="school_store"
-                            moduleName="School Store & Inventory"
-                            description="Manage your school's inventory, sales, and retail operations with a premium store module."
+                            moduleName="School Inventory"
+                            description="Track and manage school supply inventory, uniform/stationery stock, student requests, and suppliers."
                             institution={props.currentInstitution}
                             onActivateTrial={onActivateModuleTrial}
                         >

@@ -375,7 +375,7 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {[
-                                { id: 'school_store', name: 'School Store & Inventory', description: 'Complete retail management for school shops, including inventory tracking, point-of-sale, and supplier management.' },
+                                { id: 'school_store', name: 'School Inventory', description: 'Comprehensive inventory and stock management tailored for the education sector, including uniform/stationery stock, student requests, and suppliers.' },
                                 { id: 'library', name: 'Library Management', description: 'Comprehensive library system with cataloging, issuing, returning, and fine tracking features.' },
                                 { id: 'academics', name: 'Academics & Grading', description: 'Advanced academic tracking, grading systems, report card generation, and student performance analytics.' },
                                 { id: 'finance', name: 'Finance & Accounting', description: 'Integrated financial management, fee collection, invoicing, expense tracking, and financial reporting.' },

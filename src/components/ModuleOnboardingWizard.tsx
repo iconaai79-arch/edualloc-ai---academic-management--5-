@@ -71,13 +71,13 @@ const EDU_MODULES: EduModule[] = [
     },
     {
         id: 'school_store',
-        name: 'School Store',
-        tagline: 'Inventory & POS',
-        description: 'Manage school shop inventory, point-of-sale, uniform & stationery sales, and supplier management.',
-        icon: '🏪',
+        name: 'School Inventory',
+        tagline: 'Supply & Resource Tracking',
+        description: 'Track and manage school supply inventory, uniform/stationery stock, student requests, and suppliers.',
+        icon: '📦',
         color: 'orange',
         gradient: 'from-orange-500 to-amber-500',
-        features: ['POS system', 'Inventory tracking', 'Supplier management', 'Sales reports'],
+        features: ['Inventory tracking', 'Supplier management', 'Stock requisitions', 'Asset registry'],
     },
     {
         id: 'boarding',
