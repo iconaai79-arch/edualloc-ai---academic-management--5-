@@ -79,6 +79,26 @@ const EDU_MODULES: EduModule[] = [
         gradient: 'from-orange-500 to-amber-500',
         features: ['POS system', 'Inventory tracking', 'Supplier management', 'Sales reports'],
     },
+    {
+        id: 'boarding',
+        name: 'Boarding Master',
+        tagline: 'Hostel & Dormitory',
+        description: 'Manage boarding facilities, hostel allocations, bed mappings, and student leave-out requests smoothly.',
+        icon: '🛏️',
+        color: 'rose',
+        gradient: 'from-rose-500 to-pink-500',
+        features: ['Hostel management', 'Bed allocation', 'Leave-out tracking', 'Discipline incidents'],
+    },
+    {
+        id: 'transport',
+        name: 'Fleet Registry',
+        tagline: 'Transport & Routes',
+        description: 'Complete school bus tracking, route planning, student transport onboarding, vehicle logs, and driver management.',
+        icon: '🚌',
+        color: 'sky',
+        gradient: 'from-blue-500 to-indigo-500',
+        features: ['Vehicle tracking', 'Driver mapping', 'Onboarding history', 'Gate check-in logs'],
+    },
 ];
 
 // ─── Props ────────────────────────────────────────────────────────────────────

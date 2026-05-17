@@ -700,7 +700,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             { id: 'boarding', label: 'Boarding System', icon: <BedIcon className="w-5 h-5 mr-2" /> },
             { id: 'leaveout', label: 'Leave Out', icon: <ArchiveBoxIcon className="w-5 h-5 mr-2" /> },
             { id: 'comms', label: isHeritage ? 'Announcements' : isCommunity ? 'Community Updates' : isRetailAgency ? 'Communications' : 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
-            { id: 'retail', label: 'Retail & Agency', icon: <StoreIcon className="w-5 h-5 mr-2" /> },
+            { id: 'retail', label: isEdu ? 'School Store' : 'Retail & Agency', icon: <StoreIcon className="w-5 h-5 mr-2" /> },
             { id: 'procurement', label: 'Procurement', icon: <ShoppingBagIcon className="w-5 h-5 mr-2" /> },
             { id: 'coop', label: 'Cooperative', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
             { id: 'car_service', label: 'Car Service', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
@@ -770,8 +770,6 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             // Educational tabs
             if (['timetable', 'courses', 'leaveout', 'boarding'].includes(tab.id)) {
                 if (!isEdu || isDS) return false;
-                if (tab.id === 'timetable' && !isModuleActive('timetable')) return false;
-                if (tab.id === 'courses' && !isModuleActive('academics')) return false;
                 return true;
             }
 
@@ -793,7 +791,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
             // Retail & Procurement tabs
             if (['retail', 'procurement'].includes(tab.id)) {
-                if (isEdu || isChurch || isCommunity || isHospitality) return false;
+                if (isEdu) {
+                    return tab.id === 'retail';
+                }
+                if (isChurch || isCommunity || isHospitality) return false;
                 if (isBusiness) {
                     return RETAIL_SUBTYPES.includes(businessSubType || '');
                 }
@@ -899,6 +900,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             if (!isModuleActive('library')) eduAllowed = eduAllowed.filter(r => r !== 'librarian');
             if (!isModuleActive('academics')) eduAllowed = eduAllowed.filter(r => !['parent', 'student', 'lecturer'].includes(r));
             if (!isModuleActive('finance')) eduAllowed = eduAllowed.filter(r => r !== 'finance');
+            if (!isModuleActive('boarding')) eduAllowed = eduAllowed.filter(r => r !== 'boarding_master');
+            if (!isModuleActive('transport')) eduAllowed = eduAllowed.filter(r => r !== 'transport_assistant');
             return eduAllowed.includes(opt.role);
         } else {
             // Non-educational: Hide educational portal perspectives
@@ -915,30 +918,56 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     });
 
 
+    const getTabModuleState = (tabId: string) => {
+        if (!isEdu) return null;
+        let moduleId: string | null = null;
+        if (tabId === 'timetable') moduleId = 'timetable';
+        else if (tabId === 'courses') moduleId = 'academics';
+        else if (tabId === 'boarding' || tabId === 'leaveout') moduleId = 'boarding';
+        else if (tabId === 'transport') moduleId = 'transport';
+        else if (tabId === 'retail') moduleId = 'school_store';
+        
+        if (!moduleId) return null;
+        return props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId);
+    };
+
     return (
         <div className="space-y-6 font-sans text-slate-900 dark:text-slate-100">
             <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto no-scrollbar no-print bg-white dark:bg-slate-800 rounded-2xl shadow-sm px-2">
-                {tabs.map((tab: { id: string, label: string, icon: React.ReactNode }) => (
-                    <button
-                        key={tab.id}
-                        onClick={() => {
-                            setActiveTab(tab.id as any);
-                            if (tab.id !== 'settings') setRequestedSettingsTab(undefined);
-                        }}
-                        className={`flex items-center gap-2 py-4 px-6 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
-                            ? 'border-indigo-600 text-indigo-600'
-                            : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-                            }`}
-                    >
-                        {tab.icon}
-                        {tab.label}
-                        {tab.id === 'timetable' && stats.totalActionable > 0 && (
-                            <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm animate-pulse ml-1">
-                                {stats.totalActionable}
-                            </span>
-                        )}
-                    </button>
-                ))}
+                {tabs.map((tab: { id: string, label: string, icon: React.ReactNode }) => {
+                    const modState = getTabModuleState(tab.id);
+                    return (
+                        <button
+                            key={tab.id}
+                            onClick={() => {
+                                setActiveTab(tab.id as any);
+                                if (tab.id !== 'settings') setRequestedSettingsTab(undefined);
+                            }}
+                            className={`flex items-center gap-2 py-4 px-6 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
+                                ? 'border-indigo-600 text-indigo-600'
+                                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                                }`}
+                        >
+                            {tab.icon}
+                            <span>{tab.label}</span>
+                            {modState?.status === 'trial' ? (
+                                <span className="text-[9px] text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded font-black tracking-wider uppercase flex items-center gap-1 animate-pulse">
+                                    Trial
+                                </span>
+                            ) : (tab.id === 'timetable' || tab.id === 'courses' || tab.id === 'boarding' || tab.id === 'leaveout' || tab.id === 'transport' || tab.id === 'retail') && (!modState || modState.status !== 'active') ? (
+                                <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700/50 px-1.5 py-0.5 rounded font-medium normal-case flex items-center gap-1">
+                                    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                    Unlock
+                                </span>
+                            ) : null}
+                            {tab.id === 'timetable' && stats.totalActionable > 0 && (
+                                <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm animate-pulse ml-1">
+                                    {stats.totalActionable}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
             </div>
 
             <main className="animate-fade-in">
@@ -1424,16 +1453,37 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 )}
 
                 {activeTab === 'transport' && (
-                    <TransportManager
-                        currentInstitution={props.currentInstitution!}
-                        vehicles={props.vehicles || []}
-                        users={props.users || []}
-                        onAddVehicle={props.onAddVehicle!}
-                        onUpdateVehicle={props.onUpdateVehicle!}
-                        onDeleteVehicle={props.onDeleteVehicle!}
-                        onAddUser={props.onAddUser}
-                        onEditUser={props.onEditUser}
-                    />
+                    !isEdu ? (
+                        <TransportManager
+                            currentInstitution={props.currentInstitution!}
+                            vehicles={props.vehicles || []}
+                            users={props.users || []}
+                            onAddVehicle={props.onAddVehicle!}
+                            onUpdateVehicle={props.onUpdateVehicle!}
+                            onDeleteVehicle={props.onDeleteVehicle!}
+                            onAddUser={props.onAddUser}
+                            onEditUser={props.onEditUser}
+                        />
+                    ) : (
+                        <ModuleAccessGuard
+                            moduleId="transport"
+                            moduleName="Fleet Registry"
+                            description="Track and manage your institutional school buses, routes, drivers, and student check-ins."
+                            institution={props.currentInstitution}
+                            onActivateTrial={onActivateModuleTrial}
+                        >
+                            <TransportManager
+                                currentInstitution={props.currentInstitution!}
+                                vehicles={props.vehicles || []}
+                                users={props.users || []}
+                                onAddVehicle={props.onAddVehicle!}
+                                onUpdateVehicle={props.onUpdateVehicle!}
+                                onDeleteVehicle={props.onDeleteVehicle!}
+                                onAddUser={props.onAddUser}
+                                onEditUser={props.onEditUser}
+                            />
+                        </ModuleAccessGuard>
+                    )
                 )}
 
                 {activeTab === 'retail' && (
@@ -1672,44 +1722,60 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 )}
 
                 {activeTab === 'leaveout' && (
-                    <StudentLeaveOutManager
-                        {...props}
-                        currentUser={props.currentUser!}
-                        currentInstitution={props.currentInstitution!}
-                        companyDetails={props.companyDetails!}
-                        users={props.users || []}
-                        academicYears={props.academicYears || []}
-                        semesters={props.semesters || []}
-                        courses={props.courses || []}
-                        departments={props.departments || []}
-                        onLogAction={props.onLogAction!}
-                        onDataChange={() => props.onAddUser && props.onAddUser({})}
-                    />
+                    <ModuleAccessGuard
+                        moduleId="boarding"
+                        moduleName="Boarding Master"
+                        description="Manage student boarding houses, bed allocations, dorm assignments, and student leave-out checkouts."
+                        institution={props.currentInstitution}
+                        onActivateTrial={onActivateModuleTrial}
+                    >
+                        <StudentLeaveOutManager
+                            {...props}
+                            currentUser={props.currentUser!}
+                            currentInstitution={props.currentInstitution!}
+                            companyDetails={props.companyDetails!}
+                            users={props.users || []}
+                            academicYears={props.academicYears || []}
+                            semesters={props.semesters || []}
+                            courses={props.courses || []}
+                            departments={props.departments || []}
+                            onLogAction={props.onLogAction!}
+                            onDataChange={() => props.onAddUser && props.onAddUser({})}
+                        />
+                    </ModuleAccessGuard>
                 )}
                 {activeTab === 'boarding' && (
-                    <BoardingMasterView
-                        currentUser={props.currentUser}
-                        currentInstitution={props.currentInstitution!}
-                        companyDetails={props.companyDetails}
-                        users={props.users}
-                        academicYears={props.academicYears}
-                        semesters={props.semesters}
-                        courses={props.courses}
-                        departments={props.departments}
-                        onLogAction={props.onLogAction!}
-                        onAddUser={props.onAddUser}
-                        onEditUser={props.onEditUser}
-                        onDeleteUser={props.onDeleteUser}
-                        onImportStudents={props.onImportStudents}
-                        smsConfig={props.smsConfig}
-                        subjects={props.subjects}
-                        letterheadConfig={props.letterheadConfig}
-                        logoUrl={props.logoUrl}
-                        footerImageUrl={props.footerImageUrl}
-                        onSendSms={props.onSendSms}
-                        onAddParent={props.onAddParent}
-                        onDeleteParent={props.onDeleteParent}
-                    />
+                    <ModuleAccessGuard
+                        moduleId="boarding"
+                        moduleName="Boarding Master"
+                        description="Manage student boarding houses, bed allocations, dorm assignments, and student leave-out checkouts."
+                        institution={props.currentInstitution}
+                        onActivateTrial={onActivateModuleTrial}
+                    >
+                        <BoardingMasterView
+                            currentUser={props.currentUser}
+                            currentInstitution={props.currentInstitution!}
+                            companyDetails={props.companyDetails}
+                            users={props.users}
+                            academicYears={props.academicYears}
+                            semesters={props.semesters}
+                            courses={props.courses}
+                            departments={props.departments}
+                            onLogAction={props.onLogAction!}
+                            onAddUser={props.onAddUser}
+                            onEditUser={props.onEditUser}
+                            onDeleteUser={props.onDeleteUser}
+                            onImportStudents={props.onImportStudents}
+                            smsConfig={props.smsConfig}
+                            subjects={props.subjects}
+                            letterheadConfig={props.letterheadConfig}
+                            logoUrl={props.logoUrl}
+                            footerImageUrl={props.footerImageUrl}
+                            onSendSms={props.onSendSms}
+                            onAddParent={props.onAddParent}
+                            onDeleteParent={props.onDeleteParent}
+                        />
+                    </ModuleAccessGuard>
                 )}
 
                 {activeTab === 'campaign' && (
