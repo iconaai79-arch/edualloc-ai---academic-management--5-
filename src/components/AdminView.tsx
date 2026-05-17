@@ -769,7 +769,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
             // Educational tabs
             if (['timetable', 'courses', 'leaveout', 'boarding'].includes(tab.id)) {
-                return isEdu && !isDS;
+                if (!isEdu || isDS) return false;
+                if (tab.id === 'timetable' && !isModuleActive('timetable')) return false;
+                if (tab.id === 'courses' && !isModuleActive('academics')) return false;
+                return true;
             }
 
             if (tab.id === 'users') {
@@ -878,6 +881,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         { role: 'carwash_admin', label: 'Car Wash Module', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-400' },
         { role: 'mechanic_admin', label: 'Car Service Center', icon: <Cog8ToothIcon className="w-6 h-6" />, color: 'bg-zinc-50 text-zinc-600' },
         { role: 'retail_agent', label: 'Agent Module', icon: <UserPlusIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600' },
+        { role: 'finance', label: 'Finance Module', icon: <CreditCardIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-700' },
         { role: 'driver', label: 'Driver Module', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-slate-50 text-slate-600' },
         { role: 'coop_admin', label: 'Cooperative Module', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600' },
         { role: 'sacco_officer', label: 'SACCO Module', icon: <CreditCardIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
@@ -890,7 +894,11 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             return ['retail_agent', 'customer'].includes(opt.role);
         }
         if (isEdu) {
-            const eduAllowed = ['security', 'store', 'transport_assistant', 'boarding_master', 'info_desk', 'librarian', 'parent', 'student', 'lecturer'];
+            let eduAllowed = ['security', 'store', 'transport_assistant', 'boarding_master', 'info_desk', 'librarian', 'parent', 'student', 'lecturer', 'finance'];
+            if (!isModuleActive('school_store')) eduAllowed = eduAllowed.filter(r => r !== 'store');
+            if (!isModuleActive('library')) eduAllowed = eduAllowed.filter(r => r !== 'librarian');
+            if (!isModuleActive('academics')) eduAllowed = eduAllowed.filter(r => !['parent', 'student', 'lecturer'].includes(r));
+            if (!isModuleActive('finance')) eduAllowed = eduAllowed.filter(r => r !== 'finance');
             return eduAllowed.includes(opt.role);
         } else {
             // Non-educational: Hide educational portal perspectives

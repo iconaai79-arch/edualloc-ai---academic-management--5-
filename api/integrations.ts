@@ -307,7 +307,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             };
 
             const defaultBranding = {
-                logoUrl: makeAbsolute(settings.logoUrl || settings.logo_url) || 'https://eduai.co.ke/logo.png',
+                logoUrl: makeAbsolute(settings.logoUrl || settings.logo_url) || `${siteUrl}/logo.png`,
                 primaryColor: settings.themeColor || settings.primary_color || '#4f46e5',
                 name: settings.appName || 'EduAi Network'
             };
