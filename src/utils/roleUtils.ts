@@ -70,7 +70,7 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
 
     // Academic / Schools
     if (isSchoolInstitution(institution)) {
-        return ['head_teacher', 'deputy', 'dos', 'teacher', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant'];
+        return ['head_teacher', 'deputy', 'dos', 'hod', 'teacher', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant'];
     }
 
     // Tertiary / Higher Ed
@@ -176,6 +176,7 @@ export const isDSInstitution = (institution: Partial<Institution> | null | undef
  */
 export const formatRoleDisplayName = (role: Role, institution?: Institution | null): string => {
     if (!role) return 'User';
+    if (role === 'hod') return 'Head of Department';
 
     const type = institution?.institutionType;
     const subType = institution?.businessSubType?.toLowerCase() || '';

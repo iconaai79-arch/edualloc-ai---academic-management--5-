@@ -1,6 +1,6 @@
 
 import React from 'react';
-import type { User, Institution, Invoice, Receipt, Expense, FinancialGoal, FeeStructure, AcademicYear, Semester } from '../../types';
+import type { User, Institution, Invoice, Receipt, Expense, FinancialGoal, FeeStructure, AcademicYear, Semester, Requisition } from '../../types';
 import { FinanceManager } from './FinanceManager';
 import { Header } from '../Header';
 
@@ -25,6 +25,8 @@ interface FinanceOfficerViewProps {
     onAddTransaction?: (data: any, items: any[]) => Promise<any>;
     onGenerateReceipt?: (transaction: any) => void;
     onLogAction?: (action: string) => void;
+    requisitions?: Requisition[];
+    onUpdateRequisition?: (id: string, data: any) => Promise<void>;
 }
 
 export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
@@ -47,7 +49,9 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
     transactions,
     onAddTransaction,
     onGenerateReceipt,
-    onLogAction
+    onLogAction,
+    requisitions,
+    onUpdateRequisition
 }) => {
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -88,6 +92,9 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
                     transactionLimit={transactionLimit}
                     setTransactionLimit={setTransactionLimit}
                     transactions={transactions}
+                    requisitions={requisitions}
+                    onUpdateRequisition={onUpdateRequisition}
+                    currentUser={currentUser}
                 />
             </main>
         </div>

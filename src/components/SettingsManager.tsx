@@ -288,7 +288,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         parentAbsenceNotificationsEnabled: props.currentInstitution?.parentAbsenceNotificationsEnabled ?? false,
         farmerSmsBillingEnabled: props.currentInstitution?.farmerSmsBillingEnabled ?? false,
         slug: props.currentInstitution?.slug || '',
-        googleDriveConfig: props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false }
+        googleDriveConfig: props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false },
+        storeHoursEnforced: props.currentInstitution?.storeHoursEnforced ?? false,
+        storeOpenTime: props.currentInstitution?.storeOpenTime || '08:00',
+        storeCloseTime: props.currentInstitution?.storeCloseTime || '17:00'
     });
     const [isSavingProfile, setIsSavingProfile] = useState(false);
 
@@ -310,7 +313,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 parentAbsenceNotificationsEnabled: props.currentInstitution.parentAbsenceNotificationsEnabled ?? false,
                 farmerSmsBillingEnabled: props.currentInstitution.farmerSmsBillingEnabled ?? false,
                 slug: props.currentInstitution.slug || '',
-                googleDriveConfig: props.currentInstitution.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false }
+                googleDriveConfig: props.currentInstitution.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false },
+                storeHoursEnforced: props.currentInstitution.storeHoursEnforced ?? false,
+                storeOpenTime: props.currentInstitution.storeOpenTime || '08:00',
+                storeCloseTime: props.currentInstitution.storeCloseTime || '17:00'
             });
         }
     }, [props.currentInstitution]);
@@ -354,7 +360,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             parentAbsenceNotificationsEnabled: props.currentInstitution?.parentAbsenceNotificationsEnabled ?? false,
             farmerSmsBillingEnabled: props.currentInstitution?.farmerSmsBillingEnabled ?? false,
             slug: props.currentInstitution?.slug || '',
-            googleDriveConfig: props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false }
+            googleDriveConfig: props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false },
+            storeHoursEnforced: props.currentInstitution?.storeHoursEnforced ?? false,
+            storeOpenTime: props.currentInstitution?.storeOpenTime || '08:00',
+            storeCloseTime: props.currentInstitution?.storeCloseTime || '17:00'
         });
         setLocalInstGoogleDriveConfig(props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false });
     }, [props.currentInstitution]);
@@ -2822,19 +2831,59 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 </h4>
                                 <div className="space-y-4">
                                     {isEdu && (
-                                        <div className="flex items-center gap-4 p-5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-700">
-                                            <input
-                                                type="checkbox"
-                                                id="use-alloc-reqs"
-                                                checked={instProfile.useAllocationRequests}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInstProfile({ ...instProfile, useAllocationRequests: e.target.checked })}
-                                                className="h-6 w-6 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                            />
-                                            <div>
-                                                <label htmlFor="use-alloc-reqs" className="text-sm font-bold text-slate-700 dark:text-slate-300">Enable Collaborative Allocation Requests</label>
-                                                <p className="text-xs text-slate-400">Allows {isSchool ? 'teachers' : 'lecturers'} to submit unit preferences before generation.</p>
+                                        <>
+                                            <div className="flex items-center gap-4 p-5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                                <input
+                                                    type="checkbox"
+                                                    id="use-alloc-reqs"
+                                                    checked={instProfile.useAllocationRequests}
+                                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInstProfile({ ...instProfile, useAllocationRequests: e.target.checked })}
+                                                    className="h-6 w-6 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                />
+                                                <div>
+                                                    <label htmlFor="use-alloc-reqs" className="text-sm font-bold text-slate-700 dark:text-slate-300">Enable Collaborative Allocation Requests</label>
+                                                    <p className="text-xs text-slate-400">Allows {isSchool ? 'teachers' : 'lecturers'} to submit unit preferences before generation.</p>
+                                                </div>
                                             </div>
-                                        </div>
+
+                                            <div className="p-5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-4">
+                                                <div className="flex items-center gap-4">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="enforce-store-hours"
+                                                        checked={instProfile.storeHoursEnforced}
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInstProfile({ ...instProfile, storeHoursEnforced: e.target.checked })}
+                                                        className="h-6 w-6 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                    <div>
+                                                        <label htmlFor="enforce-store-hours" className="text-sm font-bold text-slate-700 dark:text-slate-300">Enforce Store Operational Hours Policy</label>
+                                                        <p className="text-xs text-slate-400">Restricts storekeepers from issuing or receiving inventory items outside of the designated hours.</p>
+                                                    </div>
+                                                </div>
+                                                {instProfile.storeHoursEnforced && (
+                                                    <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-slate-500 mb-1">Opening Time</label>
+                                                            <input
+                                                                type="time"
+                                                                value={instProfile.storeOpenTime}
+                                                                onChange={(e) => setInstProfile({ ...instProfile, storeOpenTime: e.target.value })}
+                                                                className="w-full h-10 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-slate-500 mb-1">Closing Time</label>
+                                                            <input
+                                                                type="time"
+                                                                value={instProfile.storeCloseTime}
+                                                                onChange={(e) => setInstProfile({ ...instProfile, storeCloseTime: e.target.value })}
+                                                                className="w-full h-10 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </>
                                     )}
 
                                     {isSchool && (

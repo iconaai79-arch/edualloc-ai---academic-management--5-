@@ -263,6 +263,8 @@ export function RetailManager(props: RetailManagerProps) {
                         inventory={inventory as any}
                         onAddRequisition={onAddRequisition!}
                         onUpdateRequisition={onUpdateRequisition}
+                        isEducation={isEducation}
+                        allUsers={allUsers}
                     />
                 )}
 

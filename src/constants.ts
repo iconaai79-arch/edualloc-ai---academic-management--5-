@@ -316,12 +316,23 @@ export const INITIAL_USERS: User[] = [
         departmentId: 'dept_lang',
         expertise: ['English', 'Literature'],
         password: 'password123'
+    },
+    {
+        id: 'u_bursar_finance',
+        name: 'Bursar Jane Doe',
+        email: 'bursar@edu.com',
+        phoneNumber: '0711111114',
+        role: 'finance',
+        roles: ['finance'],
+        institutionId: INST_DEMO,
+        expertise: ['Financial Administration'],
+        password: 'password123'
     }
 ];
 
 export const RETAIL_SUBTYPES = ['Hardware', 'General', 'Retail', 'Retail Shop', 'Retail Agency', 'Boutique', 'Salon', 'Barber Shop', 'Electronics', 'Supermarket', 'Wholesale', 'General Retail', 'Restaurant', 'Cafe', 'Eatery', 'Fuel Station'];
 
-export const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'reseller', 'retail_agent', 'field_agent', 'customer', 'lead', 'pastor', 'deacon', 'elder', 'treasurer', 'secretary', 'worker', 'church_admin', 'fuel_admin', 'attendant'];
+export const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'reseller', 'retail_agent', 'field_agent', 'customer', 'lead', 'pastor', 'deacon', 'elder', 'treasurer', 'secretary', 'worker', 'church_admin', 'fuel_admin', 'attendant', 'finance'];
  
 export const MODULES = [
   {

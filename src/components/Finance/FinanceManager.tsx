@@ -1,12 +1,15 @@
 
-import React, { useState } from 'react';
-import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeStructure, AcademicYear, Semester } from '../../types';
+import React, { useState, useEffect } from 'react';
+import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeStructure, AcademicYear, Semester, Requisition } from '../../types';
 import { RevenueWarRoom } from './RevenueWarRoom';
 import { AutomatedBilling } from './AutomatedBilling';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { ZapIcon } from '../icons/ZapIcon';
 import { CheckBadgeIcon } from '../icons/CheckBadgeIcon';
 import { BarChart3Icon } from '../icons/BarChart3Icon';
+import { ClipboardListIcon } from '../icons/ClipboardListIcon';
+import { RetailRequisitions } from '../retail/RetailRequisitions';
+import { apiService } from '../../services/apiService';
 
 interface FinanceManagerProps {
     invoices: Invoice[];
@@ -25,17 +28,38 @@ interface FinanceManagerProps {
     transactionLimit: number;
     setTransactionLimit: React.Dispatch<React.SetStateAction<number>>;
     transactions?: any[];
+    requisitions?: Requisition[];
+    onUpdateRequisition?: (id: string, data: any) => Promise<void>;
+    currentUser: User;
 }
 
 export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
-    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'expenses' | 'audit'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'billing' | 'expenses' | 'audit' | 'requisitions'>('overview');
 
     const tabs = [
         { id: 'overview', label: 'Revenue War Room', icon: BarChart3Icon },
         { id: 'billing', label: 'Billing Engine', icon: ZapIcon },
         { id: 'expenses', label: 'Expense Governance', icon: BanknotesIcon },
+        { id: 'requisitions', label: 'Requisitions & LPOs', icon: ClipboardListIcon },
         { id: 'audit', label: 'Fiscal Audit', icon: CheckBadgeIcon },
     ] as const;
+
+    const [retailStores, setRetailStores] = useState<any[]>([]);
+    const [inventory, setInventory] = useState<any[]>([]);
+    const [allUsers, setAllUsers] = useState<any[]>([]);
+
+    useEffect(() => {
+        const instId = props.institution.id;
+        apiService.fetchModuleRecords<any>('retail_stores', instId)
+            .then(res => setRetailStores(res || []))
+            .catch(err => console.error("Failed to load stores for finance:", err));
+        apiService.fetchModuleRecords<any>('inventory', instId)
+            .then(res => setInventory(res || []))
+            .catch(err => console.error("Failed to load inventory for finance:", err));
+        apiService.fetchModuleRecords<any>('users', instId)
+            .then(res => setAllUsers(res || []))
+            .catch(err => console.error("Failed to load users for finance:", err));
+    }, [props.institution.id]);
 
     return (
         <div className="space-y-8">
@@ -145,6 +169,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </div>
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {activeTab === 'requisitions' && (
+                    <div className="bg-white p-8 rounded-[3.5rem] border border-slate-100 shadow-sm">
+                        <RetailRequisitions
+                            institutionId={props.institution.id}
+                            currentUser={props.currentUser}
+                            retailStores={retailStores}
+                            requisitions={props.requisitions || []}
+                            inventory={inventory}
+                            onAddRequisition={async () => {}}
+                            onUpdateRequisition={props.onUpdateRequisition}
+                            isEducation={props.institution.institutionType === 'Education'}
+                            allUsers={allUsers}
+                        />
                     </div>
                 )}
 

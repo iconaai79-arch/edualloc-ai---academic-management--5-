@@ -444,6 +444,9 @@ export interface Institution {
     showcaseCpanelUrl?: string;
     showcaseCpanelToken?: string;
     autoMarketPlaceUrl?: string;
+    storeHoursEnforced?: boolean;
+    storeOpenTime?: string;
+    storeCloseTime?: string;
 }
 
 export interface SchoolGallery {
@@ -636,6 +639,7 @@ export interface AllocationRequest {
         priority?: Priority;
         justification?: string;
     };
+    lessonStructure?: LessonStructure[];
 }
 
 export interface CommissionWithdrawalRequest {
@@ -1226,6 +1230,7 @@ export interface Requisition {
     supplierResponse?: 'accepted' | 'rejected';
     deliveryEta?: string;
     receivedDate?: string;
+    submittedTo?: string;
 }
 
 export type TransactionStatus = 'completed' | 'failed' | 'pending';
@@ -1712,6 +1717,7 @@ export interface StaffImportPreviewUser {
     generatedStaffId: boolean;
     generatedEmail: boolean;
     originalRoleValue?: string;
+    createdAt?: string;
 }
 
 export interface UserUpdateData {

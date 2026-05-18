@@ -248,7 +248,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
         let total = 0;
         allocations.forEach(a => {
             const levelCount = a.courseLevelIds?.length || 0;
-            const structureTotal = (a.lessonStructure || []).reduce((acc, s) => acc + ((s.periods || 0) * (s.count || 0)), 0);
+            const structureTotal = (a.lessonStructure || []).reduce((acc: number, s: any) => acc + ((s.periods || 0) * (s.count || 0)), 0);
             total += (structureTotal * levelCount);
         });
         return total;
@@ -271,7 +271,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                 let levelIntended = 0;
                 allocations.forEach(a => {
                     if ((a.courseLevelIds || []).includes(levelId)) {
-                        levelIntended += (a.lessonStructure || []).reduce((acc, s) => acc + ((s.periods || 0) * (s.count || 0)), 0);
+                        levelIntended += (a.lessonStructure || []).reduce((acc: number, s: any) => acc + ((s.periods || 0) * (s.count || 0)), 0);
                     }
                 });
                 const generated = generatedTimetable.filter(e => String(e.courseLevelId) === String(levelId)).length;

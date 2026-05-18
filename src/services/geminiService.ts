@@ -128,7 +128,7 @@ export const generateJustification = async (lecturer: User, subject: Subject): P
     try {
         checkAiAvailable();
         const response = await safeGenerateContent(
-            `Generate a concise, professional justification (2 sentences) for ${lecturer.name} to teach ${subject.name} based on expertise: ${lecturer.expertise.join(', ')}.`
+            `Generate a concise, professional justification (2 sentences) for ${lecturer.name} to teach ${subject.name} based on expertise: ${(lecturer.expertise || []).join(', ')}.`
         );
         return response.text || "";
     } catch (error) {
@@ -142,7 +142,7 @@ export const generateBulkJustification = async (lecturer: User, subjects: Subjec
         checkAiAvailable();
         const subjectList = subjects.map(s => `- ${s.name} (${s.code})`).join('\n');
         const response = await safeGenerateContent(
-            `Generate a concise justification for ${lecturer.name} to teach:\n${subjectList}\nExpertise: ${lecturer.expertise.join(', ')}.`
+            `Generate a concise justification for ${lecturer.name} to teach:\n${subjectList}\nExpertise: ${(lecturer.expertise || []).join(', ')}.`
         );
         return response.text || "";
     } catch (error) {

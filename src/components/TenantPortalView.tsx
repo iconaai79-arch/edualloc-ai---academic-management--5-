@@ -41,6 +41,7 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
     useEffect(() => {
+        if (!currentUser) return;
         const loadTenantData = async () => {
             setLoading(true);
             try {
@@ -76,6 +77,7 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
         };
 
         const loadNotifications = async () => {
+            if (!currentUser) return;
             try {
                 const data = await apiService.fetchNotifications(currentUser.id);
                 setNotifications(data);
@@ -89,6 +91,7 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
     }, [currentUser, currentInstitution]);
 
     const handleMarkAsRead = async (id?: string) => {
+        if (!currentUser) return;
         try {
             if (id) {
                 await apiService.markNotificationAsRead(id);
@@ -112,7 +115,7 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = (props) => {
     const totalDue = activeLease ? (monthsActive * activeLease.rentAmount) + activeLease.depositAmount : 0;
     const balance = totalDue - totalPaid;
 
-    if (loading) {
+    if (loading || !currentUser) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50">
                 <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>

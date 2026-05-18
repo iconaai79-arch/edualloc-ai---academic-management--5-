@@ -227,12 +227,29 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
         return newId;
     };
 
-    const generateUniqueEmail = (name: string, domain: string, existingEmails: Set<string>): string => {
-        const baseEmail = name.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.+/g, '.') + '@' + domain;
+    const generateUniqueEmail = (name: string, domain: string, existingEmails: Set<string>, role?: Role): string => {
+        let baseEmail = '';
+        if (isEdu && role === 'student') {
+            const schoolSlug = currentInstitution?.name 
+                ? currentInstitution.name.toLowerCase().replace(/[^a-z0-9]/g, '') 
+                : 'school';
+            const studentSlug = name.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.+/g, '.');
+            baseEmail = `adm.${schoolSlug}.${studentSlug}@${domain}`;
+        } else {
+            baseEmail = name.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.+/g, '.') + '@' + domain;
+        }
         let newEmail = baseEmail;
         let counter = 1;
         while (existingEmails.has(newEmail.toLowerCase())) {
-            newEmail = name.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.+/g, '.') + counter + '@' + domain;
+            if (isEdu && role === 'student') {
+                const schoolSlug = currentInstitution?.name 
+                    ? currentInstitution.name.toLowerCase().replace(/[^a-z0-9]/g, '') 
+                    : 'school';
+                const studentSlug = name.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.+/g, '.');
+                newEmail = `adm.${schoolSlug}.${studentSlug}${counter}@${domain}`;
+            } else {
+                newEmail = name.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.+/g, '.') + counter + '@' + domain;
+            }
             counter++;
         }
         existingEmails.add(newEmail.toLowerCase());
@@ -321,7 +338,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
 
                 let generatedEmail = false;
                 if (!email) {
-                    email = generateUniqueEmail(name, institutionDomain, new Set([...existingUserEmails, ...currentBatchUserEmails]));
+                    email = generateUniqueEmail(name, institutionDomain, new Set([...existingUserEmails, ...currentBatchUserEmails]), role);
                     generatedEmail = true;
                 } else if (existingUserEmails.has(email.toLowerCase()) || currentBatchUserEmails.has(email.toLowerCase())) {
                     throw new Error(`Duplicate email: ${email}`);
@@ -847,7 +864,7 @@ interface UserManagerProps {
     isAdding?: boolean;
     onAddExtensionRequest?: (reason: string) => void;
     isPm?: boolean;
-    onAccessAlumnaPortal: (school: any) => void;
+    onAccessAlumnaPortal?: (school: any) => void;
     isAutoMarket?: boolean;
     isDS?: boolean;
 }
@@ -1070,7 +1087,14 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         let finalEmail = email.trim();
         if (!finalEmail) {
             const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.+/g, '.');
-            finalEmail = `${safeName}@${institutionDomain}`;
+            if (isEdu && activeTab === 'student') {
+                const schoolSlug = currentInstitution?.name 
+                    ? currentInstitution.name.toLowerCase().replace(/[^a-z0-9]/g, '') 
+                    : 'school';
+                finalEmail = `adm.${schoolSlug}.${safeName}@${institutionDomain}`;
+            } else {
+                finalEmail = `${safeName}@${institutionDomain}`;
+            }
         }
 
         // Proactive Duplicate Check for Manual Entry

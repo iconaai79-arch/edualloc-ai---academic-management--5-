@@ -65,6 +65,7 @@ import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
 import { timeToMinutes } from '../utils/timeUtils';
 import { StoreIssuanceManager } from './StoreIssuanceManager';
 import { PdfPreviewModal } from './PdfPreviewModal';
+import { checkStoreHours } from '../utils/storeHours';
 
 
 export interface SupportStaffViewProps {
@@ -101,7 +102,7 @@ export interface SupportStaffViewProps {
     invoices?: Invoice[];
     receipts?: Receipt[];
     requisitions?: Requisition[];
-    onLogAction?: (action: string) => void;
+    onLogAction?: (action: string) => Promise<void>;
     vehicles?: TransportVehicle[];
     vehicleLogs?: VehicleLog[];
     transportOnboarding?: TransportOnboarding[];
@@ -128,7 +129,6 @@ export interface SupportStaffViewProps {
     academicYears?: AcademicYear[];
     semesters?: Semester[];
     departments?: Department[];
-    onLogAction?: (action: string) => Promise<void>;
     // Info Desk Extensions
     teacherCheckIns?: TeacherCheckIn[];
     timeOffRequests?: TimeOffRequest[];
@@ -142,10 +142,6 @@ export interface SupportStaffViewProps {
     onUpdateDocumentStatus?: (id: string, status: DocumentCollection['status']) => void;
     onAddMaintenanceRequest?: (req: Omit<MaintenanceRequest, 'id' | 'institutionId' | 'reportedAt'>) => void;
     studentAttendances?: StudentAttendance[];
-    vehicles?: TransportVehicle[];
-    transportOnboarding?: TransportOnboarding[];
-    vehicleLogs?: VehicleLog[];
-    onLogGateAction?: (vehicleId: string, eventType: 'entry' | 'exit', notes?: string) => Promise<void>;
     onOnboardStudent?: (studentId: string, vehicleId: string, direction: 'to_school' | 'from_school', lat?: number, lng?: number) => Promise<void>;
     onOffboardStudent?: (recordId: string, lat?: number, lng?: number) => Promise<void>;
     onSwitchPerspective?: (role: any) => void;
@@ -226,9 +222,11 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
         setLookupStatus('searching');
         const matches = (visitors || []).filter(v => v.phoneNumber === walkInForm.phone);
         if (matches.length > 0) {
-            const returning = [...matches].sort((a, b) => b.visitDate.localeCompare(a.visitDate))[0];
-            setWalkInForm({ ...walkInForm, name: returning.name, vehiclePlate: returning.vehiclePlate || '', vehicleModel: returning.vehicleModel || '' });
-            setLookupStatus('found');
+            const returning = [...matches].sort((a, b) => (b.visitDate || '').localeCompare(a.visitDate || ''))[0];
+            if (returning) {
+                setWalkInForm({ ...walkInForm, name: returning.name || '', vehiclePlate: returning.vehiclePlate || '', vehicleModel: returning.vehicleModel || '' });
+                setLookupStatus('found');
+            }
         } else {
             setLookupStatus('none');
             setTimeout(() => setLookupStatus('idle'), 2000);
@@ -424,7 +422,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
 
             {activeTab === 'leaveout' && (
                 <StudentLeaveOutManager
-                    currentUser={props.user}
+                    currentUser={user}
                     currentInstitution={props.currentInstitution!}
                     companyDetails={props.companyDetails!}
                     users={props.users || []}
@@ -444,7 +442,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                     vehicles={props.vehicles || []}
                     vehicleLogs={props.vehicleLogs || []}
                     users={props.users || []}
-                    currentUser={props.user}
+                    currentUser={user}
                     currentInstitution={props.currentInstitution!}
                     onLogGateAction={props.onLogGateAction!}
                 />
@@ -483,10 +481,10 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                                 <td className="px-4 py-4">
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-9 h-9 rounded-2xl bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-indigo-600 font-black text-xs shadow-inner">
-                                                            {v.name.charAt(0)}
+                                                            {v.name?.charAt(0) || ''}
                                                         </div>
                                                         <div>
-                                                            <div className="font-black text-slate-800 dark:text-white uppercase text-sm">{v.name}</div>
+                                                            <div className="font-black text-slate-800 dark:text-white uppercase text-sm">{v.name || 'Unknown'}</div>
                                                             <div className="text-[10px] text-slate-500 font-bold">{v.phoneNumber}</div>
                                                         </div>
                                                     </div>
@@ -563,7 +561,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50 dark:divide-slate-900/50">
-                                    {(visitors || []).filter(v => !!v.timeOut).sort((a, b) => b.visitDate.localeCompare(a.visitDate)).slice(0, 20).map(v => (
+                                    {(visitors || []).filter(v => !!v.timeOut).sort((a, b) => (b.visitDate || '').localeCompare(a.visitDate || '')).slice(0, 20).map(v => (
                                         <tr key={v.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors">
                                             <td className="px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-300 uppercase">
                                                 <div>{v.name}</div>
@@ -738,7 +736,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
     const pendingShipments = useMemo(() => countyInventory.filter(i => i.status === 'in_transit'), [countyInventory]);
 
     const issuanceHistory = useMemo(() => (stockTransactions || []).filter(t => t.type === 'Issue'), [stockTransactions]);
-    const lowStockItems = useMemo(() => inventory.filter(i => i.quantity <= i.reorderLevel), [inventory]);
+    const lowStockItems = useMemo(() => inventory.filter(i => i.quantity <= (i.reorderLevel ?? 0)), [inventory]);
     
     const expiringItems = useMemo(() => {
         const thirtyDaysFromNow = new Date();
@@ -1000,13 +998,32 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                         <h3 className="text-xl font-black uppercase tracking-tight">Active Stock Registry</h3>
                         <div className="flex gap-2">
                             <button
-                                onClick={() => setIsImportModalOpen(true)}
+                                onClick={() => {
+                                    const check = checkStoreHours(props.currentInstitution);
+                                    if (!check.allowed) {
+                                        alert(check.reason);
+                                        return;
+                                    }
+                                    setIsImportModalOpen(true);
+                                }}
                                 className="btn-secondary text-[10px] uppercase font-black tracking-widest h-10 px-6 flex items-center gap-2"
                             >
                                 <SparklesIcon className="w-4 h-4" />
                                 Smart Import
                             </button>
-                            <button onClick={() => setIsAddModalOpen(true)} className="btn-primary text-[10px] uppercase font-black tracking-widest h-10 px-6">Add Item</button>
+                            <button
+                                onClick={() => {
+                                    const check = checkStoreHours(props.currentInstitution);
+                                    if (!check.allowed) {
+                                        alert(check.reason);
+                                        return;
+                                    }
+                                    setIsAddModalOpen(true);
+                                }}
+                                className="btn-primary text-[10px] uppercase font-black tracking-widest h-10 px-6"
+                            >
+                                Add Item
+                            </button>
                         </div>
                     </div>
                     <div className="bg-white dark:bg-slate-800 shadow-sm rounded-[2.5rem] overflow-hidden border border-slate-100 dark:border-slate-700">
@@ -1039,7 +1056,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                         </td>
                                         <td className="px-6 py-4 text-center font-mono font-black text-indigo-600">{item.quantity} {item.unit}</td>
                                         <td className="px-6 py-4 text-center">
-                                            {item.quantity <= item.reorderLevel ? (
+                                            {item.quantity <= (item.reorderLevel ?? 0) ? (
                                                 <span className="px-3 py-1 bg-red-100 text-red-700 rounded-lg text-[9px] font-black uppercase tracking-widest">Low Stock</span>
                                             ) : (
                                                 <span className="px-3 py-1 bg-green-100 text-green-700 rounded-lg text-[9px] font-black uppercase tracking-widest">Stable</span>
@@ -1149,7 +1166,14 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                 </div>
                                 {item.status === 'in_transit' && (
                                     <button
-                                        onClick={() => onMarkInventoryReceived?.(item.id)}
+                                        onClick={() => {
+                                            const check = checkStoreHours(props.currentInstitution);
+                                            if (!check.allowed) {
+                                                alert(check.reason);
+                                                return;
+                                            }
+                                            onMarkInventoryReceived?.(item.id);
+                                        }}
                                         className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 transition-all active:scale-95"
                                     >
                                         Mark as Received
@@ -1179,6 +1203,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                             onRefreshData?.();
                             setActiveTab('inventory');
                         }}
+                        currentInstitution={props.currentInstitution}
                     />
                 </div>
             )}
@@ -1743,18 +1768,18 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                     </div>
                                     <div className="flex items-end gap-3 mb-2">
                                         <span className="text-3xl font-black text-slate-900 dark:text-white">
-                                            {inventory.filter(i => i.quantity <= i.reorderLevel).length}
+                                            {inventory.filter(i => i.quantity <= (i.reorderLevel ?? 0)).length}
                                         </span>
                                         <span className="text-xs font-bold text-rose-600 mb-1">Critical SKUs</span>
                                     </div>
                                     <div className="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden mt-4">
                                         <div 
                                             className="bg-rose-500 h-full rounded-full" 
-                                            style={{ width: `${(inventory.filter(i => i.quantity <= i.reorderLevel).length / Math.max(1, inventory.length)) * 100}%` }}
+                                            style={{ width: `${(inventory.filter(i => i.quantity <= (i.reorderLevel ?? 0)).length / Math.max(1, inventory.length)) * 100}%` }}
                                         ></div>
                                     </div>
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-4">
-                                        {((inventory.filter(i => i.quantity > i.reorderLevel).length / Math.max(1, inventory.length)) * 100).toFixed(0)}% Stock Optimization Level
+                                        {((inventory.filter(i => i.quantity > (i.reorderLevel ?? 0)).length / Math.max(1, inventory.length)) * 100).toFixed(0)}% Stock Optimization Level
                                     </p>
                                 </div>
 
@@ -1767,7 +1792,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                     </div>
                                     <div className="space-y-4">
                                         <p className="text-xs font-bold text-slate-600 dark:text-slate-400 leading-relaxed italic">
-                                            "{inventory.filter(i => i.quantity <= i.reorderLevel).length > 3 
+                                            "{inventory.filter(i => i.quantity <= (i.reorderLevel ?? 0)).length > 3 
                                                 ? "Current low stock levels in key categories may disrupt operations within 14 days. Recommend prioritizing restock for items below reorder thresholds." 
                                                 : "Inventory levels are currently optimized. Focus on reconciling high-frequency issuance items to maintain accuracy."}"
                                         </p>

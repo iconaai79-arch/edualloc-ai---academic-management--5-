@@ -4504,6 +4504,8 @@ export const App: React.FC = () => {
                                         setReceiptLimit={setReceiptLimit}
                                         transactionLimit={transactionLimit}
                                         setTransactionLimit={setTransactionLimit}
+                                        requisitions={requisitions}
+                                        onUpdateRequisition={handleUpdateRequisition}
                                     />
                                 ) : activeRole === 'hr_officer' ? (
                                     <HROfficerView 

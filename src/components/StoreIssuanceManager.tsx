@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import type { InventoryItem, User, StockTransaction, Department } from '../types';
+import type { InventoryItem, User, StockTransaction, Department, Institution } from '../types';
+import { checkStoreHours } from '../utils/storeHours';
 import { PlusIcon } from './icons/PlusIcon';
 import { SearchIcon } from './icons/SearchIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
@@ -21,6 +22,7 @@ interface StoreIssuanceManagerProps {
     departments?: Department[];
     onLogAction: (action: string) => Promise<void>;
     onDataChange: () => void;
+    currentInstitution?: Institution | null;
 }
 
 export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
@@ -30,7 +32,8 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
     users,
     departments = [],
     onLogAction,
-    onDataChange
+    onDataChange,
+    currentInstitution
 }) => {
     const [isIssuing, setIsIssuing] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -123,6 +126,12 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
 
     const handleIssueItem = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        const check = checkStoreHours(currentInstitution);
+        if (!check.allowed) {
+            alert(check.reason);
+            return;
+        }
 
         if (!newIssuance.userId || !newIssuance.itemId || newIssuance.quantity < 1) {
             alert('Please select a recipient, an item, and a valid quantity.');
@@ -234,7 +243,14 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Direct item distribution to staff and students</p>
                 </div>
                 <button
-                    onClick={() => setIsIssuing(true)}
+                    onClick={() => {
+                        const check = checkStoreHours(currentInstitution);
+                        if (!check.allowed) {
+                            alert(check.reason);
+                            return;
+                        }
+                        setIsIssuing(true);
+                    }}
                     className="bg-indigo-600 hover:bg-slate-900 text-white px-6 h-12 rounded-2xl flex items-center gap-2 transition-all font-black uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-100"
                 >
                     <PlusIcon className="w-4 h-4" />
