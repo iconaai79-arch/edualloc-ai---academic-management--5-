@@ -48,10 +48,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Here you would normally update the transaction status
         // e.g. checking body.ResultCode and body.CheckoutRequestID
 
-        // Acknowledge receipt to KCB immediately
+        const header = body.header || {};
+        const messageID = header.messageID || `MSG_${Date.now()}`;
+        const originatorConversationID = header.originatorConversationID || header.conversationID || '';
+        const primaryData = body.requestPayload?.primaryData || {};
+        const businessKey = primaryData.businessKey || '';
+
+        // Acknowledge receipt to KCB strictly following the expected KCBIPNResponse schema
         return res.status(200).json({
-            message: "STK Callback received successfully",
-            status: "Success"
+            header: {
+                messageID,
+                originatorConversationID,
+                statusCode: "0",
+                statusMessage: "Success"
+            },
+            responsePayload: {
+                transactionInfo: {
+                    transactionId: businessKey || `TXN_${Date.now()}`
+                }
+            }
         });
 
     } catch (err: any) {
