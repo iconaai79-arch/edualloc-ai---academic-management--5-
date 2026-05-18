@@ -25,9 +25,12 @@ import { TargetIcon as Target } from '../icons/TargetIcon';
 interface DualModePOSProps {
     institutionId: string;
     currentUser: User;
+    isEducation?: boolean;
+    preSelectedUser?: User | null;
+    onClearPreSelectedUser?: () => void;
 }
 
-export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
+export function DualModePOS({ institutionId, currentUser, isEducation, preSelectedUser, onClearPreSelectedUser }: DualModePOSProps) {
     const [activeMode, setActiveMode] = useState<'shop' | 'field'>('shop');
     const [activeStore, setActiveStore] = useState<RetailStore | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -54,11 +57,126 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
     const [customerSearch, setCustomerSearch] = useState('');
     const [selectedCustomer, setSelectedCustomer] = useState<RetailCustomer | null>(null);
 
+    // Education mode states
+    const [students, setStudents] = useState<User[]>([]);
+    const [studentSearchQuery, setStudentSearchQuery] = useState('');
+    const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
+    const [signatureData, setSignatureData] = useState<string>(''); // Base64 data URL
+    const canvasRef = React.useRef<HTMLCanvasElement>(null);
+    const [isDrawing, setIsDrawing] = useState(false);
+
+    useEffect(() => {
+        if (preSelectedUser) {
+            setSelectedStudent(preSelectedUser);
+            setCustomerInfo({
+                name: preSelectedUser.name,
+                phone: preSelectedUser.phoneNumber || '',
+                email: preSelectedUser.email || ''
+            });
+            setIsCheckoutModalOpen(true);
+            if (onClearPreSelectedUser) {
+                onClearPreSelectedUser();
+            }
+        }
+    }, [preSelectedUser, onClearPreSelectedUser]);
+
+    const fetchStudents = async () => {
+        try {
+            const data = await apiService.fetchModuleRecords<User>('users', institutionId);
+            const filtered = (data || []).filter(u => u.role === 'student' || (u.roles && u.roles.includes('student')));
+            setStudents(filtered);
+        } catch (err) {
+            console.error("Fetch students error:", err);
+        }
+    };
+
+    const clearSignature = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        setSignatureData('');
+    };
+
+    const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return { x: 0, y: 0 };
+        const rect = canvas.getBoundingClientRect();
+        
+        // Touch events
+        if ('touches' in e) {
+            if (e.touches.length === 0) return { x: 0, y: 0 };
+            return {
+                x: e.touches[0].clientX - rect.left,
+                y: e.touches[0].clientY - rect.top
+            };
+        }
+        
+        // Mouse events
+        return {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+    };
+
+    const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        e.preventDefault();
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const coords = getCoordinates(e);
+        ctx.beginPath();
+        ctx.moveTo(coords.x, coords.y);
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#4f46e5'; // Indigo stroke
+        setIsDrawing(true);
+    };
+
+    const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        if (!isDrawing) return;
+        e.preventDefault();
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const coords = getCoordinates(e);
+        ctx.lineTo(coords.x, coords.y);
+        ctx.stroke();
+    };
+
+    const stopDrawing = () => {
+        if (!isDrawing) return;
+        setIsDrawing(false);
+        const canvas = canvasRef.current;
+        if (canvas) {
+            setSignatureData(canvas.toDataURL());
+        }
+    };
+
     useEffect(() => {
         fetchProducts();
         fetchCustomers();
         fetchStores();
-    }, [institutionId]);
+        if (isEducation) {
+            fetchStudents();
+        }
+
+        // Auto-migration for new schema fields in retail_sales (Safe execution)
+        const migrations = [
+            "ALTER TABLE public.retail_sales ADD COLUMN IF NOT EXISTS signature text;",
+            "ALTER TABLE public.retail_sales ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;"
+        ];
+        migrations.forEach(sql => {
+            apiService.runMigration(sql).catch(() => {
+                // Silently ignore
+            });
+        });
+    }, [institutionId, isEducation]);
 
     const fetchStores = async () => {
         try {
@@ -165,14 +283,22 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
 
     const handleCheckout = async () => {
         if (cart.length === 0) return;
+        if (isEducation && !selectedStudent) {
+            alert("Please search and select a student before processing issuance.");
+            return;
+        }
+        if (isEducation && !signatureData) {
+            alert("Please provide a recipient signature before processing issuance.");
+            return;
+        }
         setIsProcessing(true);
 
         try {
-            // CRM Logic: Save or Update Customer and Loyalty
+            // CRM Logic: Save or Update Customer and Loyalty (bypassed in education mode)
             let finalCustomerId = selectedCustomer?.id;
             const loyaltyPointsEarned = Math.floor(totalAmount / 100);
 
-            if (customerInfo.name || customerInfo.phone) {
+            if (!isEducation && (customerInfo.name || customerInfo.phone)) {
                 try {
                     const customerData: any = {
                         institutionId,
@@ -226,10 +352,10 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                 agentId: isVanSale ? currentUser.id : undefined,
                 customerId: finalCustomerId,
                 totalAmount,
-                paymentMethod,
-                customerName: customerInfo.name,
-                customerPhone: customerInfo.phone,
-                customerEmail: customerInfo.email,
+                paymentMethod: isEducation ? 'issuance' : paymentMethod,
+                customerName: isEducation ? (selectedStudent?.name || customerInfo.name) : customerInfo.name,
+                customerPhone: isEducation ? (selectedStudent?.phoneNumber || customerInfo.phone) : customerInfo.phone,
+                customerEmail: isEducation ? (selectedStudent?.email || customerInfo.email) : customerInfo.email,
                 items: cart.map(c => ({
                     itemId: c.item.id,
                     name: (c.item as any).source === 'cafe' ? `${c.item.name} (Cafe)` : c.item.name,
@@ -237,6 +363,12 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                     unitPrice: c.finalPrice,
                     source: (c.item as any).source
                 })),
+                signature: isEducation ? signatureData : undefined,
+                metadata: isEducation ? {
+                    studentId: selectedStudent?.id,
+                    admissionNumber: selectedStudent?.admissionNumber || (selectedStudent as any).admission_number || '',
+                    isEducationIssuance: true
+                } : undefined,
                 createdAt: new Date().toISOString()
             };
 
@@ -371,26 +503,28 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                 {/* Cyber-Header & Mode Switcher */}
                 <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
-                        <div className="flex bg-slate-200/50 dark:bg-slate-800/50 p-1.5 rounded-2xl w-fit backdrop-blur-md">
-                            <button
-                                onClick={() => setActiveMode('shop')}
-                                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeMode === 'shop'
-                                    ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm scale-105'
-                                    : 'text-slate-500 hover:text-indigo-500'}`}
-                            >
-                                <Store className="w-4 h-4" />
-                                In-Shop
-                            </button>
-                            <button
-                                onClick={() => setActiveMode('field')}
-                                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeMode === 'field'
-                                    ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm scale-105'
-                                    : 'text-slate-500 hover:text-indigo-500'}`}
-                            >
-                                <MapPin className="w-4 h-4" />
-                                Field Ops
-                            </button>
-                        </div>
+                        {!isEducation && (
+                            <div className="flex bg-slate-200/50 dark:bg-slate-800/50 p-1.5 rounded-2xl w-fit backdrop-blur-md">
+                                <button
+                                    onClick={() => setActiveMode('shop')}
+                                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeMode === 'shop'
+                                        ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm scale-105'
+                                        : 'text-slate-500 hover:text-indigo-500'}`}
+                                >
+                                    <Store className="w-4 h-4" />
+                                    In Shop
+                                </button>
+                                <button
+                                    onClick={() => setActiveMode('field')}
+                                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeMode === 'field'
+                                        ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm scale-105'
+                                        : 'text-slate-500 hover:text-indigo-500'}`}
+                                >
+                                    <MapPin className="w-4 h-4" />
+                                    Active Sale
+                                </button>
+                            </div>
+                        )}
 
                         {/* Store Selection Dropdown */}
                         <div className="relative group">
@@ -565,7 +699,7 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                                 <ShoppingCart className="w-5 h-5" />
                             </div>
                             <div>
-                                <h3 className="font-black text-slate-900 dark:text-white uppercase text-xs tracking-[0.2em]">Active Sale</h3>
+                                <h3 className="font-black text-slate-900 dark:text-white uppercase text-xs tracking-[0.2em]">{isEducation ? 'Issue Cart' : 'Active Sale'}</h3>
                                 <p className="text-[10px] font-bold text-slate-400 mt-0.5">{cart.length} manifest items</p>
                             </div>
                         </div>
@@ -582,10 +716,18 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                                 <div key={idx} className="group flex justify-between items-center p-5 border border-slate-50 dark:border-slate-800 rounded-[2rem] bg-white dark:bg-slate-800 hover:shadow-xl hover:border-indigo-100 dark:hover:border-indigo-900 transition-all duration-300 animate-in slide-in-from-right-4">
                                     <div className="flex-1 space-y-1">
                                         <p className="font-black text-slate-900 dark:text-white text-xs uppercase tracking-tight truncate pr-4">{cartItem.item.name}</p>
-                                        <p className="text-[10px] font-bold text-indigo-500 italic">KES {cartItem.finalPrice.toLocaleString()} {cartItem.quantity > 1 ? `x ${cartItem.quantity}` : ''}</p>
+                                        {isEducation ? (
+                                            <p className="text-[10px] font-bold text-indigo-500 italic">Qty: {cartItem.quantity} {(cartItem.item as any).unit || 'units'}</p>
+                                        ) : (
+                                            <p className="text-[10px] font-bold text-indigo-500 italic">KES {cartItem.finalPrice.toLocaleString()} {cartItem.quantity > 1 ? `x ${cartItem.quantity}` : ''}</p>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-4">
-                                        <p className="font-black text-slate-900 dark:text-white text-sm">KES {(cartItem.finalPrice * cartItem.quantity).toLocaleString()}</p>
+                                        {!isEducation ? (
+                                            <p className="font-black text-slate-900 dark:text-white text-sm">KES {(cartItem.finalPrice * cartItem.quantity).toLocaleString()}</p>
+                                        ) : (
+                                            <p className="font-black text-slate-900 dark:text-white text-xs">Qty: {cartItem.quantity}</p>
+                                        )}
                                         <button onClick={() => removeFromCart(idx)} className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all">
                                             <X className="w-4 h-4" />
                                         </button>
@@ -597,21 +739,34 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
 
                     <div className="p-8 bg-slate-50/80 dark:bg-slate-900/60 border-t border-slate-50 dark:border-slate-800 space-y-6">
                         <div className="flex flex-col gap-4">
-                            <div className="flex justify-between items-center p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/10">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Unrealized Comms</span>
+                            {!isEducation && (
+                                <div className="flex justify-between items-center p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/10">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Unrealized Comms</span>
+                                    </div>
+                                    <span className="text-sm font-black text-emerald-600">KES {totalCommission.toLocaleString()}</span>
                                 </div>
-                                <span className="text-sm font-black text-emerald-600">KES {totalCommission.toLocaleString()}</span>
-                            </div>
+                            )}
 
-                            <div className="flex justify-between items-end px-4">
-                                <span className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Total Liability</span>
-                                <div className="flex items-end gap-1">
-                                    <span className="text-sm font-black text-slate-400 mb-1">KES</span>
-                                    <span className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">{totalAmount.toLocaleString()}</span>
+                            {isEducation ? (
+                                <div className="flex justify-between items-end px-4">
+                                    <span className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Total Items Count</span>
+                                    <div className="flex items-end gap-1">
+                                        <span className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
+                                            {cart.reduce((sum, c) => sum + c.quantity, 0)}
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="flex justify-between items-end px-4">
+                                    <span className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Total Liability</span>
+                                    <div className="flex items-end gap-1">
+                                        <span className="text-sm font-black text-slate-400 mb-1">KES</span>
+                                        <span className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">{totalAmount.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <button
@@ -620,7 +775,7 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                             className="w-full py-6 bg-gradient-to-br from-indigo-600 to-fuchsia-700 text-white rounded-[2rem] font-black uppercase text-[12px] tracking-[0.4em] shadow-[0_15px_40px_-10px_rgba(79,70,229,0.4)] hover:shadow-[0_20px_50px_-10px_rgba(79,70,229,0.5)] hover:-translate-y-1 active:translate-y-0 disabled:opacity-20 disabled:grayscale transition-all flex items-center justify-center gap-4"
                         >
                             <CreditCard className="w-6 h-6" />
-                            Initialize Checkout
+                            {isEducation ? "Initialize Issuance" : "Initialize Checkout"}
                         </button>
                     </div>
                 </div>
@@ -636,13 +791,38 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                                     <CheckCircleIcon className="w-12 h-12" />
                                 </div>
                                 <div className="space-y-2">
-                                    <h3 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Transaction Verified</h3>
-                                    <p className="text-slate-400 font-medium text-xs uppercase tracking-[0.3em]">Matrix manifestation complete</p>
+                                    <h3 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">
+                                        {isEducation ? "Issuance Confirmed" : "Transaction Verified"}
+                                    </h3>
+                                    <p className="text-slate-400 font-medium text-xs uppercase tracking-[0.3em]">
+                                        {isEducation ? "academic allocation complete" : "Matrix manifestation complete"}
+                                    </p>
                                 </div>
 
                                 <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-[2rem] border border-slate-100 dark:border-slate-700 space-y-3">
-                                    {customerInfo.phone && <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500"><span>SMS Receipt</span><span className="text-slate-900 dark:text-white">{customerInfo.phone}</span></div>}
-                                    {customerInfo.email && <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500"><span>Matrix Link</span><span className="text-slate-900 dark:text-white">{customerInfo.email}</span></div>}
+                                    {isEducation ? (
+                                        <>
+                                            <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500">
+                                                <span>Recipient</span>
+                                                <span className="text-slate-900 dark:text-white uppercase">{selectedStudent?.name}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500">
+                                                <span>ADM Number</span>
+                                                <span className="text-slate-900 dark:text-white uppercase">{(selectedStudent as any)?.admission_number || selectedStudent?.admissionNumber || 'N/A'}</span>
+                                            </div>
+                                            {signatureData && (
+                                                <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                                                    <span className="text-[10px] font-black uppercase text-slate-500 block text-left">Captured Signature:</span>
+                                                    <img src={signatureData} className="max-h-16 mx-auto mt-2 border border-dashed rounded-lg p-1 bg-white" alt="Signature" />
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <>
+                                            {customerInfo.phone && <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500"><span>SMS Receipt</span><span className="text-slate-900 dark:text-white">{customerInfo.phone}</span></div>}
+                                            {customerInfo.email && <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500"><span>Matrix Link</span><span className="text-slate-900 dark:text-white">{customerInfo.email}</span></div>}
+                                        </>
+                                    )}
                                 </div>
 
                                 <button
@@ -651,7 +831,10 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                                         setIsCheckoutModalOpen(false);
                                         setCustomerInfo({ name: '', phone: '', email: '' });
                                         setSelectedCustomer(null);
+                                        setSelectedStudent(null);
                                         setCustomerSearch('');
+                                        setStudentSearchQuery('');
+                                        setSignatureData('');
                                     }}
                                     className="w-full py-6 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black uppercase text-[12px] tracking-[0.4em] rounded-[1.5rem] hover:scale-105 transition-all shadow-xl"
                                 >
@@ -666,8 +849,12 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                                             <CreditCard className="w-5 h-5" />
                                         </div>
                                         <div>
-                                            <h3 className="font-black text-slate-900 dark:text-white uppercase text-xs tracking-[0.2em]">Settlement Nexus</h3>
-                                            <p className="text-[10px] font-bold text-slate-400 mt-0.5">Validate customer credentials</p>
+                                            <h3 className="font-black text-slate-900 dark:text-white uppercase text-xs tracking-[0.2em]">
+                                                {isEducation ? "Issuance Portal" : "Settlement Nexus"}
+                                            </h3>
+                                            <p className="text-[10px] font-bold text-slate-400 mt-0.5">
+                                                {isEducation ? "Authorize academic resource handoff" : "Validate customer credentials"}
+                                            </p>
                                         </div>
                                     </div>
                                     <button onClick={() => setIsCheckoutModalOpen(false)} className="p-3 bg-white dark:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-full transition-all border border-slate-100 dark:border-slate-700 shadow-sm">
@@ -675,146 +862,329 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                                     </button>
                                 </div>
 
-                                <div className="p-10 space-y-8">
-                                    <div className="space-y-6">
-                                        <div className="space-y-4">
-                                            <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400 ml-4">Search Existing Customer</label>
-                                            <div className="relative">
-                                                <Search className="w-5 h-5 absolute left-6 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                                                <input
-                                                    type="text"
-                                                    value={customerSearch}
-                                                    onChange={e => setCustomerSearch(e.target.value)}
-                                                    className="w-full pl-16 pr-8 py-5 bg-slate-100/50 dark:bg-slate-800/50 border-none rounded-[1.5rem] focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm font-black text-slate-900 dark:text-white placeholder:text-slate-300 transition-all"
-                                                    placeholder="Phone or Name..."
-                                                />
-                                                {customerSearch && (
-                                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-700 max-h-48 overflow-y-auto z-50 p-2 space-y-1">
-                                                        {allCustomers
-                                                            .filter(c =>
-                                                                c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-                                                                (c.phoneNumber && c.phoneNumber.includes(customerSearch))
-                                                            )
-                                                            .map(c => (
-                                                                <button
-                                                                    key={c.id}
-                                                                    onClick={() => {
-                                                                        setSelectedCustomer(c);
-                                                                        setCustomerInfo({ name: c.name, phone: c.phoneNumber || '', email: c.email || '' });
-                                                                        setCustomerSearch('');
-                                                                    }}
-                                                                    className="w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl transition-colors flex justify-between items-center"
-                                                                >
-                                                                    <div>
-                                                                        <p className="text-xs font-black uppercase text-slate-900 dark:text-white">{c.name}</p>
-                                                                        <p className="text-[10px] text-slate-400 font-bold">{c.phoneNumber || 'No Phone'}</p>
-                                                                    </div>
-                                                                    <div className="text-right">
-                                                                        <p className="text-[10px] font-black text-indigo-600">{c.loyaltyPoints} PTS</p>
-                                                                    </div>
-                                                                </button>
-                                                            ))
-                                                        }
-                                                        <button
-                                                            onClick={() => setCustomerSearch('')}
-                                                            className="w-full p-2 text-[10px] font-bold text-slate-400 hover:text-indigo-500"
-                                                        >
-                                                            Clear Search
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            <div className="flex justify-between items-center px-4">
-                                                <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400">Identity Record</label>
-                                                {selectedCustomer && (
-                                                    <button
-                                                        onClick={() => {
-                                                            setSelectedCustomer(null);
-                                                            setCustomerInfo({ name: '', phone: '', email: '' });
-                                                        }}
-                                                        className="text-[8px] font-black uppercase tracking-widest text-rose-500 hover:underline"
-                                                    >
-                                                        Clear Selection
-                                                    </button>
-                                                )}
-                                            </div>
+                                <div className="p-10 space-y-8 max-h-[75vh] overflow-y-auto">
+                                    {isEducation ? (
+                                        // ───────────────────────────────────────────
+                                        // EDUCATION MODE: Student Search & Verification
+                                        // ───────────────────────────────────────────
+                                        <div className="space-y-6">
                                             <div className="space-y-4">
-                                                <input
-                                                    type="text"
-                                                    value={customerInfo.name}
-                                                    onChange={e => setCustomerInfo({ ...customerInfo, name: e.target.value })}
-                                                    className={`w-full px-8 py-5 border-none rounded-[1.5rem] focus:ring-4 outline-none text-sm font-black transition-all ${selectedCustomer ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 ring-2 ring-indigo-500/20' : 'bg-slate-100/50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-300 focus:ring-indigo-500/10'}`}
-                                                    placeholder="Customer Name"
-                                                />
-                                                <div className="grid grid-cols-2 gap-4">
+                                                <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400 ml-4">
+                                                    Search Student (ADM, Name, or QR)
+                                                </label>
+                                                <div className="relative">
+                                                    <Search className="w-5 h-5 absolute left-6 top-1/2 transform -translate-y-1/2 text-slate-400" />
                                                     <input
-                                                        type="tel"
-                                                        value={customerInfo.phone}
-                                                        onChange={e => setCustomerInfo({ ...customerInfo, phone: e.target.value })}
-                                                        className={`w-full px-8 py-5 border-none rounded-[1.5rem] focus:ring-4 outline-none text-sm font-black transition-all ${selectedCustomer ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 ring-2 ring-indigo-500/20' : 'bg-slate-100/50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-300 focus:ring-indigo-500/10'}`}
-                                                        placeholder="Phone Number"
+                                                        type="text"
+                                                        value={studentSearchQuery}
+                                                        onChange={e => setStudentSearchQuery(e.target.value)}
+                                                        onKeyDown={e => {
+                                                            if (e.key === 'Enter') {
+                                                                e.preventDefault();
+                                                                const exactMatch = students.find(s => 
+                                                                    (s.admissionNumber || (s as any).admission_number || '').toLowerCase() === studentSearchQuery.toLowerCase() ||
+                                                                    s.id.toLowerCase() === studentSearchQuery.toLowerCase()
+                                                                );
+                                                                if (exactMatch) {
+                                                                    setSelectedStudent(exactMatch);
+                                                                    setCustomerInfo({
+                                                                        name: exactMatch.name,
+                                                                        phone: exactMatch.phoneNumber || '',
+                                                                        email: exactMatch.email || ''
+                                                                    });
+                                                                    setStudentSearchQuery('');
+                                                                }
+                                                            }
+                                                        }}
+                                                        className="w-full pl-16 pr-24 py-5 bg-slate-100/50 dark:bg-slate-800/50 border-none rounded-[1.5rem] focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm font-black text-slate-900 dark:text-white placeholder:text-slate-300 transition-all"
+                                                        placeholder="Admission No. or Name..."
                                                     />
-                                                    <input
-                                                        type="email"
-                                                        value={customerInfo.email}
-                                                        onChange={e => setCustomerInfo({ ...customerInfo, email: e.target.value })}
-                                                        className={`w-full px-8 py-5 border-none rounded-[1.5rem] focus:ring-4 outline-none text-sm font-black transition-all ${selectedCustomer ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 ring-2 ring-indigo-500/20' : 'bg-slate-100/50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-300 focus:ring-indigo-500/10'}`}
-                                                        placeholder="Email Address"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            // Simulation of QR scanner
+                                                            if (students.length > 0) {
+                                                                const randomStudent = students[Math.floor(Math.random() * students.length)];
+                                                                setSelectedStudent(randomStudent);
+                                                                setCustomerInfo({
+                                                                    name: randomStudent.name,
+                                                                    phone: randomStudent.phoneNumber || '',
+                                                                    email: randomStudent.email || ''
+                                                                });
+                                                                alert(`[QR Scanner Sim] Scanned QR Code successfully! Selected Student: ${randomStudent.name} (${(randomStudent as any).admission_number || 'ADM-883'})`);
+                                                            } else {
+                                                                alert("No students registered yet in this school to simulate QR scan.");
+                                                            }
+                                                        }}
+                                                        className="absolute right-3 top-1/2 transform -translate-y-1/2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-wider hover:bg-indigo-500 transition-all"
+                                                    >
+                                                        Scan QR
+                                                    </button>
 
-                                        {selectedCustomer && (
-                                            <div className="p-6 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-[2rem] border border-indigo-500/20 flex justify-between items-center animate-in slide-in-from-top-4">
-                                                <div className="flex flex-col">
-                                                    <span className="text-[8px] font-black uppercase tracking-widest text-indigo-600 mb-1">Loyalty Wallet</span>
-                                                    <span className="text-xl font-black text-indigo-600">{selectedCustomer.loyaltyPoints} PTS</span>
-                                                </div>
-                                                <div className="text-right flex flex-col items-end">
-                                                    <span className="text-[8px] font-black uppercase tracking-widest text-emerald-600 mb-1">Incoming</span>
-                                                    <span className="text-xl font-black text-emerald-600">+{Math.floor(totalAmount / 100)} PTS</span>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400 ml-4">Transfer Protocol</label>
-                                        <div className="grid grid-cols-3 gap-4">
-                                            {['mpesa', 'card', 'cash'].map(method => (
-                                                <button
-                                                    key={method}
-                                                    onClick={() => setPaymentMethod(method)}
-                                                    className={`group relative py-4 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center gap-2 ${paymentMethod === method
-                                                        ? 'bg-indigo-600 border-indigo-600 shadow-xl shadow-indigo-500/20'
-                                                        : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-indigo-200'}`}
-                                                >
-                                                    <span className={`text-[10px] font-black uppercase tracking-[0.2em] transition-colors ${paymentMethod === method ? 'text-white' : 'text-slate-400 group-hover:text-indigo-500'}`}>
-                                                        {method}
-                                                    </span>
-                                                    {paymentMethod === method && (
-                                                        <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center border-2 border-indigo-600 text-indigo-600">
-                                                            <CheckCircleIcon className="w-3 h-3" />
+                                                    {studentSearchQuery && (
+                                                        <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-700 max-h-48 overflow-y-auto z-50 p-2 space-y-1">
+                                                            {students
+                                                                .filter(s =>
+                                                                    s.name.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
+                                                                    (s.admissionNumber || (s as any).admission_number || '').toLowerCase().includes(studentSearchQuery.toLowerCase())
+                                                                )
+                                                                .map(s => (
+                                                                    <button
+                                                                        key={s.id}
+                                                                        onClick={() => {
+                                                                            setSelectedStudent(s);
+                                                                            setCustomerInfo({
+                                                                                name: s.name,
+                                                                                phone: s.phoneNumber || '',
+                                                                                email: s.email || ''
+                                                                            });
+                                                                            setStudentSearchQuery('');
+                                                                        }}
+                                                                        className="w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl transition-colors flex justify-between items-center"
+                                                                    >
+                                                                        <div>
+                                                                            <p className="text-xs font-black uppercase text-slate-900 dark:text-white">{s.name}</p>
+                                                                            <p className="text-[10px] text-slate-400 font-bold">ADM: {(s as any).admission_number || s.admissionNumber || 'N/A'}</p>
+                                                                        </div>
+                                                                        {s.email && (
+                                                                            <div className="text-right">
+                                                                                <p className="text-[9px] text-slate-400">{s.email}</p>
+                                                                            </div>
+                                                                        )}
+                                                                    </button>
+                                                                ))
+                                                            }
                                                         </div>
                                                     )}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
+                                                </div>
+                                            </div>
 
-                                    <div className="p-8 bg-slate-900 dark:bg-slate-800 rounded-[2.5rem] flex justify-between items-center shadow-2xl">
-                                        <div className="space-y-1">
-                                            <span className="text-[10px] font-black uppercase tracking-[.4em] text-slate-400">Net Liability</span>
-                                            <h4 className="text-3xl font-black text-white tracking-tighter">KES {totalAmount.toLocaleString()}</h4>
+                                            {selectedStudent && (
+                                                <div className="p-6 bg-indigo-55 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-[2rem] border border-indigo-500/20 space-y-4 animate-in slide-in-from-top-4">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-[8px] font-black uppercase tracking-widest text-indigo-600">Selected Recipient</span>
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedStudent(null);
+                                                                setCustomerInfo({ name: '', phone: '', email: '' });
+                                                            }}
+                                                            className="text-[8px] font-black uppercase tracking-widest text-rose-500 hover:underline"
+                                                        >
+                                                            Clear
+                                                        </button>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="text-[8px] uppercase tracking-wider text-slate-400 block mb-0.5">Student Name</label>
+                                                            <p className="text-xs font-black text-slate-950 dark:text-white uppercase">{selectedStudent.name}</p>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[8px] uppercase tracking-wider text-slate-400 block mb-0.5">Admission Number</label>
+                                                            <p className="text-xs font-black text-indigo-600 uppercase">{(selectedStudent as any).admission_number || selectedStudent.admissionNumber || 'N/A'}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Digital Signature Canvas */}
+                                            <div className="space-y-4">
+                                                <div className="flex justify-between items-center px-4">
+                                                    <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400">Recipient Signature (Draw below)</label>
+                                                    {signatureData && (
+                                                        <button
+                                                            onClick={clearSignature}
+                                                            className="text-[8px] font-black uppercase tracking-widest text-rose-500 hover:underline"
+                                                        >
+                                                            Reset Sign
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <div className="relative border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-3xl bg-slate-50 dark:bg-slate-950 overflow-hidden h-40">
+                                                    <canvas
+                                                        ref={canvasRef}
+                                                        width={500}
+                                                        height={160}
+                                                        onMouseDown={startDrawing}
+                                                        onMouseMove={draw}
+                                                        onMouseUp={stopDrawing}
+                                                        onMouseLeave={stopDrawing}
+                                                        onTouchStart={startDrawing}
+                                                        onTouchMove={draw}
+                                                        onTouchEnd={stopDrawing}
+                                                        className="w-full h-full cursor-crosshair touch-none"
+                                                    />
+                                                    {!signatureData && (
+                                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
+                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center px-4">Draw or sign here</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md">
-                                            <ShoppingCart className="w-8 h-8 text-white/50" />
+                                    ) : (
+                                        // ───────────────────────────────────────────
+                                        // RETAIL MODE: Standard Customer Search & Form
+                                        // ───────────────────────────────────────────
+                                        <div className="space-y-6">
+                                            <div className="space-y-4">
+                                                <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400 ml-4">Search Existing Customer</label>
+                                                <div className="relative">
+                                                    <Search className="w-5 h-5 absolute left-6 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                                                    <input
+                                                        type="text"
+                                                        value={customerSearch}
+                                                        onChange={e => setCustomerSearch(e.target.value)}
+                                                        className="w-full pl-16 pr-8 py-5 bg-slate-100/50 dark:bg-slate-800/50 border-none rounded-[1.5rem] focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm font-black text-slate-900 dark:text-white placeholder:text-slate-300 transition-all"
+                                                        placeholder="Phone or Name..."
+                                                    />
+                                                    {customerSearch && (
+                                                        <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-700 max-h-48 overflow-y-auto z-50 p-2 space-y-1">
+                                                            {allCustomers
+                                                                .filter(c =>
+                                                                    c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+                                                                    (c.phoneNumber && c.phoneNumber.includes(customerSearch))
+                                                                )
+                                                                .map(c => (
+                                                                    <button
+                                                                        key={c.id}
+                                                                        onClick={() => {
+                                                                            setSelectedCustomer(c);
+                                                                            setCustomerInfo({ name: c.name, phone: c.phoneNumber || '', email: c.email || '' });
+                                                                            setCustomerSearch('');
+                                                                        }}
+                                                                        className="w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl transition-colors flex justify-between items-center"
+                                                                    >
+                                                                        <div>
+                                                                            <p className="text-xs font-black uppercase text-slate-900 dark:text-white">{c.name}</p>
+                                                                            <p className="text-[10px] text-slate-400 font-bold">{c.phoneNumber || 'No Phone'}</p>
+                                                                        </div>
+                                                                        <div className="text-right">
+                                                                            <p className="text-[10px] font-black text-indigo-600">{c.loyaltyPoints} PTS</p>
+                                                                        </div>
+                                                                    </button>
+                                                                ))
+                                                            }
+                                                            <button
+                                                                onClick={() => setCustomerSearch('')}
+                                                                className="w-full p-2 text-[10px] font-bold text-slate-400 hover:text-indigo-500"
+                                                            >
+                                                                Clear Search
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                <div className="flex justify-between items-center px-4">
+                                                    <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400">Identity Record</label>
+                                                    {selectedCustomer && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedCustomer(null);
+                                                                setCustomerInfo({ name: '', phone: '', email: '' });
+                                                            }}
+                                                            className="text-[8px] font-black uppercase tracking-widest text-rose-500 hover:underline"
+                                                        >
+                                                            Clear Selection
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <div className="space-y-4">
+                                                    <input
+                                                        type="text"
+                                                        value={customerInfo.name}
+                                                        onChange={e => setCustomerInfo({ ...customerInfo, name: e.target.value })}
+                                                        className={`w-full px-8 py-5 border-none rounded-[1.5rem] focus:ring-4 outline-none text-sm font-black transition-all ${selectedCustomer ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 ring-2 ring-indigo-500/20' : 'bg-slate-100/50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-300 focus:ring-indigo-500/10'}`}
+                                                        placeholder="Customer Name"
+                                                    />
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <input
+                                                            type="tel"
+                                                            value={customerInfo.phone}
+                                                            onChange={e => setCustomerInfo({ ...customerInfo, phone: e.target.value })}
+                                                            className={`w-full px-8 py-5 border-none rounded-[1.5rem] focus:ring-4 outline-none text-sm font-black transition-all ${selectedCustomer ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 ring-2 ring-indigo-500/20' : 'bg-slate-100/50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-300 focus:ring-indigo-500/10'}`}
+                                                            placeholder="Phone Number"
+                                                        />
+                                                        <input
+                                                            type="email"
+                                                            value={customerInfo.email}
+                                                            onChange={e => setCustomerInfo({ ...customerInfo, email: e.target.value })}
+                                                            className={`w-full px-8 py-5 border-none rounded-[1.5rem] focus:ring-4 outline-none text-sm font-black transition-all ${selectedCustomer ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 ring-2 ring-indigo-500/20' : 'bg-slate-100/50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-300 focus:ring-indigo-500/10'}`}
+                                                            placeholder="Email Address"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {selectedCustomer && (
+                                                <div className="p-6 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-[2rem] border border-indigo-500/20 flex justify-between items-center animate-in slide-in-from-top-4">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[8px] font-black uppercase tracking-widest text-indigo-600 mb-1">Loyalty Wallet</span>
+                                                        <span className="text-xl font-black text-indigo-600">{selectedCustomer.loyaltyPoints} PTS</span>
+                                                    </div>
+                                                    <div className="text-right flex flex-col items-end">
+                                                        <span className="text-[8px] font-black uppercase tracking-widest text-emerald-600 mb-1">Incoming</span>
+                                                        <span className="text-xl font-black text-emerald-600">+{Math.floor(totalAmount / 100)} PTS</span>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                    </div>
+                                    )}
+
+                                    {!isEducation && (
+                                        <div className="space-y-4">
+                                            <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400 ml-4">Transfer Protocol</label>
+                                            <div className="grid grid-cols-3 gap-4">
+                                                {['mpesa', 'card', 'cash'].map(method => (
+                                                    <button
+                                                        key={method}
+                                                        onClick={() => setPaymentMethod(method)}
+                                                        className={`group relative py-4 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center gap-2 ${paymentMethod === method
+                                                            ? 'bg-indigo-600 border-indigo-600 shadow-xl shadow-indigo-500/20'
+                                                            : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-indigo-200'}`}
+                                                    >
+                                                        <span className={`text-[10px] font-black uppercase tracking-[0.2em] transition-colors ${paymentMethod === method ? 'text-white' : 'text-slate-400 group-hover:text-indigo-500'}`}>
+                                                            {method}
+                                                        </span>
+                                                        {paymentMethod === method && (
+                                                            <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center border-2 border-indigo-600 text-indigo-600">
+                                                                <CheckCircleIcon className="w-3 h-3" />
+                                                            </div>
+                                                        )}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {isEducation ? (
+                                        <div className="p-8 bg-slate-900 dark:bg-slate-800 rounded-[2.5rem] flex justify-between items-center shadow-2xl">
+                                            <div className="space-y-1">
+                                                <span className="text-[10px] font-black uppercase tracking-[.4em] text-slate-400">
+                                                    Total Items Count
+                                                </span>
+                                                <h4 className="text-3xl font-black text-white tracking-tighter">
+                                                    {cart.reduce((sum, c) => sum + c.quantity, 0)}
+                                                </h4>
+                                            </div>
+                                            <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md">
+                                                <ShoppingCart className="w-8 h-8 text-white/50" />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="p-8 bg-slate-900 dark:bg-slate-800 rounded-[2.5rem] flex justify-between items-center shadow-2xl">
+                                            <div className="space-y-1">
+                                                <span className="text-[10px] font-black uppercase tracking-[.4em] text-slate-400">
+                                                    Net Liability
+                                                </span>
+                                                <h4 className="text-3xl font-black text-white tracking-tighter">KES {totalAmount.toLocaleString()}</h4>
+                                            </div>
+                                            <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md">
+                                                <ShoppingCart className="w-8 h-8 text-white/50" />
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <button
                                         onClick={handleCheckout}
@@ -826,7 +1196,7 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                                         ) : (
                                             <>
                                                 <Zap className="w-6 h-6" />
-                                                Process Settlement
+                                                {isEducation ? "Log Issuance" : "Process Settlement"}
                                             </>
                                         )}
                                     </button>

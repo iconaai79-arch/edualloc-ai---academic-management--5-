@@ -253,6 +253,8 @@ export interface User {
     autoMarketPlaceUrl?: string;
     metadata?: any;
     createdAt?: string;
+    admissionNumber?: string;
+    admission_number?: string;
 }
 
 export interface GradeDefinition {

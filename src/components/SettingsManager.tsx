@@ -168,6 +168,7 @@ interface SettingsManagerProps {
     dsSettings?: DSSettings | null;
     onUpdateDSSettings?: (data: any) => Promise<void>;
     isDS?: boolean;
+    activeScope?: string;
 }
 
 const CONSTRAINT_TYPE_LABELS: Record<TimetableConstraintType, string> = {
@@ -807,7 +808,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             tabs.push({ id: 'global_config', label: 'Global Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> });
         } else {
             tabs.push({ id: 'general', label: 'General', icon: <InformationCircleIcon className="w-5 h-5 mr-2" /> });
-            if (!isRetailAgency && isEdu && !isCoop && !isDS) {
+            if (!isRetailAgency && isEdu && !isCoop && !isDS && props.activeScope !== 'inventory') {
                 tabs.push({ id: 'timetable', label: 'Timetable Rules', icon: <ClockIcon className="w-5 h-5 mr-2" /> });
                 tabs.push({ id: 'calendar', label: 'Calendar', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> });
                 tabs.push({ id: 'subjects', label: isChurch ? 'Ministries' : 'Subjects', icon: <BookOpenIcon className="w-5 h-5 mr-2" /> });
@@ -819,13 +820,17 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 tabs.push({ id: 'subjects', label: 'Ministries', icon: <BookOpenIcon className="w-5 h-5 mr-2" /> });
                 tabs.push({ id: 'staff', label: 'Workers & Clergy', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> });
             }
-            if (isCoop || isAutoSales) {
-                tabs.push({ id: 'staff', label: isAutoSales ? 'Manage Users' : 'Staff & Roles', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> });
+            if (isCoop || isAutoSales || props.activeScope === 'inventory') {
+                tabs.push({ 
+                    id: 'staff', 
+                    label: props.activeScope === 'inventory' ? 'User Management' : (isAutoSales ? 'Manage Users' : 'Staff & Roles'), 
+                    icon: <UserGroupIcon className="w-5 h-5 mr-2" /> 
+                });
             }
         }
 
         return tabs;
-    }, [props.currentUser.role, isSchool, isEdu, isSuperAdmin, isRetailAgency, isCoop, isAutoSales, isChurch]);
+    }, [props.currentUser.role, isSchool, isEdu, isSuperAdmin, isRetailAgency, isCoop, isAutoSales, isChurch, props.activeScope]);
 
     const allDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -2671,7 +2676,15 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                     <div className="space-y-8 animate-fade-in-up">
                         <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto no-scrollbar">
                             {(() => {
-                                if (isRetailAgency) return ['profile', 'location', 'branding'];
+                                if (isRetailAgency || props.activeScope === 'inventory') {
+                                    const filtered = ['profile', 'location', 'branding'];
+                                    if (props.currentUser.role === 'admin') {
+                                        filtered.push('billing');
+                                        filtered.push('integrations');
+                                        filtered.push('sms');
+                                    }
+                                    return filtered;
+                                }
                                 if (isCoop || !isEdu || isDS) {
                                     const filtered = ['profile', 'location', 'branding'];
                                     if (props.currentUser.role === 'admin' || isCoop) {

@@ -127,7 +127,7 @@ export function RetailDashboard({ institutionId, onNavigate, isEducation }: Reta
                         className="flex-1 md:flex-none flex items-center justify-center gap-3 px-6 py-3 bg-gradient-to-br from-indigo-600 to-violet-700 text-white rounded-2xl shadow-[0_10px_20px_-5px_rgba(79,70,229,0.4)] hover:shadow-[0_15px_25px_-5px_rgba(79,70,229,0.5)] hover:-translate-y-1 active:translate-y-0 transition-all text-sm font-black uppercase tracking-wider"
                     >
                         <Smartphone className="w-5 h-5" />
-                        Launch POS
+                        {isEducation ? 'Launch Issuance' : 'Launch POS'}
                     </button>
                 </div>
             </div>
@@ -294,7 +294,7 @@ export function RetailDashboard({ institutionId, onNavigate, isEducation }: Reta
                         <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 shadow-sm border border-slate-100 dark:border-slate-700">
                             <div className="flex justify-between items-start mb-8">
                                 <div>
-                                    <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">Sales Pulse</h3>
+                                    <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">{isEducation ? 'issuance on education inventory' : 'Sales Pulse'}</h3>
                                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1 italic">Engagement Velocity</p>
                                 </div>
                                 <div className="p-3 bg-rose-50 dark:bg-rose-900/30 rounded-2xl text-rose-600 font-black">

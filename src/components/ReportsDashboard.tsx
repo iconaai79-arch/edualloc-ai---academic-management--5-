@@ -1,7 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import type { User, Subject, Department, AllocationRequest, RequestStatus, LessonStructure, TimetableEntry, Room, LetterheadConfig, Conflict, Course, StudentAttendance, Assessment, AssessmentMark, Institution, LecturerContract, ExamTimetableEntry, Building, TimetableSettings, Semester, AcademicYear, Visitor, ActivityLog, CarInvoice, CarPayment, CompanyDetails } from '../types';
+import type { User, Subject, Department, AllocationRequest, RequestStatus, LessonStructure, TimetableEntry, Room, LetterheadConfig, Conflict, Course, StudentAttendance, Assessment, AssessmentMark, Institution, LecturerContract, ExamTimetableEntry, Building, TimetableSettings, Semester, AcademicYear, Visitor, ActivityLog, CarInvoice, CarPayment, CompanyDetails, InventoryItem, StockTransaction } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
+import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
 import { AdvisoryReportView } from './AdvisoryReportView';
 import { ConflictReport } from './ConflictReport';
 import { AttendanceReports } from './AttendanceReports';
@@ -30,11 +31,13 @@ import { PdfPreviewModal } from './PdfPreviewModal';
 import { EyeIcon } from './icons/EyeIcon';
 import { TrendingUpIcon } from './icons/TrendingUpIcon';
 import { AttendanceAnalytics } from './AttendanceAnalytics';
+import { isEduInstitution } from '../utils/roleUtils';
 import { timeToMinutes, minutesToTime } from '../utils/timeUtils';
 
 const UserManager = React.lazy(() => import('./UserManager').then(m => ({ default: m.UserManager })));
 
 interface ReportsDashboardProps {
+    activeScope?: string;
     lecturers: User[];
     subjects: Subject[];
     departments: Department[];
@@ -333,8 +336,11 @@ const ClientStatementReport: React.FC<{
     );
 };
 
+import { apiService } from '../services/apiService';
+
 export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     const {
+        activeScope,
         lecturers = [], subjects = [], departments = [], requests = [], allocations = [],
         allTimetableEntries = [], examTimetable = [], rooms = [], letterheadConfig, logoUrl, footerImageUrl,
         timetableConflicts = [], getLecturerById, getRoomById, getSubjectById,
@@ -355,15 +361,45 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     const isAutoSales = currentInstitution?.businessSubType?.toLowerCase().includes('car') || currentInstitution?.businessSubType?.toLowerCase().includes('auto');
     const isDS = currentInstitution?.institutionType === 'Driving School' || currentInstitution?.category === 'Driving School' || currentInstitution?.institutionType?.toLowerCase().includes('driving school');
     const isEdu = useMemo(() => {
-        const type = currentInstitution?.institutionType;
-        return (type === 'Education' || ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes((currentInstitution as any)?.institutionType || '')) && !isDS;
+        return isEduInstitution(currentInstitution) && !isDS;
     }, [currentInstitution, isDS]);
 
-    const [subTab, setSubTab] = useState('visuals');
+    const [subTab, setSubTab] = useState(() => {
+        if (activeScope === 'inventory') return 'inventory_valuation';
+        if (activeScope === 'logistics') return 'distance';
+        if (activeScope === 'boarding') return 'enrollment_capacity';
+        return 'visuals';
+    });
     const [departmentFilter, setDepartmentFilter] = useState<string>('all');
     const [isWorkloadPdfGenerating, setIsWorkloadPdfGenerating] = useState(false);
     const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
     const [previewPdfFilename, setPreviewPdfFilename] = useState<string>('');
+
+    const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+    const [stockTransactions, setStockTransactions] = useState<StockTransaction[]>([]);
+    const [loadingInventory, setLoadingInventory] = useState(false);
+    const [inventorySearch, setInventorySearch] = useState('');
+
+    useEffect(() => {
+        if (activeScope === 'inventory' && currentInstitution?.id) {
+            const fetchInventoryData = async () => {
+                setLoadingInventory(true);
+                try {
+                    const [invData, txData] = await Promise.all([
+                        apiService.fetchModuleRecords<InventoryItem>('inventory', currentInstitution.id),
+                        apiService.fetchModuleRecords<StockTransaction>('stock_transactions', currentInstitution.id)
+                    ]);
+                    setInventoryItems(invData || []);
+                    setStockTransactions(txData || []);
+                } catch (error) {
+                    console.error('Failed to load inventory reports data:', error);
+                } finally {
+                    setLoadingInventory(false);
+                }
+            };
+            fetchInventoryData();
+        }
+    }, [activeScope, currentInstitution?.id]);
 
     const calculateTotalPeriods = (structure: LessonStructure[] | undefined): number => {
         if (!structure || !Array.isArray(structure)) return 0;
@@ -651,6 +687,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     };
 
     const subTabs = [
+        { key: 'inventory_valuation', label: 'Inventory Stock & Valuation', icon: <ArchiveBoxIcon className="w-5 h-5 mr-3" /> },
+        { key: 'store_issuances', label: 'Historical Store Issuances', icon: <ClipboardListIcon className="w-5 h-5 mr-3" /> },
         { key: 'visuals', label: 'Graphs & Visuals', icon: <ChartPieIcon className="w-5 h-5 mr-3" /> },
         { key: 'stats', label: (isRetailAgency || isAutoSales) ? 'Personnel & Agent Stats' : 'Workload & Statistics', icon: <ChartBarIcon className="w-5 h-5 mr-3" /> },
         { key: 'progress', label: 'Course Progress Tracking', icon: <CheckCircleIcon className="w-5 h-5 mr-3" /> },
@@ -683,6 +721,41 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
             const allowed = ['visuals', 'stats', 'audit', 'attendance', 'client_statements'];
             return allowed.includes(tab.key);
         }
+        
+        // Scope-based modular reports gating
+        if (activeScope) {
+            const isModuleActive = (moduleId: string) => {
+                const state = currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId);
+                if (!state) return false;
+                if (state.status === 'active') return true;
+                if (state.status === 'trial') {
+                    const expiry = state.trialEndsAt || (state as any).trial_ends_at;
+                    return expiry ? new Date(expiry) > new Date() : false;
+                }
+                return false;
+            };
+
+            if (activeScope === 'inventory') {
+                return ['inventory_valuation', 'store_issuances', 'audit'].includes(tab.key);
+            }
+            if (activeScope === 'academics') {
+                const allowedKeys = ['audit'];
+                if (isModuleActive('academics')) {
+                    allowedKeys.push('visuals', 'stats', 'progress', 'advisory', 'assessments');
+                }
+                if (isModuleActive('timetable')) {
+                    allowedKeys.push('utilization', 'conflicts', 'exam_timetable', 'generated_timetable');
+                }
+                return allowedKeys.includes(tab.key);
+            }
+            if (activeScope === 'boarding') {
+                return ['enrollment_capacity', 'attendance', 'audit'].includes(tab.key);
+            }
+            if (activeScope === 'logistics') {
+                return ['distance', 'audit'].includes(tab.key);
+            }
+        }
+        
         return true;
     });
 
@@ -707,6 +780,215 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                 </aside>
 
                 <main className="flex-1 min-w-0">
+                    {subTab === 'inventory_valuation' && (
+                        <div className="space-y-6 animate-fade-in text-slate-900 dark:text-white">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                                <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Stock Items</span>
+                                    <h4 className="text-3xl font-black text-slate-900 dark:text-white mt-2">{inventoryItems.length}</h4>
+                                </div>
+                                <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Stock Quantity</span>
+                                    <h4 className="text-3xl font-black text-slate-900 dark:text-white mt-2">
+                                        {inventoryItems.reduce((sum, item) => sum + item.quantity, 0)}
+                                    </h4>
+                                </div>
+                                <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Inventory Valuation</span>
+                                    <h4 className="text-3xl font-black text-indigo-600 dark:text-indigo-400 mt-2">
+                                        KES {inventoryItems.reduce((sum, item) => sum + (item.quantity * (item.price || 0)), 0).toLocaleString()}
+                                    </h4>
+                                </div>
+                            </div>
+
+                            {inventoryItems.filter(item => item.quantity <= (item.reorderLevel || item.minThreshold || 5)).length > 0 && (
+                                <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/50 p-6 rounded-3xl flex items-center gap-4 animate-pulse">
+                                    <div className="p-3 bg-rose-500 text-white rounded-2xl">
+                                        <ExclamationTriangleIcon className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h5 className="text-sm font-black uppercase text-rose-700 dark:text-rose-400">Low Stock Warning</h5>
+                                        <p className="text-xs text-rose-600 dark:text-rose-500 font-bold mt-1">
+                                            {inventoryItems.filter(item => item.quantity <= (item.reorderLevel || item.minThreshold || 5)).length} items are currently below or at their safety threshold! Please reorder soon.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                                <div className="p-6 border-b border-slate-50 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/50 dark:bg-slate-900/20">
+                                    <div>
+                                        <h4 className="text-sm font-black uppercase tracking-tight">Stock Level & Threshold Valuation Register</h4>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Comprehensive store logistics statement</p>
+                                    </div>
+                                    <div className="relative w-full sm:w-64">
+                                        <input
+                                            type="text"
+                                            placeholder="Search items..."
+                                            value={inventorySearch}
+                                            onChange={(e) => setInventorySearch(e.target.value)}
+                                            className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold transition-all outline-none"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/10">
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Item Name</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Category</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Available Stock</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Unit Price (KES)</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Total Value (KES)</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                                            {loadingInventory ? (
+                                                <tr>
+                                                    <td colSpan={6} className="p-12 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                                                        Loading inventory data...
+                                                    </td>
+                                                </tr>
+                                            ) : inventoryItems.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={6} className="p-12 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                                                        No stock items in this store registry
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                inventoryItems
+                                                    .filter(item => item.name.toLowerCase().includes(inventorySearch.toLowerCase()) || item.category.toLowerCase().includes(inventorySearch.toLowerCase()))
+                                                    .map(item => {
+                                                        const isLow = item.quantity <= (item.reorderLevel || item.minThreshold || 5);
+                                                        return (
+                                                            <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors">
+                                                                <td className="p-5 text-xs font-black text-slate-900 dark:text-white">{item.name}</td>
+                                                                <td className="p-5 text-xs font-bold text-slate-500 uppercase tracking-widest">{item.category}</td>
+                                                                <td className="p-5 text-xs font-black text-center text-slate-700 dark:text-slate-200">
+                                                                    {item.quantity} <span className="text-[10px] text-slate-400 font-bold">{item.unit}</span>
+                                                                </td>
+                                                                <td className="p-5 text-xs font-black text-right text-slate-800 dark:text-slate-300">
+                                                                    {item.price ? `KES ${item.price.toLocaleString()}` : '-'}
+                                                                </td>
+                                                                <td className="p-5 text-xs font-black text-right text-slate-900 dark:text-white">
+                                                                    KES {(item.quantity * (item.price || 0)).toLocaleString()}
+                                                                </td>
+                                                                <td className="p-5">
+                                                                    {isLow ? (
+                                                                        <span className="px-3 py-1 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-[9px] font-black uppercase tracking-widest rounded-full">
+                                                                            Low Stock
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="px-3 py-1 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 text-[9px] font-black uppercase tracking-widest rounded-full">
+                                                                            In Stock
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {subTab === 'store_issuances' && (
+                        <div className="space-y-6 animate-fade-in text-slate-900 dark:text-white">
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                                <div className="p-6 border-b border-slate-50 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/50 dark:bg-slate-900/20">
+                                    <div>
+                                        <h4 className="text-sm font-black uppercase tracking-tight">Direct Store Issuance Audit Ledger</h4>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Historic records of school supplies distributed to users</p>
+                                    </div>
+                                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                                        <input
+                                            type="text"
+                                            placeholder="Search issuances..."
+                                            value={inventorySearch}
+                                            onChange={(e) => setInventorySearch(e.target.value)}
+                                            className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold transition-all outline-none w-full sm:w-64"
+                                        />
+                                        <button onClick={() => window.print()} className="btn-secondary whitespace-nowrap text-[10px] font-black uppercase tracking-widest px-4 py-2 border rounded-xl flex items-center gap-2">
+                                            <PrinterIcon className="w-4 h-4" /> Print
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/10">
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Date/Time</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Recipient</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Item Issued</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Qty</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Recorded By</th>
+                                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Signature Confirmation</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                                            {loadingInventory ? (
+                                                <tr>
+                                                    <td colSpan={6} className="p-12 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                                                        Loading transaction logs...
+                                                    </td>
+                                                </tr>
+                                            ) : stockTransactions.filter(t => t.type === 'Issue').length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={6} className="p-12 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                                                        No direct issuance logs found
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                stockTransactions
+                                                    .filter(t => t.type === 'Issue')
+                                                    .filter(t => t.itemName.toLowerCase().includes(inventorySearch.toLowerCase()) || t.recipientOrSupplier.toLowerCase().includes(inventorySearch.toLowerCase()))
+                                                    .map(tx => (
+                                                        <tr key={tx.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors">
+                                                            <td className="p-5">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                                                        {new Date(tx.date).toLocaleDateString()}
+                                                                    </span>
+                                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                                                        {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                                {tx.recipientOrSupplier}
+                                                            </td>
+                                                            <td className="p-5 text-xs font-black uppercase text-slate-900 dark:text-white">
+                                                                {tx.itemName}
+                                                            </td>
+                                                            <td className="p-5 text-xs font-black text-center text-slate-900 dark:text-white">
+                                                                {tx.quantity}
+                                                            </td>
+                                                            <td className="p-5 text-xs font-bold text-slate-500">
+                                                                {tx.recordedBy ? (lecturers.find(l => l.id === tx.recordedBy)?.name || tx.recordedBy) : 'System Admin'}
+                                                            </td>
+                                                            <td className="p-5">
+                                                                {tx.signature ? (
+                                                                    <div className="h-10 w-24 bg-white dark:bg-slate-950 rounded-lg p-1 border border-slate-100 dark:border-slate-800 flex items-center justify-center shadow-inner overflow-hidden">
+                                                                        <img src={tx.signature} alt="Signature" className="h-full object-contain mix-blend-multiply dark:invert" />
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">None</span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {subTab === 'client_statements' && (
                         <ClientStatementReport
                             carInvoices={props.carInvoices || []}

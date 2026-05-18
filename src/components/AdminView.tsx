@@ -38,6 +38,7 @@ const ChurchDashboard = lazy(() => import('./church/ChurchDashboard').then(m => 
 const LogisticsManager = lazy(() => import('./LogisticsManager').then(m => ({ default: m.LogisticsManager })));
 const LawManager = lazy(() => import('./law/LawManager').then(m => ({ default: m.LawManager })));
 const DrivingSchoolManager = lazy(() => import('./ds/DrivingSchoolManager').then(m => ({ default: m.DrivingSchoolManager })));
+import { TimetableUserDirectory } from './timetable/TimetableUserDirectory';
 const CommunityManager = lazy(() => import('./CommunityManager').then(m => ({ default: m.CommunityManager })));
 const AlumniManager = lazy(() => import('./AlumniManager').then(m => ({ default: m.AlumniManager })));
 const HospitalityManager = lazy(() => import('./HospitalityManager').then(m => ({ default: m.HospitalityManager })));
@@ -460,9 +461,13 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'campaign'>('dashboard');
+    const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'inventory' | 'boarding' | 'logistics'>('console_hub');
 
-    const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'subjects' | 'calendar'>('wizard');
+    const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'registry' | 'insights' | 'intelligence' | 'discipline' | 'subjects' | 'calendar' | 'teachers' | 'students'>('wizard');
     const [coursesSubTab, setCoursesSubTab] = useState<'registry' | 'calendar' | 'subjects' | 'settings'>('registry');
+    const [timetablePreselectedViewMode, setTimetablePreselectedViewMode] = useState<'grid' | 'workload' | 'relations' | 'master_course' | 'master_department' | 'master_building' | 'lecturer_schedule' | 'master_staff' | 'subjects' | 'test' | null>(null);
+    const [timetablePreselectedLecturerId, setTimetablePreselectedLecturerId] = useState<string>('');
+    const [timetablePreselectedCourseId, setTimetablePreselectedCourseId] = useState<string>('all');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
     const [requestedSettingsTab, setRequestedSettingsTab] = useState<string | undefined>(undefined);
     const [isSecurityAlertModalOpen, setIsSecurityAlertModalOpen] = useState(false);
@@ -669,6 +674,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 setActiveTab('auto_marketplace');
             } else if (isFuelStation) {
                 setActiveTab('fuel_station');
+            } else if (isEdu || isSchool) {
+                setActiveTab('timetable');
+                setActiveScope('console_hub');
             }
             setHasSetDefaultTab(true);
         }
@@ -767,6 +775,40 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         let filteredTabs = baseTabs.filter(tab => {
             const roleToUse = props.activeRole || props.currentUser?.role;
 
+            // If it is educational (isEdu || isSchool), show dynamic tabs based on selected activeScope
+            if (isEdu || isSchool) {
+                if (activeScope === 'console_hub') {
+                    return false; // Hide sidebar navigation entirely when in the console gateway!
+                }
+                if (activeScope === 'academics') {
+                    const academicsTabs = ['settings', 'reports'];
+                    if (isModuleActive('timetable')) academicsTabs.push('timetable');
+                    if (isModuleActive('academics')) academicsTabs.push('courses');
+                    return academicsTabs.includes(tab.id);
+                }
+                if (activeScope === 'inventory') {
+                    const inventoryTabs = ['settings', 'reports'];
+                    if (isModuleActive('school_store')) {
+                        inventoryTabs.push('retail', 'procurement');
+                    }
+                    return inventoryTabs.includes(tab.id);
+                }
+                if (activeScope === 'boarding') {
+                    const boardingTabs = ['settings', 'reports'];
+                    if (isModuleActive('boarding')) {
+                        boardingTabs.push('boarding', 'leaveout');
+                    }
+                    return boardingTabs.includes(tab.id);
+                }
+                if (activeScope === 'logistics') {
+                    const logisticsTabs = ['settings', 'reports'];
+                    if (isModuleActive('transport')) {
+                        logisticsTabs.push('transport', 'logistics');
+                    }
+                    return logisticsTabs.includes(tab.id);
+                }
+            }
+
             // Educational tabs
             if (['timetable', 'courses', 'leaveout', 'boarding'].includes(tab.id)) {
                 if (!isEdu || isDS) return false;
@@ -845,7 +887,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         });
 
         return filteredTabs;
-    }, [props.currentUser?.role, props.activeRole, props.currentInstitution, isSchool, isEdu, isBusiness, businessSubType, institutionType, isRetailAgency]);
+    }, [props.currentUser?.role, props.activeRole, props.currentInstitution, isSchool, isEdu, isBusiness, businessSubType, institutionType, isRetailAgency, activeScope]);
 
     const stats = useMemo(() => {
         const pendingCount = (requests || []).filter((r: AllocationRequest) => r && (r.status === 'pending' || r.status === 'hod_approved')).length;
@@ -933,42 +975,55 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
     return (
         <div className="space-y-6 font-sans text-slate-900 dark:text-slate-100">
-            <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto no-scrollbar no-print bg-white dark:bg-slate-800 rounded-2xl shadow-sm px-2">
-                {tabs.map((tab: { id: string, label: string, icon: React.ReactNode }) => {
-                    const modState = getTabModuleState(tab.id);
-                    return (
+            {(!isEdu || !isSchool || activeScope !== 'console_hub') && (
+                <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto no-scrollbar no-print bg-white dark:bg-slate-800 rounded-2xl shadow-sm px-2 items-center">
+                    {(isEdu || isSchool) && activeScope !== 'console_hub' && (
                         <button
-                            key={tab.id}
                             onClick={() => {
-                                setActiveTab(tab.id as any);
-                                if (tab.id !== 'settings') setRequestedSettingsTab(undefined);
+                                setActiveScope('console_hub');
                             }}
-                            className={`flex items-center gap-2 py-4 px-6 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
-                                ? 'border-indigo-600 text-indigo-600'
-                                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-                                }`}
+                            className="flex items-center gap-2 py-4 px-6 border-b-2 border-transparent font-black text-xs uppercase tracking-widest text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-all whitespace-nowrap bg-indigo-50/50 dark:bg-indigo-950/20 rounded-l-2xl border-r border-slate-200 dark:border-slate-700 mr-2"
                         >
-                            {tab.icon}
-                            <span>{tab.label}</span>
-                            {modState?.status === 'trial' ? (
-                                <span className="text-[9px] text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded font-black tracking-wider uppercase flex items-center gap-1 animate-pulse">
-                                    Trial
-                                </span>
-                            ) : (tab.id === 'timetable' || tab.id === 'courses' || tab.id === 'boarding' || tab.id === 'leaveout' || tab.id === 'transport' || tab.id === 'retail') && (!modState || modState.status !== 'active') ? (
-                                <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700/50 px-1.5 py-0.5 rounded font-medium normal-case flex items-center gap-1">
-                                    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                                    Unlock
-                                </span>
-                            ) : null}
-                            {tab.id === 'timetable' && stats.totalActionable > 0 && (
-                                <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm animate-pulse ml-1">
-                                    {stats.totalActionable}
-                                </span>
-                            )}
+                            <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                            <span>Portal Hub</span>
                         </button>
-                    );
-                })}
-            </div>
+                    )}
+                    {tabs.map((tab: { id: string, label: string, icon: React.ReactNode }) => {
+                        const modState = getTabModuleState(tab.id);
+                        return (
+                            <button
+                                key={tab.id}
+                                onClick={() => {
+                                    setActiveTab(tab.id as any);
+                                    if (tab.id !== 'settings') setRequestedSettingsTab(undefined);
+                                }}
+                                className={`flex items-center gap-2 py-4 px-6 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
+                                    ? 'border-indigo-600 text-indigo-600'
+                                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                                    }`}
+                            >
+                                {tab.icon}
+                                <span>{tab.label}</span>
+                                {modState?.status === 'trial' ? (
+                                    <span className="text-[9px] text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded font-black tracking-wider uppercase flex items-center gap-1 animate-pulse">
+                                        Trial
+                                    </span>
+                                ) : (tab.id === 'timetable' || tab.id === 'courses' || tab.id === 'boarding' || tab.id === 'leaveout' || tab.id === 'transport' || tab.id === 'retail') && (!modState || modState.status !== 'active') ? (
+                                    <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700/50 px-1.5 py-0.5 rounded font-medium normal-case flex items-center gap-1">
+                                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                        Unlock
+                                    </span>
+                                ) : null}
+                                {tab.id === 'timetable' && stats.totalActionable > 0 && (
+                                    <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm animate-pulse ml-1">
+                                        {stats.totalActionable}
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
 
             <main className="animate-fade-in">
                 <Suspense fallback={
@@ -977,6 +1032,248 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">{isRetailAgency ? 'Initializing Communications Hub...' : 'Synchronizing Perspective Hub...'}</p>
                     </div>
                 }>
+                {((isEdu || isSchool) && activeScope === 'console_hub') ? (
+                    <div className="py-12 animate-fade-in-up">
+                        {/* Hub Header */}
+                        <div className="text-center max-w-2xl mx-auto mb-16 space-y-4">
+                            <span className="inline-block px-4 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-650 dark:text-indigo-400 text-xs font-black uppercase tracking-[0.2em] rounded-full border border-indigo-100/50 dark:border-indigo-900/30">
+                                Institutional Gateway Console
+                            </span>
+                            <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+                                Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400">EduAI Console</span>
+                            </h1>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">
+                                Select an active administrative module below to proceed with your institutional responsibilities.
+                            </p>
+                        </div>
+
+                        {/* Interactive Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-7xl mx-auto px-4">
+                            
+                            {/* Card 1: Academic Scheduling & Timetable */}
+                            {(() => {
+                                const isActive = isModuleActive('academics') || isModuleActive('timetable');
+                                return (
+                                    <div 
+                                        onClick={() => { 
+                                            if (!isActive) {
+                                                alert("The Academics and Timetable modules are currently inactive. Please activate them under Config -> Subscription to access these features.");
+                                                return;
+                                            }
+                                            setActiveScope('academics'); 
+                                            setActiveTab('timetable'); 
+                                        }}
+                                        className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-indigo-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
+                                    >
+                                        {!isActive && (
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-350 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                                <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                Locked
+                                            </div>
+                                        )}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                                        <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
+                                            <div className="p-4 bg-indigo-600 text-white rounded-2xl w-fit shadow-lg shadow-indigo-100 dark:shadow-none">
+                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 00-2 2z" /></svg>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Academic Scheduling</h3>
+                                                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
+                                                    Configure institutional grades, manage classroom allocations, master lesson schedules, and configure teaching constraints.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Card 2: School Inventory & Store */}
+                            {(() => {
+                                const isActive = isModuleActive('school_store');
+                                return (
+                                    <div 
+                                        onClick={() => { 
+                                            if (!isActive) {
+                                                alert("The School Inventory & Store module is currently inactive. Please activate it under Config -> Subscription to access these features.");
+                                                return;
+                                            }
+                                            setActiveScope('inventory'); 
+                                            setActiveTab('retail'); 
+                                        }}
+                                        className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-emerald-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
+                                    >
+                                        {!isActive && (
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-350 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                                <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                Locked
+                                            </div>
+                                        )}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                                        <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
+                                            <div className="p-4 bg-emerald-500 text-white rounded-2xl w-fit shadow-lg shadow-emerald-150 dark:shadow-none">
+                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">Store & Inventory</h3>
+                                                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
+                                                    Track and issue classroom textbooks, uniform supplies, stationery packages, and oversee institutional procurement requisitions.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Card 3: Boarding & Student Welfare */}
+                            {(() => {
+                                const isActive = isModuleActive('boarding');
+                                return (
+                                    <div 
+                                        onClick={() => { 
+                                            if (!isActive) {
+                                                alert("The Boarding Master module is currently inactive. Please activate it under Config -> Subscription to access these features.");
+                                                return;
+                                            }
+                                            setActiveScope('boarding'); 
+                                            setActiveTab('boarding'); 
+                                        }}
+                                        className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-violet-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
+                                    >
+                                        {!isActive && (
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-350 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                                <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                Locked
+                                            </div>
+                                        )}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/5 dark:bg-violet-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                                        <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
+                                            <div className="p-4 bg-violet-600 text-white rounded-2xl w-fit shadow-lg shadow-violet-150 dark:shadow-none">
+                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">Boarding & Welfare</h3>
+                                                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
+                                                    Oversee dormitory blocks, assign bunk beds, monitor student check-ins, and authorize leave-out gate passes.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Card 4: Logistics & Transport */}
+                            {(() => {
+                                const isActive = isModuleActive('transport');
+                                return (
+                                    <div 
+                                        onClick={() => { 
+                                            if (!isActive) {
+                                                alert("The Fleet Registry & Transport module is currently inactive. Please activate it under Config -> Subscription to access these features.");
+                                                return;
+                                            }
+                                            setActiveScope('logistics'); 
+                                            setActiveTab('transport'); 
+                                        }}
+                                        className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-amber-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
+                                    >
+                                        {!isActive && (
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-350 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                                <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                Locked
+                                            </div>
+                                        )}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 dark:bg-amber-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                                        <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
+                                            <div className="p-4 bg-amber-500 text-white rounded-2xl w-fit shadow-lg shadow-amber-150 dark:shadow-none">
+                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 11-1 1h-3" /></svg>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-amber-500 dark:group-hover:text-amber-400 transition-colors">Logistics & Transit</h3>
+                                                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
+                                                    Register school buses, manage zone fare matrices, coordinate staff transport shuttles, and driver schedules.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Card 5: Library Module */}
+                            {(() => {
+                                const isActive = isModuleActive('library');
+                                return (
+                                    <div 
+                                        onClick={() => { 
+                                            if (!isActive) {
+                                                alert("The Library module is currently inactive. Please activate it under Config -> Subscription to access these features.");
+                                                return;
+                                            }
+                                            props.onSwitchPerspective?.('librarian');
+                                        }}
+                                        className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-purple-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
+                                    >
+                                        {!isActive && (
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-350 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                                <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                Locked
+                                            </div>
+                                        )}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 dark:bg-purple-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                                        <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
+                                            <div className="p-4 bg-purple-600 text-white rounded-2xl w-fit shadow-lg shadow-purple-150 dark:shadow-none">
+                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">Library System</h3>
+                                                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
+                                                    Track textbook borrowing registries, manage library fine logs, update catalog categories, and catalog new acquisitions.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Card 6: Security & Gate Control */}
+                            {(() => {
+                                const isActive = isModuleActive('transport');
+                                return (
+                                    <div 
+                                        onClick={() => { 
+                                            if (!isActive) {
+                                                alert("The Security & Gate features are tied to Fleet Transport. Please activate Fleet Registry module under Config -> Subscription to access these features.");
+                                                return;
+                                            }
+                                            props.onSwitchPerspective?.('security');
+                                        }}
+                                        className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-red-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
+                                    >
+                                        {!isActive && (
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-slate-355 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                                <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                Locked
+                                            </div>
+                                        )}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 dark:bg-red-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                                        <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
+                                            <div className="p-4 bg-red-600 text-white rounded-2xl w-fit shadow-lg shadow-red-150 dark:shadow-none">
+                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">Security & Gate</h3>
+                                                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
+                                                    Log school visitors, check staff/student gate check-in activity registries, and coordinate campus guard rotations.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                        </div>
+                    </div>
+                ) : (
+                    <>
                 {activeTab === 'dashboard' && !isCoop && !isDS && !isAutoMarket && !isCampaign && (
                     <div className="space-y-6">
                         {isCampaign ? (
@@ -1197,6 +1494,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit overflow-x-auto no-scrollbar max-w-full">
                             <button onClick={() => setTimetableSubTab('wizard')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'wizard' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Wizard</button>
                             <button onClick={() => setTimetableSubTab('scheduler')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'scheduler' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Lesson Scheduler</button>
+                            <button onClick={() => setTimetableSubTab('teachers')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'teachers' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Teachers</button>
+                            <button onClick={() => setTimetableSubTab('students')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'students' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Students</button>
                             <button onClick={() => setTimetableSubTab('insights')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'insights' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Exam Insights</button>
                             <button onClick={() => setTimetableSubTab('intelligence')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'intelligence' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Intelligence Hub</button>
                             <button onClick={() => setTimetableSubTab('discipline')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'discipline' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Student Discipline</button>
@@ -1262,6 +1561,42 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     currentInstitution={props.currentInstitution}
                                     onMoveTimetableEntry={props.onMoveTimetableEntry}
                                     onLogAction={props.onLogAction}
+                                    preSelectedViewMode={timetablePreselectedViewMode}
+                                    preSelectedLecturerId={timetablePreselectedLecturerId}
+                                    preSelectedCourseId={timetablePreselectedCourseId}
+                                    onClearPreSelected={() => {
+                                        setTimetablePreselectedViewMode(null);
+                                        setTimetablePreselectedLecturerId('');
+                                        setTimetablePreselectedCourseId('all');
+                                    }}
+                                />
+                            ) : timetableSubTab === 'teachers' ? (
+                                <TimetableUserDirectory
+                                    institutionId={props.currentInstitution?.id || ''}
+                                    role="teacher"
+                                    allUsers={props.users || []}
+                                    allCourses={props.courses || []}
+                                    departments={props.departments || []}
+                                    timetableEntries={props.generatedTimetable || []}
+                                    onViewCalendar={(user) => {
+                                        setTimetablePreselectedViewMode('lecturer_schedule');
+                                        setTimetablePreselectedLecturerId(user.id);
+                                        setTimetableSubTab('scheduler');
+                                    }}
+                                />
+                            ) : timetableSubTab === 'students' ? (
+                                <TimetableUserDirectory
+                                    institutionId={props.currentInstitution?.id || ''}
+                                    role="student"
+                                    allUsers={props.users || []}
+                                    allCourses={props.courses || []}
+                                    departments={props.departments || []}
+                                    timetableEntries={props.generatedTimetable || []}
+                                    onViewCalendar={(user) => {
+                                        setTimetablePreselectedViewMode('master_course');
+                                        setTimetablePreselectedCourseId(user.courseId || 'all');
+                                        setTimetableSubTab('scheduler');
+                                    }}
                                 />
                             ) : timetableSubTab === 'insights' ? (
                                 <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
@@ -1499,7 +1834,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             requisitions={props.requisitions}
                             onAddRequisition={props.onAddRequisition}
                             onUpdateRequisition={props.onUpdateRequisition}
-                            isEducation={isEducation}
+                            isEducation={isEdu}
+                            allUsers={props.users || []}
+                            allCourses={props.courses || []}
+                            currentInstitution={props.currentInstitution}
                         />
                     ) : (
                         <ModuleAccessGuard
@@ -1520,7 +1858,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 requisitions={props.requisitions}
                                 onAddRequisition={props.onAddRequisition}
                                 onUpdateRequisition={props.onUpdateRequisition}
-                                isEducation={isEducation}
+                                isEducation={isEdu}
+                                allUsers={props.users || []}
+                                allCourses={props.courses || []}
+                                currentInstitution={props.currentInstitution}
                             />
                         </ModuleAccessGuard>
                     )
@@ -1658,6 +1999,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 {activeTab === 'settings' && !isCoop && (
                     <SettingsManager
                         {...props}
+                        activeScope={activeScope}
                         themeColor={props.themeColor || 'indigo'}
                         users={props.users || []}
                         onImportSubjectsAndAssociate={props.onImportSubjectsAndAssociate ? (subjects) => props.onImportSubjectsAndAssociate!(subjects as any) : undefined}
@@ -1979,6 +2321,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             />
                         ) : (
                             <ReportsDashboard
+                                activeScope={activeScope}
                                 {...props}
                                 currentUser={props.currentUser!}
                                 activeSemester={props.activeSemester || null}
@@ -2021,6 +2364,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             />
                         )}
                     </div>
+                )}
+                    </>
                 )}
                 </Suspense>
             </main>

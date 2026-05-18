@@ -15,7 +15,9 @@ import { RetailCommissionLedger } from './RetailCommissionLedger';
 import { RetailVendors } from './RetailVendors';
 import { CafeMenuManager } from '../hybrid/CafeMenuManager';
 import { RetailLogisticsManager } from './RetailLogisticsManager';
-import { RetailInventoryItem, RetailStore, User, RetailExpense, Requisition } from '../../types';
+import { RetailUserDirectory } from './RetailUserDirectory';
+import { RetailReportsDashboard } from './RetailReportsDashboard';
+import { RetailInventoryItem, RetailStore, User, RetailExpense, Requisition, Course } from '../../types';
 import { GridIcon as LayoutDashboard } from '../icons/GridIcon';
 import { StoreIcon as Store } from '../icons/StoreIcon';
 import { SmartphoneIcon as Smartphone } from '../icons/SmartphoneIcon';
@@ -29,6 +31,9 @@ import { TruckIcon as Truck } from '../icons/TruckIcon';
 import { CoffeeIcon as Coffee } from '../icons/CoffeeIcon';
 import { BuildingOfficeIcon as BuildingIcon } from '../icons/BuildingOfficeIcon';
 import { TruckIcon as TruckIcon } from '../icons/TruckIcon';
+import { UserIcon } from '../icons/UserIcon';
+import { UserGroupIcon } from '../icons/UserGroupIcon';
+import { BarChart3Icon as BarChart3 } from '../icons/BarChart3Icon';
 
 interface RetailManagerProps {
     institutionId: string;
@@ -42,11 +47,15 @@ interface RetailManagerProps {
     onUpdateRequisition?: (reqId: string, data: Partial<Requisition>) => Promise<void>;
     businessSubType?: string;
     isEducation?: boolean;
+    allUsers?: User[];
+    allCourses?: Course[];
+    currentInstitution?: any;
 }
 
 export function RetailManager(props: RetailManagerProps) {
-    const { institutionId, businessSubType, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition, onUpdateRequisition } = props;
-    const [activeView, setActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu' | 'vendors' | 'logistics'>('dashboard');
+    const { institutionId, businessSubType, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition, onUpdateRequisition, isEducation, allUsers = [], allCourses = [], currentInstitution } = props;
+    const [activeView, setActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu' | 'vendors' | 'logistics' | 'teachers' | 'students' | 'reports'>('dashboard');
+    const [selectedUserForPOS, setSelectedUserForPOS] = useState<User | null>(null);
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
     useEffect(() => {
@@ -106,12 +115,13 @@ export function RetailManager(props: RetailManagerProps) {
         businessSubType?.toLowerCase().includes('restaurant') ||
         businessSubType?.toLowerCase().includes('eatery');
 
-    const { isEducation } = props;
-
     const navItems = isEducation ? [
         { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
         { id: 'inventory', label: 'Inventory', icon: Package },
         { id: 'pos', label: 'Issue Desk', icon: Smartphone },
+        { id: 'teachers', label: 'Teachers', icon: UserIcon },
+        { id: 'students', label: 'Students', icon: UserGroupIcon },
+        { id: 'reports', label: 'Reports', icon: BarChart3 },
         { id: 'logistics', label: 'Logistics', icon: TruckIcon },
         { id: 'stores', label: 'Departments', icon: Store },
         { id: 'expenses', label: 'Expenses', icon: Receipt },
@@ -122,9 +132,9 @@ export function RetailManager(props: RetailManagerProps) {
         { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
         { id: 'inventory', label: 'Catalog', icon: Package },
         { id: 'pos', label: 'POS', icon: Smartphone },
+        { id: 'reports', label: 'Reports', icon: BarChart3 },
         { id: 'logistics', label: 'Logistics', icon: TruckIcon },
         { id: 'stores', label: 'Agents', icon: Store },
-        { id: 'wishlist', label: 'Leads', icon: Target },
         { id: 'expenses', label: 'Expenses', icon: Receipt },
         { id: 'requisitions', label: 'Reqs', icon: FileText },
         { id: 'vendors', label: 'Vendors', icon: BuildingIcon },
@@ -196,7 +206,41 @@ export function RetailManager(props: RetailManagerProps) {
 
             <div className="animate-fade-in-up mt-4">
                 {activeView === 'dashboard' && <RetailDashboard institutionId={institutionId} onNavigate={(v) => setActiveView(v as any)} isEducation={isEducation} />}
-                {activeView === 'pos' && <DualModePOS institutionId={institutionId} currentUser={currentUser} />}
+                {activeView === 'pos' && (
+                    <DualModePOS 
+                        institutionId={institutionId} 
+                        currentUser={currentUser} 
+                        isEducation={isEducation} 
+                        preSelectedUser={selectedUserForPOS}
+                        onClearPreSelectedUser={() => setSelectedUserForPOS(null)}
+                    />
+                )}
+                {activeView === 'teachers' && (
+                    <RetailUserDirectory
+                        institutionId={institutionId}
+                        role="teacher"
+                        allUsers={allUsers}
+                        allCourses={allCourses}
+                        currentInstitution={currentInstitution}
+                        onIssueItem={(user) => {
+                            setSelectedUserForPOS(user);
+                            setActiveView('pos');
+                        }}
+                    />
+                )}
+                {activeView === 'students' && (
+                    <RetailUserDirectory
+                        institutionId={institutionId}
+                        role="student"
+                        allUsers={allUsers}
+                        allCourses={allCourses}
+                        currentInstitution={currentInstitution}
+                        onIssueItem={(user) => {
+                            setSelectedUserForPOS(user);
+                            setActiveView('pos');
+                        }}
+                    />
+                )}
                 {activeView === 'stores' && <RetailStoresManager institutionId={institutionId} isEducation={isEducation} />}
                 {activeView === 'wishlist' && <WishlistManager institutionId={institutionId} />}
 
@@ -223,11 +267,24 @@ export function RetailManager(props: RetailManagerProps) {
                 )}
 
                 {/* Placeholders for upcoming modules */}
-                {activeView === 'inventory' && <RetailInventoryManager institutionId={institutionId} />}
+                {activeView === 'inventory' && (
+                    <RetailInventoryManager
+                        institutionId={institutionId}
+                        currentInstitution={currentInstitution}
+                        stores={retailStores}
+                    />
+                )}
                 {activeView === 'transfers' && <RetailStockTransfers institutionId={institutionId} currentUser={currentUser} />}
                 { activeView === 'vendors' && <RetailVendors institutionId={institutionId} /> }
                 {activeView === 'commissions' && <RetailCommissionLedger institutionId={institutionId} currentUser={currentUser} />}
                 {activeView === 'logistics' && <RetailLogisticsManager institutionId={institutionId} />}
+                {activeView === 'reports' && (
+                    <RetailReportsDashboard
+                        institutionId={institutionId}
+                        users={allUsers}
+                        isEducation={isEducation}
+                    />
+                )}
                 {activeView === 'cafe_menu' && <CafeMenuManager institutionId={institutionId} />}
             </div>
         </div>

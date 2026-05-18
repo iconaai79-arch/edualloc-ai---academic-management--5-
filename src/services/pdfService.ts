@@ -4067,7 +4067,7 @@ export const generateLpoPdf = async (
 };
 
 export const generateRetailSalesStatementPdf = async (
-    type: 'general' | 'store' | 'agent',
+    type: 'general' | 'store' | 'agent' | 'student' | 'teacher',
     target: RetailStore | User | null,
     sales: RetailSale[],
     startDate: string,
@@ -4088,7 +4088,15 @@ export const generateRetailSalesStatementPdf = async (
     let nextY = 60;
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    const title = type === 'general' ? 'General Sales Statement' : type === 'store' ? `Sales Statement: ${target?.name}` : `Agent Sales Statement: ${target?.name}`;
+    const title = type === 'general' 
+        ? 'General Sales Statement' 
+        : type === 'store' 
+        ? `Sales Statement: ${target?.name}` 
+        : type === 'student'
+        ? `Student Issuance Statement: ${target?.name}`
+        : type === 'teacher'
+        ? `Teacher Issuance Statement: ${target?.name}`
+        : `Agent Sales Statement: ${target?.name}`;
     doc.text(title.toUpperCase(), margin, nextY);
     
     nextY += 8;

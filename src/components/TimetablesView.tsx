@@ -58,6 +58,10 @@ export interface TimetablesViewProps {
     onLogAction?: (action: string) => void;
     timetableConflicts?: Conflict[];
     allUsers?: User[];
+    preSelectedViewMode?: 'grid' | 'workload' | 'relations' | 'master_course' | 'master_department' | 'master_building' | 'lecturer_schedule' | 'master_staff' | 'subjects' | 'test';
+    preSelectedLecturerId?: string;
+    preSelectedCourseId?: string;
+    onClearPreSelected?: () => void;
 }
 
 export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
@@ -80,6 +84,20 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
     const [bulkEmailProgress, setBulkEmailProgress] = useState({ current: 0, total: 0 });
     const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
     const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical' | 'weekly'>('weekly'); // Default to Weekly for ASC style
+
+    useEffect(() => {
+        if (props.preSelectedViewMode) {
+            setViewMode(props.preSelectedViewMode);
+            if (props.preSelectedViewMode === 'lecturer_schedule' && props.preSelectedLecturerId) {
+                setSelectedLecturerId(props.preSelectedLecturerId);
+            } else if (props.preSelectedViewMode === 'master_course' && props.preSelectedCourseId) {
+                setSelectedCourseForMasterView(props.preSelectedCourseId);
+            }
+            if (props.onClearPreSelected) {
+                props.onClearPreSelected();
+            }
+        }
+    }, [props.preSelectedViewMode, props.preSelectedLecturerId, props.preSelectedCourseId, props.onClearPreSelected]);
 
     const activeAcademicYear = useMemo(() => (academicYears || []).find(y => y && y.status === 'active'), [academicYears]);
     const isSchool = isSchoolInstitution(currentInstitution);
@@ -167,6 +185,30 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
             breaks: allBreaks
         };
     }, [timetableSettings, currentInstitution]);
+
+    const departmentWorkload = useMemo(() => {
+        return (departments || []).map(dept => {
+            if (!dept) return { departmentName: '', totalPeriods: 0, totalHours: 0, subjectCount: 0 };
+            const deptSubjects = (subjects || []).filter(s => s && s.departmentId === dept.id);
+            const deptEntries = (generatedTimetable || []).filter(e => {
+                if (!e) return false;
+                const sub = getSubjectById(e.subjectId);
+                return sub && sub.departmentId === dept.id;
+            });
+            const totalPeriods = deptEntries.length;
+            const totalHours = deptEntries.reduce((acc, curr) => {
+                if (!curr) return acc;
+                const duration = timeToMinutes(curr.endTime) - timeToMinutes(curr.startTime);
+                return acc + (duration / 60);
+            }, 0);
+            return {
+                departmentName: dept.name,
+                totalPeriods,
+                totalHours,
+                subjectCount: deptSubjects.length
+            };
+        });
+    }, [departments, subjects, generatedTimetable, getSubjectById]);
     
     const periodHeaders = useMemo(() => generatePeriodLabels(wideSettings, true), [wideSettings]);
     const cellSpanMinutes = wideSettings?.cellSpanMinutes || 60;
@@ -444,6 +486,21 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                     </button>
                     <button onClick={() => setViewMode('lecturer_schedule')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'lecturer_schedule' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
                         Students
+                    </button>
+                    <button onClick={() => setViewMode('grid')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'grid' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
+                        Rooms Grid
+                    </button>
+                    <button onClick={() => setViewMode('master_building')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'master_building' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
+                        Occupancy
+                    </button>
+                    <button onClick={() => setViewMode('master_department')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'master_department' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
+                        Dept Grid
+                    </button>
+                    <button onClick={() => setViewMode('workload')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'workload' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
+                        Workload
+                    </button>
+                    <button onClick={() => setViewMode('relations')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'relations' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
+                        Registry
                     </button>
                     <button onClick={() => setViewMode('test')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'test' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
                         Test
@@ -799,6 +856,60 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                                 </div>
                             </div>
                         </div>
+                    </div>
+                ) : viewMode === 'workload' ? (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex items-center gap-3 border-l-4 border-indigo-600 pl-4 bg-slate-50 dark:bg-slate-900/40 p-3 rounded-r-2xl no-print">
+                            <CalendarDaysIcon className="w-5 h-5 text-indigo-600" />
+                            <h3 className="text-xl font-black uppercase tracking-tighter">{viewModeTitles[viewMode]}</h3>
+                        </div>
+                        <DepartmentWorkloadSummary departmentWorkload={departmentWorkload} />
+                    </div>
+                ) : viewMode === 'relations' ? (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex items-center gap-3 border-l-4 border-indigo-600 pl-4 bg-slate-50 dark:bg-slate-900/40 p-3 rounded-r-2xl no-print">
+                            <CalendarDaysIcon className="w-5 h-5 text-indigo-600" />
+                            <h3 className="text-xl font-black uppercase tracking-tighter">{viewModeTitles[viewMode]}</h3>
+                        </div>
+                        <RelationsView
+                            lecturers={lecturers}
+                            subjects={subjects}
+                            courses={courses}
+                            departments={departments}
+                            allocations={allocations}
+                        />
+                    </div>
+                ) : viewMode === 'master_department' ? (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex items-center gap-3 border-l-4 border-indigo-600 pl-4 bg-slate-50 dark:bg-slate-900/40 p-3 rounded-r-2xl no-print">
+                            <CalendarDaysIcon className="w-5 h-5 text-indigo-600" />
+                            <h3 className="text-xl font-black uppercase tracking-tighter">{viewModeTitles[viewMode]}</h3>
+                        </div>
+                        <DepartmentalMasterTimetable
+                            departments={departments}
+                            courses={courses}
+                            subjects={subjects}
+                            lecturers={lecturers}
+                            rooms={rooms}
+                            generatedTimetable={generatedTimetable}
+                            timetableSettings={wideSettings}
+                        />
+                    </div>
+                ) : viewMode === 'master_building' ? (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex items-center gap-3 border-l-4 border-indigo-600 pl-4 bg-slate-50 dark:bg-slate-900/40 p-3 rounded-r-2xl no-print">
+                            <BuildingOfficeIcon className="w-5 h-5 text-indigo-600" />
+                            <h3 className="text-xl font-black uppercase tracking-tighter">{viewModeTitles[viewMode]}</h3>
+                        </div>
+                        <MasterBuildingTimetable
+                            buildings={buildings}
+                            rooms={rooms}
+                            generatedTimetable={generatedTimetable}
+                            timetableSettings={wideSettings}
+                            subjects={subjects}
+                            lecturers={lecturers}
+                            courses={courses}
+                        />
                     </div>
                 ) : (
                     <div className="space-y-6 animate-fade-in">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { RetailInventoryItem, RetailStore } from '../../types';
 import { ArchiveBoxIcon as Package } from '../icons/ArchiveBoxIcon';
 import { PlusIcon as Plus } from '../icons/PlusIcon';
@@ -15,12 +15,16 @@ import { UploadIcon as Upload } from '../icons/UploadIcon';
 import { CheckCircleIcon as CheckCircle } from '../icons/CheckCircleIcon';
 import { apiService } from '../../services/apiService';
 import { SmartRetailInventoryImporterModal } from './SmartRetailInventoryImporterModal';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface RetailInventoryManagerProps {
     institutionId: string;
+    currentInstitution?: any;
+    stores?: any[];
 }
 
-export function RetailInventoryManager({ institutionId }: RetailInventoryManagerProps) {
+export function RetailInventoryManager({ institutionId, currentInstitution, stores = [] }: RetailInventoryManagerProps) {
     const [items, setItems] = useState<RetailInventoryItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -29,6 +33,15 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
     const [editingItem, setEditingItem] = useState<RetailInventoryItem | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+
+    // States for PDF Previewer
+    const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+    const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+    const [pdfOrientation, setPdfOrientation] = useState<'portrait' | 'landscape'>('portrait');
+    const [pdfIncludeCostPrice, setPdfIncludeCostPrice] = useState(true);
+    const [pdfIncludeSku, setPdfIncludeSku] = useState(true);
+    const [pdfCategoryFilter, setPdfCategoryFilter] = useState('all');
 
     // Electronics Categories
     const categories = [
@@ -126,6 +139,196 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [items]); // Re-bind when items change so we have the latest list to search
+
+    // Custom PDF stock valuation report generator
+    const generateCustomStockPdf = async () => {
+        setIsGeneratingPdf(true);
+        try {
+            // Filter products based on selected category in previewer
+            const sourceItems = pdfCategoryFilter === 'all' 
+                ? filteredItems 
+                : filteredItems.filter(i => i.category === pdfCategoryFilter);
+
+            const doc = new jsPDF({
+                orientation: pdfOrientation,
+                unit: 'mm',
+                format: 'a4'
+            });
+
+            const margin = 14;
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            let yPos = 20;
+
+            // Brand header accent line
+            doc.setFillColor(79, 70, 229);
+            doc.rect(0, 0, pageWidth, 8, 'F');
+            yPos += 5;
+
+            // Institution Brand Title
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(22);
+            doc.setTextColor(30, 41, 59);
+            doc.text((currentInstitution?.name || 'School Store').toUpperCase(), margin, yPos);
+
+            // Document Title
+            yPos += 8;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(79, 70, 229);
+            doc.text('INVENTORY STOCK STATUS REPORT', margin, yPos);
+
+            // Metadata: Date and Filter details
+            yPos += 5;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            doc.setTextColor(100);
+            doc.text(`Generated on: ${new Date().toLocaleString()}`, margin, yPos);
+            doc.text(`Category Filter: ${pdfCategoryFilter.toUpperCase()}`, pageWidth - margin, yPos, { align: 'right' });
+
+            // Summary metrics box background
+            yPos += 8;
+            doc.setFillColor(248, 250, 252);
+            doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 22, 3, 3, 'F');
+            doc.setDrawColor(226, 232, 240);
+            doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 22, 3, 3, 'D');
+
+            // Calculation statistics
+            const totalStockCount = sourceItems.reduce((acc, i) => acc + i.quantity, 0);
+            const totalCostBasis = sourceItems.reduce((acc, i) => acc + (i.costPrice * i.quantity), 0);
+            const totalRetailValue = sourceItems.reduce((acc, i) => acc + (i.srpPrice * i.quantity), 0);
+            const lowStockCount = sourceItems.filter(i => i.quantity <= (i.reorderLevel || 5)).length;
+
+            // Metrics layout
+            const colWidth = (pageWidth - (margin * 2)) / 4;
+            
+            // Col 1: Total Stocked Qty
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7);
+            doc.setTextColor(148, 163, 184);
+            doc.text('TOTAL UNITS IN STOCK', margin + 6, yPos + 7);
+            doc.setFontSize(11);
+            doc.setTextColor(30, 41, 59);
+            doc.text(totalStockCount.toLocaleString(), margin + 6, yPos + 15);
+
+            // Col 2: Total Cost Basis (optional)
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7);
+            doc.setTextColor(148, 163, 184);
+            doc.text('TOTAL COST BASIS', margin + colWidth + 6, yPos + 7);
+            doc.setFontSize(11);
+            doc.setTextColor(30, 41, 59);
+            doc.text(pdfIncludeCostPrice ? `KES ${totalCostBasis.toLocaleString()}` : 'N/A (Hidden)', margin + colWidth + 6, yPos + 15);
+
+            // Col 3: Total Retail Valuation
+            doc.setFontSize(7);
+            doc.setTextColor(148, 163, 184);
+            doc.text('RETAIL VALUATION', margin + (colWidth * 2) + 6, yPos + 7);
+            doc.setFontSize(11);
+            doc.setTextColor(79, 70, 229);
+            doc.text(`KES ${totalRetailValue.toLocaleString()}`, margin + (colWidth * 2) + 6, yPos + 15);
+
+            // Col 4: Alert items count
+            doc.setFontSize(7);
+            doc.setTextColor(148, 163, 184);
+            doc.text('CRITICAL STOCK ALERTS', margin + (colWidth * 3) + 6, yPos + 7);
+            doc.setFontSize(11);
+            doc.setTextColor(lowStockCount > 0 ? 220 : 16, 38, 225); // Red if alerts > 0, emerald otherwise
+            doc.text(`${lowStockCount} items`, margin + (colWidth * 3) + 6, yPos + 15);
+
+            yPos += 30;
+
+            // Define dynamic headers & body values depending on customization switches
+            const headers = ['NAME'];
+            if (pdfIncludeSku) headers.push('SKU');
+            headers.push('CATEGORY');
+            headers.push('STOCK LEVEL');
+            if (pdfIncludeCostPrice) headers.push('UNIT COST');
+            headers.push('UNIT SRP');
+            headers.push('TOTAL VALUE');
+
+            const bodyValues = sourceItems.map(item => {
+                const row = [item.name];
+                if (pdfIncludeSku) row.push(item.sku);
+                row.push(item.category || 'Other');
+                row.push(`${item.quantity} ${item.unit || 'pcs'}`);
+                if (pdfIncludeCostPrice) row.push(`KES ${item.costPrice.toLocaleString()}`);
+                row.push(`KES ${item.srpPrice.toLocaleString()}`);
+                row.push(`KES ${(item.srpPrice * item.quantity).toLocaleString()}`);
+                return row;
+            });
+
+            // Generate autotable
+            (doc as any).autoTable({
+                head: [headers],
+                body: bodyValues,
+                startY: yPos,
+                theme: 'striped',
+                headStyles: { 
+                    fillColor: [79, 70, 229], 
+                    textColor: 255, 
+                    fontSize: 8, 
+                    fontStyle: 'bold',
+                    halign: 'center'
+                },
+                styles: { 
+                    fontSize: 8,
+                    cellPadding: 4,
+                    valign: 'middle'
+                },
+                columnStyles: {
+                    0: { halign: 'left', fontStyle: 'bold', cellWidth: 50 },
+                    // Right align money values
+                    [headers.indexOf('UNIT COST')]: { halign: 'right' },
+                    [headers.indexOf('UNIT SRP')]: { halign: 'right' },
+                    [headers.indexOf('TOTAL VALUE')]: { halign: 'right', fontStyle: 'bold' },
+                    [headers.indexOf('STOCK LEVEL')]: { halign: 'center' },
+                },
+                didDrawPage: (data: any) => {
+                    // Footer details
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(7);
+                    doc.setTextColor(150);
+                    doc.text(
+                        `Page ${doc.getNumberOfPages()} | Global Stock Control System`, 
+                        margin, 
+                        pageHeight - 8
+                    );
+                }
+            });
+
+            // Convert to Blob URL
+            const pdfBlob = doc.output('blob');
+            const blobUrl = URL.createObjectURL(pdfBlob);
+            
+            // Revoke old URL if exists to avoid memory leak
+            if (pdfPreviewUrl) {
+                URL.revokeObjectURL(pdfPreviewUrl);
+            }
+
+            setPdfPreviewUrl(blobUrl);
+        } catch (err) {
+            console.error('Custom PDF generation failed:', err);
+        } finally {
+            setIsGeneratingPdf(false);
+        }
+    };
+
+    // Re-generate report when options change
+    useEffect(() => {
+        if (isPdfModalOpen) {
+            generateCustomStockPdf();
+        }
+    }, [pdfOrientation, pdfIncludeCostPrice, pdfIncludeSku, pdfCategoryFilter, isPdfModalOpen]);
+
+    const handleClosePdfPreview = () => {
+        setIsPdfModalOpen(false);
+        if (pdfPreviewUrl) {
+            URL.revokeObjectURL(pdfPreviewUrl);
+            setPdfPreviewUrl(null);
+        }
+    };
 
     const fetchInventory = async () => {
         setIsLoading(true);
@@ -289,6 +492,14 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                     >
                         <Upload className="w-4 h-4 group-hover:-translate-y-1 transition-transform" />
                         Bulk Upload
+                    </button>
+
+                    <button
+                        onClick={() => setIsPdfModalOpen(true)}
+                        className="flex-1 lg:flex-none flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-br from-fuchsia-600 to-pink-700 text-white rounded-3xl font-black uppercase text-[10px] tracking-[0.2em] shadow-[0_15px_30px_-10px_rgba(219,39,119,0.5)] hover:shadow-[0_20px_40px_-10px_rgba(219,39,119,0.6)] hover:-translate-y-1 active:translate-y-0 transition-all group"
+                    >
+                        <Layers className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                        Preview Stock PDF
                     </button>
                 </div>
             </div>
@@ -475,7 +686,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
 
             {/* Redesigned Modal */}
             {isAddModalOpen && (
-                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[500] flex items-center justify-center p-4">
+                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[9999] flex items-center justify-center p-4">
                     <div className="bg-white dark:bg-slate-800 rounded-[3.5rem] w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-[0_0_100px_rgba(0,0,0,0.4)] animate-in fade-in zoom-in duration-500">
                         <div className="p-10 sticky top-0 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md z-10 flex justify-between items-center border-b border-slate-50 dark:border-slate-700">
                             <div>
@@ -511,7 +722,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                                                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">Recommended 800x800 PNG or JPG</p>
                                             </div>
                                         )}
-                                        <input type="file" accept="image/*" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" disabled={isUploading} />
+                                        <input type="file" accept="image/*" onChange={handleImageUpload} className="absolute inset-0 opacity-0 cursor-pointer" disabled={isUploading} />
                                     </div>
                                 </div>
 
@@ -676,6 +887,178 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                     onImport={handleBulkImport}
                     institutionId={institutionId}
                 />
+            )}
+
+            {/* Dynamic Interactive PDF Previewer Modal */}
+            {isPdfModalOpen && (
+                <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[9999] flex items-center justify-center p-4 md:p-10">
+                    <div className="bg-white dark:bg-slate-900 rounded-[3.5rem] w-full max-w-7xl h-[85vh] overflow-hidden shadow-[0_0_120px_rgba(0,0,0,0.5)] border border-white/10 flex flex-col md:flex-row animate-in fade-in zoom-in duration-500">
+                        
+                        {/* Left Customization Bar */}
+                        <div className="w-full md:w-[24rem] bg-slate-50 dark:bg-slate-900/50 p-8 border-r border-slate-100 dark:border-slate-800 flex flex-col justify-between overflow-y-auto">
+                            <div className="space-y-8">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">Report Settings</h3>
+                                        <p className="text-indigo-600 dark:text-indigo-400 text-[9px] font-black uppercase tracking-[0.2em] mt-1">Stock Customization 业务</p>
+                                    </div>
+                                    <button 
+                                        onClick={handleClosePdfPreview}
+                                        className="md:hidden p-3 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-all"
+                                    >
+                                        <X className="w-5 h-5 text-slate-400" />
+                                    </button>
+                                </div>
+
+                                <div className="space-y-6">
+                                    {/* Page Orientation */}
+                                    <div className="space-y-2.5">
+                                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">Page Orientation</label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setPdfOrientation('portrait')}
+                                                className={`p-4 rounded-2xl text-[10px] font-black uppercase tracking-wider border-2 transition-all flex flex-col items-center justify-center gap-2 ${pdfOrientation === 'portrait' ? 'bg-indigo-600/10 text-indigo-600 border-indigo-600' : 'bg-white dark:bg-slate-800 text-slate-400 border-transparent'}`}
+                                            >
+                                                <Layers className="w-4 h-4" />
+                                                Portrait
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setPdfOrientation('landscape')}
+                                                className={`p-4 rounded-2xl text-[10px] font-black uppercase tracking-wider border-2 transition-all flex flex-col items-center justify-center gap-2 ${pdfOrientation === 'landscape' ? 'bg-indigo-600/10 text-indigo-600 border-indigo-600' : 'bg-white dark:bg-slate-800 text-slate-400 border-transparent'}`}
+                                            >
+                                                <Layers className="w-4 h-4 rotate-90" />
+                                                Landscape
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Category Filter */}
+                                    <div className="space-y-2.5">
+                                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">Filter Stock Category</label>
+                                        <select
+                                            value={pdfCategoryFilter}
+                                            onChange={(e) => setPdfCategoryFilter(e.target.value)}
+                                            className="w-full p-4 bg-white dark:bg-slate-800 border-none rounded-2xl text-xs font-black focus:ring-2 focus:ring-indigo-500 outline-none uppercase tracking-wider shadow-sm"
+                                        >
+                                            <option value="all">All Categories</option>
+                                            {categories.map(cat => (
+                                                <option key={cat} value={cat}>{cat}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Feature Toggles */}
+                                    <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800/80">
+                                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">Column Options</label>
+                                        
+                                        {/* Cost Price */}
+                                        <label className="flex items-center justify-between p-3.5 bg-white dark:bg-slate-800 rounded-2xl shadow-sm cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Include Cost Prices</span>
+                                            <input
+                                                type="checkbox"
+                                                checked={pdfIncludeCostPrice}
+                                                onChange={(e) => setPdfIncludeCostPrice(e.target.checked)}
+                                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                        </label>
+
+                                        {/* SKU Code */}
+                                        <label className="flex items-center justify-between p-3.5 bg-white dark:bg-slate-800 rounded-2xl shadow-sm cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Include SKU Codes</span>
+                                            <input
+                                                type="checkbox"
+                                                checked={pdfIncludeSku}
+                                                onChange={(e) => setPdfIncludeSku(e.target.checked)}
+                                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3 pt-6 border-t border-slate-100 dark:border-slate-800/80">
+                                <a
+                                    href={pdfPreviewUrl || '#'}
+                                    download={`${(currentInstitution?.name || 'School_Store').replace(/\s+/g, '_')}_Stock_Report.pdf`}
+                                    onClick={(e) => {
+                                        if (!pdfPreviewUrl) e.preventDefault();
+                                    }}
+                                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.02] hover:bg-indigo-700 active:scale-98 transition-all flex items-center justify-center gap-2.5"
+                                >
+                                    <Upload className="w-4 h-4 rotate-180" />
+                                    Download PDF Report
+                                </a>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const iframe = document.getElementById('pdf-preview-iframe') as HTMLIFrameElement;
+                                        if (iframe) {
+                                            iframe.contentWindow?.print();
+                                        } else {
+                                            alert('Iframe print handler not loaded yet.');
+                                        }
+                                    }}
+                                    className="w-full py-4 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] active:scale-98 transition-all flex items-center justify-center gap-2.5"
+                                >
+                                    <Layers className="w-4 h-4" />
+                                    Print Report Sheet
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={handleClosePdfPreview}
+                                    className="w-full py-4 bg-transparent text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-colors flex items-center justify-center"
+                                >
+                                    Close Preview
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Right Preview Viewport */}
+                        <div className="flex-1 bg-slate-900 p-8 flex flex-col relative">
+                            <div className="hidden md:flex justify-between items-center mb-6">
+                                <span className="px-4 py-1.5 bg-slate-800/80 text-slate-400 rounded-full text-[9px] font-black uppercase tracking-widest border border-slate-700">
+                                    Interactive Live Stage
+                                </span>
+                                <button 
+                                    onClick={handleClosePdfPreview}
+                                    className="p-3 bg-slate-800 hover:bg-slate-700 rounded-full transition-all active:scale-90"
+                                >
+                                    <X className="w-5 h-5 text-white" />
+                                </button>
+                            </div>
+
+                            <div className="flex-1 bg-slate-950/40 rounded-[2rem] border border-slate-800 overflow-hidden relative shadow-inner">
+                                {isGeneratingPdf ? (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center space-y-4 bg-slate-950/80 backdrop-blur-sm z-30">
+                                        <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                                        <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-400 animate-pulse">
+                                            Generating Live Valuation Report...
+                                        </p>
+                                    </div>
+                                ) : null}
+
+                                {pdfPreviewUrl ? (
+                                    <iframe
+                                        id="pdf-preview-iframe"
+                                        src={pdfPreviewUrl}
+                                        className="w-full h-full border-none"
+                                        title="Inventory Valuation Report Live Preview"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center text-slate-500">
+                                        <Package className="w-16 h-16 text-slate-700 mb-4 animate-bounce" />
+                                        <p className="text-xs font-black uppercase tracking-widest">Awaiting valuation manifest data...</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
             )}
         </div>
     );

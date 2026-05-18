@@ -19,13 +19,16 @@ import { EyeIcon as Eye } from '../icons/EyeIcon';
 import { EnvelopeIcon as Mail } from '../icons/EnvelopeIcon';
 import { FunnelIcon as Filter } from '../icons/FunnelIcon';
 import { StoreIcon as StoreIcon } from '../icons/StoreIcon';
+import { UserIcon } from '../icons/UserIcon';
+import { UserGroupIcon } from '../icons/UserGroupIcon';
 
 interface RetailReportsDashboardProps {
     institutionId: string;
     users: User[];
+    isEducation?: boolean;
 }
 
-export function RetailReportsDashboard({ institutionId, users }: RetailReportsDashboardProps) {
+export function RetailReportsDashboard({ institutionId, users, isEducation }: RetailReportsDashboardProps) {
     const [activeTab, setActiveTab] = useState<'revenue' | 'inventory' | 'agents' | 'statements' | 'inventory_reports'>('revenue');
     const [isLoading, setIsLoading] = useState(true);
     const [institution, setInstitution] = useState<Institution | null>(null);
@@ -140,7 +143,7 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
 
     // --- SALES STATEMENTS MANAGER COMPONENT ---
     const SalesStatementsManager = () => {
-        const [targetType, setTargetType] = useState<'general' | 'store' | 'agent'>('general');
+        const [targetType, setTargetType] = useState<'general' | 'store' | 'agent' | 'student' | 'teacher'>('general');
         const [targetId, setTargetId] = useState('');
         const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
         const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -154,6 +157,12 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
 
                 if (targetType === 'store' && targetId) return s.storeId === targetId;
                 if (targetType === 'agent' && targetId) return s.agentId === targetId;
+                if (targetType === 'student' && targetId) {
+                    return s.metadata?.studentId === targetId || s.customerId === targetId;
+                }
+                if (targetType === 'teacher' && targetId) {
+                    return s.metadata?.studentId === targetId || s.customerId === targetId;
+                }
                 return true;
             });
         };
@@ -162,14 +171,18 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
 
         const handlePreview = async () => {
             if (targetType !== 'general' && !targetId) {
-                alert(`Please select a ${targetType === 'store' ? 'store' : 'agent'}`);
+                alert(`Please select a ${targetType === 'store' ? (isEducation ? 'department' : 'store') : targetType === 'student' ? 'student' : targetType === 'teacher' ? 'teacher' : 'agent'}`);
                 return;
             }
             if (!institution) return;
 
             try {
                 setIsProcessing(true);
-                const targetObj = targetType === 'store' ? stores.find(s => s.id === targetId) : targetType === 'agent' ? users.find(u => u.id === targetId) : null;
+                const targetObj = targetType === 'store' 
+                    ? stores.find(s => s.id === targetId) 
+                    : targetType === 'student' || targetType === 'teacher' || targetType === 'agent'
+                    ? users.find(u => u.id === targetId) 
+                    : null;
                 
                 const dataUri = await pdfService.generateRetailSalesStatementPdf(
                     targetType,
@@ -200,22 +213,46 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Report Type</label>
                             <div className="grid grid-cols-1 gap-1 bg-slate-100 dark:bg-slate-900 rounded-2xl p-1">
                                 <button onClick={() => { setTargetType('general'); setTargetId(''); }} className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'general' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-400'}`}>General</button>
-                                <button onClick={() => { setTargetType('store'); setTargetId(''); }} className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'store' ? 'bg-white dark:bg-slate-800 text-emerald-600 shadow-sm' : 'text-slate-400'}`}>Per Store</button>
-                                <button onClick={() => { setTargetType('agent'); setTargetId(''); }} className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'agent' ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-sm' : 'text-slate-400'}`}>Per Agent</button>
+                                {isEducation ? (
+                                    <>
+                                        <button onClick={() => { setTargetType('store'); setTargetId(''); }} className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'store' ? 'bg-white dark:bg-slate-800 text-emerald-600 shadow-sm' : 'text-slate-400'}`}>Per Department</button>
+                                        <button onClick={() => { setTargetType('student'); setTargetId(''); }} className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'student' ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-sm' : 'text-slate-400'}`}>Per Student</button>
+                                        <button onClick={() => { setTargetType('teacher'); setTargetId(''); }} className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'teacher' ? 'bg-white dark:bg-slate-800 text-violet-600 shadow-sm' : 'text-slate-400'}`}>Per Teacher</button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <button onClick={() => { setTargetType('store'); setTargetId(''); }} className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'store' ? 'bg-white dark:bg-slate-800 text-emerald-600 shadow-sm' : 'text-slate-400'}`}>Per Store</button>
+                                        <button onClick={() => { setTargetType('agent'); setTargetId(''); }} className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'agent' ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-sm' : 'text-slate-400'}`}>Per Agent</button>
+                                    </>
+                                )}
                             </div>
                         </div>
 
                         {targetType !== 'general' && (
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select {targetType === 'store' ? 'Store' : 'Agent'}</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">
+                                    Select {targetType === 'store' ? (isEducation ? 'Department' : 'Store') : targetType === 'student' ? 'Student' : targetType === 'teacher' ? 'Teacher' : 'Agent'}
+                                </label>
                                 <select 
                                     value={targetId}
                                     onChange={(e) => setTargetId(e.target.value)}
                                     className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl p-4 font-bold outline-none transition-all text-sm appearance-none"
                                 >
-                                    <option value="">--- Select {targetType === 'store' ? 'Store' : 'Agent'} ---</option>
+                                    <option value="">--- Select {targetType === 'store' ? (isEducation ? 'Department' : 'Store') : targetType === 'student' ? 'Student' : targetType === 'teacher' ? 'Teacher' : 'Agent'} ---</option>
                                     {targetType === 'store' ? (
                                         stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)
+                                    ) : targetType === 'student' ? (
+                                        users.filter(u => u.role === 'student').map(u => (
+                                            <option key={u.id} value={u.id}>
+                                                {u.name} {u.admissionNumber ? `(${u.admissionNumber})` : (u as any).admission_number ? `(${(u as any).admission_number})` : ''}
+                                            </option>
+                                        ))
+                                    ) : targetType === 'teacher' ? (
+                                        users.filter(u => u.role === 'teacher').map(u => (
+                                            <option key={u.id} value={u.id}>
+                                                {u.name}
+                                            </option>
+                                        ))
                                     ) : (
                                         Object.values(agentStats).map(a => {
                                             const u = users.find(user => user.name === a.name);
@@ -268,7 +305,9 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
                                 </p>
                             </div>
                             <div className="text-right">
-                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest italic">Total Revenue</p>
+                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest italic">
+                                    {isEducation ? 'Total Issued Value' : 'Total Revenue'}
+                                </p>
                                 <p className="text-2xl font-black text-slate-900 dark:text-white italic">KES {filteredSales.reduce((acc, s) => acc + s.totalAmount, 0).toLocaleString()}</p>
                             </div>
                         </div>
@@ -288,7 +327,9 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
                                         <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
                                             <td className="p-6 text-[10px] font-bold text-slate-500">{new Date(t.createdAt).toLocaleDateString()}</td>
                                             <td className="p-6">
-                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase italic">Sale - {t.customerName || 'Walk-in Customer'}</p>
+                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase italic">
+                                                    {isEducation ? 'Issuance' : 'Sale'} - {t.customerName || 'Walk-in Customer'}
+                                                </p>
                                                 <p className="text-[9px] text-slate-400 font-bold uppercase">{t.items.length} items • {stores.find(s => s.id === t.storeId)?.name || 'N/A'}</p>
                                             </td>
                                             <td className="p-6">
@@ -301,7 +342,7 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
                                     ))}
                                     {filteredSales.length === 0 && (
                                         <tr>
-                                            <td colSpan={4} className="p-20 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">No sales found for this period</td>
+                                            <td colSpan={4} className="p-20 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">No transactions found for this period</td>
                                         </tr>
                                     )}
                                 </tbody>
@@ -444,9 +485,11 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
             <div>
                 <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter flex items-center gap-3">
                     <BarChart3 className="w-8 h-8 text-indigo-600" />
-                    Business Analytics
+                    {isEducation ? 'Store & Issuance Reports' : 'Business Analytics'}
                 </h2>
-                <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-1">Real-time Retail Insights</p>
+                <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-1">
+                    {isEducation ? 'School Store Insights & Transaction Statements' : 'Real-time Retail Insights'}
+                </p>
             </div>
 
             {/* Navigation */}
@@ -463,18 +506,20 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
                 >
                     <PackageSearch className="w-4 h-4" /> Stock Alerts
                 </button>
-                <button
-                    onClick={() => setActiveTab('agents')}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'agents' ? 'bg-white text-indigo-600 shadow-md border border-indigo-100' : 'text-slate-500 hover:text-indigo-500'}`}
-                >
-                    <Users className="w-4 h-4" /> Agent Ranking
-                </button>
+                {!isEducation && (
+                    <button
+                        onClick={() => setActiveTab('agents')}
+                        className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'agents' ? 'bg-white text-indigo-600 shadow-md border border-indigo-100' : 'text-slate-500 hover:text-indigo-500'}`}
+                    >
+                        <Users className="w-4 h-4" /> Agent Ranking
+                    </button>
+                )}
                 <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 self-center mx-2"></div>
                 <button
                     onClick={() => setActiveTab('statements')}
                     className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'statements' ? 'bg-white text-indigo-600 shadow-md border border-indigo-100' : 'text-slate-500 hover:text-indigo-500'}`}
                 >
-                    <FileText className="w-4 h-4" /> Sales Statements
+                    <FileText className="w-4 h-4" /> {isEducation ? 'Student/Teacher Statements' : 'Sales Statements'}
                 </button>
                 <button
                     onClick={() => setActiveTab('inventory_reports')}

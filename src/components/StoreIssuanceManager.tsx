@@ -45,9 +45,27 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
         notes: ''
     });
 
-    const signatureCanvasRef = useRef<HTMLCanvasElement>(null);
-    const [hasSigned, setHasSigned] = useState(false);
-    const [isDrawing, setIsDrawing] = useState(false);
+    const [transactions, setTransactions] = useState<StockTransaction[]>([]);
+    const [loadingTransactions, setLoadingTransactions] = useState(false);
+
+    const fetchTransactions = async () => {
+        setLoadingTransactions(true);
+        try {
+            const data = await apiService.fetchModuleRecords<StockTransaction>('stock_transactions', institutionId);
+            const issues = (data || [])
+                .filter(t => t.type === 'Issue')
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            setTransactions(issues);
+        } catch (error) {
+            console.error('Failed to fetch store transactions:', error);
+        } finally {
+            setLoadingTransactions(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchTransactions();
+    }, [institutionId]);
 
     // Signature Pad Logic
     useEffect(() => {
@@ -158,7 +176,7 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
                 lastUpdated: new Date().toISOString()
             });
 
-            await onLogAction(`Issued ${newIssuance.quantity} ${item.unit} of "${item.name}" to ${user?.name}`);
+            await onLogAction(`Issued ${newIssuance.quantity} ${item.unit} of "${item.name}" to ${user?.name || dept?.name}`);
 
             alert('Issuance successful!');
             setIsIssuing(false);
@@ -167,6 +185,7 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
             setMemberSearch('');
             setItemSearch('');
             onDataChange();
+            fetchTransactions();
         } catch (error: any) {
             console.error('Issuance Error:', error);
             alert(`Failed to complete issuance: ${error.message}`);
@@ -175,11 +194,31 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
         }
     };
 
+    const handleSimulateQRScan = () => {
+        const students = users.filter(u => u.role === 'student');
+        if (students.length === 0) {
+            alert('No students found to scan.');
+            return;
+        }
+        const randomStudent = students[Math.floor(Math.random() * students.length)];
+        const studentAdm = (randomStudent as any).admissionNumber || (randomStudent as any).admission_number || (randomStudent as any).admNumber || (randomStudent as any).adm_number || 'N/A';
+        
+        setNewIssuance({
+            ...newIssuance,
+            userId: randomStudent.id
+        });
+        setMemberSearch(randomStudent.name);
+        alert(`QR Code Scanned successfully!\nStudent: ${randomStudent.name}\nAdm: ${studentAdm}`);
+    };
+
     const recipientOptions = users.filter(u => 
         u.role === 'student' || u.role === 'teacher' || u.role === 'lecturer'
     ).filter(u => {
         const search = memberSearch.toLowerCase();
-        return u.name.toLowerCase().includes(search) || (u.staffId || '').toLowerCase().includes(search);
+        const adm = ((u as any).admissionNumber || (u as any).admission_number || (u as any).admNumber || (u as any).adm_number || '').toLowerCase();
+        return u.name.toLowerCase().includes(search) || 
+               (u.staffId || '').toLowerCase().includes(search) || 
+               adm.includes(search);
     });
 
     const itemOptions = inventory.filter(i => {
@@ -203,11 +242,81 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
                 </button>
             </div>
 
-            {/* Recent Issuance Logs could go here */}
-            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden min-h-[200px] flex items-center justify-center">
-                <div className="text-center py-10">
-                    <ArchiveBoxIcon className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Select an action above to proceed</p>
+            {/* Premium Recent Issuance Logs */}
+            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/20">
+                    <div>
+                        <h4 className="text-sm font-black uppercase tracking-tight">Recent Issuance History</h4>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Transaction log with digital signatures</p>
+                    </div>
+                    {transactions.length > 0 && (
+                        <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 text-[10px] font-black uppercase tracking-widest rounded-full">
+                            {transactions.length} Total
+                        </span>
+                    )}
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead>
+                            <tr className="border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20">
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Date / Time</th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Recipient</th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Item</th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Qty</th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Signature</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                            {loadingTransactions ? (
+                                <tr>
+                                    <td colSpan={5} className="p-12 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                                        <ArrowPathIcon className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-500" />
+                                        Fetching records...
+                                    </td>
+                                </tr>
+                            ) : transactions.length === 0 ? (
+                                <tr>
+                                    <td colSpan={5} className="p-12 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                                        <ArchiveBoxIcon className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                                        No recent issuance records found
+                                    </td>
+                                </tr>
+                            ) : (
+                                transactions.map(tx => (
+                                    <tr key={tx.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors">
+                                        <td className="p-6">
+                                            <div className="flex flex-col">
+                                                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                                    {new Date(tx.date).toLocaleDateString()}
+                                                </span>
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                                                    {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="p-6 text-xs font-bold text-slate-700 dark:text-slate-300">
+                                            {tx.recipientOrSupplier}
+                                        </td>
+                                        <td className="p-6 text-xs font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                                            {tx.itemName}
+                                        </td>
+                                        <td className="p-6 text-xs font-black text-slate-900 dark:text-white text-center">
+                                            {tx.quantity}
+                                        </td>
+                                        <td className="p-6">
+                                            {tx.signature ? (
+                                                <div className="h-10 w-24 bg-white dark:bg-slate-950 rounded-lg p-1 border border-slate-100 dark:border-slate-800 flex items-center justify-center shadow-inner overflow-hidden">
+                                                    <img loading="lazy" src={tx.signature} alt="Signature" className="h-full object-contain mix-blend-multiply dark:invert" />
+                                                </div>
+                                            ) : (
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">None</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
@@ -254,17 +363,30 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
                                     
                                     {recipientType === 'person' ? (
                                         <>
-                                            <div className="relative">
-                                                <input
-                                                    type="text"
-                                                    placeholder="Search staff or student..."
-                                                    value={memberSearch}
-                                                    onChange={(e) => setMemberSearch(e.target.value)}
-                                                    className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all outline-none"
-                                                />
-                                                <div className="absolute right-4 top-4 text-slate-400">
-                                                    <SearchIcon className="w-5 h-5" />
+                                            <div className="flex gap-2">
+                                                <div className="relative flex-grow">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search staff, student, name or admission number..."
+                                                        value={memberSearch}
+                                                        onChange={(e) => setMemberSearch(e.target.value)}
+                                                        className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all outline-none"
+                                                    />
+                                                    <div className="absolute right-4 top-4 text-slate-400">
+                                                        <SearchIcon className="w-5 h-5" />
+                                                    </div>
                                                 </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleSimulateQRScan}
+                                                    className="px-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center border border-indigo-100"
+                                                    title="Simulate QR Code Scan"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                                                    </svg>
+                                                    <span className="sr-only">Scan QR</span>
+                                                </button>
                                             </div>
                                             <select
                                                 required
@@ -277,9 +399,14 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
                                                 className="w-full px-5 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold mt-2"
                                             >
                                                 <option value="">-- Select Recipient --</option>
-                                                {recipientOptions.map(u => (
-                                                    <option key={u.id} value={u.id}>{u.name} ({u.role.replace('_', ' ')})</option>
-                                                ))}
+                                                {recipientOptions.map(u => {
+                                                    const adm = (u as any).admissionNumber || (u as any).admission_number || (u as any).admNumber || (u as any).adm_number || '';
+                                                    return (
+                                                        <option key={u.id} value={u.id}>
+                                                            {u.name} ({u.role.replace('_', ' ')}){adm ? ` - ADM: ${adm}` : ''}
+                                                        </option>
+                                                    );
+                                                })}
                                             </select>
                                         </>
                                     ) : (
@@ -374,7 +501,7 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
                                             <CheckCircleIcon className="w-3 h-3" /> Signature Captured
                                         </p>
                                     ) : (
-                                        <p className="text-[9px] font-bold text-rose-400 uppercase">Recipent must sign to confirm receipt</p>
+                                        <p className="text-[9px] font-bold text-rose-400 uppercase">Recipient must sign to confirm receipt</p>
                                     )}
                                 </div>
                             </div>
