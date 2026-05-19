@@ -34,6 +34,29 @@ const fetchWithTimeout = async (url: string, options: any, timeout = 10000) => {
     }
 };
 
+// Case-insensitive, source-flexible param resolver
+const getParam = (body: any, query: any, key: string): string => {
+    const keysToTry = [
+        key,
+        key.toLowerCase(),
+        key.charAt(0).toUpperCase() + key.slice(1), // PascalCase
+        key.replace(/([A-Z])/g, "_$1").toLowerCase(), // snake_case
+        key.replace(/([A-Z])/g, "-$1").toLowerCase() // kebab-case
+    ];
+
+    const sources = [body, query];
+    for (const source of sources) {
+        if (source && typeof source === 'object') {
+            for (const k of keysToTry) {
+                if (source[k] !== undefined && source[k] !== null) {
+                    return String(source[k]).trim();
+                }
+            }
+        }
+    }
+    return '';
+};
+
 /**
  * KCB IPN (Instant Payment Notification) Callback Handler
  * 
@@ -91,17 +114,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const additionalData = body.requestPayload?.additionalData || {};
         const notificationData = additionalData.notificationData || {};
 
-        const messageID = header.messageID || body.requestId || `MSG_${Date.now()}`;
-        const originatorConversationID = header.originatorConversationID || header.conversationID || body.requestId || '';
-        
-        // Flat format key fields
-        const transactionReference = body.transactionReference || '';
-        const customerReference = body.customerReference || '';
-        const creditAccountIdentifier = body.creditAccountIdentifier || '';
-        const customerMobileNumber = body.customerMobileNumber || '';
-        const customerName = body.customerName || '';
-        const transactionAmount = body.transactionAmount || '';
+        // Flat format key fields resolved via robust getParam
+        const transactionReference = getParam(body, req.query, 'transactionReference');
+        const requestId = getParam(body, req.query, 'requestId');
+        const customerReference = getParam(body, req.query, 'customerReference');
+        const creditAccountIdentifier = getParam(body, req.query, 'creditAccountIdentifier');
+        const customerMobileNumber = getParam(body, req.query, 'customerMobileNumber');
+        const customerName = getParam(body, req.query, 'customerName');
+        const transactionAmount = getParam(body, req.query, 'transactionAmount');
 
+        const messageID = header.messageID || requestId || `MSG_${Date.now()}`;
+        const originatorConversationID = header.originatorConversationID || header.conversationID || requestId || '';
         const businessKey = primaryData.businessKey || customerReference || '';
 
         const transactionID = transactionReference || notificationData.transactionID || businessKey || `KCB_IPN_${Date.now()}`;

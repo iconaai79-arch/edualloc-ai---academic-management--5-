@@ -31,7 +31,29 @@ const fetchWithTimeout = async (url: string, options: any, timeout = 10000) => {
     } catch (e) {
         clearTimeout(id);
         throw e;
+};
+
+// Case-insensitive, source-flexible param resolver
+const getParam = (body: any, query: any, key: string): string => {
+    const keysToTry = [
+        key,
+        key.toLowerCase(),
+        key.charAt(0).toUpperCase() + key.slice(1), // PascalCase
+        key.replace(/([A-Z])/g, "_$1").toLowerCase(), // snake_case
+        key.replace(/([A-Z])/g, "-$1").toLowerCase() // kebab-case
+    ];
+
+    const sources = [body, query];
+    for (const source of sources) {
+        if (source && typeof source === 'object') {
+            for (const k of keysToTry) {
+                if (source[k] !== undefined && source[k] !== null) {
+                    return String(source[k]).trim();
+                }
+            }
+        }
     }
+    return '';
 };
 
 /**
