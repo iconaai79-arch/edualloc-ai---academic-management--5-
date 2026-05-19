@@ -352,7 +352,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({
                 success: true,
                 status: 'COMPLETED',
-                message: 'Transaction completed successfully (Mock sandbox status).'
+                message: 'Transaction completed successfully (Mock sandbox status).',
+                mpesaReceiptNumber: null
             });
         }
 
@@ -423,10 +424,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                   (queryData.resultCode !== undefined ? String(queryData.resultCode) : 
                                   (queryData.Result?.ResultCode !== undefined ? String(queryData.Result.ResultCode) : ''));
                 const resultDesc = queryData.ResultDesc || queryData.resultDesc || queryData.ResultDescription || queryData.responseDescription || 'Transaction checked successfully.';
+
+                // Extract M-Pesa receipt number from ResultParameters (Safaricom-standard format)
+                let mpesaReceiptNumber: string | null = null;
+                const params = queryData.ResultParameters?.ResultParameter ||
+                               queryData.resultParameters?.resultParameter ||
+                               queryData.CallbackMetadata?.Item ||
+                               [];
+                if (Array.isArray(params)) {
+                    for (const p of params) {
+                        const key = p.Key || p.Name || '';
+                        if (/mpesa.*receipt|receipt.*number|transactionId|mpesaref/i.test(key)) {
+                            mpesaReceiptNumber = String(p.Value || '');
+                            break;
+                        }
+                    }
+                }
+                // Fallback: top-level field
+                if (!mpesaReceiptNumber) {
+                    mpesaReceiptNumber = queryData.mpesaReceiptNumber ||
+                                        queryData.MpesaReceiptNumber ||
+                                        queryData.transactionId ||
+                                        queryData.TransactionID ||
+                                        null;
+                }
+
                 return res.status(200).json({
                     success: true,
                     status: resultCode === '0' || resultCode === 'SUCCESS' ? 'COMPLETED' : 'FAILED',
                     message: resultDesc,
+                    mpesaReceiptNumber,
                     rawResponse: queryData
                 });
             }
@@ -434,6 +461,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({
                 success: false,
                 message: queryData.ResultDesc || queryData.resultDesc || 'Query rejected by KCB gateway.',
+                mpesaReceiptNumber: null,
                 rawResponse: queryData
             });
 
@@ -442,7 +470,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({
                 success: true,
                 status: 'COMPLETED',
-                message: 'Transaction simulated successfully (Offline query fallback).'
+                message: 'Transaction simulated successfully (Offline query fallback).',
+                mpesaReceiptNumber: null
             });
         }
     }

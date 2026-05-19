@@ -1050,7 +1050,17 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 config: localKcbConfig
             });
             if (result.success) {
-                alert(`Transaction Status: ${result.status}\nDetails: ${result.message}\n\nBank Response:\n${JSON.stringify(result.rawResponse || result, null, 2)}`);
+                const receiptLine = result.mpesaReceiptNumber ? `\nM-Pesa Ref: ${result.mpesaReceiptNumber}` : '';
+                alert(`Transaction Status: ${result.status}\nDetails: ${result.message}${receiptLine}\n\nBank Response:\n${JSON.stringify(result.rawResponse || result, null, 2)}`);
+
+                // Persist receipt number into mpesa_transactions if we got one
+                if (result.mpesaReceiptNumber) {
+                    await apiService.saveModuleRecord('mpesa_transactions', {
+                        checkoutRequestId,
+                        transactionId: result.mpesaReceiptNumber,
+                        status: result.status === 'COMPLETED' ? 'completed' : 'pending'
+                    });
+                }
                 if (props.onRefreshData) props.onRefreshData();
             } else {
                 alert(`Query failed: ${result.message || 'Unknown error'}\n\nBank Response:\n${JSON.stringify(result.rawResponse || result, null, 2)}`);
@@ -4540,10 +4550,11 @@ Please change it after login.`;
                                                 <div className="overflow-x-auto">
                                                     <table className="min-w-full">
                                                         <thead>
-                                                            <tr className="border-b border-slate-200 dark:border-slate-700">
+                                                                                         <tr className="border-b border-slate-200 dark:border-slate-700">
                                                                 <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
                                                                 <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Phone</th>
                                                                 <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                                                                <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">M-Pesa Ref</th>
                                                                 <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
                                                                 <th className="px-4 py-3 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Action</th>
                                                             </tr>
@@ -4557,6 +4568,15 @@ Please change it after login.`;
                                                                         <td className="px-4 py-4 whitespace-nowrap text-[10px] font-bold text-slate-500">{new Date(txn.timestamp).toLocaleDateString()}</td>
                                                                         <td className="px-4 py-4 whitespace-nowrap text-xs font-black">{txn.phoneNumber}</td>
                                                                         <td className="px-4 py-4 whitespace-nowrap text-xs font-black">KES {txn.amount.toLocaleString()}</td>
+                                                                        <td className="px-4 py-4 whitespace-nowrap">
+                                                                            {txn.transactionId && txn.transactionId !== txn.id ? (
+                                                                                <span className="font-mono text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-lg">
+                                                                                    {txn.transactionId}
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="text-[10px] text-slate-400 font-bold">—</span>
+                                                                            )}
+                                                                        </td>
                                                                         <td className="px-4 py-4 whitespace-nowrap">
                                                                             <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter ${
                                                                                 txn.status === 'completed' ? 'bg-green-100 text-green-700' :
@@ -4579,7 +4599,7 @@ Please change it after login.`;
                                                                 ))}
                                                             {(props.transactions || []).filter(t => t.metadata?.provider === 'kcb' || t.checkoutRequestId?.startsWith('KCB_') || t.checkoutRequestId?.startsWith('KCB_CO_')).length === 0 && (
                                                                 <tr>
-                                                                    <td colSpan={5} className="px-4 py-10 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest opacity-50">
+                                                                    <td colSpan={6} className="px-4 py-10 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest opacity-50">
                                                                         No KCB transactions found.
                                                                     </td>
                                                                 </tr>
