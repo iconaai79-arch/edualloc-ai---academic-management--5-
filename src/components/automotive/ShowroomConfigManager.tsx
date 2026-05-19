@@ -34,16 +34,22 @@ export const ShowroomConfigManager: React.FC<ShowroomConfigManagerProps> = ({ in
                 const records = await apiService.fetchModuleRecords<any>('showroom_settings', institutionId);
                 if (records && records.length > 0) {
                     const dbSettings = records[0];
+                    const rawReminders = dbSettings.invoiceReminders || dbSettings.invoice_reminders;
                     setSettings({
                         id: dbSettings.id,
-                        institutionId: dbSettings.institution_id,
-                        invoiceReminders: dbSettings.invoice_reminders || {
+                        institutionId: dbSettings.institutionId || dbSettings.institution_id || institutionId,
+                        invoiceReminders: rawReminders ? {
+                            enabled: rawReminders.enabled ?? false,
+                            beforeDueDays: rawReminders.beforeDueDays ?? rawReminders.before_due_days ?? 3,
+                            afterDueDays: rawReminders.afterDueDays ?? rawReminders.after_due_days ?? 1,
+                            template: rawReminders.template || 'Dear {client_name}, this is a reminder that your payment of KES {amount_due} for vehicle {registration_number} (invoice {invoice_number}) is due on {due_date}. Please clear it to avoid service disruption.'
+                        } : {
                             enabled: false,
                             beforeDueDays: 3,
                             afterDueDays: 1,
                             template: 'Dear {client_name}, this is a reminder that your payment of KES {amount_due} for vehicle {registration_number} (invoice {invoice_number}) is due on {due_date}. Please clear it to avoid service disruption.'
                         },
-                        updatedAt: dbSettings.updated_at
+                        updatedAt: dbSettings.updatedAt || dbSettings.updated_at || new Date().toISOString()
                     });
                 } else {
                     initDefaults();
