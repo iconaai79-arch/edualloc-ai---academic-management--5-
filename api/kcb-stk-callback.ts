@@ -31,6 +31,7 @@ const fetchWithTimeout = async (url: string, options: any, timeout = 10000) => {
     } catch (e) {
         clearTimeout(id);
         throw e;
+    }
 };
 
 // Case-insensitive, source-flexible param resolver
