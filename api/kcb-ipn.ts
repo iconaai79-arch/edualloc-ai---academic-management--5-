@@ -777,11 +777,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Acknowledge receipt to KCB
-        if (body.transactionReference || body.requestId) {
+        if (transactionReference || requestId) {
             return res.status(200).json({
                 transactionID: transactionID,
                 statusCode: 0,
-                statusMessage: "Notification received"
+                statusMessage: "Notification received",
+                debug: {
+                    receivedPayload: {
+                        transactionReference,
+                        requestId,
+                        channelCode,
+                        timestamp,
+                        transactionAmount,
+                        currency,
+                        customerReference,
+                        customerName,
+                        customerMobileNumber,
+                        balance,
+                        narration,
+                        "creditAccountIdenti;ier": creditAccountIdentifier,
+                        organizationShortCode,
+                        tillNumber
+                    }
+                }
             });
         }
 
@@ -795,6 +813,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             responsePayload: {
                 transactionInfo: {
                     transactionId: transactionID
+                }
+            },
+            debug: {
+                receivedPayload: {
+                    transactionReference,
+                    requestId,
+                    channelCode,
+                    timestamp,
+                    transactionAmount,
+                    currency,
+                    customerReference,
+                    customerName,
+                    customerMobileNumber,
+                    balance,
+                    narration,
+                    "creditAccountIdenti;ier": creditAccountIdentifier,
+                    organizationShortCode,
+                    tillNumber
                 }
             }
         });
