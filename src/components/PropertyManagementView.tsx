@@ -33,6 +33,7 @@ import { UserPlusIcon } from './icons/UserPlusIcon';
 import { MapPinIcon } from './icons/MapPinIcon';
 import { ShoppingCartIcon } from './icons/ShoppingCartIcon';
 import { MpesaIcon } from './icons/MpesaIcon';
+import { KcbIcon } from './icons/KcbIcon';
 import { BanknotesIcon } from './icons/BanknotesIcon';
 import { PencilIcon } from './icons/PencilIcon';
 import { CalendarDaysIcon as CalendarIcon } from './icons/CalendarDaysIcon';
@@ -805,7 +806,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     <td className="p-6 text-sm font-bold text-slate-500">{tenant.idNumber || '---'}</td>
                                     <td className="p-6 text-xs text-slate-400 font-bold">{new Date(tenant.createdAt).toLocaleDateString()}</td>
                                     <td className="p-6 text-right space-x-2">
-                                        <button onClick={() => { setSelectedTenantForBankAction(tenant); setShowBankModal(true); }} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl hover:scale-105 transition-all" title="Bank Integration"><MpesaIcon className="w-4 h-4" /></button>
+                                        <button onClick={() => { setSelectedTenantForBankAction(tenant); setShowBankModal(true); }} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl hover:scale-105 transition-all" title="Bank Integration"><KcbIcon className="w-4 h-4" /></button>
                                         <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 rounded-xl hover:text-blue-600 transition-colors"><EyeIcon className="w-4 h-4" /></button>
                                     </td>
                                 </tr>
@@ -824,7 +825,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     <p className="text-[10px] text-slate-400 mt-0.5">{tenant.idNumber || 'NO ID PROVIDED'}</p>
                                 </div>
                                 <div className="flex gap-2">
-                                    <button onClick={() => { setSelectedTenantForBankAction(tenant); setShowBankModal(true); }} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-2xl"><MpesaIcon className="w-5 h-5" /></button>
+                                    <button onClick={() => { setSelectedTenantForBankAction(tenant); setShowBankModal(true); }} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-2xl"><KcbIcon className="w-5 h-5" /></button>
                                     <button className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl text-slate-400"><EyeIcon className="w-5 h-5" /></button>
                                 </div>
                             </div>
@@ -882,7 +883,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-emerald-50/50 dark:bg-emerald-900/10">
                         <div className="flex items-center gap-4">
                             <div className="p-3 bg-emerald-600/10 rounded-2xl text-emerald-600">
-                                <MpesaIcon className="w-6 h-6" />
+                                <KcbIcon className="w-6 h-6" />
                             </div>
                             <div>
                                 <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase italic tracking-tight">KCB Bank Integration</h3>
@@ -922,7 +923,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     placeholder="e.g. 15000"
                                     value={amount}
                                     onChange={(e) => setAmount(e.target.value)}
-                                    className="w-full bg-slate-100 dark:bg-slate-900/50 border-2 border-transparent focus:border-emerald-500 rounded-2xl p-4 text-xl font-black italic outline-none transition-all dark:text-white"
+                                    className="w-full bg-slate-100 dark:bg-slate-900/50 border-2 border-transparent focus:border-emerald-500 rounded-2xl p-4 text-xl font-black italic outline-none transition-all text-slate-900 dark:text-white"
                                 />
                             </div>
 

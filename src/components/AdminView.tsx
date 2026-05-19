@@ -1490,7 +1490,14 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             )}
 
                 {activeTab === 'timetable' && (
-                    <div className="space-y-6">
+                    <ModuleAccessGuard
+                        moduleId="timetable"
+                        moduleName="Smart Timetable"
+                        description="Access automated timetable generators, manage lesson structures, teaching allocations, and calendar events."
+                        institution={props.currentInstitution}
+                        onActivateTrial={onActivateModuleTrial}
+                    >
+                        <div className="space-y-6">
                         <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit overflow-x-auto no-scrollbar max-w-full">
                             <button onClick={() => setTimetableSubTab('wizard')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'wizard' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Wizard</button>
                             <button onClick={() => setTimetableSubTab('scheduler')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${timetableSubTab === 'scheduler' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Lesson Scheduler</button>
@@ -1660,6 +1667,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             )}
                         </div>
                     </div>
+                    </ModuleAccessGuard>
                 )}
 
                 {activeTab === 'users' && (
@@ -1703,7 +1711,14 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 )}
 
                 {activeTab === 'courses' && (
-                    <div className="space-y-6">
+                    <ModuleAccessGuard
+                        moduleId="academics"
+                        moduleName="Academics & Grading"
+                        description="Manage grade registries, student performance, subject catalogs, and curriculum levels."
+                        institution={props.currentInstitution}
+                        onActivateTrial={onActivateModuleTrial}
+                    >
+                        <div className="space-y-6">
                         <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit">
                             <button onClick={() => setCoursesSubTab('registry')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${coursesSubTab === 'registry' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>{isSchool ? 'Registry' : 'Grading Registry'}</button>
                             <button onClick={() => setCoursesSubTab('calendar')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${coursesSubTab === 'calendar' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Academic Calendar</button>
@@ -1768,6 +1783,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             )}
                         </div>
                     </div>
+                    </ModuleAccessGuard>
                 )}
 
                 {activeTab === 'comms' && (

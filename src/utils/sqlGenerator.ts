@@ -77,7 +77,8 @@ CREATE TABLE IF NOT EXISTS institutions (
     is_otp_enabled BOOLEAN DEFAULT FALSE,
     business_sub_type TEXT,
     marketplace_enabled BOOLEAN DEFAULT FALSE,
-    listing_quota INTEGER DEFAULT 0
+    listing_quota INTEGER DEFAULT 0,
+    kcb_config JSONB
 );
 
 CREATE TABLE IF NOT EXISTS counties (

@@ -485,31 +485,36 @@ export const App: React.FC = () => {
     const activeInstitution = useMemo(() => {
         if (!currentUser || !Array.isArray(institutions)) return null;
 
+        const mergeModules = (inst: Institution) => ({
+            ...inst,
+            moduleStates: (institutionModuleStates || []).filter(m => m.institutionId === inst.id)
+        });
+
         // Support showroom/school context for SuperAdmins via URL param
         const targetId = activeStoreTenantId || (currentUser.role === 'super_admin' ? null : currentUser.institutionId);
         if (targetId) {
             const found = institutions.find(i => i && (i.id === targetId || i.slug === targetId));
-            if (found) return found;
+            if (found) return mergeModules(found);
 
             // Fallback to registry if not onboarded
             const registryEntry = schoolRegistry.find(s => s.id === targetId || s.institutionId === targetId || s.slug === targetId);
             if (registryEntry) {
-                return {
+                return mergeModules({
                     id: targetId,
                     name: registryEntry.name,
                     email: '',
                     phoneNumber: '',
                     institutionType: (registryEntry.institutionType || 'Education') as any,
                     status: 'active',
-                } as any;
+                } as any);
             }
         }
 
         const found = institutions.find(i => i && i.id === currentUser.institutionId);
-        if (found) return found;
+        if (found) return mergeModules(found);
 
         return null;
-    }, [currentUser, institutions, schoolRegistry, activeStoreTenantId]);
+    }, [currentUser, institutions, schoolRegistry, activeStoreTenantId, institutionModuleStates]);
 
     const activeRole = useMemo<Role | null>(() => {
         if (impersonatedRole) return impersonatedRole;
@@ -872,6 +877,39 @@ export const App: React.FC = () => {
             setReceipts(recs || []);
             setActivityLog(logs || []);
             setNotifications(notifs || []);
+
+            // ── Auto-Migration: Seed modules for existing active institutions ──
+            if (currentUser && activeInst) {
+                const EDU_TYPES = ['Education', 'Primary', 'Secondary', 'College', 'University', 'Institute', 'TVET', 'Polytechnic'];
+                if (EDU_TYPES.includes(instType)) {
+                    const schoolModules = (imsPhase1 || []).filter((m: any) => m.institutionId === activeInst.id);
+                    const hasExistingData = (d && d.length > 0) || (s && s.length > 0) || (c && c.length > 0) || (ay && ay.length > 0) || (sem && sem.length > 0);
+                    if (schoolModules.length === 0 && hasExistingData) {
+                        console.log(`[Auto-Migration] Seeding active modules for existing institution: ${activeInst.name}`);
+                        const defaultModules = ['academics', 'timetable', 'finance', 'library', 'school_store', 'boarding', 'transport'];
+                        const seededStates: InstitutionModuleState[] = [];
+                        for (const moduleId of defaultModules) {
+                            const newState: InstitutionModuleState = {
+                                id: `ims_${moduleId}_${activeInst.id}`,
+                                moduleId,
+                                institutionId: activeInst.id,
+                                status: 'active',
+                                activatedAt: new Date().toISOString(),
+                            };
+                            try {
+                                await apiService.saveModuleRecord('institution_module_states', newState);
+                                seededStates.push(newState);
+                            } catch (e) {
+                                console.error(`[Auto-Migration] Failed to seed ${moduleId}:`, e);
+                            }
+                        }
+                        if (seededStates.length > 0) {
+                            const updatedStates = [...(imsPhase1 || []), ...seededStates];
+                            setInstitutionModuleStates(updatedStates);
+                        }
+                    }
+                }
+            }
 
             // ── PHASE 3: Context-Specific Extended Data ──────────────────────
             if (currentUser) {
@@ -4203,7 +4241,14 @@ export const App: React.FC = () => {
                                     } as any}
                                     />
                                 ) : activeRole === 'academics_officer' ? (
-                                    <AcademicsOfficerView {...academicsOfficerProps as AcademicsOfficerProps}
+                                    <ModuleAccessGuard
+                                        moduleId="academics"
+                                        moduleName="Academics & Grading"
+                                        description="Track student performance, manage subject allocations, enter assessment marks, and oversee academic levels."
+                                        institution={activeInstitution}
+                                        onActivateTrial={handleActivateModuleTrial}
+                                    >
+                                        <AcademicsOfficerView {...academicsOfficerProps as AcademicsOfficerProps}
                                         currentUser={currentUser}
                                         currentInstitution={activeInstitution!}
                                         academicYears={academicYears}
@@ -4288,6 +4333,7 @@ export const App: React.FC = () => {
                                         companyDetails={companyDetails}
                                         onAccessAlumnaPortal={handleAccessAlumnaPortal}
                                     />
+                                    </ModuleAccessGuard>
                                 ) : activeRole === 'lecturer' ? (
                                     <LecturerView {...{
                                         ...lecturerProps,
@@ -4436,17 +4482,25 @@ export const App: React.FC = () => {
                                     } as any}
                                     />
                                 ) : (activeRole === 'librarian' || (activeRole === 'staff' && activeInstitution?.institutionType === 'Library')) ? (
-                                    <LibraryMasterView
-                                        currentUser={currentUser}
-                                        currentInstitution={activeInstitution!}
-                                        companyDetails={companyDetails}
-                                        users={users}
-                                        academicYears={academicYears}
-                                        semesters={semesters}
-                                        courses={courses}
-                                        departments={departments}
-                                        onLogAction={handleLogAction}
-                                    />
+                                    <ModuleAccessGuard
+                                        moduleId="library"
+                                        moduleName="Library System"
+                                        description="Track textbook borrowing registries, manage library fine logs, update catalog categories, and catalog new acquisitions."
+                                        institution={activeInstitution}
+                                        onActivateTrial={handleActivateModuleTrial}
+                                    >
+                                        <LibraryMasterView
+                                            currentUser={currentUser}
+                                            currentInstitution={activeInstitution!}
+                                            companyDetails={companyDetails}
+                                            users={users}
+                                            academicYears={academicYears}
+                                            semesters={semesters}
+                                            courses={courses}
+                                            departments={departments}
+                                            onLogAction={handleLogAction}
+                                        />
+                                    </ModuleAccessGuard>
                                 ) : activeRole === 'security' ? (
                                     <SecurityView
                                         {...{
@@ -4478,35 +4532,51 @@ export const App: React.FC = () => {
                                         } as any}
                                     />
                                 ) : activeRole === 'store' ? (
-                                    <StoreView
-                                        {...{
-                                            currentUser,
-                                            currentInstitution: activeInstitution!,
-                                            inventory: retailInventory,
-                                            requisitions,
-                                            onAddItem: async (i: any) => { await apiService.saveModuleRecord('inventory', { ...i, id: `inv_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); },
-                                            onUpdateRequisition: async (id: string, data: any) => { const existing = retailInventory.find(i => i.id === id); if (existing) { await apiService.saveModuleRecord('inventory', { ...existing, ...data }); loadData(); } },
-                                            onAddRequisition: handleAddRequisition,
-                                            onLogAction: handleLogAction
-                                        } as any}
-                                    />
+                                    <ModuleAccessGuard
+                                        moduleId="school_store"
+                                        moduleName="School Inventory"
+                                        description="Track and manage school supply inventory, uniform/stationery stock, student requests, and suppliers."
+                                        institution={activeInstitution}
+                                        onActivateTrial={handleActivateModuleTrial}
+                                    >
+                                        <StoreView
+                                            {...{
+                                                currentUser,
+                                                currentInstitution: activeInstitution!,
+                                                inventory: retailInventory,
+                                                requisitions,
+                                                onAddItem: async (i: any) => { await apiService.saveModuleRecord('inventory', { ...i, id: `inv_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); },
+                                                onUpdateRequisition: async (id: string, data: any) => { const existing = retailInventory.find(i => i.id === id); if (existing) { await apiService.saveModuleRecord('inventory', { ...existing, ...data }); loadData(); } },
+                                                onAddRequisition: handleAddRequisition,
+                                                onLogAction: handleLogAction
+                                            } as any}
+                                        />
+                                    </ModuleAccessGuard>
                                 ) : activeRole === 'finance_officer' ? (
-                                    <FinanceOfficerView
-                                        currentUser={currentUser}
-                                        currentInstitution={activeInstitution!}
-                                        invoices={invoices}
-                                        receipts={receipts}
-                                        transactions={transactions}
-                                        onAddTransaction={apiService.onAddTransaction.bind(apiService)}
-                                        onGenerateReceipt={onGenerateReceipt}
-                                        onLogAction={handleLogAction}
-                                        receiptLimit={receiptLimit}
-                                        setReceiptLimit={setReceiptLimit}
-                                        transactionLimit={transactionLimit}
-                                        setTransactionLimit={setTransactionLimit}
-                                        requisitions={requisitions}
-                                        onUpdateRequisition={handleUpdateRequisition}
-                                    />
+                                    <ModuleAccessGuard
+                                        moduleId="finance"
+                                        moduleName="Finance & Fees"
+                                        description="Generate student invoices, process fees collections/receipting, and track general transaction ledgers."
+                                        institution={activeInstitution}
+                                        onActivateTrial={handleActivateModuleTrial}
+                                    >
+                                        <FinanceOfficerView
+                                            currentUser={currentUser}
+                                            currentInstitution={activeInstitution!}
+                                            invoices={invoices}
+                                            receipts={receipts}
+                                            transactions={transactions}
+                                            onAddTransaction={apiService.onAddTransaction.bind(apiService)}
+                                            onGenerateReceipt={onGenerateReceipt}
+                                            onLogAction={handleLogAction}
+                                            receiptLimit={receiptLimit}
+                                            setReceiptLimit={setReceiptLimit}
+                                            transactionLimit={transactionLimit}
+                                            setTransactionLimit={setTransactionLimit}
+                                            requisitions={requisitions}
+                                            onUpdateRequisition={handleUpdateRequisition}
+                                        />
+                                    </ModuleAccessGuard>
                                 ) : activeRole === 'hr_officer' ? (
                                     <HROfficerView 
                                         {...{
@@ -4521,41 +4591,57 @@ export const App: React.FC = () => {
                                         } as any}
                                     />
                                 ) : activeRole === 'boarding_master' ? (
-                                    <BoardingMasterView {...boardingMasterProps as any}
-                                        currentUser={currentUser}
-                                        currentInstitution={activeInstitution!}
-                                        users={users}
-                                        rooms={rooms}
-                                        buildings={buildings}
-                                        leaveOutRequests={leaveOutRequests}
-                                        incidents={incidents}
-                                        onUpdateLeaveOutStatus={async (id, status) => { const existing = leaveOutRequests.find(r => r.id === id); if (existing) { await apiService.saveModuleRecord('leave_out_requests', { ...existing, status, approvedBy: currentUser.id, updatedAt: new Date().toISOString() }); loadData(); } }}
-                                        onAddIncident={async (data) => {
-                                            await apiService.saveModuleRecord('discipline_incidents', {
-                                                ...data,
-                                                id: `disc_${Date.now()}`,
-                                                institutionId: currentUser!.institutionId,
-                                                timestamp: new Date().toISOString(),
-                                                recordedBy: currentUser!.name
-                                            });
-                                            loadData();
-                                        }}
-                                        onLogAction={handleLogAction}
-                                    />
+                                    <ModuleAccessGuard
+                                        moduleId="boarding"
+                                        moduleName="Boarding Master"
+                                        description="Manage student boarding houses, bed allocations, dorm assignments, and student leave-out checkouts."
+                                        institution={activeInstitution}
+                                        onActivateTrial={handleActivateModuleTrial}
+                                    >
+                                        <BoardingMasterView {...boardingMasterProps as any}
+                                            currentUser={currentUser}
+                                            currentInstitution={activeInstitution!}
+                                            users={users}
+                                            rooms={rooms}
+                                            buildings={buildings}
+                                            leaveOutRequests={leaveOutRequests}
+                                            incidents={incidents}
+                                            onUpdateLeaveOutStatus={async (id, status) => { const existing = leaveOutRequests.find(r => r.id === id); if (existing) { await apiService.saveModuleRecord('leave_out_requests', { ...existing, status, approvedBy: currentUser.id, updatedAt: new Date().toISOString() }); loadData(); } }}
+                                            onAddIncident={async (data) => {
+                                                await apiService.saveModuleRecord('discipline_incidents', {
+                                                    ...data,
+                                                    id: `disc_${Date.now()}`,
+                                                    institutionId: currentUser!.institutionId,
+                                                    timestamp: new Date().toISOString(),
+                                                    recordedBy: currentUser!.name
+                                                });
+                                                loadData();
+                                            }}
+                                            onLogAction={handleLogAction}
+                                        />
+                                    </ModuleAccessGuard>
                                 ) : activeRole === 'transport_assistant' ? (
-                                    <TransportAssistantView
-                                        {...{
-                                            currentUser,
-                                            currentInstitution: activeInstitution!,
-                                            vehicles,
-                                            transportOnboarding,
-                                            vehicleLogs,
-                                            onLogGateAction: handleLogGateAction,
-                                            onOnboardStudent: handleOnboardStudent,
-                                            onOffboardStudent: handleOffboardStudent,
-                                            onLogAction: handleLogAction
-                                        } as any}
-                                    />
+                                    <ModuleAccessGuard
+                                        moduleId="transport"
+                                        moduleName="Fleet Registry"
+                                        description="Track and manage your institutional school buses, routes, drivers, and student check-ins."
+                                        institution={activeInstitution}
+                                        onActivateTrial={handleActivateModuleTrial}
+                                    >
+                                        <TransportAssistantView
+                                            {...{
+                                                currentUser,
+                                                currentInstitution: activeInstitution!,
+                                                vehicles,
+                                                transportOnboarding,
+                                                vehicleLogs,
+                                                onLogGateAction: handleLogGateAction,
+                                                onOnboardStudent: handleOnboardStudent,
+                                                onOffboardStudent: handleOffboardStudent,
+                                                onLogAction: handleLogAction
+                                            } as any}
+                                        />
+                                    </ModuleAccessGuard>
                                 ) : (activeRole === 'carwash_admin' || activeRole === 'carwash_cashier') ? (
                                     <CarWashView {...carWashProps as any}
                                         currentUser={currentUser}

@@ -4427,7 +4427,7 @@ Please change it after login.`;
                                                                 type="text"
                                                                 value={localKcbConfig.appKey}
                                                                 onChange={e => setLocalKcbConfig({ ...localKcbConfig, appKey: e.target.value })}
-                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all"
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
                                                                 placeholder="Enter KCB App Key"
                                                             />
                                                         </div>
@@ -4437,7 +4437,7 @@ Please change it after login.`;
                                                                 type="password"
                                                                 value={localKcbConfig.appSecret}
                                                                 onChange={e => setLocalKcbConfig({ ...localKcbConfig, appSecret: e.target.value })}
-                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all"
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
                                                                 placeholder="Enter KCB App Secret"
                                                             />
                                                         </div>
@@ -4448,7 +4448,7 @@ Please change it after login.`;
                                                                     type="text"
                                                                     value={localKcbConfig.shortCode || ''}
                                                                     onChange={e => setLocalKcbConfig({ ...localKcbConfig, shortCode: e.target.value })}
-                                                                    className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all"
+                                                                    className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
                                                                     placeholder="Till/Paybill"
                                                                 />
                                                             </div>
@@ -4457,7 +4457,7 @@ Please change it after login.`;
                                                                 <select
                                                                     value={localKcbConfig.environment}
                                                                     onChange={e => setLocalKcbConfig({ ...localKcbConfig, environment: e.target.value as any })}
-                                                                    className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all"
+                                                                    className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
                                                                 >
                                                                     <option value="sandbox">Sandbox</option>
                                                                     <option value="production">Production</option>
@@ -4486,7 +4486,7 @@ Please change it after login.`;
                                                                     placeholder="2547XXXXXXXX"
                                                                     value={testRecipient}
                                                                     onChange={e => setTestRecipient(e.target.value)}
-                                                                    className="flex-1 h-12 px-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500"
+                                                                    className="flex-1 h-12 px-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white"
                                                                 />
                                                                 <button 
                                                                     onClick={handleTestKcb}

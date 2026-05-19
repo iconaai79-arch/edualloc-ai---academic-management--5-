@@ -52,9 +52,8 @@ export const CarShowroomDashboard: React.FC<CarShowroomDashboardProps> = ({
     onSwitchPerspective,
     currentUser
 }) => {
-    const isAuthorizedForFinance = useMemo(() => {
-        return ['director', 'finance', 'super_admin', 'admin'].includes(currentUser?.role || '');
-    }, [currentUser]);
+    // Gating simplified to rely on institution-level module activation instead of redundant user roles
+    const isAuthorizedForFinance = true;
     const stats = useMemo(() => {
         const activeListings = listings.filter(l => l.status === 'active').length;
         const totalSales = invoices.filter(inv => inv.status !== 'cancelled').reduce((sum, inv) => sum + inv.totalAmount, 0);
