@@ -229,7 +229,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const finalStkUrl = stkPushUrl || (baseUrl ? `${baseUrl}/kcb/stkpush/v1/processrequest` : (
                 environment === 'sandbox'
-                ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/stkpush'
+                ? 'https://accounts.buni.kcbgroup.com/mm/api/request/1.0.0/stkpush'
                 : 'https://accounts.buni.kcbgroup.com/kcb/stkpush/v1/processrequest'
             ));
             console.log(`[KCB STK] Initiating STK push to ${finalStkUrl}`);
@@ -394,7 +394,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const finalQueryUrl = queryUrl || (baseUrl ? `${baseUrl}/kcb/stkpush/v1/query` : (
                 environment === 'sandbox'
-                ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/query'
+                ? 'https://accounts.buni.kcbgroup.com/mm/api/request/1.0.0/query'
                 : 'https://accounts.buni.kcbgroup.com/kcb/stkpush/v1/query'
             ));
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
