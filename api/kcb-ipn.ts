@@ -542,8 +542,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     institution_id: inst.id,
                     amount: amount,
                     phone_number: phone,
+                    payer_name: payerName,
                     status: 'completed',
                     provider: 'kcb',
+                    request_id: requestId,
+                    channel_code: channelCode,
+                    currency: currency,
+                    customer_reference: customerReference,
+                    customer_name: customerName,
+                    customer_mobile_number: customerMobileNumber,
+                    balance: parseFloat(balance || '0'),
+                    narration: narration,
+                    credit_account_identifier: creditAccountIdentifier,
+                    organization_short_code: organizationShortCode,
+                    till_number: tillNumber,
                     metadata: txnMetadata
                 }).select().single();
 
