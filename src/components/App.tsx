@@ -69,6 +69,7 @@ const CivilWorksDashboard = lazy(() => import('./CivilWorksDashboard'));
 const LogisticsDashboard = lazy(() => import('./LogisticsDashboard'));
 const CampaignSocialPortal = lazy(() => import('./CampaignSocialPortal').then(m => ({ default: m.CampaignSocialPortal })));
 const CampaignLoginView = lazy(() => import('./CampaignLoginView').then(m => ({ default: m.CampaignLoginView })));
+const PublicCarInvoicePayment = lazy(() => import('./automotive/PublicCarInvoicePayment').then(m => ({ default: m.PublicCarInvoicePayment })));
 
 
 import { apiService, initSupabaseClient } from '../services/apiService';
@@ -4797,6 +4798,12 @@ export const App: React.FC = () => {
                             />
                          ) : showMarketplace ? (
                             <PropertyMarketplaceView carListings={carListings} />
+                          ) : new URLSearchParams(window.location.search).get('view') === 'pay-car-invoice' ? (
+                             <Suspense fallback={<SystemPulseLoader message="Loading Payment Gateway..." />}>
+                                 <PublicCarInvoicePayment 
+                                     invoiceId={new URLSearchParams(window.location.search).get('id') || ''} 
+                                 />
+                             </Suspense>
                          ) : window.location.search.includes('view=join-campaign') ? (
                             <CampaignJoinPage 
                                 campaignId={new URLSearchParams(window.location.search).get('id') || ''} 

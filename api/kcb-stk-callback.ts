@@ -383,17 +383,79 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     related_transaction_id: transaction.id
                                 });
 
+                            } else if (type === 'invoice' && metadata.invoiceId) {
+                                await supabase.from('invoices').update({ status: 'paid' }).eq('id', metadata.invoiceId);
+
+                                await supabase.from('receipts').insert({
+                                    id: `rec_inv_${Date.now()}`,
+                                    receipt_number: mpesaReceiptNumber || `REC-INV-${Date.now().toString().slice(-6)}`,
+                                    institution_id: instId || 'SYSTEM',
+                                    invoice_id: metadata.invoiceId,
+                                    amount_paid: amt,
+                                    payment_date: new Date().toISOString().split('T')[0],
+                                    payment_method: 'KCB STK',
+                                    related_transaction_id: transaction.id
+                                });
+
                                 if (metadata.requesterId) {
                                     await supabase.from('app_notifications').insert({
-                                        id: `ntf_sub_${Date.now()}`,
+                                        id: `ntf_inv_${Date.now()}`,
                                         user_id: metadata.requesterId,
-                                        message: `Successfully renewed subscription via KCB! New expiry: ${newEndDate.toLocaleDateString()}`,
+                                        message: `Invoice payment successful via KCB STK! Ref: ${mpesaReceiptNumber || transaction.id}.`,
                                         type: 'success',
                                         is_read: false,
                                         timestamp: new Date().toISOString()
                                     });
                                 }
+                            } else if ((type === 'car_invoice' || type === 'car_sales_invoices') && metadata.invoiceId) {
+                                const { data: carInvoice } = await supabase
+                                    .from('car_sales_invoices')
+                                    .select('*')
+                                    .eq('id', metadata.invoiceId)
+                                    .maybeSingle();
+
+                                if (carInvoice) {
+                                    const paidAmount = parseFloat(String(carInvoice.paid_amount || 0)) + amt;
+                                    const balanceAmount = Math.max(0, parseFloat(String(carInvoice.total_amount || 0)) - paidAmount);
+                                    const status = balanceAmount <= 0 ? 'fully_paid' : 'partially_paid';
+
+                                    await supabase
+                                        .from('car_sales_invoices')
+                                        .update({
+                                            paid_amount: paidAmount,
+                                            balance_amount: balanceAmount,
+                                            status,
+                                            updated_at: new Date().toISOString()
+                                        })
+                                        .eq('id', metadata.invoiceId);
+
+                                    await supabase.from('car_sales_payments').insert({
+                                        id: `pay_${Date.now()}`,
+                                        invoice_id: metadata.invoiceId,
+                                        institution_id: instId || carInvoice.institution_id || 'SYSTEM',
+                                        amount: amt,
+                                        payment_method: 'KCB STK',
+                                        transaction_reference: mpesaReceiptNumber || transaction.id,
+                                        payment_date: new Date().toISOString().split('T')[0],
+                                        receipt_number: `REC-${Date.now().toString().slice(-6)}`,
+                                        received_by: 'KCB STK Integration',
+                                        notes: `Payment received via KCB STK push. Ref: ${mpesaReceiptNumber || transaction.id}`,
+                                        created_at: new Date().toISOString()
+                                    });
+
+                                    if (metadata.requesterId) {
+                                        await supabase.from('app_notifications').insert({
+                                            id: `ntf_car_${Date.now()}`,
+                                            user_id: metadata.requesterId,
+                                            message: `Car payment of KES ${amt} successful for Invoice ${carInvoice.invoice_number}!`,
+                                            type: 'success',
+                                            is_read: false,
+                                            timestamp: new Date().toISOString()
+                                        });
+                                    }
+                                }
                             }
+                        }
 
                             // Mark transaction as reconciled (setting reconciled: true in metadata)
                             await supabase.from('mpesa_transactions').update({

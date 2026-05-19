@@ -12,7 +12,12 @@ import {
     Printer,
     Coins,
     Plus,
-    CalendarDays
+    CalendarDays,
+    Send,
+    Link,
+    Smartphone,
+    Sparkles,
+    Copy
 } from 'lucide-react';
 
 interface CarSalesLedgerProps {
@@ -38,6 +43,13 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
 }) => {
     const [activeTab, setActiveTab] = useState<'invoices' | 'payments'>('invoices');
     const [searchQuery, setSearchQuery] = useState('');
+    const [showStkModal, setShowStkModal] = useState(false);
+    const [selectedInvoice, setSelectedInvoice] = useState<CarInvoice | null>(null);
+    const [stkPhone, setStkPhone] = useState('');
+    const [stkAmount, setStkAmount] = useState('');
+    const [stkLoading, setStkLoading] = useState(false);
+    const [stkStatus, setStkStatus] = useState<'idle' | 'pending' | 'success' | 'failed'>('idle');
+    const [stkMessage, setStkMessage] = useState('');
 
     const filteredInvoices = invoices.filter(inv => 
         inv.clientName.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -199,6 +211,33 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                                                             <FileText className="w-4 h-4" />
                                                         </button>
                                                     )}
+                                                    <button 
+                                                        onClick={() => {
+                                                            const payUrl = `${window.location.origin}/?view=pay-car-invoice&id=${inv.id}`;
+                                                            navigator.clipboard.writeText(payUrl);
+                                                            alert(`Payment link copied successfully!\n${payUrl}`);
+                                                        }}
+                                                        className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-emerald-600 transition-all"
+                                                        title="Copy Self-Service Payment Link"
+                                                    >
+                                                        <Link className="w-4 h-4" />
+                                                    </button>
+                                                    {inv.status !== 'fully_paid' && (
+                                                        <button 
+                                                            onClick={() => {
+                                                                setSelectedInvoice(inv);
+                                                                setStkPhone(inv.clientPhone || '');
+                                                                setStkAmount(String(inv.balanceAmount || inv.totalAmount - (inv.paidAmount || 0)));
+                                                                setShowStkModal(true);
+                                                                setStkStatus('idle');
+                                                                setStkMessage('');
+                                                            }}
+                                                            className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
+                                                            title="Send STK Push Prompt"
+                                                        >
+                                                            <Send className="w-4 h-4" />
+                                                        </button>
+                                                    )}
                                                     {inv.status !== 'fully_paid' && (
                                                         <button 
                                                             onClick={() => onAddPayment(inv)}
@@ -263,6 +302,149 @@ export const CarSalesLedger: React.FC<CarSalesLedgerProps> = ({
                     </div>
                 )}
             </div>
+
+            {/* STK Push Modal */}
+            {showStkModal && selectedInvoice && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md animate-fade-in">
+                    <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-[3rem] p-8 border border-slate-100 dark:border-slate-700 shadow-2xl relative animate-scale-up">
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2 flex items-center gap-2">
+                            <Sparkles className="w-5 h-5 text-indigo-600" /> Send Payment Prompt
+                        </h3>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-6">
+                            Initiate a real-time KCB/M-Pesa payment prompt to the client's device.
+                        </p>
+
+                        <div className="space-y-6">
+                            <div>
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Client Name</label>
+                                <div className="px-5 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl text-xs font-bold text-slate-800 dark:text-slate-200 uppercase">
+                                    {selectedInvoice.clientName}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Invoice Number / Reference</label>
+                                <div className="px-5 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl text-xs font-bold text-slate-800 dark:text-slate-200 uppercase">
+                                    {selectedInvoice.invoiceNumber}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Recipient Phone Number</label>
+                                <input
+                                    type="text"
+                                    value={stkPhone}
+                                    onChange={(e) => setStkPhone(e.target.value)}
+                                    placeholder="e.g. 254711111111"
+                                    className="w-full h-12 px-6 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-800 dark:text-white"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Request Amount (KES)</label>
+                                <input
+                                    type="number"
+                                    value={stkAmount}
+                                    onChange={(e) => setStkAmount(e.target.value)}
+                                    placeholder="Amount to pay"
+                                    className="w-full h-12 px-6 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-800 dark:text-white"
+                                />
+                            </div>
+
+                            {stkStatus !== 'idle' && (
+                                <div className={`p-5 rounded-2xl text-xs font-bold ${
+                                    stkStatus === 'pending' ? 'bg-indigo-50 text-indigo-700 dark:bg-slate-900 dark:text-indigo-400' :
+                                    stkStatus === 'success' ? 'bg-emerald-50 text-emerald-700 dark:bg-slate-900 dark:text-emerald-400' :
+                                    'bg-rose-50 text-rose-700 dark:bg-slate-900 dark:text-rose-400'
+                                }`}>
+                                    {stkMessage}
+                                </div>
+                            )}
+
+                            <div className="flex gap-4 pt-4">
+                                <button
+                                    onClick={() => setShowStkModal(false)}
+                                    className="flex-1 py-4 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
+                                    disabled={stkLoading}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        if (!stkPhone.trim()) return alert("Please enter a phone number.");
+                                        if (!stkAmount || parseFloat(stkAmount) <= 0) return alert("Please enter a valid amount.");
+                                        
+                                        setStkLoading(true);
+                                        setStkStatus('pending');
+                                        setStkMessage("Sending payment request to KCB gateway...");
+                                        
+                                        try {
+                                            const { apiService } = await import('../../services/apiService');
+                                            
+                                            const response = await apiService.post('/api/payments/kcb-stk-push', {
+                                                customerMobileNumber: stkPhone,
+                                                transactionAmount: stkAmount,
+                                                customerReference: selectedInvoice.invoiceNumber,
+                                                customerName: selectedInvoice.clientName,
+                                                narration: `Payment for Vehicle Invoice ${selectedInvoice.invoiceNumber}`,
+                                                creditAccountIdentifier: selectedInvoice.institutionId,
+                                                config: {}
+                                            });
+
+                                            if (response.success || response.ResponseCode === '0') {
+                                                setStkStatus('success');
+                                                setStkMessage("Prompt sent! Customer will receive an STK Push on their device.");
+                                                
+                                                const checkoutRequestId = response.CheckoutRequestID || `KCB_CO_${Date.now()}`;
+                                                await apiService.saveModuleRecord('mpesa_transactions', {
+                                                    id: `txn_${Date.now()}`,
+                                                    transactionId: checkoutRequestId,
+                                                    checkoutRequestId: checkoutRequestId,
+                                                    institutionId: selectedInvoice.institutionId,
+                                                    amount: parseFloat(stkAmount),
+                                                    phoneNumber: stkPhone,
+                                                    payerName: selectedInvoice.clientName,
+                                                    status: 'pending',
+                                                    provider: 'kcb',
+                                                    customer_reference: selectedInvoice.invoiceNumber,
+                                                    customer_name: selectedInvoice.clientName,
+                                                    customer_mobile_number: stkPhone,
+                                                    balance: parseFloat(stkAmount),
+                                                    narration: `Payment for Vehicle Invoice ${selectedInvoice.invoiceNumber}`,
+                                                    credit_account_identifier: selectedInvoice.institutionId,
+                                                    metadata: { 
+                                                        type: 'car_invoice', 
+                                                        invoiceId: selectedInvoice.id,
+                                                        requesterId: 'SYSTEM'
+                                                    },
+                                                    timestamp: new Date().toISOString()
+                                                });
+                                                
+                                                setTimeout(() => {
+                                                    setShowStkModal(false);
+                                                    if (window.location.reload) window.location.reload();
+                                                }, 3000);
+                                            } else {
+                                                setStkStatus('failed');
+                                                setStkMessage(response.message || "Failed to trigger payment prompt. Gateway rejected request.");
+                                            }
+                                        } catch (err: any) {
+                                            setStkStatus('failed');
+                                            setStkMessage("Gateway connection error: " + (err.message || err));
+                                        } finally {
+                                            setStkLoading(false);
+                                        }
+                                    }}
+                                    className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all disabled:opacity-50"
+                                    disabled={stkLoading}
+                                >
+                                    {stkLoading ? "Processing..." : "Send Prompt"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

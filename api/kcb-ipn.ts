@@ -488,6 +488,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         .eq('id', invoice.institution_id)
                         .maybeSingle();
                     inst = instData;
+                } else {
+                    const { data: carInvoiceData } = await supabase
+                        .from('car_sales_invoices')
+                        .select('*')
+                        .eq('invoice_number', customerReference)
+                        .maybeSingle();
+                    if (carInvoiceData) {
+                        invoice = carInvoiceData;
+                        const { data: instData } = await supabase
+                            .from('institutions')
+                            .select('*')
+                            .eq('id', carInvoiceData.institution_id)
+                            .maybeSingle();
+                        inst = instData;
+                    }
                 }
             }
 
@@ -528,7 +543,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 };
 
                 if (invoice) {
-                    txnMetadata.type = 'invoice';
+                    const isCar = invoice.balance_amount !== undefined;
+                    txnMetadata.type = isCar ? 'car_invoice' : 'invoice';
                     txnMetadata.invoiceId = invoice.id;
                 } else {
                     txnMetadata.type = 'sms'; // assume SMS units top-up for direct Paybill C2B payments
@@ -742,6 +758,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             is_read: false,
                             timestamp: new Date().toISOString()
                         });
+                    }
+                } else if ((type === 'car_invoice' || type === 'car_sales_invoices') && metadata.invoiceId) {
+                    const { data: carInvoice } = await supabase
+                        .from('car_sales_invoices')
+                        .select('*')
+                        .eq('id', metadata.invoiceId)
+                        .maybeSingle();
+
+                    if (carInvoice) {
+                        const paidAmount = parseFloat(String(carInvoice.paid_amount || 0)) + amt;
+                        const balanceAmount = Math.max(0, parseFloat(String(carInvoice.total_amount || 0)) - paidAmount);
+                        const status = balanceAmount <= 0 ? 'fully_paid' : 'partially_paid';
+
+                        await supabase
+                            .from('car_sales_invoices')
+                            .update({
+                                paid_amount: paidAmount,
+                                balance_amount: balanceAmount,
+                                status,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', metadata.invoiceId);
+
+                        await supabase.from('car_sales_payments').insert({
+                            id: `pay_${Date.now()}`,
+                            invoice_id: metadata.invoiceId,
+                            institution_id: instId || carInvoice.institution_id || 'SYSTEM',
+                            amount: amt,
+                            payment_method: 'KCB IPN',
+                            transaction_reference: transactionID || mpesaReceiptNumber || transaction.id,
+                            payment_date: new Date().toISOString().split('T')[0],
+                            receipt_number: `REC-${Date.now().toString().slice(-6)}`,
+                            received_by: 'KCB IPN Integration',
+                            notes: `Payment received via KCB IPN. Ref: ${transactionID || mpesaReceiptNumber || transaction.id}`,
+                            created_at: new Date().toISOString()
+                        });
+
+                        if (metadata.requesterId) {
+                            await supabase.from('app_notifications').insert({
+                                id: `ntf_car_${Date.now()}`,
+                                user_id: metadata.requesterId,
+                                message: `Car payment of KES ${amt} successful for Invoice ${carInvoice.invoice_number}!`,
+                                type: 'success',
+                                is_read: false,
+                                timestamp: new Date().toISOString()
+                            });
+                        }
                     }
                 }
 
