@@ -4504,7 +4504,7 @@ export const App: React.FC = () => {
                                         onAccessAlumnaPortal: handleAccessAlumnaPortal
                                     } as any}
                                     />
-                                ) : (activeRole === 'librarian' || (activeRole === 'staff' && activeInstitution?.institutionType === 'Library')) ? (
+                                ) : (activeRole === 'librarian' || (activeRole === 'staff' && (activeInstitution?.institutionType as string) === 'Library')) ? (
                                     <ModuleAccessGuard
                                         moduleId="library"
                                         moduleName="Library System"
