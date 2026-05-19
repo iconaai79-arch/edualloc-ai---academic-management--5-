@@ -4550,7 +4550,7 @@ Please change it after login.`;
                                                         </thead>
                                                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                                             {(props.transactions || [])
-                                                                .filter(t => t.checkoutRequestId?.startsWith('KCB_'))
+                                                                .filter(t => t.metadata?.provider === 'kcb' || t.checkoutRequestId?.startsWith('KCB_') || t.checkoutRequestId?.startsWith('KCB_CO_'))
                                                                 .slice(0, 10)
                                                                 .map((txn: MpesaTransaction) => (
                                                                     <tr key={txn.id} className="hover:bg-white/50 dark:hover:bg-white/5 transition-colors">
@@ -4577,7 +4577,7 @@ Please change it after login.`;
                                                                         </td>
                                                                     </tr>
                                                                 ))}
-                                                            {(props.transactions || []).filter(t => t.checkoutRequestId?.startsWith('KCB_')).length === 0 && (
+                                                            {(props.transactions || []).filter(t => t.metadata?.provider === 'kcb' || t.checkoutRequestId?.startsWith('KCB_') || t.checkoutRequestId?.startsWith('KCB_CO_')).length === 0 && (
                                                                 <tr>
                                                                     <td colSpan={5} className="px-4 py-10 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest opacity-50">
                                                                         No KCB transactions found.
