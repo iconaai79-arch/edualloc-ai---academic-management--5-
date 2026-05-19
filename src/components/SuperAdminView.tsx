@@ -1014,10 +1014,12 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             });
             if (result.success || result.ResponseCode === '0') {
                 const checkoutRequestId = result.CheckoutRequestID || `KCB_CO_${Date.now()}`;
+                const txnId = `KCB_${Date.now()}`;
                 const targetInstId = props.institutions?.[0]?.id || props.currentUser?.institutionId || '';
-                
+
+                // Step 1: Save the transaction as pending
                 await apiService.saveModuleRecord('mpesa_transactions', {
-                    id: `KCB_${Date.now()}`,
+                    id: txnId,
                     transactionId: result.CheckoutRequestID || `TXN_KCB_${Date.now()}`,
                     checkoutRequestId: checkoutRequestId,
                     institutionId: targetInstId,
@@ -1029,7 +1031,34 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     timestamp: new Date().toISOString()
                 });
 
-                alert(`KCB STK Push initiated successfully. Check your phone.\n\nBank Response:\n${JSON.stringify(result.rawResponse || result, null, 2)}`);
+                // Step 2: Auto-query status from KCB to confirm completion
+                // (Required for sandbox/mock mode since there's no real callback)
+                let finalStatus = 'pending';
+                let mpesaRef = '';
+                try {
+                    const statusResult = await apiService.post('/api/payments/kcb-query', {
+                        checkoutRequestId,
+                        config: localKcbConfig
+                    });
+                    if (statusResult.success) {
+                        finalStatus = statusResult.status === 'COMPLETED' ? 'completed' : 'pending';
+                        mpesaRef = statusResult.mpesaReceiptNumber || '';
+
+                        // Step 3: Update the transaction with the confirmed status & receipt
+                        await apiService.saveModuleRecord('mpesa_transactions', {
+                            id: txnId,
+                            checkoutRequestId: checkoutRequestId,
+                            status: finalStatus,
+                            ...(mpesaRef ? { transactionId: mpesaRef } : {})
+                        });
+                    }
+                } catch (queryErr) {
+                    console.warn('[KCB Test] Auto-status query failed (non-critical):', queryErr);
+                }
+
+                const refLine = mpesaRef ? `\nM-Pesa Ref: ${mpesaRef}` : '';
+                const statusLine = `\nTransaction Status: ${finalStatus.toUpperCase()}`;
+                alert(`KCB STK Push initiated successfully. Check your phone.${statusLine}${refLine}\n\nBank Response:\n${JSON.stringify(result.rawResponse || result, null, 2)}`);
                 if (props.onRefreshData) props.onRefreshData();
             } else {
                 alert(`KCB STK Push failed: ${result.message || 'Unknown error'}\n\nBank Response:\n${JSON.stringify(result.rawResponse || result, null, 2)}`);
