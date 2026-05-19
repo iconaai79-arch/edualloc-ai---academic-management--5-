@@ -3785,12 +3785,29 @@ export const App: React.FC = () => {
         },
         onAddCarInvoice: async (data: Partial<CarInvoice>) => {
             const instId = activeInstitution?.id || currentUser?.institutionId;
-            await apiService.saveCarInvoice({ ...data, id: `inv_${Date.now()}`, institutionId: instId || '' });
+            const total = Number(data.totalAmount) || 0;
+            const paid = Number(data.paidAmount) || 0;
+            const balance = total - paid;
+            const invoiceNumber = data.invoiceNumber || `INV-CAR-${Date.now().toString().slice(-6)}`;
+            await apiService.saveCarInvoice({ 
+                ...data, 
+                id: `inv_${Date.now()}`, 
+                invoiceNumber,
+                paidAmount: paid,
+                balanceAmount: balance,
+                institutionId: instId || '' 
+            });
             await loadData();
         },
         onAddCarPayment: async (data: Partial<CarPayment>) => {
             const instId = activeInstitution?.id || currentUser?.institutionId;
-            await apiService.saveCarPayment({ ...data, id: `pay_${Date.now()}`, institutionId: instId || '' });
+            const receiptNumber = data.receiptNumber || `REC-CAR-${Date.now().toString().slice(-6)}`;
+            await apiService.saveCarPayment({ 
+                ...data, 
+                id: `pay_${Date.now()}`, 
+                receiptNumber,
+                institutionId: instId || '' 
+            });
             await loadData();
         },
         onAddCarListing: async (data: Partial<CarListing>) => {
