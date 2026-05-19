@@ -76,7 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('Query:', JSON.stringify(req.query));
     console.log('Body:', JSON.stringify(req.body));
     
-    let body = req.body;
+    let body = req.body || {};
     if (body && Buffer.isBuffer(body)) {
         body = body.toString('utf-8');
     }
@@ -85,11 +85,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             body = JSON.parse(body);
         } catch (e) {
             console.error('[KCB IPN] Failed to parse stringified body:', e);
-            return res.status(400).json({ message: 'Invalid JSON request payload' });
+            body = {};
         }
     }
 
-    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    if (typeof body !== 'object' || Array.isArray(body)) {
+        body = {};
+    }
+
+    const hasQueryFields = req.query && Object.keys(req.query).length > 0;
+    const hasBodyFields = body && Object.keys(body).length > 0;
+
+    if (!hasQueryFields && !hasBodyFields) {
         return res.status(400).json({ message: 'Missing or empty request payload' });
     }
 
