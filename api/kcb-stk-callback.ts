@@ -89,6 +89,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
     }
 
+    // Handle form-urlencoded pasting issues where the entire JSON string is received as a key with an empty value
+    if (body && typeof body === 'object' && !Array.isArray(body)) {
+        const keys = Object.keys(body);
+        if (keys.length === 1 && (body[keys[0]] === '' || body[keys[0]] === undefined) && keys[0].trim().startsWith('{')) {
+            try {
+                body = JSON.parse(keys[0]);
+            } catch (e) {
+                console.error('[KCB STK] Failed to parse single key JSON body:', e);
+            }
+        }
+    }
+
     if (typeof body !== 'object' || Array.isArray(body)) {
         body = {};
     }
