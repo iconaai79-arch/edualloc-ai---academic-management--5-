@@ -1591,7 +1591,7 @@ export const apiService = {
         }
     },
 
-    async checkPaymentStatus(provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba', checkoutRequestId: string, config?: any) {
+    async checkPaymentStatus(provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba' | 'kcb', checkoutRequestId: string, config?: any) {
         try {
             const token = await apiService.getAuthToken();
             const systemConfig = apiService.getActiveConfig();

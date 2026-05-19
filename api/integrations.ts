@@ -2066,6 +2066,102 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (checkoutRequestId.startsWith('airtel_')) {
                     finalStatus = 'completed';
                 }
+            } else if (provider === 'kcb') {
+                const kcbConfig = bodyConfig || settings?.kcb_config || settings?.kcbConfig || {};
+                const appKey = (kcbConfig.appKey || '').trim();
+                const appSecret = (kcbConfig.appSecret || '').trim();
+                const baseUrl = (kcbConfig.baseUrl || '').trim();
+                const queryUrl = (kcbConfig.queryUrl || '').trim();
+                const shortCode = (kcbConfig.shortCode || '').trim();
+                const passkey = (kcbConfig.passkey || '').trim();
+                const environment = (kcbConfig.environment || 'sandbox').trim();
+
+                const isKcbQueryDemo = !appKey || !appSecret || 
+                                       checkoutRequestId.includes('Mock') ||
+                                       appKey.toLowerCase().includes('demo') || 
+                                       appKey.toLowerCase().includes('test');
+
+                if (isKcbQueryDemo) {
+                    finalStatus = 'completed';
+                    externalData = { 
+                        status: 'COMPLETED', 
+                        message: 'Transaction completed successfully (Mock sandbox status).',
+                        ResultCode: '0',
+                        ResultDesc: 'Transaction checked successfully.'
+                    };
+                } else {
+                    try {
+                        const authHeaderVal = Buffer.from(`${appKey}:${appSecret}`).toString('base64');
+                        let tokenUrl = '';
+                        let fetchOptions: RequestInit = {};
+
+                        if (environment === 'sandbox') {
+                            tokenUrl = baseUrl || 'https://accounts.buni.kcbgroup.com/oauth2/token';
+                            fetchOptions = {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Basic ${authHeaderVal}`,
+                                    'Content-Type': 'application/x-www-form-urlencoded'
+                                },
+                                body: 'grant_type=client_credentials'
+                            };
+                        } else {
+                            tokenUrl = baseUrl ? `${baseUrl}/oauth/v1/generate?grant_type=client_credentials` : 'https://accounts.buni.kcbgroup.com/oauth/v1/generate?grant_type=client_credentials';
+                            fetchOptions = {
+                                method: 'GET',
+                                headers: {
+                                    'Authorization': `Basic ${authHeaderVal}`
+                                }
+                            };
+                        }
+                        
+                        console.log(`[KCB Query] Fetching OAuth token from ${tokenUrl} (${environment} mode)`);
+                        const tokenRes = await fetchWithTimeout(tokenUrl, fetchOptions);
+
+                        if (tokenRes.ok) {
+                            const tokenData = await tokenRes.json() as any;
+                            const access_token = tokenData.access_token;
+
+                            const finalQueryUrl = queryUrl || (baseUrl ? `${baseUrl}/kcb/stkpush/v1/query` : (
+                                environment === 'sandbox'
+                                ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/query'
+                                : 'https://api.kcbgroup.com/kcb/stkpush/v1/query'
+                            ));
+                            const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+                            const password = Buffer.from((shortCode || '123456') + (passkey || '') + timestamp).toString('base64');
+
+                            console.log(`[KCB Query] Querying transaction status at ${finalQueryUrl}`);
+                            const queryRes = await fetchWithTimeout(finalQueryUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${access_token}`,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    shortCode: shortCode,
+                                    password: password,
+                                    timestamp: timestamp,
+                                    checkoutRequestID: checkoutRequestId
+                                })
+                            });
+
+                            if (queryRes.ok) {
+                                const queryData = await queryRes.json() as any;
+                                externalData = queryData;
+                                const resultCode = queryData.ResultCode !== undefined ? String(queryData.ResultCode) : 
+                                                  (queryData.resultCode !== undefined ? String(queryData.resultCode) : 
+                                                  (queryData.Result?.ResultCode !== undefined ? String(queryData.Result.ResultCode) : ''));
+                                if (resultCode === '0' || resultCode === 'SUCCESS') {
+                                    finalStatus = 'completed';
+                                } else {
+                                    finalStatus = 'failed';
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.error('[KCB Status] Error polling KCB:', e);
+                    }
+                }
             }
 
             if (finalStatus !== 'pending' && transaction) {
@@ -2073,10 +2169,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const now = new Date().toISOString();
                 
                 // Extract M-Pesa Reference / Receipt Number if available
-                const receiptNum = externalData.BankTransactionID || externalData.ReferenceID || externalData.MpesaReceiptNumber || 
+                let receiptNum = externalData.BankTransactionID || externalData.ReferenceID || externalData.MpesaReceiptNumber || 
                                  externalData.ReceiptNumber || externalData.BankReference || externalData.ExternalReference || 
                                  externalData.ProviderReference || externalData.TransactionReference || externalData.TransactionID ||
                                  externalData.ProviderID || externalData.ChannelReference || externalData.Reference;
+
+                if (provider === 'kcb') {
+                    // Try to extract KCB specific receipt number
+                    let kcbMpesaRef: string | null = null;
+                    const params = externalData.ResultParameters?.ResultParameter ||
+                                   externalData.resultParameters?.resultParameter ||
+                                   externalData.CallbackMetadata?.Item ||
+                                   [];
+                    if (Array.isArray(params)) {
+                        for (const p of params) {
+                            const key = p.Key || p.Name || '';
+                            if (/mpesa.*receipt|receipt.*number|transactionId|mpesaref/i.test(key)) {
+                                kcbMpesaRef = String(p.Value || '');
+                                break;
+                            }
+                        }
+                    }
+                    if (!kcbMpesaRef) {
+                        kcbMpesaRef = externalData.mpesaReceiptNumber ||
+                                      externalData.MpesaReceiptNumber ||
+                                      externalData.transactionId ||
+                                      externalData.TransactionID ||
+                                      null;
+                    }
+                    if (kcbMpesaRef) {
+                        receiptNum = kcbMpesaRef;
+                    }
+                }
                 
                 // Extract Payer Info if available
                 const payerName = externalData.PayerName || externalData.CustomerName || externalData.Payer;
