@@ -2509,6 +2509,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         }}
                         onSave={props.onAddCarPayment!}
                         invoice={selectedInvoiceForPayment}
+                        invoices={props.carInvoices || []}
                         currentUser={props.currentUser!}
                     />
                 </React.Suspense>

@@ -13,10 +13,12 @@ interface RecordCarPaymentModalProps {
     onClose: () => void;
     onSave: (data: Partial<CarPayment>) => Promise<void>;
     invoice: CarInvoice | null;
+    invoices?: CarInvoice[];
     currentUser: User;
 }
 
-export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ isOpen, onClose, onSave, invoice, currentUser }) => {
+export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ isOpen, onClose, onSave, invoice, invoices, currentUser }) => {
+    const [selectedInvoice, setSelectedInvoice] = useState<CarInvoice | null>(invoice);
     const [formData, setFormData] = useState<Partial<CarPayment>>({
         amount: invoice ? Math.min(100000, invoice.balanceAmount) : 0,
         paymentMethod: 'Bank Transfer',
@@ -30,10 +32,47 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
     const [stkStatus, setStkStatus] = useState<'idle' | 'prompt_sent' | 'completed' | 'failed'>('idle');
     const [stkError, setStkError] = useState<string | null>(null);
 
-    if (!isOpen || !invoice) return null;
+    React.useEffect(() => {
+        setSelectedInvoice(invoice);
+        if (invoice) {
+            setFormData(prev => ({
+                ...prev,
+                amount: Math.min(100000, invoice.balanceAmount)
+            }));
+            setStkPhone(invoice.clientPhone || '');
+        } else {
+            setFormData(prev => ({
+                amount: 0,
+                paymentMethod: 'Bank Transfer',
+                transactionReference: '',
+                notes: ''
+            }));
+            setStkPhone('');
+        }
+    }, [invoice]);
+
+    if (!isOpen) return null;
+
+    const handleInvoiceChange = (invoiceId: string) => {
+        const inv = invoices?.find(i => i.id === invoiceId) || null;
+        setSelectedInvoice(inv);
+        if (inv) {
+            setFormData(prev => ({
+                ...prev,
+                amount: Math.min(100000, inv.balanceAmount)
+            }));
+            setStkPhone(inv.clientPhone || '');
+        } else {
+            setFormData(prev => ({
+                ...prev,
+                amount: 0
+            }));
+            setStkPhone('');
+        }
+    };
 
     const handleTriggerStkPush = async () => {
-        if (!invoice || !formData.amount || !stkPhone) return;
+        if (!selectedInvoice || !formData.amount || !stkPhone) return;
         setIsStkPushing(true);
         setStkStatus('idle');
         setStkError(null);
@@ -41,9 +80,9 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
             const res = await apiService.triggerMpesaStkPush({
                 amount: formData.amount,
                 phoneNumber: stkPhone,
-                reference: invoice.invoiceNumber,
-                description: `Car Showroom Invoice ${invoice.invoiceNumber}`,
-                institutionId: invoice.institutionId
+                reference: selectedInvoice.invoiceNumber,
+                description: `Car Showroom Invoice ${selectedInvoice.invoiceNumber}`,
+                institutionId: selectedInvoice.institutionId
             });
 
             if (res.success) {
@@ -104,11 +143,12 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!selectedInvoice) return;
         setIsSaving(true);
         try {
             await onSave({
                 ...formData,
-                invoiceId: invoice.id,
+                invoiceId: selectedInvoice.id,
                 receivedBy: currentUser.id
             });
             onClose();
@@ -136,110 +176,136 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
                     <div className="flex justify-between items-end">
                         <div>
                             <p className="text-[8px] font-black uppercase text-emerald-600 tracking-[0.2em] mb-1">Current Balance</p>
-                            <h3 className="text-2xl font-black text-slate-800 dark:text-white italic">KES {invoice.balanceAmount.toLocaleString()}</h3>
+                            <h3 className="text-2xl font-black text-slate-800 dark:text-white italic">KES {selectedInvoice ? selectedInvoice.balanceAmount.toLocaleString() : '0.00'}</h3>
                         </div>
                         <div className="text-right">
                             <p className="text-[8px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1">Invoice</p>
-                            <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400">#{invoice.invoiceNumber}</p>
+                            <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400">#{selectedInvoice ? selectedInvoice.invoiceNumber : 'None'}</p>
                         </div>
                     </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-8 space-y-6">
-                    <div className="space-y-4">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Payment Amount (KES)</label>
-                        <div className="relative">
-                            <CurrencyIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-600" />
-                            <input 
-                                required
-                                type="number"
-                                max={invoice.balanceAmount}
-                                value={formData.amount}
-                                onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) })}
-                                className="w-full pl-14 pr-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-lg font-black focus:ring-2 focus:ring-emerald-500 transition-all dark:text-white"
-                            />
-                        </div>
-                        {formData.amount && formData.amount > invoice.balanceAmount && (
-                            <p className="text-[9px] font-bold text-red-500 uppercase tracking-tight ml-2">Amount exceeds remaining balance!</p>
-                        )}
-                    </div>
-
-                    <div className="space-y-4">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Payment Method</label>
-                        <div className="relative">
-                            <CreditCardIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    {/* Invoice Selection Dropdown */}
+                    {!invoice && (
+                        <div className="space-y-4">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Invoice to Pay</label>
                             <select 
                                 required
-                                value={formData.paymentMethod}
-                                onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-                                className="w-full pl-14 pr-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-emerald-500 transition-all dark:text-white appearance-none"
+                                value={selectedInvoice?.id || ''}
+                                onChange={(e) => handleInvoiceChange(e.target.value)}
+                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-emerald-500 transition-all dark:text-white"
                             >
-                                <option value="MPESA">M-PESA</option>
-                                <option value="Bank Transfer">Bank Transfer</option>
-                                <option value="Cash">Cash / Cheque</option>
-                                <option value="Card">Credit/Debit Card</option>
+                                <option value="">Choose an invoice...</option>
+                                {invoices?.filter(i => i.status !== 'fully_paid').map(i => (
+                                    <option key={i.id} value={i.id}>{i.invoiceNumber} - {i.clientName} (Bal: KES {i.balanceAmount.toLocaleString()})</option>
+                                ))}
                             </select>
-                        </div>
-                    </div>
-
-                    {formData.paymentMethod === 'MPESA' && (
-                        <div className="p-5 bg-emerald-50/50 dark:bg-emerald-950/10 rounded-3xl border border-emerald-100 dark:border-emerald-900/30 space-y-4">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 block ml-2">M-Pesa STK Push Prompt</label>
-                            <div className="flex gap-3">
-                                <div className="relative flex-1">
-                                    <PhoneIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-600" />
-                                    <input 
-                                        type="tel"
-                                        placeholder="e.g. 254711111111"
-                                        value={stkPhone}
-                                        onChange={(e) => setStkPhone(e.target.value)}
-                                        className="w-full pl-14 pr-4 py-4 bg-white dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-emerald-500 transition-all dark:text-white"
-                                    />
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={handleTriggerStkPush}
-                                    disabled={isStkPushing || !stkPhone || !formData.amount}
-                                    className="px-6 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 active:scale-95 transition-all shadow-lg shadow-emerald-200 dark:shadow-none flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-sans font-bold"
-                                >
-                                    {isStkPushing ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : null}
-                                    {isStkPushing ? 'Pushing...' : 'Send STK Push'}
-                                </button>
-                            </div>
-                            {stkStatus === 'prompt_sent' && (
-                                <p className="text-[10px] font-bold text-amber-500 uppercase tracking-tight ml-2 animate-pulse">STK Prompt dispatched to phone. Please check and enter pin...</p>
-                            )}
-                            {stkStatus === 'completed' && (
-                                <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight ml-2">STK Push verified and filled automatically! ✅</p>
-                            )}
-                            {stkStatus === 'failed' && stkError && (
-                                <p className="text-[10px] font-bold text-rose-500 uppercase tracking-tight ml-2">{stkError}</p>
-                            )}
                         </div>
                     )}
 
-                    <div className="space-y-4">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Transaction Reference</label>
-                        <input 
-                            required
-                            type="text"
-                            placeholder="e.g. QWE123RTY"
-                            value={formData.transactionReference}
-                            onChange={(e) => setFormData({ ...formData, transactionReference: e.target.value })}
-                            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-emerald-500 transition-all dark:text-white uppercase tracking-widest"
-                        />
-                    </div>
+                    {selectedInvoice ? (
+                        <div className="space-y-6 animate-fade-in">
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Payment Amount (KES)</label>
+                                <div className="relative">
+                                    <CurrencyIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-600" />
+                                    <input 
+                                        required
+                                        type="number"
+                                        max={selectedInvoice.balanceAmount}
+                                        value={formData.amount}
+                                        onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) })}
+                                        className="w-full pl-14 pr-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-lg font-black focus:ring-2 focus:ring-emerald-500 transition-all dark:text-white"
+                                    />
+                                </div>
+                                {formData.amount && formData.amount > selectedInvoice.balanceAmount && (
+                                    <p className="text-[9px] font-bold text-red-500 uppercase tracking-tight ml-2">Amount exceeds remaining balance!</p>
+                                )}
+                            </div>
 
-                    <div className="space-y-4">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Payment Notes</label>
-                        <textarea 
-                            rows={2}
-                            placeholder="Optional details..."
-                            value={formData.notes}
-                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-medium focus:ring-2 focus:ring-emerald-500 transition-all dark:text-white"
-                        ></textarea>
-                    </div>
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Payment Method</label>
+                                <div className="relative">
+                                    <CreditCardIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                    <select 
+                                        required
+                                        value={formData.paymentMethod}
+                                        onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                                        className="w-full pl-14 pr-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-emerald-500 transition-all dark:text-white appearance-none"
+                                    >
+                                        <option value="MPESA">M-PESA</option>
+                                        <option value="Bank Transfer">Bank Transfer</option>
+                                        <option value="Cash">Cash / Cheque</option>
+                                        <option value="Card">Credit/Debit Card</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {formData.paymentMethod === 'MPESA' && (
+                                <div className="p-5 bg-emerald-50/50 dark:bg-emerald-950/10 rounded-3xl border border-emerald-100 dark:border-emerald-900/30 space-y-4">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 block ml-2">M-Pesa STK Push Prompt</label>
+                                    <div className="flex gap-3">
+                                        <div className="relative flex-1">
+                                            <PhoneIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-600" />
+                                            <input 
+                                                type="tel"
+                                                placeholder="e.g. 254711111111"
+                                                value={stkPhone}
+                                                onChange={(e) => setStkPhone(e.target.value)}
+                                                className="w-full pl-14 pr-4 py-4 bg-white dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-emerald-500 transition-all dark:text-white"
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleTriggerStkPush}
+                                            disabled={isStkPushing || !stkPhone || !formData.amount}
+                                            className="px-6 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 active:scale-95 transition-all shadow-lg shadow-emerald-200 dark:shadow-none flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-sans font-bold"
+                                        >
+                                            {isStkPushing ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : null}
+                                            {isStkPushing ? 'Pushing...' : 'Send STK Push'}
+                                        </button>
+                                    </div>
+                                    {stkStatus === 'prompt_sent' && (
+                                        <p className="text-[10px] font-bold text-amber-500 uppercase tracking-tight ml-2 animate-pulse">STK Prompt dispatched to phone. Please check and enter pin...</p>
+                                    )}
+                                    {stkStatus === 'completed' && (
+                                        <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight ml-2">STK Push verified and filled automatically! ✅</p>
+                                    )}
+                                    {stkStatus === 'failed' && stkError && (
+                                        <p className="text-[10px] font-bold text-rose-500 uppercase tracking-tight ml-2">{stkError}</p>
+                                    )}
+                                </div>
+                            )}
+
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Transaction Reference</label>
+                                <input 
+                                    required
+                                    type="text"
+                                    placeholder="e.g. QWE123RTY"
+                                    value={formData.transactionReference}
+                                    onChange={(e) => setFormData({ ...formData, transactionReference: e.target.value })}
+                                    className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-emerald-500 transition-all dark:text-white uppercase tracking-widest"
+                                />
+                            </div>
+
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Payment Notes</label>
+                                <textarea 
+                                    rows={2}
+                                    placeholder="Optional details..."
+                                    value={formData.notes}
+                                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                                    className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none text-sm font-medium focus:ring-2 focus:ring-emerald-500 transition-all dark:text-white"
+                                ></textarea>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="py-8 text-center">
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Please select an invoice from the dropdown above to load billing details.</p>
+                        </div>
+                    )}
                 </form>
 
                 <div className="p-8 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-50 dark:border-slate-700 flex gap-4">
@@ -252,7 +318,7 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
                     </button>
                     <button 
                         onClick={handleSubmit}
-                        disabled={isSaving || !formData.amount || !formData.transactionReference || (formData.amount > invoice.balanceAmount)}
+                        disabled={isSaving || !selectedInvoice || !formData.amount || !formData.transactionReference || (formData.amount > selectedInvoice.balanceAmount)}
                         className="flex-[2] py-5 bg-emerald-600 text-white rounded-[2rem] text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-200 dark:shadow-none hover:bg-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isSaving ? 'Processing...' : 'Confirm Payment'}
