@@ -266,6 +266,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const stkPushData = await stkPushRes.json() as any;
             if (stkPushRes.ok) {
+                const checkoutRequestId = stkPushData.CheckoutRequestID || stkPushData.checkoutRequestID || stkPushData.checkoutRequestId || `KCB_CO_${Date.now()}`;
+                const responseCode = stkPushData.ResponseCode || stkPushData.responseCode || '0';
+                const message = stkPushData.ResponseDescription || stkPushData.responseDescription || stkPushData.customerMessage || stkPushData.CustomerMessage || 'KCB STK Push initiated successfully.';
+
                 const supabase = getSupabase();
                 if (supabase) {
                     await supabase.from('integration_logs').insert({
@@ -274,7 +278,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             shortCode,
                             amount,
                             phoneNumber,
-                            checkoutRequestId: stkPushData.CheckoutRequestID,
+                            checkoutRequestId: checkoutRequestId,
                             status: 'initiated'
                         },
                         status: 'success',
@@ -284,9 +288,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 return res.status(200).json({
                     success: true,
-                    ResponseCode: '0',
-                    CheckoutRequestID: stkPushData.CheckoutRequestID || `KCB_${Date.now()}`,
-                    message: stkPushData.ResponseDescription || 'KCB STK Push initiated successfully.'
+                    ResponseCode: responseCode,
+                    CheckoutRequestID: checkoutRequestId,
+                    message: message
                 });
             }
 
@@ -413,16 +417,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const queryData = await queryRes.json() as any;
             if (queryRes.ok) {
+                const resultCode = queryData.ResultCode !== undefined ? String(queryData.ResultCode) : 
+                                  (queryData.resultCode !== undefined ? String(queryData.resultCode) : 
+                                  (queryData.Result?.ResultCode !== undefined ? String(queryData.Result.ResultCode) : ''));
+                const resultDesc = queryData.ResultDesc || queryData.resultDesc || queryData.ResultDescription || queryData.responseDescription || 'Transaction checked successfully.';
                 return res.status(200).json({
                     success: true,
-                    status: queryData.ResultCode === '0' ? 'COMPLETED' : 'FAILED',
-                    message: queryData.ResultDesc || 'Transaction checked successfully.'
+                    status: resultCode === '0' || resultCode === 'SUCCESS' ? 'COMPLETED' : 'FAILED',
+                    message: resultDesc
                 });
             }
 
             return res.status(200).json({
                 success: false,
-                message: queryData.ResultDesc || 'Query rejected by KCB gateway.'
+                message: queryData.ResultDesc || queryData.resultDesc || 'Query rejected by KCB gateway.'
             });
 
         } catch (e: any) {
