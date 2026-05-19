@@ -153,6 +153,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const transactionDesc = req.body.transactionDesc || '';
         const institutionId = req.body.institutionId || 'SYSTEM';
 
+        const environment = (kcbConfig.environment || 'sandbox').trim();
         const isKcbDemo = !appKey || !appSecret || 
                           appKey.toLowerCase().includes('demo') || 
                           appKey.toLowerCase().includes('test') || 
@@ -187,14 +188,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         try {
-            const tokenUrl = baseUrl ? `${baseUrl}/oauth/v1/generate?grant_type=client_credentials` : 'https://api.kcbgroup.com/oauth/v1/generate?grant_type=client_credentials';
             const authHeaderVal = Buffer.from(`${appKey}:${appSecret}`).toString('base64');
+            let tokenUrl = '';
+            let fetchOptions: RequestInit = {};
+
+            if (environment === 'sandbox') {
+                tokenUrl = baseUrl || 'https://accounts.buni.kcbgroup.com/oauth2/token';
+                fetchOptions = {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Basic ${authHeaderVal}`,
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: 'grant_type=client_credentials'
+                };
+            } else {
+                tokenUrl = baseUrl ? `${baseUrl}/oauth/v1/generate?grant_type=client_credentials` : 'https://api.kcbgroup.com/oauth/v1/generate?grant_type=client_credentials';
+                fetchOptions = {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Basic ${authHeaderVal}`
+                    }
+                };
+            }
             
-            console.log(`[KCB STK] Fetching OAuth token from ${tokenUrl}`);
-            const tokenRes = await fetch(tokenUrl, {
-                method: 'GET',
-                headers: { 'Authorization': `Basic ${authHeaderVal}` }
-            });
+            console.log(`[KCB STK] Fetching OAuth token from ${tokenUrl} (${environment} mode)`);
+            const tokenRes = await fetch(tokenUrl, fetchOptions);
 
             if (!tokenRes.ok) {
                 const errText = await tokenRes.text();
@@ -208,7 +227,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const tokenData = await tokenRes.json() as any;
             const access_token = tokenData.access_token;
 
-            const finalStkUrl = stkPushUrl || (baseUrl ? `${baseUrl}/kcb/stkpush/v1/processrequest` : 'https://api.kcbgroup.com/kcb/stkpush/v1/processrequest');
+            const finalStkUrl = stkPushUrl || (baseUrl ? `${baseUrl}/kcb/stkpush/v1/processrequest` : (
+                environment === 'sandbox'
+                ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/stkpush'
+                : 'https://api.kcbgroup.com/kcb/stkpush/v1/processrequest'
+            ));
             console.log(`[KCB STK] Initiating STK push to ${finalStkUrl}`);
             
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
@@ -221,14 +244,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
+                    // Standard Safaricom/Production format
                     shortCode: shortCode,
                     password: password,
                     timestamp: timestamp,
                     amount: amount,
                     phoneNumber: phoneNumber.replace(/[^\d]/g, ''),
-                    accountReference: accountReference,
-                    transactionDesc: transactionDesc,
-                    callBackURL: `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`
+                    accountReference: accountReference || 'Payment',
+                    transactionDesc: transactionDesc || 'Payment',
+                    callBackURL: `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`,
+
+                    // Buni UAT Sandbox format compatibility
+                    invoiceNumber: accountReference || `INV_${Date.now()}`,
+                    sharedShortCode: true,
+                    orgShortCode: shortCode || '522533',
+                    orgPassKey: passkey,
+                    callbackUrl: `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`,
+                    transactionDescription: transactionDesc || 'Payment'
                 })
             });
 
@@ -303,6 +335,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const shortCode = (kcbConfig.shortCode || '').trim();
         const passkey = (kcbConfig.passkey || '').trim();
 
+        const environment = (kcbConfig.environment || 'sandbox').trim();
         const isKcbQueryDemo = !appKey || !appSecret || 
                                checkoutRequestId.includes('Mock') ||
                                appKey.toLowerCase().includes('demo') || 
@@ -318,14 +351,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         try {
-            const tokenUrl = baseUrl ? `${baseUrl}/oauth/v1/generate?grant_type=client_credentials` : 'https://api.kcbgroup.com/oauth/v1/generate?grant_type=client_credentials';
             const authHeaderVal = Buffer.from(`${appKey}:${appSecret}`).toString('base64');
+            let tokenUrl = '';
+            let fetchOptions: RequestInit = {};
+
+            if (environment === 'sandbox') {
+                tokenUrl = baseUrl || 'https://accounts.buni.kcbgroup.com/oauth2/token';
+                fetchOptions = {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Basic ${authHeaderVal}`,
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: 'grant_type=client_credentials'
+                };
+            } else {
+                tokenUrl = baseUrl ? `${baseUrl}/oauth/v1/generate?grant_type=client_credentials` : 'https://api.kcbgroup.com/oauth/v1/generate?grant_type=client_credentials';
+                fetchOptions = {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Basic ${authHeaderVal}`
+                    }
+                };
+            }
             
-            console.log(`[KCB Query] Fetching OAuth token from ${tokenUrl}`);
-            const tokenRes = await fetch(tokenUrl, {
-                method: 'GET',
-                headers: { 'Authorization': `Basic ${authHeaderVal}` }
-            });
+            console.log(`[KCB Query] Fetching OAuth token from ${tokenUrl} (${environment} mode)`);
+            const tokenRes = await fetch(tokenUrl, fetchOptions);
 
             if (!tokenRes.ok) {
                 return res.status(200).json({
@@ -337,7 +388,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const tokenData = await tokenRes.json() as any;
             const access_token = tokenData.access_token;
 
-            const finalQueryUrl = queryUrl || (baseUrl ? `${baseUrl}/kcb/stkpush/v1/query` : 'https://api.kcbgroup.com/kcb/stkpush/v1/query');
+            const finalQueryUrl = queryUrl || (baseUrl ? `${baseUrl}/kcb/stkpush/v1/query` : (
+                environment === 'sandbox'
+                ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/query'
+                : 'https://api.kcbgroup.com/kcb/stkpush/v1/query'
+            ));
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
             const password = Buffer.from((shortCode || '123456') + (passkey || '') + timestamp).toString('base64');
 
