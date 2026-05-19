@@ -359,12 +359,26 @@ CREATE TABLE IF NOT EXISTS fee_structures (
 CREATE TABLE IF NOT EXISTS mpesa_transactions (
     id TEXT PRIMARY KEY,
     transaction_id TEXT UNIQUE NOT NULL,
+    checkout_request_id TEXT UNIQUE,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     amount DECIMAL(12, 2) NOT NULL,
     phone_number TEXT NOT NULL,
     payer_name TEXT,
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    status TEXT NOT NULL
+    status TEXT NOT NULL,
+    metadata JSONB,
+    provider TEXT,
+    request_id TEXT,
+    channel_code TEXT,
+    currency TEXT,
+    customer_reference TEXT,
+    customer_name TEXT,
+    customer_mobile_number TEXT,
+    balance DECIMAL(12, 2),
+    narration TEXT,
+    credit_account_identifier TEXT,
+    organization_short_code TEXT,
+    till_number TEXT
 );
 
 CREATE TABLE IF NOT EXISTS invoices (

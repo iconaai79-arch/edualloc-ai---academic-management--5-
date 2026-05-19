@@ -471,7 +471,19 @@ CREATE TABLE IF NOT EXISTS mpesa_transactions (
     payer_name TEXT,
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     status TEXT NOT NULL,
-    metadata JSONB
+    metadata JSONB,
+    provider TEXT,
+    request_id TEXT,
+    channel_code TEXT,
+    currency TEXT,
+    customer_reference TEXT,
+    customer_name TEXT,
+    customer_mobile_number TEXT,
+    balance DECIMAL(12, 2),
+    narration TEXT,
+    credit_account_identifier TEXT,
+    organization_short_code TEXT,
+    till_number TEXT
 );
 
 CREATE TABLE IF NOT EXISTS institution_extension_requests (
