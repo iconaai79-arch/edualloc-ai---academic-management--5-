@@ -137,10 +137,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const businessKey = primaryData.businessKey || '';
 
         // ResultCode / status: check multiple formats KCB may send
-        const resultCode = String(
+        // ResultCode / status: check multiple formats KCB may send
+        let resultCode = String(
             body.ResultCode ?? body.resultCode ??
-            body.Result?.ResultCode ?? primaryData.resultCode ?? ''
+            body.Result?.ResultCode ?? primaryData.resultCode ?? 
+            getParam(body, req.query, 'statusCode') ?? ''
         );
+        // If it's a flat callback, default to successful transaction status '0'
+        if (!resultCode && (getParam(body, req.query, 'transactionReference') || getParam(body, req.query, 'requestId'))) {
+            resultCode = '0';
+        }
         const resultDesc = body.ResultDesc || body.resultDesc || body.Result?.ResultDesc || primaryData.resultDescription || '';
 
         // Checkout request ID - used to match the pending transaction
@@ -150,6 +156,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             body.checkoutRequestId ||
             primaryData.checkoutRequestID ||
             originatorConversationID ||
+            getParam(body, req.query, 'requestId') ||
+            getParam(body, req.query, 'transactionReference') ||
             '';
 
         // ---- Extract M-Pesa receipt reference ----
@@ -181,6 +189,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 body.MpesaReceiptNumber ||
                 body.mpesaReceiptNumber ||
                 businessKey ||
+                getParam(body, req.query, 'transactionReference') ||
                 '';
         }
 
@@ -197,6 +206,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (mpesaReceiptNumber) {
                 updateData.transaction_id = mpesaReceiptNumber;
             }
+
+            // Map flat KCB callback parameters if available in payload
+            const requestId = getParam(body, req.query, 'requestId');
+            const channelCode = getParam(body, req.query, 'channelCode');
+            const currency = getParam(body, req.query, 'currency');
+            const customerReference = getParam(body, req.query, 'customerReference');
+            const customerName = getParam(body, req.query, 'customerName');
+            const customerMobileNumber = getParam(body, req.query, 'customerMobileNumber');
+            const balance = getParam(body, req.query, 'balance');
+            const narration = getParam(body, req.query, 'narration');
+            const creditAccountIdentifier = getParam(body, req.query, 'creditAccountIdenti;ier') || getParam(body, req.query, 'creditAccountIdentifier');
+            const organizationShortCode = getParam(body, req.query, 'organizationShortCode');
+            const tillNumber = getParam(body, req.query, 'tillNumber');
+
+            if (requestId) updateData.request_id = requestId;
+            if (channelCode) updateData.channel_code = channelCode;
+            if (currency) updateData.currency = currency;
+            if (customerReference) updateData.customer_reference = customerReference;
+            if (customerName) updateData.customer_name = customerName;
+            if (customerMobileNumber) updateData.customer_mobile_number = customerMobileNumber;
+            if (balance) updateData.balance = parseFloat(balance || '0');
+            if (narration) updateData.narration = narration;
+            if (creditAccountIdentifier) updateData.credit_account_identifier = creditAccountIdentifier;
+            if (organizationShortCode) updateData.organization_short_code = organizationShortCode;
+            if (tillNumber) updateData.till_number = tillNumber;
+            if (!updateData.provider) updateData.provider = 'kcb';
 
             const { error: updateErr } = await supabase
                 .from('mpesa_transactions')

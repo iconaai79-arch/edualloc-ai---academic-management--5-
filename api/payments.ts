@@ -140,18 +140,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Route 2: KCB STK Push
     if (subRoute === 'kcb-stk-push') {
-        const kcbConfig = req.body.config || {};
+        const body = req.body || {};
+        const query = req.query || {};
+
+        // Custom parameter resolver to support flat/flexible casing and field formats
+        const getParam = (key: string): string => {
+            const keysToTry = [
+                key,
+                key.toLowerCase(),
+                key.charAt(0).toUpperCase() + key.slice(1),
+                key.replace(/([A-Z])/g, "_$1").toLowerCase(),
+                key.replace(/([A-Z])/g, "-$1").toLowerCase()
+            ];
+            const sources = [body, query];
+            for (const source of sources) {
+                if (source && typeof source === 'object') {
+                    for (const k of keysToTry) {
+                        if (source[k] !== undefined && source[k] !== null) {
+                            return String(source[k]).trim();
+                        }
+                    }
+                }
+            }
+            return '';
+        };
+
+        const creditAccountIdentifier = getParam('creditAccountIdenti;ier') || getParam('creditAccountIdentifier');
+        const organizationShortCode = getParam('organizationShortCode');
+        const tillNumber = getParam('tillNumber');
+        const transactionReference = getParam('transactionReference');
+        const requestId = getParam('requestId');
+        const channelCode = getParam('channelCode');
+        const timestampParam = getParam('timestamp');
+        const transactionAmount = getParam('transactionAmount');
+        const currency = getParam('currency');
+        const customerReference = getParam('customerReference');
+        const customerName = getParam('customerName');
+        const customerMobileNumber = getParam('customerMobileNumber');
+        const balance = getParam('balance');
+        const narration = getParam('narration');
+
+        const kcbConfig = body.config || {};
         const appKey = (kcbConfig.appKey || '').trim();
         const appSecret = (kcbConfig.appSecret || '').trim();
         const baseUrl = (kcbConfig.baseUrl || '').trim();
         const stkPushUrl = (kcbConfig.stkPushUrl || '').trim();
-        const shortCode = (kcbConfig.shortCode || '').trim();
+        const shortCode = (kcbConfig.shortCode || organizationShortCode || '').trim();
         const passkey = (kcbConfig.passkey || '').trim();
-        const phoneNumber = req.body.phoneNumber || '';
-        const amount = req.body.amount || 1;
-        const accountReference = req.body.accountReference || '';
-        const transactionDesc = req.body.transactionDesc || '';
-        const institutionId = req.body.institutionId || 'SYSTEM';
+        const phoneNumber = customerMobileNumber || body.phoneNumber || '';
+        const amount = parseFloat(transactionAmount || body.amount || '1');
+        const accountReference = customerReference || transactionReference || body.accountReference || '';
+        const transactionDesc = narration || body.transactionDesc || '';
+        const institutionId = creditAccountIdentifier || body.institutionId || 'SYSTEM';
 
         const environment = (kcbConfig.environment || 'sandbox').trim();
         const isKcbDemo = !appKey || !appSecret || 
@@ -260,7 +300,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     orgShortCode: shortCode || '522533',
                     orgPassKey: passkey,
                     callbackUrl: `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/kcb-stk-callback`,
-                    transactionDescription: transactionDesc || 'Payment'
+                    transactionDescription: transactionDesc || 'Payment',
+
+                    // New flat KCB format compatibility fields
+                    transactionReference: transactionReference || accountReference || `TXN_${Date.now()}`,
+                    requestId: requestId || `req_${Date.now()}`,
+                    channelCode: channelCode || '202',
+                    transactionAmount: String(amount),
+                    currency: currency || 'KES',
+                    customerReference: accountReference || 'Payment',
+                    customerName: customerName || 'Valued Customer',
+                    customerMobileNumber: phoneNumber.replace(/[^\d]/g, ''),
+                    balance: balance || '0.00',
+                    narration: transactionDesc || 'Payment',
+                    "creditAccountIdenti;ier": creditAccountIdentifier || shortCode,
+                    creditAccountIdentifier: creditAccountIdentifier || shortCode,
+                    organizationShortCode: shortCode || '522533',
+                    tillNumber: tillNumber || ''
                 })
             });
 
