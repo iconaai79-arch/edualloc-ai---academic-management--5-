@@ -2054,10 +2054,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         .eq(queryCol, checkoutRequestId)
                         .maybeSingle();
                     if (updatedTxn) {
-                        return res.status(200).json({ success: true, status: updatedTxn.status, source: 'database', metadata: updatedTxn.metadata });
+                        return res.status(200).json({ success: true, status: updatedTxn.status, source: 'database', metadata: updatedTxn.metadata, transactionId: updatedTxn.transaction_id });
                     }
                 }
-                return res.status(200).json({ success: true, status: transaction.status, source: 'database', metadata: transaction.metadata });
+                return res.status(200).json({ success: true, status: transaction.status, source: 'database', metadata: transaction.metadata, transactionId: transaction.transaction_id });
             }
 
             // 2. Poll external API if still pending

@@ -4,6 +4,9 @@ import { CarInvoice, CarPayment, User } from '../../types';
 import { XIcon } from '../icons/XIcon';
 import { CurrencyIcon } from '../icons/CurrencyIcon';
 import { CreditCardIcon } from '../icons/CreditCardIcon';
+import { PhoneIcon } from '../icons/PhoneIcon';
+import { ArrowPathIcon } from '../icons/ArrowPathIcon';
+import { apiService } from '../../services/apiService';
 
 interface RecordCarPaymentModalProps {
     isOpen: boolean;
@@ -22,8 +25,82 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
     });
 
     const [isSaving, setIsSaving] = useState(false);
+    const [stkPhone, setStkPhone] = useState(invoice ? (invoice.clientPhone || '') : '');
+    const [isStkPushing, setIsStkPushing] = useState(false);
+    const [stkStatus, setStkStatus] = useState<'idle' | 'prompt_sent' | 'completed' | 'failed'>('idle');
+    const [stkError, setStkError] = useState<string | null>(null);
 
     if (!isOpen || !invoice) return null;
+
+    const handleTriggerStkPush = async () => {
+        if (!invoice || !formData.amount || !stkPhone) return;
+        setIsStkPushing(true);
+        setStkStatus('idle');
+        setStkError(null);
+        try {
+            const res = await apiService.triggerMpesaStkPush({
+                amount: formData.amount,
+                phoneNumber: stkPhone,
+                reference: invoice.invoiceNumber,
+                description: `Car Showroom Invoice ${invoice.invoiceNumber}`,
+                institutionId: invoice.institutionId
+            });
+
+            if (res.success) {
+                setStkStatus('prompt_sent');
+                const checkoutRequestId = res.checkoutRequestId || res.requestId;
+                if (!checkoutRequestId) {
+                    throw new Error("Missing checkout request identifier from gateway.");
+                }
+
+                // Poll for status
+                let confirmed = false;
+                let attempts = 0;
+                const maxAttempts = 20; // 20 * 3s = 60s
+                
+                const checkInterval = setInterval(async () => {
+                    attempts++;
+                    if (attempts >= maxAttempts && !confirmed) {
+                        clearInterval(checkInterval);
+                        setIsStkPushing(false);
+                        setStkStatus('failed');
+                        setStkError("Verification timed out. Please enter the transaction code manually.");
+                        return;
+                    }
+
+                    try {
+                        const statusRes = await apiService.checkPaymentStatus('mpesa', checkoutRequestId);
+                        if (statusRes.success && (statusRes.status === 'completed' || statusRes.status === 'Completed' || statusRes.status === 'Success')) {
+                            confirmed = true;
+                            clearInterval(checkInterval);
+                            setFormData(prev => ({
+                                ...prev,
+                                transactionReference: statusRes.transactionId || checkoutRequestId,
+                                notes: prev.notes ? `${prev.notes} (STK Push confirmed)` : 'STK Push payment confirmed.'
+                            }));
+                            setStkStatus('completed');
+                            setIsStkPushing(false);
+                        } else if (statusRes.status === 'failed' || statusRes.status === 'Failed') {
+                            confirmed = true;
+                            clearInterval(checkInterval);
+                            setIsStkPushing(false);
+                            setStkStatus('failed');
+                            setStkError(statusRes.message || "Payment request rejected or failed.");
+                        }
+                    } catch (err: any) {
+                        console.warn("Error polling payment status:", err);
+                    }
+                }, 3000);
+            } else {
+                throw new Error(res.message || "Gateway rejected the push request.");
+            }
+        } catch (err: any) {
+            console.error("STK Push error:", err);
+            setIsStkPushing(false);
+            setStkStatus('failed');
+            setStkError(err.message || "Failed to initiate M-Pesa STK push.");
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -104,6 +181,42 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
                             </select>
                         </div>
                     </div>
+
+                    {formData.paymentMethod === 'MPESA' && (
+                        <div className="p-5 bg-emerald-50/50 dark:bg-emerald-950/10 rounded-3xl border border-emerald-100 dark:border-emerald-900/30 space-y-4">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 block ml-2">M-Pesa STK Push Prompt</label>
+                            <div className="flex gap-3">
+                                <div className="relative flex-1">
+                                    <PhoneIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-600" />
+                                    <input 
+                                        type="tel"
+                                        placeholder="e.g. 254711111111"
+                                        value={stkPhone}
+                                        onChange={(e) => setStkPhone(e.target.value)}
+                                        className="w-full pl-14 pr-4 py-4 bg-white dark:bg-slate-900 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-emerald-500 transition-all dark:text-white"
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleTriggerStkPush}
+                                    disabled={isStkPushing || !stkPhone || !formData.amount}
+                                    className="px-6 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 active:scale-95 transition-all shadow-lg shadow-emerald-200 dark:shadow-none flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-sans font-bold"
+                                >
+                                    {isStkPushing ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : null}
+                                    {isStkPushing ? 'Pushing...' : 'Send STK Push'}
+                                </button>
+                            </div>
+                            {stkStatus === 'prompt_sent' && (
+                                <p className="text-[10px] font-bold text-amber-500 uppercase tracking-tight ml-2 animate-pulse">STK Prompt dispatched to phone. Please check and enter pin...</p>
+                            )}
+                            {stkStatus === 'completed' && (
+                                <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight ml-2">STK Push verified and filled automatically! ✅</p>
+                            )}
+                            {stkStatus === 'failed' && stkError && (
+                                <p className="text-[10px] font-bold text-rose-500 uppercase tracking-tight ml-2">{stkError}</p>
+                            )}
+                        </div>
+                    )}
 
                     <div className="space-y-4">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Transaction Reference</label>

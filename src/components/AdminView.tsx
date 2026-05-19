@@ -58,6 +58,7 @@ const CarShowroomDashboard = lazy(() => import('./automotive/CarShowroomDashboar
 const CarInventoryList = lazy(() => import('./automotive/CarInventoryList').then(m => ({ default: m.CarInventoryList })));
 const CarSalesLedger = lazy(() => import('./automotive/CarSalesLedger').then(m => ({ default: m.CarSalesLedger })));
 const BankFeedsManager = lazy(() => import('./automotive/BankFeedsManager').then(m => ({ default: m.BankFeedsManager })));
+const ShowroomConfigManager = lazy(() => import('./automotive/ShowroomConfigManager').then(m => ({ default: m.ShowroomConfigManager })));
 const TransportManager = lazy(() => import('./TransportManager').then(m => ({ default: m.TransportManager })));
 
 
@@ -473,7 +474,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     const [isSecurityAlertModalOpen, setIsSecurityAlertModalOpen] = useState(false);
     const [isAddListingModalOpen, setIsAddListingModalOpen] = useState(false);
     const [selectedListingForEdit, setSelectedListingForEdit] = useState<CarListing | null>(null);
-    const [autoSubTab, setAutoSubTab] = useState<'dashboard' | 'inventory' | 'financials' | 'bank_feeds'>('dashboard');
+    const [autoSubTab, setAutoSubTab] = useState<'dashboard' | 'inventory' | 'financials' | 'bank_feeds' | 'showroom_settings'>('dashboard');
     const [isAddCarInvoiceModalOpen, setIsAddCarInvoiceModalOpen] = useState(false);
     const [isAddCarPaymentModalOpen, setIsAddCarPaymentModalOpen] = useState(false);
     const [isAddCarLeadModalOpen, setIsAddCarLeadModalOpen] = useState(false);
@@ -2225,6 +2226,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             <button onClick={() => setAutoSubTab('inventory')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'inventory' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Vehicle Inventory</button>
                             <button onClick={() => setAutoSubTab('financials')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'financials' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Sales & Invoices</button>
                             <button onClick={() => setAutoSubTab('bank_feeds')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'bank_feeds' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Bank Feeds</button>
+                            <button onClick={() => setAutoSubTab('showroom_settings')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${autoSubTab === 'showroom_settings' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Configuration</button>
                         </div>
 
                         <div className="animate-fade-in-up">
@@ -2311,6 +2313,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     }}
                                     currentUser={props.currentUser!}
                                     institution={props.currentInstitution!}
+                                />
+                            ) : autoSubTab === 'showroom_settings' ? (
+                                <ShowroomConfigManager
+                                    institutionId={props.currentInstitution!.id}
                                 />
                             ) : null}
                         </div>
