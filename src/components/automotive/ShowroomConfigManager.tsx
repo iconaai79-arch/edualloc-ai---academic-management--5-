@@ -41,7 +41,7 @@ export const ShowroomConfigManager: React.FC<ShowroomConfigManagerProps> = ({ in
                             enabled: false,
                             beforeDueDays: 3,
                             afterDueDays: 1,
-                            template: 'Dear {client_name}, this is a reminder that your payment of KES {amount_due} for invoice {invoice_number} is due on {due_date}. Please clear it to avoid service disruption.'
+                            template: 'Dear {client_name}, this is a reminder that your payment of KES {amount_due} for vehicle {registration_number} (invoice {invoice_number}) is due on {due_date}. Please clear it to avoid service disruption.'
                         },
                         updatedAt: dbSettings.updated_at
                     });
@@ -73,7 +73,7 @@ export const ShowroomConfigManager: React.FC<ShowroomConfigManagerProps> = ({ in
                     enabled: false,
                     beforeDueDays: 3,
                     afterDueDays: 1,
-                    template: 'Dear {client_name}, this is a reminder that your payment of KES {amount_due} for invoice {invoice_number} is due on {due_date}. Please clear it to avoid service disruption.'
+                    template: 'Dear {client_name}, this is a reminder that your payment of KES {amount_due} for vehicle {registration_number} (invoice {invoice_number}) is due on {due_date}. Please clear it to avoid service disruption.'
                 },
                 updatedAt: new Date().toISOString()
             });
@@ -237,6 +237,7 @@ export const ShowroomConfigManager: React.FC<ShowroomConfigManagerProps> = ({ in
                                 <span className="px-2 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-indigo-600">{"{invoice_number}"}</span>
                                 <span className="px-2 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-indigo-600">{"{due_date}"}</span>
                                 <span className="px-2 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-indigo-600">{"{amount_due}"}</span>
+                                <span className="px-2 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-indigo-600">{"{registration_number}"}</span>
                             </div>
                         </div>
                     </div>
