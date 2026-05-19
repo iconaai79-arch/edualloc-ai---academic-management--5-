@@ -203,7 +203,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     body: 'grant_type=client_credentials'
                 };
             } else {
-                tokenUrl = baseUrl ? `${baseUrl}/oauth/v1/generate?grant_type=client_credentials` : 'https://api.kcbgroup.com/oauth/v1/generate?grant_type=client_credentials';
+                tokenUrl = baseUrl ? `${baseUrl}/oauth/v1/generate?grant_type=client_credentials` : 'https://accounts.buni.kcbgroup.com/oauth/v1/generate?grant_type=client_credentials';
                 fetchOptions = {
                     method: 'GET',
                     headers: {
@@ -230,7 +230,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const finalStkUrl = stkPushUrl || (baseUrl ? `${baseUrl}/kcb/stkpush/v1/processrequest` : (
                 environment === 'sandbox'
                 ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/stkpush'
-                : 'https://api.kcbgroup.com/kcb/stkpush/v1/processrequest'
+                : 'https://accounts.buni.kcbgroup.com/kcb/stkpush/v1/processrequest'
             ));
             console.log(`[KCB STK] Initiating STK push to ${finalStkUrl}`);
             
@@ -366,7 +366,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     body: 'grant_type=client_credentials'
                 };
             } else {
-                tokenUrl = baseUrl ? `${baseUrl}/oauth/v1/generate?grant_type=client_credentials` : 'https://api.kcbgroup.com/oauth/v1/generate?grant_type=client_credentials';
+                tokenUrl = baseUrl ? `${baseUrl}/oauth/v1/generate?grant_type=client_credentials` : 'https://accounts.buni.kcbgroup.com/oauth/v1/generate?grant_type=client_credentials';
                 fetchOptions = {
                     method: 'GET',
                     headers: {
@@ -391,7 +391,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const finalQueryUrl = queryUrl || (baseUrl ? `${baseUrl}/kcb/stkpush/v1/query` : (
                 environment === 'sandbox'
                 ? 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/query'
-                : 'https://api.kcbgroup.com/kcb/stkpush/v1/query'
+                : 'https://accounts.buni.kcbgroup.com/kcb/stkpush/v1/query'
             ));
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
             const password = Buffer.from((shortCode || '123456') + (passkey || '') + timestamp).toString('base64');
