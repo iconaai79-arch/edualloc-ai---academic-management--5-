@@ -588,7 +588,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         return 'dashboard';
     });
     const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'sms_pricing' | 'marketplace' | 'showcase' | 'system_build' | 'storage'>('profile');
-    const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'kcb'>('mpesa');
+    const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'kcb' | 'coop'>('mpesa');
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
     const [extendingInstitution, setExtendingInstitution] = useState<Institution | null>(null);
     const [extensionDays, setExtensionDays] = useState(30);
@@ -852,6 +852,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [localSubConfig, setLocalSubConfig] = useState<SubscriptionConfig>(companyDetails?.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
     const [localFtpConfig, setLocalFtpConfig] = useState<FtpConfig>(companyDetails?.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
     const [localKcbConfig, setLocalKcbConfig] = useState<KcbConfig>(companyDetails?.kcbConfig || { appKey: '', appSecret: '', environment: 'sandbox' });
+    const [localCoopConfig, setLocalCoopConfig] = useState<CoopB2bConfig>(companyDetails?.coopConfig || { serviceName: 'KEWISCO SACCO', connectionID: 'TEST', connectionPassword: 'CoopTest', institutionCode: '210001918' });
     const [localGoogleDriveConfig, setLocalGoogleDriveConfig] = useState<GoogleDriveConfig>(companyDetails?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', folderId: '', isActive: false });
     const [isTestingGoogleDrive, setIsTestingGoogleDrive] = useState(false);
     const [isTestingDriveUpload, setIsTestingDriveUpload] = useState(false);
@@ -890,6 +891,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             setLocalSubConfig(companyDetails.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
             setLocalFtpConfig(companyDetails.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
             setLocalKcbConfig(companyDetails.kcbConfig || { appKey: '', appSecret: '', environment: 'sandbox' });
+            setLocalCoopConfig(companyDetails.coopConfig || { serviceName: 'KEWISCO SACCO', connectionID: 'TEST', connectionPassword: 'CoopTest', institutionCode: '210001918' });
         }
     }, [companyDetails]);
 
@@ -955,6 +957,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     mpesaConfig: localMpesaConfig,
                     subscriptionConfig: localSubConfig,
                     kcbConfig: localKcbConfig,
+                    coopConfig: localCoopConfig,
                     chatAssistantConfig: {
                         ...companyDetails?.chatAssistantConfig,
                         welcomeMessage: localCompanyInfo.welcomeMessage,
@@ -4367,6 +4370,12 @@ Please change it after login.`;
                                             >
                                                 <KcbIcon className="w-4 h-4" /> KCB Integration
                                             </button>
+                                            <button 
+                                                onClick={() => setBillingSubTab('coop')} 
+                                                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${billingSubTab === 'coop' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                                            >
+                                                <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Co-op B2B Gateway
+                                            </button>
                                         </div>
                                     </div>
 
@@ -4694,6 +4703,95 @@ Please change it after login.`;
 
                                             <div className="flex justify-end pt-4">
                                                 <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-14 shadow-indigo-200 uppercase tracking-widest text-xs w-full sm:w-auto">Confirm KCB Configuration</button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {billingSubTab === 'coop' && (
+                                        <div className="animate-fade-in space-y-6">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
+                                                    <div className="flex items-center gap-4 mb-6">
+                                                        <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl">
+                                                            <span className="w-6 h-6 text-emerald-600 font-black text-center block">C</span>
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-sm font-black uppercase tracking-widest">Co-op Bank B2B Credentials</h4>
+                                                            <p className="text-[10px] font-bold text-slate-400">Gateway Authentication settings</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-4">
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Service Name</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localCoopConfig.serviceName}
+                                                                onChange={e => setLocalCoopConfig({ ...localCoopConfig, serviceName: e.target.value })}
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-emerald-500 transition-all text-slate-900 dark:text-white"
+                                                                placeholder="Enter Service Name"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Connection ID (Username)</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localCoopConfig.connectionID}
+                                                                onChange={e => setLocalCoopConfig({ ...localCoopConfig, connectionID: e.target.value })}
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-emerald-500 transition-all text-slate-900 dark:text-white"
+                                                                placeholder="Enter Connection ID"
+                                                            />
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div>
+                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Connection Password</label>
+                                                                <input
+                                                                    type="password"
+                                                                    value={localCoopConfig.connectionPassword}
+                                                                    onChange={e => setLocalCoopConfig({ ...localCoopConfig, connectionPassword: e.target.value })}
+                                                                    className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-emerald-500 transition-all text-slate-900 dark:text-white"
+                                                                    placeholder="Password"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Institution Code</label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={localCoopConfig.institutionCode}
+                                                                    onChange={e => setLocalCoopConfig({ ...localCoopConfig, institutionCode: e.target.value })}
+                                                                    className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-emerald-500 transition-all text-slate-900 dark:text-white"
+                                                                    placeholder="Institution Code"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+                                                    <div className="space-y-4">
+                                                        <div className="flex items-center gap-4 mb-4">
+                                                            <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl">
+                                                                <span className="w-6 h-6 text-emerald-600 font-black text-center block">ℹ</span>
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="text-sm font-black uppercase tracking-widest">Co-op Gateway Specs</h4>
+                                                                <p className="text-[10px] font-bold text-slate-400">REST integration endpoints</p>
+                                                            </div>
+                                                        </div>
+                                                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                            Co-operative Bank B2B Standard API handles both **Customer Validation** and **Payment Advice** notifications over a single endpoint. Point the bank gateway callbacks to the URL below.
+                                                        </p>
+                                                        <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors" title="Click to copy">
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Validation & Advice Endpoint</p>
+                                                            <code className="text-xs font-mono text-emerald-600 dark:text-emerald-400 break-all">
+                                                                {typeof window !== 'undefined' ? `${window.location.origin}/api/coop-b2b` : 'https://yourdomain.com/api/coop-b2b'}
+                                                            </code>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex justify-end pt-4">
+                                                <button onClick={handleSaveGlobalConfigs} className="btn-primary bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 px-10 h-14 shadow-emerald-200 uppercase tracking-widest text-xs w-full sm:w-auto border-emerald-500">Confirm Co-op Configuration</button>
                                             </div>
                                         </div>
                                     )}

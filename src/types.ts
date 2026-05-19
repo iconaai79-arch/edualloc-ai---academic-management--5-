@@ -840,6 +840,13 @@ export interface KcbConfig {
     environment?: 'sandbox' | 'production';
 }
 
+export interface CoopB2bConfig {
+    serviceName: string;
+    connectionID: string;
+    connectionPassword: string;
+    institutionCode: string;
+}
+
 export interface GoogleDriveConfig {
     clientId: string;
     clientSecret: string;
@@ -884,6 +891,7 @@ export interface CompanyDetails {
     intasendConfig?: IntasendConfig;
     ncbaConfig?: NcbaConfig;
     kcbConfig?: KcbConfig;
+    coopConfig?: CoopB2bConfig;
     googleDriveConfig?: GoogleDriveConfig;
     emailConfig: EmailConfig;
     smsConfig: SmsConfig;
