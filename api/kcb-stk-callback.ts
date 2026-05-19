@@ -41,9 +41,10 @@ const fetchWithTimeout = async (url: string, options: any, timeout = 10000) => {
  * Extracts M-Pesa receipt number (e.g. UEJG4LRTF) and updates transaction record.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+    const origin = req.headers.origin || '*';
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === 'OPTIONS') return res.status(200).end();
@@ -53,7 +54,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('Query:', JSON.stringify(req.query));
     console.log('Body:', JSON.stringify(req.body));
     
-    const body = req.body;
+    let body = req.body;
+    if (typeof body === 'string') {
+        try {
+            body = JSON.parse(body);
+        } catch (e) {
+            console.error('[KCB STK] Failed to parse stringified body:', e);
+            return res.status(400).json({ message: 'Invalid JSON request payload' });
+        }
+    }
+
+    if (!body || typeof body !== 'object') {
+        return res.status(400).json({ message: 'Missing or empty request payload' });
+    }
+
     const supabase = getSupabase();
 
     if (!supabase) return res.status(503).json({ error: 'Database context missing' });
