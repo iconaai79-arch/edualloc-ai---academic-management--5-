@@ -1013,6 +1013,19 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 config: localKcbConfig
             });
             if (result.success || result.ResponseCode === '0') {
+                const checkoutRequestId = result.CheckoutRequestID || `KCB_CO_${Date.now()}`;
+                await apiService.saveModuleRecord('mpesa_transactions', {
+                    id: `KCB_${Date.now()}`,
+                    transactionId: result.CheckoutRequestID || `TXN_KCB_${Date.now()}`,
+                    checkoutRequestId: checkoutRequestId,
+                    institutionId: props.institutions?.[0]?.id || 'GLOBAL',
+                    amount: 1,
+                    phoneNumber: testRecipient,
+                    payerName: 'KCB Platform Test Payer',
+                    status: 'pending',
+                    timestamp: new Date().toISOString()
+                });
+
                 alert("KCB STK Push initiated successfully. Check your phone.");
                 if (props.onRefreshData) props.onRefreshData();
             } else {
@@ -5831,6 +5844,19 @@ Please change it after login.`;
                                                     institutionId: managingKcbFor.id
                                                 });
                                                 if (result.success || result.ResponseCode === '0') {
+                                                    const checkoutRequestId = result.CheckoutRequestID || `KCB_CO_${Date.now()}`;
+                                                    await apiService.saveModuleRecord('mpesa_transactions', {
+                                                        id: `KCB_${Date.now()}`,
+                                                        transactionId: result.CheckoutRequestID || `TXN_KCB_${Date.now()}`,
+                                                        checkoutRequestId: checkoutRequestId,
+                                                        institutionId: managingKcbFor.id,
+                                                        amount: 1,
+                                                        phoneNumber: testRecipient,
+                                                        payerName: 'KCB Tenant Test Payer',
+                                                        status: 'pending',
+                                                        timestamp: new Date().toISOString()
+                                                    });
+
                                                     alert("KCB STK Push initiated successfully for this tenant. Check your phone.");
                                                     if (props.onRefreshData) props.onRefreshData();
                                                 } else {
