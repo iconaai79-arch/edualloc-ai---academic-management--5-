@@ -5938,46 +5938,52 @@ Please change it after login.`;
                                     </button>
                                 </div>
                                 <div className="max-h-48 overflow-y-auto space-y-2">
-                                    {(props.transactions || [])
-                                        .filter(t => {
+                                    {(() => {
+                                        const kcbTxns = (props.transactions || []).filter(t => {
                                             const isKcbTxn = t.checkoutRequestId?.startsWith('KCB_') || 
                                                              t.metadata?.provider === 'kcb' || 
                                                              (typeof t.metadata === 'string' && t.metadata.includes('"provider":"kcb"')) ||
                                                              (t.metadata && (t.metadata as any).provider === 'kcb');
                                             return isKcbTxn && t.institutionId === managingKcbFor.id;
-                                        })
-                                        .map((txn: MpesaTransaction) => (
-                                            <div key={txn.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
-                                                <div>
-                                                    <div className="text-[10px] font-black text-slate-900 dark:text-white">{txn.phoneNumber}</div>
-                                                    <div className="text-[8px] font-bold text-slate-400 uppercase">{new Date(txn.timestamp).toLocaleString()}</div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <div className="text-[10px] font-black text-indigo-600">KES {txn.amount}</div>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`text-[8px] font-black uppercase ${
-                                                            txn.status === 'completed' ? 'text-green-600' :
-                                                            txn.status === 'pending' ? 'text-amber-600' : 'text-red-600'
-                                                        }`}>
-                                                            {txn.status}
-                                                        </span>
-                                                        {txn.status === 'pending' && txn.checkoutRequestId && (
-                                                            <button 
-                                                                onClick={() => handleQueryKcbStatus(txn.checkoutRequestId!)}
-                                                                className="text-[8px] font-black uppercase text-slate-400 hover:text-indigo-600 underline"
-                                                            >
-                                                                Query
-                                                            </button>
-                                                        )}
+                                        });
+
+                                        return (
+                                            <>
+                                                {kcbTxns.map((txn: MpesaTransaction) => (
+                                                    <div key={txn.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
+                                                        <div>
+                                                            <div className="text-[10px] font-black text-slate-900 dark:text-white">{txn.phoneNumber}</div>
+                                                            <div className="text-[8px] font-bold text-slate-400 uppercase">{new Date(txn.timestamp).toLocaleString()}</div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <div className="text-[10px] font-black text-indigo-600">KES {txn.amount}</div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`text-[8px] font-black uppercase ${
+                                                                    txn.status === 'completed' ? 'text-green-600' :
+                                                                    txn.status === 'pending' ? 'text-amber-600' : 'text-red-600'
+                                                                }`}>
+                                                                    {txn.status}
+                                                                </span>
+                                                                {txn.status === 'pending' && txn.checkoutRequestId && (
+                                                                    <button 
+                                                                        onClick={() => handleQueryKcbStatus(txn.checkoutRequestId!)}
+                                                                        className="text-[8px] font-black uppercase text-slate-400 hover:text-indigo-600 underline"
+                                                                    >
+                                                                        Query
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    {(props.transactions || []).filter(t => t.checkoutRequestId?.startsWith('KCB_') && t.institutionId === managingKcbFor.id).length === 0 && (
-                                        <div className="text-center py-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest opacity-50 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
-                                            No logs for this tenant
-                                        </div>
-                                    )}
+                                                ))}
+                                                {kcbTxns.length === 0 && (
+                                                    <div className="text-center py-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest opacity-50 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                                                        No logs for this tenant
+                                                    </div>
+                                                )}
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                         </div>

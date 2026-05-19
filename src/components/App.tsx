@@ -862,12 +862,14 @@ export const App: React.FC = () => {
                     const type = txn.metadata?.type;
                     const provider = txn.provider;
                     const metaProvider = txn.metadata?.provider || (typeof txn.metadata === 'string' && txn.metadata.includes('"provider":"kcb"') ? 'kcb' : undefined);
+                    const isKcb = txn.checkoutRequestId?.startsWith('KCB_') || 
+                                  provider === 'kcb' || 
+                                  metaProvider === 'kcb';
                     return type === 'subscription' || 
                            type === 'sms' ||
                            type === 'alumnae_registration' ||
                            provider === 'ncba' ||
-                           provider === 'kcb' ||
-                           metaProvider === 'kcb' ||
+                           isKcb ||
                            desc.includes('license') || 
                            desc.includes('renewal') || 
                            desc.includes('sms top-up') ||
