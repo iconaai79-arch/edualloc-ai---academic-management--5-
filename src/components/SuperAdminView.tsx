@@ -1014,11 +1014,13 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             });
             if (result.success || result.ResponseCode === '0') {
                 const checkoutRequestId = result.CheckoutRequestID || `KCB_CO_${Date.now()}`;
+                const targetInstId = props.institutions?.[0]?.id || props.currentUser?.institutionId || '';
+                
                 await apiService.saveModuleRecord('mpesa_transactions', {
                     id: `KCB_${Date.now()}`,
                     transactionId: result.CheckoutRequestID || `TXN_KCB_${Date.now()}`,
                     checkoutRequestId: checkoutRequestId,
-                    institutionId: props.institutions?.[0]?.id || 'GLOBAL',
+                    institutionId: targetInstId,
                     amount: 1,
                     phoneNumber: testRecipient,
                     payerName: 'KCB Platform Test Payer',
