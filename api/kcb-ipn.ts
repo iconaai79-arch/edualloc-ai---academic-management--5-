@@ -151,7 +151,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // Insert transaction on the fly
                 const txnMetadata: Record<string, any> = {
                     payerPhoneNumber: phone,
-                    payerName: payerName
+                    payerName: payerName,
+                    channelCode: body.channelCode || '',
+                    timestamp: body.timestamp || '',
+                    currency: body.currency || '',
+                    balance: body.balance || '',
+                    narration: body.narration || '',
+                    organizationShortCode: body.organizationShortCode || '',
+                    tillNumber: body.tillNumber || ''
                 };
 
                 if (invoice) {
