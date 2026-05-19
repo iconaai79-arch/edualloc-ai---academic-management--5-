@@ -55,6 +55,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('Body:', JSON.stringify(req.body));
     
     let body = req.body;
+    if (body && Buffer.isBuffer(body)) {
+        body = body.toString('utf-8');
+    }
     if (typeof body === 'string') {
         try {
             body = JSON.parse(body);
@@ -64,7 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
     }
 
-    if (!body || typeof body !== 'object') {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
         return res.status(400).json({ message: 'Missing or empty request payload' });
     }
 
