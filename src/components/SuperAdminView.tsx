@@ -1029,10 +1029,10 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     timestamp: new Date().toISOString()
                 });
 
-                alert("KCB STK Push initiated successfully. Check your phone.");
+                alert(`KCB STK Push initiated successfully. Check your phone.\n\nBank Response:\n${JSON.stringify(result.rawResponse || result, null, 2)}`);
                 if (props.onRefreshData) props.onRefreshData();
             } else {
-                alert(`KCB STK Push failed: ${result.message || 'Unknown error'}`);
+                alert(`KCB STK Push failed: ${result.message || 'Unknown error'}\n\nBank Response:\n${JSON.stringify(result.rawResponse || result, null, 2)}`);
             }
         } catch (e: any) {
             console.error("KCB Test Error:", e);
@@ -1050,10 +1050,10 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 config: localKcbConfig
             });
             if (result.success) {
-                alert(`Transaction Status: ${result.status}\nDetails: ${result.message}`);
+                alert(`Transaction Status: ${result.status}\nDetails: ${result.message}\n\nBank Response:\n${JSON.stringify(result.rawResponse || result, null, 2)}`);
                 if (props.onRefreshData) props.onRefreshData();
             } else {
-                alert(`Query failed: ${result.message || 'Unknown error'}`);
+                alert(`Query failed: ${result.message || 'Unknown error'}\n\nBank Response:\n${JSON.stringify(result.rawResponse || result, null, 2)}`);
             }
         } catch (e: any) {
             alert(`KCB Query Error: ${e.message}`);

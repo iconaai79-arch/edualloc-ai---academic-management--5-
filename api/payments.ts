@@ -290,14 +290,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     success: true,
                     ResponseCode: responseCode,
                     CheckoutRequestID: checkoutRequestId,
-                    message: message
+                    message: message,
+                    rawResponse: stkPushData
                 });
             }
 
             return res.status(200).json({
                 success: false,
                 message: stkPushData.ResponseDescription || 'KCB Gateway rejected the STK Push request.',
-                details: stkPushData
+                details: stkPushData,
+                rawResponse: stkPushData
             });
 
         } catch (e: any) {
@@ -424,13 +426,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(200).json({
                     success: true,
                     status: resultCode === '0' || resultCode === 'SUCCESS' ? 'COMPLETED' : 'FAILED',
-                    message: resultDesc
+                    message: resultDesc,
+                    rawResponse: queryData
                 });
             }
 
             return res.status(200).json({
                 success: false,
-                message: queryData.ResultDesc || queryData.resultDesc || 'Query rejected by KCB gateway.'
+                message: queryData.ResultDesc || queryData.resultDesc || 'Query rejected by KCB gateway.',
+                rawResponse: queryData
             });
 
         } catch (e: any) {
