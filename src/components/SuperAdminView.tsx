@@ -1023,6 +1023,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     phoneNumber: testRecipient,
                     payerName: 'KCB Platform Test Payer',
                     status: 'pending',
+                    metadata: { provider: 'kcb' },
                     timestamp: new Date().toISOString()
                 });
 
@@ -5854,6 +5855,7 @@ Please change it after login.`;
                                                         phoneNumber: testRecipient,
                                                         payerName: 'KCB Tenant Test Payer',
                                                         status: 'pending',
+                                                        metadata: { provider: 'kcb' },
                                                         timestamp: new Date().toISOString()
                                                     });
 
@@ -5886,7 +5888,13 @@ Please change it after login.`;
                                 </div>
                                 <div className="max-h-48 overflow-y-auto space-y-2">
                                     {(props.transactions || [])
-                                        .filter(t => t.checkoutRequestId?.startsWith('KCB_') && t.institutionId === managingKcbFor.id)
+                                        .filter(t => {
+                                            const isKcbTxn = t.checkoutRequestId?.startsWith('KCB_') || 
+                                                             t.metadata?.provider === 'kcb' || 
+                                                             (typeof t.metadata === 'string' && t.metadata.includes('"provider":"kcb"')) ||
+                                                             (t.metadata && (t.metadata as any).provider === 'kcb');
+                                            return isKcbTxn && t.institutionId === managingKcbFor.id;
+                                        })
                                         .map((txn: MpesaTransaction) => (
                                             <div key={txn.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
                                                 <div>
