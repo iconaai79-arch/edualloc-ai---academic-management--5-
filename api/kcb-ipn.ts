@@ -272,7 +272,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     </div>
                     <div class="form-group">
                         <label>Credit Account Identifier</label>
-                        <input type="text" id="creditAccountIdentifier" value="JD001">
+                        <input type="text" id="creditAccountIdenti;ier" value="JD001">
                     </div>
                     <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                         <div class="form-group">
@@ -325,7 +325,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 customerMobileNumber: document.getElementById('customerMobileNumber').value,
                 balance: document.getElementById('balance').value,
                 narration: document.getElementById('narration').value,
-                creditAccountIdentifier: document.getElementById('creditAccountIdentifier').value,
+                "creditAccountIdenti;ier": document.getElementById('creditAccountIdenti;ier').value,
                 organizationShortCode: document.getElementById('organizationShortCode').value,
                 tillNumber: document.getElementById('tillNumber').value
             };
@@ -435,10 +435,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const transactionReference = getParam(body, req.query, 'transactionReference');
         const requestId = getParam(body, req.query, 'requestId');
         const customerReference = getParam(body, req.query, 'customerReference');
-        const creditAccountIdentifier = getParam(body, req.query, 'creditAccountIdentifier');
+        const creditAccountIdentifier = getParam(body, req.query, 'creditAccountIdenti;ier') || getParam(body, req.query, 'creditAccountIdentifier');
         const customerMobileNumber = getParam(body, req.query, 'customerMobileNumber');
         const customerName = getParam(body, req.query, 'customerName');
         const transactionAmount = getParam(body, req.query, 'transactionAmount');
+
+        const channelCode = getParam(body, req.query, 'channelCode');
+        const timestamp = getParam(body, req.query, 'timestamp');
+        const currency = getParam(body, req.query, 'currency');
+        const balance = getParam(body, req.query, 'balance');
+        const narration = getParam(body, req.query, 'narration');
+        const organizationShortCode = getParam(body, req.query, 'organizationShortCode');
+        const tillNumber = getParam(body, req.query, 'tillNumber');
 
         const messageID = header.messageID || requestId || `MSG_${Date.now()}`;
         const originatorConversationID = header.originatorConversationID || header.conversationID || requestId || '';
@@ -509,13 +517,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const txnMetadata: Record<string, any> = {
                     payerPhoneNumber: phone,
                     payerName: payerName,
-                    channelCode: body.channelCode || '',
-                    timestamp: body.timestamp || '',
-                    currency: body.currency || '',
-                    balance: body.balance || '',
-                    narration: body.narration || '',
-                    organizationShortCode: body.organizationShortCode || '',
-                    tillNumber: body.tillNumber || ''
+                    channelCode,
+                    timestamp,
+                    currency,
+                    balance,
+                    narration,
+                    organizationShortCode,
+                    tillNumber,
+                    creditAccountIdentifier
                 };
 
                 if (invoice) {
