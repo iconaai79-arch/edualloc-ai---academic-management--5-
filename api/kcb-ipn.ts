@@ -68,40 +68,100 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (logError) console.warn('[KCB IPN] Failed to log IPN:', logError);
 
+        // Support both KCB nested structure and flat structure
         const header = body.header || {};
-        const messageID = header.messageID || `MSG_${Date.now()}`;
-        const originatorConversationID = header.originatorConversationID || header.conversationID || '';
         const primaryData = body.requestPayload?.primaryData || {};
-        const businessKey = primaryData.businessKey || '';
-
         const additionalData = body.requestPayload?.additionalData || {};
         const notificationData = additionalData.notificationData || {};
 
-        const transactionID = notificationData.transactionID || businessKey || `KCB_IPN_${Date.now()}`;
-        const amount = parseFloat(notificationData.transactionAmt || '0');
-        const phone = notificationData.debitMSISDN || '';
-        const payerName = `${notificationData.firstName || ''} ${notificationData.lastName || ''}`.trim();
+        const messageID = header.messageID || body.requestId || `MSG_${Date.now()}`;
+        const originatorConversationID = header.originatorConversationID || header.conversationID || body.requestId || '';
+        
+        // Flat format key fields
+        const transactionReference = body.transactionReference || '';
+        const customerReference = body.customerReference || '';
+        const creditAccountIdentifier = body.creditAccountIdentifier || '';
+        const customerMobileNumber = body.customerMobileNumber || '';
+        const customerName = body.customerName || '';
+        const transactionAmount = body.transactionAmount || '';
+
+        const businessKey = primaryData.businessKey || customerReference || '';
+
+        const transactionID = transactionReference || notificationData.transactionID || businessKey || `KCB_IPN_${Date.now()}`;
+        const amount = parseFloat(transactionAmount || notificationData.transactionAmt || '0');
+        const phone = customerMobileNumber || notificationData.debitMSISDN || '';
+        const payerName = customerName || `${notificationData.firstName || ''} ${notificationData.lastName || ''}`.trim();
 
         // 1. Locate matching transaction
         const lookupKey = businessKey || originatorConversationID || '';
-        let { data: transaction } = await supabase
-            .from('mpesa_transactions')
-            .select('*')
-            .or(`checkout_request_id.eq.${lookupKey},transaction_id.eq.${transactionID}`)
-            .maybeSingle();
+        let transaction: any = null;
+        if (lookupKey || transactionID) {
+            const { data } = await supabase
+                .from('mpesa_transactions')
+                .select('*')
+                .or(`checkout_request_id.eq.${lookupKey},transaction_id.eq.${transactionID}`)
+                .maybeSingle();
+            transaction = data;
+        }
 
-        // 2. If no transaction, check if businessKey corresponds to institution ID or code (C2B Paybill fallback)
+        // 2. If no transaction, check if customerReference or businessKey corresponds to invoice or institution (C2B Paybill fallback)
         let inst: any = null;
-        if (!transaction && businessKey && amount > 0) {
-            const { data: instById } = await supabase.from('institutions').select('*').eq('id', businessKey).maybeSingle();
-            inst = instById;
-            if (!inst) {
-                const { data: instByCode } = await supabase.from('institutions').select('*').eq('code', businessKey).maybeSingle();
-                inst = instByCode;
+        let invoice: any = null;
+        if (!transaction && amount > 0) {
+            // Check if customerReference is an invoice number
+            if (customerReference) {
+                const { data: invoiceData } = await supabase
+                    .from('invoices')
+                    .select('*')
+                    .eq('invoice_number', customerReference)
+                    .maybeSingle();
+                invoice = invoiceData;
+                if (invoice) {
+                    const { data: instData } = await supabase
+                        .from('institutions')
+                        .select('*')
+                        .eq('id', invoice.institution_id)
+                        .maybeSingle();
+                    inst = instData;
+                }
+            }
+
+            // Fallback: check creditAccountIdentifier
+            if (!inst && creditAccountIdentifier) {
+                const { data: instById } = await supabase.from('institutions').select('*').eq('id', creditAccountIdentifier).maybeSingle();
+                inst = instById;
+                if (!inst) {
+                    const { data: instByCode } = await supabase.from('institutions').select('*').eq('code', creditAccountIdentifier).maybeSingle();
+                    inst = instByCode;
+                }
+            }
+
+            // Fallback: check customerReference (or businessKey) directly as institution ID/code
+            const directKey = customerReference || businessKey || '';
+            if (!inst && directKey) {
+                const { data: instById } = await supabase.from('institutions').select('*').eq('id', directKey).maybeSingle();
+                inst = instById;
+                if (!inst) {
+                    const { data: instByCode } = await supabase.from('institutions').select('*').eq('code', directKey).maybeSingle();
+                    inst = instByCode;
+                }
             }
 
             if (inst) {
                 // Insert transaction on the fly
+                const txnMetadata: Record<string, any> = {
+                    payerPhoneNumber: phone,
+                    payerName: payerName
+                };
+
+                if (invoice) {
+                    txnMetadata.type = 'invoice';
+                    txnMetadata.invoiceId = invoice.id;
+                } else {
+                    txnMetadata.type = 'sms'; // assume SMS units top-up for direct Paybill C2B payments
+                    txnMetadata.units = 0;
+                }
+
                 const { data: newTxn, error: insertErr } = await supabase.from('mpesa_transactions').insert({
                     id: `txn_${Date.now()}`,
                     transaction_id: transactionID,
@@ -111,12 +171,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     phone_number: phone,
                     status: 'completed',
                     provider: 'kcb',
-                    metadata: {
-                        type: 'sms', // assume SMS units top-up for direct Paybill C2B payments
-                        units: 0,
-                        payerPhoneNumber: phone,
-                        payerName: payerName
-                    }
+                    metadata: txnMetadata
                 }).select().single();
 
                 if (!insertErr && newTxn) {
@@ -279,6 +334,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             timestamp: new Date().toISOString()
                         });
                     }
+                } else if (type === 'invoice' && metadata.invoiceId) {
+                    await supabase.from('invoices').update({ status: 'paid' }).eq('id', metadata.invoiceId);
+
+                    await supabase.from('receipts').insert({
+                        id: `rec_inv_${Date.now()}`,
+                        receipt_number: transactionID || `REC-INV-${Date.now().toString().slice(-6)}`,
+                        institution_id: instId || 'SYSTEM',
+                        invoice_id: metadata.invoiceId,
+                        amount_paid: amt,
+                        payment_date: new Date().toISOString().split('T')[0],
+                        payment_method: 'KCB IPN',
+                        related_transaction_id: transaction.id
+                    });
+
+                    if (metadata.requesterId) {
+                        await supabase.from('app_notifications').insert({
+                            id: `ntf_inv_${Date.now()}`,
+                            user_id: metadata.requesterId,
+                            message: `Invoice payment successful via KCB! Ref: ${transactionID}.`,
+                            type: 'success',
+                            is_read: false,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
                 }
 
                 // Mark transaction as reconciled (setting reconciled: true in metadata)
@@ -324,7 +403,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
-        // Acknowledge receipt to KCB strictly following the expected KCBIPNResponse schema
+        // Acknowledge receipt to KCB
+        if (body.transactionReference || body.requestId) {
+            return res.status(200).json({
+                transactionID: transactionID,
+                statusCode: 0,
+                statusMessage: "Notification received"
+            });
+        }
+
         return res.status(200).json({
             header: {
                 messageID,
