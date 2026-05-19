@@ -15,7 +15,7 @@ import type {
     LawAgreement, LawAgreementTemplate, LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction,
     DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings,
     CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry, MarketingProspect, BankTransaction,
-    PoliticalParty, Constituency, Ward, FtpConfig, GoogleDriveConfig, ICDCode, KcbConfig
+    PoliticalParty, Constituency, Ward, FtpConfig, GoogleDriveConfig, ICDCode, KcbConfig, CoopB2bConfig
 } from '../types';
 import { TransactionsManager } from './TransactionsManager';
 import { DatabaseSettings } from './DatabaseSettings';
