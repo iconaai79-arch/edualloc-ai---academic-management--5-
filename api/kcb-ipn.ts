@@ -70,6 +70,304 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === 'OPTIONS') return res.status(200).end();
+
+    if (req.method === 'GET') {
+        res.setHeader('Content-Type', 'text/html');
+        return res.status(200).send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KCB IPN Integration Playground</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --panel-bg: rgba(22, 27, 34, 0.8);
+            --border-color: rgba(48, 54, 61, 0.8);
+            --primary: #2ea44f;
+            --primary-hover: #3fb950;
+            --text-main: #c9d1d9;
+            --text-muted: #8b949e;
+            --accent: #58a6ff;
+        }
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: radial-gradient(circle at top, #161b22, #0d1117);
+            color: var(--text-main);
+            margin: 0;
+            padding: 2rem;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        h1 {
+            font-weight: 800;
+            font-size: 2.2rem;
+            margin-top: 0;
+            background: linear-gradient(45deg, #58a6ff, #50e3c2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-align: center;
+            letter-spacing: -0.5px;
+        }
+        p.subtitle {
+            color: var(--text-muted);
+            text-align: center;
+            margin-top: -10px;
+            margin-bottom: 2rem;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 2rem;
+        }
+        .form-section, .result-section {
+            display: flex;
+            flex-direction: column;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+            font-weight: 600;
+        }
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: rgba(13, 17, 23, 0.6);
+            color: var(--text-main);
+            font-family: inherit;
+            box-sizing: border-box;
+            transition: all 0.2s ease;
+        }
+        input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.3);
+        }
+        button {
+            width: 100%;
+            padding: 1rem;
+            border: none;
+            border-radius: 8px;
+            background: var(--primary);
+            color: #ffffff;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 1rem;
+        }
+        button:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+        button:active {
+            transform: translateY(1px);
+        }
+        pre {
+            background: rgba(13, 17, 23, 0.8);
+            border: 1px solid var(--border-color);
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            flex-grow: 1;
+            margin: 0;
+            min-height: 200px;
+        }
+        .footer {
+            margin-top: 2rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+        .badge {
+            background: rgba(88, 166, 255, 0.1);
+            color: var(--accent);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>KCB IPN Integration Playground</h1>
+        <p class="subtitle">Interactive sandbox client for KCB Instant Payment Notifications</p>
+        
+        <div class="grid">
+            <div class="form-section">
+                <h3>Request Payload</h3>
+                <form id="ipnForm">
+                    <div class="form-group">
+                        <label>Transaction Reference</label>
+                        <input type="text" id="transactionReference" value="FT00026252">
+                    </div>
+                    <div class="form-group">
+                        <label>Request ID</label>
+                        <input type="text" id="requestId" value="c7d702cb-6b5f-4fa6-8b57-436d0f789017">
+                    </div>
+                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label>Channel Code</label>
+                            <input type="text" id="channelCode" value="202">
+                        </div>
+                        <div class="form-group">
+                            <label>Timestamp</label>
+                            <input type="text" id="timestamp" value="2021111103005">
+                        </div>
+                    </div>
+                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label>Transaction Amount</label>
+                            <input type="text" id="transactionAmount" value="100.00">
+                        </div>
+                        <div class="form-group">
+                            <label>Currency</label>
+                            <input type="text" id="currency" value="KES">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Customer Reference</label>
+                        <input type="text" id="customerReference" value="INV-0001">
+                    </div>
+                    <div class="form-group">
+                        <label>Customer Name</label>
+                        <input type="text" id="customerName" value="John Doe">
+                    </div>
+                    <div class="form-group">
+                        <label>Customer Mobile Number</label>
+                        <input type="text" id="customerMobileNumber" value="25471111111">
+                    </div>
+                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label>Balance</label>
+                            <input type="text" id="balance" value="100000.00">
+                        </div>
+                        <div class="form-group">
+                            <label>Narration</label>
+                            <input type="text" id="narration" value="Payment for goods">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Credit Account Identifier</label>
+                        <input type="text" id="creditAccountIdentifier" value="JD001">
+                    </div>
+                    <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label>Organization Short Code</label>
+                            <input type="text" id="organizationShortCode" value="777777">
+                        </div>
+                        <div class="form-group">
+                            <label>Till Number</label>
+                            <input type="text" id="tillNumber" value="150150">
+                        </div>
+                    </div>
+                    <button type="submit" id="btnSend">Trigger POST Notification</button>
+                </form>
+            </div>
+            
+            <div class="result-section">
+                <h3>Live Server Response <span class="badge" id="statusCodeBadge">Idle</span></h3>
+                <pre id="responseOutput">// Response from the API will be shown here after triggering the POST notification</pre>
+            </div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        Eduai Automation Integration Portal &bull; KCB IPN Protocol v2.4
+    </div>
+
+    <script>
+        document.getElementById('ipnForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btnSend');
+            const resBox = document.getElementById('responseOutput');
+            const badge = document.getElementById('statusCodeBadge');
+            
+            btn.disabled = true;
+            btn.innerText = 'Sending Notification...';
+            resBox.innerText = 'Waiting for response...';
+            badge.innerText = 'Pending';
+            badge.style.background = 'rgba(255, 170, 0, 0.1)';
+            badge.style.color = '#ffaa00';
+
+            const payload = {
+                transactionReference: document.getElementById('transactionReference').value,
+                requestId: document.getElementById('requestId').value,
+                channelCode: document.getElementById('channelCode').value,
+                timestamp: document.getElementById('timestamp').value,
+                transactionAmount: document.getElementById('transactionAmount').value,
+                currency: document.getElementById('currency').value,
+                customerReference: document.getElementById('customerReference').value,
+                customerName: document.getElementById('customerName').value,
+                customerMobileNumber: document.getElementById('customerMobileNumber').value,
+                balance: document.getElementById('balance').value,
+                narration: document.getElementById('narration').value,
+                creditAccountIdentifier: document.getElementById('creditAccountIdentifier').value,
+                organizationShortCode: document.getElementById('organizationShortCode').value,
+                tillNumber: document.getElementById('tillNumber').value
+            };
+
+            try {
+                const response = await fetch(window.location.pathname + window.location.search, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const status = response.status;
+                const data = await response.json();
+                
+                badge.innerText = 'HTTP ' + status;
+                if (response.ok) {
+                    badge.style.background = 'rgba(63, 185, 80, 0.1)';
+                    badge.style.color = '#3fb950';
+                } else {
+                    badge.style.background = 'rgba(248, 81, 73, 0.1)';
+                    badge.style.color = '#f85149';
+                }
+                
+                resBox.innerText = JSON.stringify(data, null, 4);
+            } catch (err) {
+                badge.innerText = 'Network Error';
+                badge.style.background = 'rgba(248, 81, 73, 0.1)';
+                badge.style.color = '#f85149';
+                resBox.innerText = 'Failed to connect to endpoint: ' + err.message;
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Trigger POST Notification';
+            }
+        });
+    </script>
+</body>
+</html>
+`);
+    }
+
     if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
 
     console.log('--- KCB IPN Received ---');
