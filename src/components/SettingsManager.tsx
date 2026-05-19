@@ -339,6 +339,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [saveInstSmsStatus, setSaveInstSmsStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const [isSavingInstGateways, setIsSavingInstGateways] = useState(false);
     const [saveInstGatewaysStatus, setSaveInstGatewaysStatus] = useState<'idle' | 'success' | 'error'>('idle');
+    const [instSmsTestPhone, setInstSmsTestPhone] = useState('');
+    const [isTestingInstSms, setIsTestingInstSms] = useState(false);
 
     const [isTestingStk, setIsTestingStk] = useState(false);
     const [isTestingNcba, setIsTestingNcba] = useState(false);
@@ -773,6 +775,32 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             alert('Error sending test SMS: ' + error.message);
         } finally {
             setIsSavingConfigs(false);
+        }
+    };
+
+    const handleSendInstTestSms = async () => {
+        if (!instSmsTestPhone.trim()) {
+            alert('Please enter a recipient phone number.');
+            return;
+        }
+        setIsTestingInstSms(true);
+        try {
+            const res = await apiService.sendSms(
+                instSmsTestPhone.trim(), 
+                "Test message from EduAi Institution SMS Gateway.", 
+                localInstSmsConfig,
+                1,
+                props.currentInstitution?.id
+            );
+            if (res.success) {
+                alert('Test SMS sent successfully.');
+            } else {
+                alert(`Failed to send test SMS: ${res.message || 'Please check your configurations.'}`);
+            }
+        } catch (error: any) {
+            alert('Error sending test SMS: ' + error.message);
+        } finally {
+            setIsTestingInstSms(false);
         }
     };
 
@@ -3467,6 +3495,25 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             {(localInstSmsConfig.params || []).length === 0 && (
                                                 <p className="text-[10px] text-slate-400 uppercase font-medium italic py-2 ml-1">No custom parameters defined.</p>
                                             )}
+                                        </div>
+                                    </div>
+                                    <div className="md:col-span-2 pt-6 border-t border-slate-100 dark:border-slate-700">
+                                        <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-3">Test SMS Delivery</h4>
+                                        <div className="flex items-center gap-3 max-w-md">
+                                            <input
+                                                type="text"
+                                                placeholder="Recipient Phone (e.g. 2547XXXXXXXX)"
+                                                value={instSmsTestPhone}
+                                                onChange={e => setInstSmsTestPhone(e.target.value)}
+                                                className="flex-1 h-10 px-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold focus:ring-2 focus:ring-indigo-500"
+                                            />
+                                            <button
+                                                onClick={handleSendInstTestSms}
+                                                disabled={isTestingInstSms}
+                                                className="h-10 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50 transition-all shadow-md"
+                                            >
+                                                {isTestingInstSms ? 'Sending...' : 'Test Gateway'}
+                                            </button>
                                         </div>
                                     </div>
                                 </div>

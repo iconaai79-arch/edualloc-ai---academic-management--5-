@@ -605,6 +605,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [tenantSmsAdjustment, setTenantSmsAdjustment] = useState<{ amount: number; reason: string }>({ amount: 0, reason: '' });
     const [isSavingTenantConfig, setIsSavingTenantConfig] = useState(false);
     const [isTestingFtp, setIsTestingFtp] = useState(false);
+    const [tenantSmsTestPhone, setTenantSmsTestPhone] = useState('');
+    const [isTestingTenantSms, setIsTestingTenantSms] = useState(false);
     const [generatedAdverts, setGeneratedAdverts] = useState<any[]>([
         { 
             id: 'ds_v2', 
@@ -652,6 +654,32 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             toastError(e.message || 'Failed to generate advert');
         } finally {
             setIsGeneratingAdvert(false);
+        }
+    };
+
+    const handleSendTenantTestSms = async () => {
+        if (!tenantSmsTestPhone.trim()) {
+            alert('Please enter a recipient phone number.');
+            return;
+        }
+        setIsTestingTenantSms(true);
+        try {
+            const res = await apiService.sendSms(
+                tenantSmsTestPhone.trim(), 
+                "Test message from SuperAdmin Tenant SMS Gateway configuration.", 
+                tenantSmsConfig,
+                1,
+                managingGatewayFor?.id
+            );
+            if (res.success) {
+                alert('Test SMS sent successfully.');
+            } else {
+                alert(`Failed to send test SMS: ${res.message || 'Please check configurations.'}`);
+            }
+        } catch (error: any) {
+            alert('Error sending test SMS: ' + error.message);
+        } finally {
+            setIsTestingTenantSms(false);
         }
     };
 
@@ -5681,6 +5709,25 @@ Please change it after login.`;
                                             </div>
                                         ))}
                                     </div>
+                                </div>
+                            </div>
+                            <div className="p-4 bg-slate-100 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800/80 space-y-2">
+                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Test SMS Delivery</label>
+                                <div className="flex items-center gap-3">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Phone (e.g. 2547XXXXXXXX)"
+                                        value={tenantSmsTestPhone}
+                                        onChange={e => setTenantSmsTestPhone(e.target.value)}
+                                        className="flex-1 h-10 px-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold focus:ring-2 focus:ring-purple-500"
+                                    />
+                                    <button 
+                                        onClick={handleSendTenantTestSms}
+                                        disabled={isTestingTenantSms}
+                                        className="h-10 px-5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50 transition-all shadow-md"
+                                    >
+                                        {isTestingTenantSms ? 'Sending...' : 'Test'}
+                                    </button>
                                 </div>
                             </div>
                             <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-2xl border border-purple-100 dark:border-purple-800">
