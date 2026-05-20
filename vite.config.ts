@@ -17,20 +17,11 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
-      'process.env.NODE_ENV': JSON.stringify(mode),
       'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
       'process.env.GEMINI_API_KEY': JSON.stringify(process.env.GEMINI_API_KEY),
       'process.env.SUPABASE_URL': JSON.stringify(process.env.SUPABASE_URL),
       'process.env.SUPABASE_ANON_KEY': JSON.stringify(process.env.SUPABASE_ANON_KEY),
-      'process.env.DATABASE_URL': JSON.stringify(process.env.DATABASE_URL),
-      'process.env': {
-        NODE_ENV: JSON.stringify(mode),
-        API_KEY: JSON.stringify(process.env.API_KEY),
-        GEMINI_API_KEY: JSON.stringify(process.env.GEMINI_API_KEY),
-        SUPABASE_URL: JSON.stringify(process.env.SUPABASE_URL),
-        SUPABASE_ANON_KEY: JSON.stringify(process.env.SUPABASE_ANON_KEY),
-        DATABASE_URL: JSON.stringify(process.env.DATABASE_URL)
-      }
+      'process.env.DATABASE_URL': JSON.stringify(process.env.DATABASE_URL)
     },
     server: {
       proxy: {}
