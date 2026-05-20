@@ -619,6 +619,11 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         return isSchoolInstitution(props.currentInstitution);
     }, [props.currentInstitution]);
 
+    // Higher-ed institutions that can optionally host a Driving School module
+    const isHigherEd = useMemo(() => {
+        return isHigherEdInstitution(props.currentInstitution);
+    }, [props.currentInstitution]);
+
     const isRetailAgency = useMemo(() => {
         if (props.currentInstitution?.institutionType === 'Church' || props.currentInstitution?.institutionType === 'Hospitality' || props.currentInstitution?.institutionType === 'Car Showroom' || isAutoMarket) return false;
         const subType = props.currentInstitution?.businessSubType || '';
@@ -809,6 +814,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         logisticsTabs.push('transport', 'logistics');
                     }
                     return logisticsTabs.includes(tab.id);
+                }
+                // Driving School sub-module within a higher-ed institution
+                if (activeScope === 'ds') {
+                    return ['driving_school', 'settings', 'reports'].includes(tab.id);
                 }
             }
 
@@ -1266,6 +1275,43 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                 <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">Security & Gate</h3>
                                                 <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
                                                     Log school visitors, check staff/student gate check-in activity registries, and coordinate campus guard rotations.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Card 7: Driving School Module — only for higher-ed (Polytechnic/Institute/TVET/College) */}
+                            {isHigherEd && (() => {
+                                const isActive = isModuleActive('driving_school');
+                                return (
+                                    <div
+                                        onClick={() => {
+                                            if (!isActive) {
+                                                alert("The Driving School module is currently inactive. Please activate it under Config -> Subscription to access these features.");
+                                                return;
+                                            }
+                                            setActiveScope('ds');
+                                            setActiveTab('driving_school');
+                                        }}
+                                        className={`group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-sky-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px] ${!isActive ? 'opacity-60 saturate-50 hover:border-slate-300 dark:hover:border-slate-700' : ''}`}
+                                    >
+                                        {!isActive && (
+                                            <div className="absolute top-6 right-6 px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-700 text-[9px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 z-20">
+                                                <svg className="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                Locked
+                                            </div>
+                                        )}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/5 dark:bg-sky-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                                        <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
+                                            <div className="p-4 bg-sky-500 text-white rounded-2xl w-fit shadow-lg shadow-sky-100 dark:shadow-none">
+                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 11-1 1h-3" /></svg>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">Driving School</h3>
+                                                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
+                                                    Manage student learners, driving instructors, lesson schedules, fleet vehicles, and collect driving school fees.
                                                 </p>
                                             </div>
                                         </div>
