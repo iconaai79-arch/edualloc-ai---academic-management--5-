@@ -22,3 +22,22 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Temp / debug files
+tmp/
+scratch/
+ts_errors*.txt
+ts_errors*.log
+tsc_errors*.log
+tsc_errors*.txt
+tsc_output.txt
+build.log
+build_error.log
+build_latest.log
+tmp_dbg_api.*
+test_phone.js
+test_pm.js
+test_tenant.js
+test_tenant.mjs
+check_schema.js
+fix.cjs
