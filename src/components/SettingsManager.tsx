@@ -9,7 +9,7 @@ import type {
     CompanyDetails, MpesaConfig, SubscriptionConfig, ScheduleProfile,
     TimetableConstraint, TimetableConstraintType, Break, TimetablePeriod, AcademicLevel,
     TeacherLogicRule, TeacherRuleType, Invoice, Receipt, NcbaConfig, FtpConfig, GoogleDriveConfig,
-    DSSettings, DSFeeStructure
+    DSSettings, DSFeeStructure, KcbConfig, CoopB2bConfig
 } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
 import { AcademicYearManager } from './AcademicYearManager';
@@ -226,7 +226,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
     const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_settings' | 'security_policy' | 'location' | 'branding' | 'grading' | 'billing' | 'integrations' | 'sms' | 'email' | 'farmer_billing'>('profile');
     const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'integrations' | 'showcase' | 'storage' | 'googledrive'>('profile');
-    const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'ncba'>('mpesa');
+    const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'ncba' | 'kcb' | 'coop'>('mpesa');
     const [instIntegrationTab, setInstIntegrationTab] = useState<'mpesa' | 'ncba' | 'googledrive'>('mpesa');
     const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>(isDS ? 'buildings' : 'departments');
     const [dsConfigSubTab, setDsConfigSubTab] = useState<'business_rules' | 'license_category' | 'vote_heads'>('business_rules');
@@ -633,6 +633,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [localSubConfig, setLocalSubConfig] = useState<SubscriptionConfig>(props.companyDetails?.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
     const [localFtpConfig, setLocalFtpConfig] = useState<FtpConfig>(props.companyDetails?.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
     const [localGoogleDriveConfig, setLocalGoogleDriveConfig] = useState<GoogleDriveConfig>(props.companyDetails?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false });
+    const [localKcbConfig, setLocalKcbConfig] = useState<KcbConfig>(props.companyDetails?.kcbConfig || { appKey: '', appSecret: '', environment: 'sandbox' });
+    const [localCoopConfig, setLocalCoopConfig] = useState<CoopB2bConfig>(props.companyDetails?.coopConfig || { serviceName: 'KEWISCO SACCO', connectionID: 'TEST', connectionPassword: 'CoopTest', institutionCode: '210001918' });
 
     const [isSavingConfigs, setIsSavingConfigs] = useState(false);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -665,6 +667,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             setLocalSubConfig(props.companyDetails.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
             setLocalFtpConfig(props.companyDetails.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
             setLocalGoogleDriveConfig(props.companyDetails.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false });
+            setLocalKcbConfig(props.companyDetails.kcbConfig || { appKey: '', appSecret: '', environment: 'sandbox' });
+            setLocalCoopConfig(props.companyDetails.coopConfig || { serviceName: 'KEWISCO SACCO', connectionID: 'TEST', connectionPassword: 'CoopTest', institutionCode: '210001918' });
         }
     }, [props.companyDetails]);
 
@@ -693,6 +697,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 subscriptionConfig: localSubConfig,
                 ftpConfig: localFtpConfig,
                 googleDriveConfig: localGoogleDriveConfig,
+                kcbConfig: localKcbConfig,
+                coopConfig: localCoopConfig,
                 enforceGlobalOtp: localCompanyInfo.enforceGlobalOtp,
                 chatAssistantConfig: {
                     ...props.companyDetails.chatAssistantConfig,
@@ -1681,28 +1687,42 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         </div>
                                     </div>
 
-                                    <div className="flex bg-slate-100 dark:bg-slate-700 p-1.5 rounded-2xl shadow-inner">
-                                        <button
-                                            onClick={() => setBillingSubTab('mpesa')}
-                                            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${billingSubTab === 'mpesa' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
-                                        >
-                                            M-Pesa
-                                        </button>
+                                    <div className="flex bg-slate-100 dark:bg-slate-700 p-1.5 rounded-2xl shadow-inner overflow-x-auto no-scrollbar max-w-full">
+                                         <button
+                                             onClick={() => setBillingSubTab('mpesa')}
+                                             className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${billingSubTab === 'mpesa' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                                         >
+                                             M-Pesa
+                                         </button>
 
-                                        <button
-                                            onClick={() => setBillingSubTab('ncba')}
-                                            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${billingSubTab === 'ncba' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
-                                        >
-                                            NCBA Bank
-                                        </button>
+                                         <button
+                                             onClick={() => setBillingSubTab('ncba')}
+                                             className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${billingSubTab === 'ncba' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                                         >
+                                             NCBA Bank
+                                         </button>
 
-                                        <button
-                                            onClick={() => setBillingSubTab('gateways')}
-                                            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${billingSubTab === 'gateways' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
-                                        >
-                                            Control
-                                        </button>
-                                    </div>
+                                         <button
+                                             onClick={() => setBillingSubTab('kcb')}
+                                             className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${billingSubTab === 'kcb' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                                         >
+                                             KCB
+                                         </button>
+
+                                         <button
+                                             onClick={() => setBillingSubTab('coop')}
+                                             className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${billingSubTab === 'coop' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                                         >
+                                             Co-op B2B
+                                         </button>
+
+                                         <button
+                                             onClick={() => setBillingSubTab('gateways')}
+                                             className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${billingSubTab === 'gateways' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                                         >
+                                             Control
+                                         </button>
+                                     </div>
                                 </div>
 
                                 {billingSubTab === 'mpesa' && (
@@ -1861,6 +1881,185 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         </div>
                                         <div className="flex justify-end p-4">
                                             <button onClick={handleSaveGlobalConfigs} className="btn-primary h-12 px-10">Save Global Integration Map</button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {billingSubTab === 'kcb' && (
+                                    <div className="animate-fade-in space-y-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                                                <div className="flex items-center gap-4 mb-6">
+                                                    <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl">
+                                                        <span className="w-6 h-6 text-indigo-600 font-black text-center block">K</span>
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-sm font-black uppercase tracking-widest">KCB Bank Credentials</h4>
+                                                        <p className="text-[10px] font-bold text-slate-400">API gateway credential keys</p>
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">KCB App Key</label>
+                                                        <input
+                                                            type="text"
+                                                            value={localKcbConfig.appKey}
+                                                            onChange={e => setLocalKcbConfig({ ...localKcbConfig, appKey: e.target.value })}
+                                                            className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                            placeholder="Enter KCB App Key"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">KCB App Secret</label>
+                                                        <input
+                                                            type="password"
+                                                            value={localKcbConfig.appSecret}
+                                                            onChange={e => setLocalKcbConfig({ ...localKcbConfig, appSecret: e.target.value })}
+                                                            className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                            placeholder="Enter KCB App Secret"
+                                                        />
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Short Code (Paybill)</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localKcbConfig.shortCode || ''}
+                                                                onChange={e => setLocalKcbConfig({ ...localKcbConfig, shortCode: e.target.value })}
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                                placeholder="e.g. 123456"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Environment</label>
+                                                            <select
+                                                                value={localKcbConfig.environment}
+                                                                onChange={e => setLocalKcbConfig({ ...localKcbConfig, environment: e.target.value as any })}
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-indigo-500 transition-all text-slate-900 dark:text-white"
+                                                            >
+                                                                <option value="sandbox">Sandbox (Test)</option>
+                                                                <option value="production">Production (Live)</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+                                                <div className="space-y-4">
+                                                    <div className="flex items-center gap-4 mb-4">
+                                                        <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl">
+                                                            <span className="w-6 h-6 text-indigo-600 font-black text-center block">ℹ</span>
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-sm font-black uppercase tracking-widest">KCB API Gateway Specs</h4>
+                                                            <p className="text-[10px] font-bold text-slate-400">REST integration endpoints</p>
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                        KCB Bank Instant Payment Notification callback is served locally at `/api/kcb-ipn`. Ensure KCB Sandbox/Production portal has the callback URL pointed here.
+                                                    </p>
+                                                    <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors" title="Click to copy">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">KCB Callback URL</p>
+                                                        <code className="text-xs font-mono text-indigo-600 dark:text-indigo-400 break-all">
+                                                            {typeof window !== 'undefined' ? `${window.location.origin}/api/kcb-ipn` : 'https://yourdomain.com/api/kcb-ipn'}
+                                                        </code>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex justify-end pt-4">
+                                            <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-14 shadow-indigo-200 uppercase tracking-widest text-xs w-full sm:w-auto">Confirm KCB Configuration</button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {billingSubTab === 'coop' && (
+                                    <div className="animate-fade-in space-y-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                                                <div className="flex items-center gap-4 mb-6">
+                                                    <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl">
+                                                        <span className="w-6 h-6 text-emerald-600 font-black text-center block">C</span>
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-sm font-black uppercase tracking-widest">Co-op Bank B2B Credentials</h4>
+                                                        <p className="text-[10px] font-bold text-slate-400">Gateway Authentication settings</p>
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Service Name</label>
+                                                        <input
+                                                            type="text"
+                                                            value={localCoopConfig.serviceName}
+                                                            onChange={e => setLocalCoopConfig({ ...localCoopConfig, serviceName: e.target.value })}
+                                                            className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-emerald-500 transition-all text-slate-900 dark:text-white"
+                                                            placeholder="Enter Service Name"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Connection ID (Username)</label>
+                                                        <input
+                                                            type="text"
+                                                            value={localCoopConfig.connectionID}
+                                                            onChange={e => setLocalCoopConfig({ ...localCoopConfig, connectionID: e.target.value })}
+                                                            className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-emerald-500 transition-all text-slate-900 dark:text-white"
+                                                            placeholder="Enter Connection ID"
+                                                        />
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Connection Password</label>
+                                                            <input
+                                                                type="password"
+                                                                value={localCoopConfig.connectionPassword}
+                                                                onChange={e => setLocalCoopConfig({ ...localCoopConfig, connectionPassword: e.target.value })}
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-emerald-500 transition-all text-slate-900 dark:text-white"
+                                                                placeholder="Password"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Institution Code</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localCoopConfig.institutionCode}
+                                                                onChange={e => setLocalCoopConfig({ ...localCoopConfig, institutionCode: e.target.value })}
+                                                                className="w-full h-12 px-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs font-bold focus:ring-2 focus:ring-emerald-500 transition-all text-slate-900 dark:text-white"
+                                                                placeholder="Institution Code"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+                                                <div className="space-y-4">
+                                                    <div className="flex items-center gap-4 mb-4">
+                                                        <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl">
+                                                            <span className="w-6 h-6 text-emerald-600 font-black text-center block">ℹ</span>
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-sm font-black uppercase tracking-widest">Co-op Gateway Specs</h4>
+                                                            <p className="text-[10px] font-bold text-slate-400">REST integration endpoints</p>
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                        Co-operative Bank B2B Standard API handles both **Customer Validation** and **Payment Advice** notifications over a single endpoint `/api/coop-b2b`.
+                                                    </p>
+                                                    <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 select-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors" title="Click to copy">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Validation & Advice Endpoint</p>
+                                                        <code className="text-xs font-mono text-emerald-600 dark:text-emerald-400 break-all">
+                                                            {typeof window !== 'undefined' ? `${window.location.origin}/api/coop-b2b` : 'https://yourdomain.com/api/coop-b2b'}
+                                                        </code>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex justify-end pt-4">
+                                            <button onClick={handleSaveGlobalConfigs} className="btn-primary bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 px-10 h-14 shadow-emerald-200 uppercase tracking-widest text-xs w-full sm:w-auto border-emerald-500">Confirm Co-op Configuration</button>
                                         </div>
                                     </div>
                                 )}
