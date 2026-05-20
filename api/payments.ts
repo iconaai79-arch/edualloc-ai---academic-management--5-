@@ -293,16 +293,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
+                    // Buni API Format parameters
+                    phoneNumber: phoneNumber,
+                    amount: String(Math.round(amount)),
+                    invoiceNumber: accountReference || transactionReference || `INV_${Date.now()}`,
+                    sharedShortCode: kcbConfig.sharedShortCode !== undefined ? kcbConfig.sharedShortCode : true,
+                    orgShortCode: shortCode || '522533',
+                    orgPassKey: passkey || '',
+                    callbackUrl: kcbConfig.callbackUrl || `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}/api/mpesa-callback`,
+                    transactionDescription: transactionDesc || 'Payment',
+
+                    // Original/Other KCB Format parameters (for backward compatibility)
                     transactionReference: transactionReference || accountReference || `TXN_${Date.now()}`,
                     requestId: requestId || `req_${Date.now()}`,
                     channelCode: channelCode || '202',
                     timestamp: timestamp,
-                    transactionAmount: String(amount),
+                    transactionAmount: String(Math.round(amount)),
                     currency: currency || 'KES',
                     customerReference: accountReference || 'Payment',
                     customerName: customerName || 'Valued Customer',
                     customerMobileNumber: phoneNumber, // already normalized to 2547XXXXXXXX
-                    phoneNumber: phoneNumber, // Added for compatibility with standard KCB API
                     phone: phoneNumber, // Added for compatibility
                     balance: balance || '0.00',
                     narration: transactionDesc || 'Payment',

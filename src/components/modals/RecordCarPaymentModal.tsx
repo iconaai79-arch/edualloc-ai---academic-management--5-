@@ -21,7 +21,7 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
     const [selectedInvoice, setSelectedInvoice] = useState<CarInvoice | null>(invoice);
     const [formData, setFormData] = useState<Partial<CarPayment>>({
         amount: invoice ? Math.min(100000, invoice.balanceAmount) : 0,
-        paymentMethod: 'Bank Transfer',
+        paymentMethod: 'MPESA',
         transactionReference: '',
         notes: ''
     });
@@ -43,7 +43,7 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
         } else {
             setFormData(prev => ({
                 amount: 0,
-                paymentMethod: 'Bank Transfer',
+                paymentMethod: 'MPESA',
                 transactionReference: '',
                 notes: ''
             }));
@@ -77,25 +77,49 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
         setStkStatus('idle');
         setStkError(null);
         try {
-            const res = await apiService.triggerMpesaStkPush({
-                amount: formData.amount,
-                phoneNumber: stkPhone,
-                reference: selectedInvoice.invoiceNumber,
-                description: `Car Showroom Invoice ${selectedInvoice.invoiceNumber}`,
-                institutionId: selectedInvoice.institutionId
+            const res = await apiService.post('/api/payments/kcb-stk-push', {
+                customerMobileNumber: stkPhone,
+                transactionAmount: String(formData.amount),
+                customerReference: selectedInvoice.invoiceNumber,
+                customerName: selectedInvoice.clientName || 'Valued Customer',
+                narration: `Payment for Vehicle Invoice ${selectedInvoice.invoiceNumber}`,
+                creditAccountIdentifier: selectedInvoice.institutionId,
+                config: {}
             });
 
-            if (res.success) {
+            if (res.success || res.ResponseCode === '0') {
                 setStkStatus('prompt_sent');
-                const checkoutRequestId = res.checkoutRequestId || res.requestId;
-                if (!checkoutRequestId) {
-                    throw new Error("Missing checkout request identifier from gateway.");
-                }
+                const checkoutRequestId = res.CheckoutRequestID || res.checkoutRequestId || `KCB_CO_${Date.now()}`;
+                
+                // Save pending transaction to mpesa_transactions so that queryPaymentStatus backend can check it
+                await apiService.saveModuleRecord('mpesa_transactions', {
+                    id: `txn_${Date.now()}`,
+                    transactionId: checkoutRequestId,
+                    checkoutRequestId: checkoutRequestId,
+                    institutionId: selectedInvoice.institutionId,
+                    amount: Number(formData.amount),
+                    phoneNumber: stkPhone,
+                    payerName: selectedInvoice.clientName || 'Valued Customer',
+                    status: 'pending',
+                    provider: 'kcb',
+                    customer_reference: selectedInvoice.invoiceNumber,
+                    customer_name: selectedInvoice.clientName || 'Valued Customer',
+                    customer_mobile_number: stkPhone,
+                    balance: Number(formData.amount),
+                    narration: `Payment for Vehicle Invoice ${selectedInvoice.invoiceNumber}`,
+                    credit_account_identifier: selectedInvoice.institutionId,
+                    metadata: { 
+                        type: 'car_invoice', 
+                        invoiceId: selectedInvoice.id,
+                        requesterId: 'SYSTEM'
+                    },
+                    timestamp: new Date().toISOString()
+                });
 
                 // Poll for status
                 let confirmed = false;
                 let attempts = 0;
-                const maxAttempts = 20; // 20 * 3s = 60s
+                const maxAttempts = 24; // 24 * 5s = 120s
                 
                 const checkInterval = setInterval(async () => {
                     attempts++;
@@ -108,8 +132,8 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
                     }
 
                     try {
-                        const statusRes = await apiService.checkPaymentStatus('mpesa', checkoutRequestId);
-                        if (statusRes.success && (statusRes.status === 'completed' || statusRes.status === 'Completed' || statusRes.status === 'Success')) {
+                        const statusRes = await apiService.checkPaymentStatus('kcb', checkoutRequestId);
+                        if (statusRes.success && (statusRes.status === 'Completed' || statusRes.status === 'Success' || statusRes.status === 'completed' || statusRes.resultCode === '0')) {
                             confirmed = true;
                             clearInterval(checkInterval);
                             setFormData(prev => ({
@@ -119,7 +143,7 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
                             }));
                             setStkStatus('completed');
                             setIsStkPushing(false);
-                        } else if (statusRes.status === 'failed' || statusRes.status === 'Failed') {
+                        } else if (statusRes.status === 'Failed' || statusRes.status === 'failed' || statusRes.resultCode === '1') {
                             confirmed = true;
                             clearInterval(checkInterval);
                             setIsStkPushing(false);
@@ -129,7 +153,7 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
                     } catch (err: any) {
                         console.warn("Error polling payment status:", err);
                     }
-                }, 3000);
+                }, 5000);
             } else {
                 throw new Error(res.message || "Gateway rejected the push request.");
             }
@@ -137,7 +161,7 @@ export const RecordCarPaymentModal: React.FC<RecordCarPaymentModalProps> = ({ is
             console.error("STK Push error:", err);
             setIsStkPushing(false);
             setStkStatus('failed');
-            setStkError(err.message || "Failed to initiate M-Pesa STK push.");
+            setStkError(err.message || "Failed to initiate KCB STK push.");
         }
     };
 
