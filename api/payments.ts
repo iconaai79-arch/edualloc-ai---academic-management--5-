@@ -302,6 +302,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     customerReference: accountReference || 'Payment',
                     customerName: customerName || 'Valued Customer',
                     customerMobileNumber: phoneNumber, // already normalized to 2547XXXXXXXX
+                    phoneNumber: phoneNumber, // Added for compatibility with standard KCB API
+                    phone: phoneNumber, // Added for compatibility
                     balance: balance || '0.00',
                     narration: transactionDesc || 'Payment',
                     creditAccountIdentifier: creditAccountIdentifier || shortCode,
