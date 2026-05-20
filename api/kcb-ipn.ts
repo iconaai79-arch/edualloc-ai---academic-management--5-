@@ -272,7 +272,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     </div>
                     <div class="form-group">
                         <label>Credit Account Identifier</label>
-                        <input type="text" id="creditAccountIdenti;ier" value="JD001">
+                        <input type="text" id="creditAccountIdentifier" value="JD001">
                     </div>
                     <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                         <div class="form-group">
@@ -325,7 +325,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 customerMobileNumber: document.getElementById('customerMobileNumber').value,
                 balance: document.getElementById('balance').value,
                 narration: document.getElementById('narration').value,
-                "creditAccountIdenti;ier": document.getElementById('creditAccountIdenti;ier').value,
+                creditAccountIdentifier: document.getElementById('creditAccountIdentifier').value,
                 organizationShortCode: document.getElementById('organizationShortCode').value,
                 tillNumber: document.getElementById('tillNumber').value
             };
@@ -370,24 +370,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
 
-    console.log('--- KCB IPN Received ---');
-    console.log('Query:', JSON.stringify(req.query));
-    console.log('Body:', JSON.stringify(req.body));
-    
-    let body = req.body || {};
-    if (body && Buffer.isBuffer(body)) {
-        body = body.toString('utf-8');
-    }
-    if (typeof body === 'string') {
-        try {
-            body = JSON.parse(body);
-        } catch (e) {
-            console.error('[KCB IPN] Failed to parse stringified body:', e);
-            body = {};
+    // --- Robust body reading: handles Vercel raw body stream, pre-parsed body, Buffer, and string ---
+    let body: any = {};
+    try {
+        if (req.body !== undefined && req.body !== null) {
+            // Vercel has already parsed the body
+            if (Buffer.isBuffer(req.body)) {
+                body = JSON.parse(req.body.toString('utf-8'));
+            } else if (typeof req.body === 'string' && req.body.trim().length > 0) {
+                body = JSON.parse(req.body);
+            } else if (typeof req.body === 'object' && !Array.isArray(req.body)) {
+                body = req.body;
+            }
+        } else {
+            // req.body is undefined: manually read the raw stream
+            const rawChunks: Buffer[] = [];
+            await new Promise<void>((resolve, reject) => {
+                (req as any).on('data', (chunk: Buffer) => rawChunks.push(chunk));
+                (req as any).on('end', () => resolve());
+                (req as any).on('error', reject);
+            });
+            const rawBody = Buffer.concat(rawChunks).toString('utf-8').trim();
+            if (rawBody.length > 0) {
+                body = JSON.parse(rawBody);
+            }
         }
+    } catch (parseErr) {
+        console.error('[KCB IPN] Failed to parse request body:', parseErr);
+        body = {};
     }
 
-    // Handle form-urlencoded pasting issues where the entire JSON string is received as a key with an empty value
+    // Handle edge case: entire JSON pasted as a single form-urlencoded key with empty value
     if (body && typeof body === 'object' && !Array.isArray(body)) {
         const keys = Object.keys(body);
         if (keys.length === 1 && (body[keys[0]] === '' || body[keys[0]] === undefined) && keys[0].trim().startsWith('{')) {
@@ -403,11 +416,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         body = {};
     }
 
-    const hasQueryFields = req.query && Object.keys(req.query).length > 0;
-    const hasBodyFields = body && Object.keys(body).length > 0;
+    console.log('--- KCB IPN Received ---');
+    console.log('Query:', JSON.stringify(req.query));
+    console.log('Body:', JSON.stringify(body));
+
+    // Count meaningful payload fields (exclude routing params like institutionId)
+    const routingKeys = new Set(['institutionId']);
+    const queryPayloadKeys = req.query ? Object.keys(req.query).filter(k => !routingKeys.has(k)) : [];
+    const bodyPayloadKeys = body ? Object.keys(body) : [];
+    const hasQueryFields = queryPayloadKeys.length > 0;
+    const hasBodyFields = bodyPayloadKeys.length > 0;
 
     if (!hasQueryFields && !hasBodyFields) {
-        return res.status(400).json({ message: 'Missing or empty request payload' });
+        return res.status(400).json({
+            statusCode: 1,
+            statusMessage: 'Missing or empty request payload',
+            hint: 'Send a JSON body with at least transactionReference and transactionAmount fields.'
+        });
     }
 
     const supabase = getSupabase();
@@ -435,7 +460,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const transactionReference = getParam(body, req.query, 'transactionReference');
         const requestId = getParam(body, req.query, 'requestId');
         const customerReference = getParam(body, req.query, 'customerReference');
-        const creditAccountIdentifier = getParam(body, req.query, 'creditAccountIdenti;ier') || getParam(body, req.query, 'creditAccountIdentifier');
+        const creditAccountIdentifier = getParam(body, req.query, 'creditAccountIdentifier') || getParam(body, req.query, 'creditAccountIdenti;ier');
         const customerMobileNumber = getParam(body, req.query, 'customerMobileNumber');
         const customerName = getParam(body, req.query, 'customerName');
         const transactionAmount = getParam(body, req.query, 'transactionAmount');
@@ -851,33 +876,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
-        // Acknowledge receipt to KCB
-        if (transactionReference || requestId) {
-            return res.status(200).json({
-                transactionID: transactionID,
-                statusCode: 0,
-                statusMessage: "Notification received",
-                debug: {
-                    receivedPayload: {
-                        transactionReference,
-                        requestId,
-                        channelCode,
-                        timestamp,
-                        transactionAmount,
-                        currency,
-                        customerReference,
-                        customerName,
-                        customerMobileNumber,
-                        balance,
-                        narration,
-                        "creditAccountIdenti;ier": creditAccountIdentifier,
-                        organizationShortCode,
-                        tillNumber
-                    }
-                }
-            });
-        }
-
+        // Acknowledge receipt to KCB — use standard KCB IPN response format
         return res.status(200).json({
             header: {
                 messageID,
@@ -903,7 +902,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     customerMobileNumber,
                     balance,
                     narration,
-                    "creditAccountIdenti;ier": creditAccountIdentifier,
+                    creditAccountIdentifier,
                     organizationShortCode,
                     tillNumber
                 }
