@@ -29,6 +29,8 @@ import { BuildingManager } from './BuildingManager';
 import { SettingsManager } from './SettingsManager';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTextIcon';
+import { KcbIcon } from './icons/KcbIcon';
+import { CoopIcon } from './icons/CoopIcon';
 import { ChatBubbleLeftRightIcon } from './icons/ChatBubbleLeftRightIcon';
 import { ClipboardListIcon } from './icons/ClipboardListIcon';
 import { ChartPieIcon } from './icons/ChartPieIcon';
@@ -601,6 +603,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [tenantMpesaConfig, setTenantMpesaConfig] = useState<MpesaConfig>({ paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' });
     const [managingKcbFor, setManagingKcbFor] = useState<Institution | null>(null);
     const [tenantKcbConfig, setTenantKcbConfig] = useState<KcbConfig>({ appKey: '', appSecret: '', environment: 'sandbox' });
+    const [managingCoopFor, setManagingCoopFor] = useState<Institution | null>(null);
+    const [tenantCoopConfig, setTenantCoopConfig] = useState<CoopB2bConfig>({ serviceName: '', connectionID: '', connectionPassword: '', institutionCode: '' });
     const [tenantModulePricing, setTenantModulePricing] = useState<Record<string, { monthly?: number; yearly?: number }>>({});
     const [tenantSmsAdjustment, setTenantSmsAdjustment] = useState<{ amount: number; reason: string }>({ amount: 0, reason: '' });
     const [isSavingTenantConfig, setIsSavingTenantConfig] = useState(false);
@@ -2493,6 +2497,16 @@ Please change it after login.`;
                                                             >
                                                                 <KcbIcon className="w-3 h-3" />
                                                                 KCB
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setManagingCoopFor(inst);
+                                                                    setTenantCoopConfig(inst.coopConfig || { serviceName: '', connectionID: '', connectionPassword: '', institutionCode: '' });
+                                                                }}
+                                                                className="flex items-center gap-1 text-teal-600 hover:text-teal-900 font-black text-[10px] uppercase tracking-tighter bg-teal-50 px-2 py-1 rounded-lg"
+                                                            >
+                                                                <CoopIcon className="w-3 h-3" />
+                                                                Coop
                                                             </button>
                                                             <button
                                                                 onClick={() => {
@@ -6149,6 +6163,99 @@ Please change it after login.`;
                                 className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-10 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100/50 dark:shadow-none transition-all active:scale-95"
                             >
                                 {isSavingTenantConfig ? 'Saving…' : 'Save KCB Config'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                </div>
+            )}
+
+            {/* ── Coop Configuration Modal ── */}
+            {managingCoopFor && (
+                <div className="fixed inset-0 bg-slate-900/60 z-[300] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setManagingCoopFor(null)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-teal-50/50 dark:bg-teal-900/10">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-teal-100 dark:bg-teal-900/40 rounded-2xl text-teal-600">
+                                    <CoopIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black uppercase tracking-tight text-teal-900 dark:text-teal-200">Co-op Bank Configuration</h3>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{managingCoopFor.name}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setManagingCoopFor(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-5 h-5" /></button>
+                        </div>
+
+                        <div className="p-8 overflow-y-auto max-h-[60vh] custom-scrollbar space-y-6">
+                            <div className="bg-teal-50 dark:bg-teal-900/20 p-5 rounded-2xl border border-teal-100 dark:border-teal-900/50 flex gap-4">
+                                <div className="text-teal-600"><CoopIcon className="w-6 h-6" /></div>
+                                <div>
+                                    <h4 className="text-xs font-black uppercase tracking-widest text-teal-900 dark:text-teal-400">Co-op B2B Direct Integration</h4>
+                                    <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase">Configure Co-operative Bank B2B credentials for direct tenant collections and reconciliation.</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Service Name / Provider</label>
+                                    <input
+                                        type="text"
+                                        value={tenantCoopConfig.serviceName}
+                                        onChange={e => setTenantCoopConfig({ ...tenantCoopConfig, serviceName: e.target.value })}
+                                        className="form-input"
+                                        placeholder="e.g. Edualloc B2B Services"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Connection ID</label>
+                                    <input
+                                        type="text"
+                                        value={tenantCoopConfig.connectionID}
+                                        onChange={e => setTenantCoopConfig({ ...tenantCoopConfig, connectionID: e.target.value })}
+                                        className="form-input"
+                                        placeholder="e.g. CoopAPI_12345"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Connection Password</label>
+                                    <input
+                                        type="password"
+                                        value={tenantCoopConfig.connectionPassword}
+                                        onChange={e => setTenantCoopConfig({ ...tenantCoopConfig, connectionPassword: e.target.value })}
+                                        className="form-input"
+                                        placeholder="Enter Connection Password"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Institution Code (School Code)</label>
+                                    <input
+                                        type="text"
+                                        value={tenantCoopConfig.institutionCode}
+                                        onChange={e => setTenantCoopConfig({ ...tenantCoopConfig, institutionCode: e.target.value })}
+                                        className="form-input text-teal-600 font-mono text-lg font-black"
+                                        placeholder="e.g. 210001918"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
+                            <button onClick={() => setManagingCoopFor(null)} className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700 transition-colors">Cancel</button>
+                            <button
+                                disabled={isSavingTenantConfig}
+                                onClick={async () => {
+                                    if (!managingCoopFor || !props.onUpdateInstitution) return;
+                                    setIsSavingTenantConfig(true);
+                                    try {
+                                        await props.onUpdateInstitution(managingCoopFor.id, { coopConfig: tenantCoopConfig });
+                                        setManagingCoopFor(null);
+                                    } finally {
+                                        setIsSavingTenantConfig(false);
+                                    }
+                                }}
+                                className="bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white px-10 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-teal-100/50 dark:shadow-none transition-all active:scale-95"
+                            >
+                                {isSavingTenantConfig ? 'Saving…' : 'Save Co-op Config'}
                             </button>
                         </div>
                     </div>
